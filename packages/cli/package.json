@@ -3,6 +3,13 @@
   "version": "0.1.1",
   "description": "Shape your app with Claude, publish when you're happy. The Clodable command line: save, publish, undo, preview.",
   "license": "MIT",
+  "homepage": "https://github.com/bworlds-co/clodable#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bworlds-co/clodable.git",
+    "directory": "packages/cli"
+  },
+  "bugs": "https://github.com/bworlds-co/clodable/issues",
   "type": "module",
   "bin": {
     "clodable": "./dist/clodable.mjs"
@@ -28,12 +35,10 @@
     "test": "vitest run",
     "dev": "tsx src/index.ts"
   },
-  "dependencies": {
+  "devDependencies": {
     "@clodable/core": "workspace:*",
     "@clodable/design": "workspace:*",
-    "@clodable/preview": "workspace:*"
-  },
-  "devDependencies": {
+    "@clodable/preview": "workspace:*",
     "@clack/prompts": "^1.8.1",
     "cac": "^7.0.1",
     "picocolors": "^1.1.1"
