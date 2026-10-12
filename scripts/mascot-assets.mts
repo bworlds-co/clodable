@@ -128,7 +128,7 @@ body { margin: 0; width: 1280px; height: 640px; display: flex; align-items: cent
 <img src="data:image/png;base64,${hello}" width="405" alt="">
 <div class="words">${wordmarkSvg({ height: 76 })}
   <div class="promise">Shape your app with Claude.<br>Publish when you're happy.</div>
-  <div class="small">For people who built their app with Lovable. Open source.</div>
+  <div class="small">Claude Code made simpler for every builder.<br>Own your infra. Open source.</div>
 </div></body></html>`);
 await preview.screenshot({ path: resolve(root, "docs/assets/social-preview.png") });
 

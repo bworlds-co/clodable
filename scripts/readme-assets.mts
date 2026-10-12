@@ -68,17 +68,17 @@ async function render(html: string, name: string, width: number) {
 }
 await render(hero.replace("__PHONE__", img("14-phone-tall.png")), "hero.png", 1400);
 
-// Feature crops: each is a slice of a real screenshot, framed.
-const crops: Array<[string, string, string]> = [
-  ["03-editing.png", "edit-text.png", "object-position: 0 18%"],
-  ["06-composer.png", "point-and-ask.png", "object-position: 0 40%"],
-  ["08-error.png", "try-to-fix.png", "object-position: 50% 45%"],
-  ["04-locked.png", "locked-text.png", "object-position: 0 35%"],
+// Feature shots: each is a real screenshot, framed. Whole, so the toolbar at the bottom shows.
+const features: Array<[string, string]> = [
+  ["03-editing.png", "edit-text.png"],
+  ["06-composer.png", "point-and-ask.png"],
+  ["08-error.png", "try-to-fix.png"],
+  ["04-locked.png", "locked-text.png"],
 ];
-for (const [source, name, position] of crops) {
+for (const [source, name] of features) {
   await render(
     page(
-      `<div style="padding:28px"><div class="window"><div class="bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span></div><img src="${img(source)}" style="height:420px;object-fit:cover;${position}"></div></div>`,
+      `<div style="padding:28px"><div class="window"><div class="bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span></div><img src="${img(source)}"></div></div>`,
       760,
     ),
     name,
