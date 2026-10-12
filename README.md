@@ -15,6 +15,13 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/bworlds-co/clodable/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/bworlds-co/clodable/ci.yml?branch=main&style=flat-square&label=ci" alt="CI status"></a>
+  <a href="https://www.npmjs.com/package/clodable"><img src="https://img.shields.io/npm/v/clodable?style=flat-square" alt="npm version"></a>
+  <a href="https://www.npmjs.com/package/clodable"><img src="https://img.shields.io/node/v/clodable?style=flat-square" alt="Node.js version"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/bworlds-co/clodable?style=flat-square" alt="License: MIT"></a>
+</p>
+
+<p align="center">
   <img src="docs/assets/hero.png" alt="A bakery website running locally with Clodable's preview toolbar: the headline is highlighted for editing, and a phone preview sits beside it." width="100%">
 </p>
 
