@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Builds
+dist/
+*.tsbuildinfo
+
+# Local state
+.clodable/local/
+.clodable/inbox/
+.DS_Store
+*.log
+.env
+.env.*
+!.env.example
+
+# Tooling
+coverage/
+.vitest/
+test-results/
+playwright-report/
+docs/design/shots/tmp/
+packages/preview/test/tmp-*/
+
+# Claude Code marks a plugin copy in use here when it loads the plugin from this checkout
+plugin/.in_use/
+plugin/.orphaned_at

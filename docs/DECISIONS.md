@@ -1,0 +1,43 @@
+# Product decisions
+
+These decisions were settled with the project owner on 2026-10-10 in a structured interview (the Q-numbers refer to it). Change them deliberately: add a dated entry rather than editing history.
+
+## Who it's for
+
+- **Builders, not developers.** These are people who made an app with Lovable and want to keep shaping it, with their own code, their own data and their own Claude plan.
+- **Most clients have no developer.** Everything is designed for a solo, non-technical builder first. Developers are optional, and they can see everything on GitHub.
+- **Promise:** *Open source. Your code, data and workflow stay yours. Runs on Claude today.*
+
+## Settled
+
+| # | Decision | Why |
+|---|---|---|
+| Q1 | **Built for Claude, on Claude Desktop's Code tab** (revised 2026-10-12; was "a thin mod on a vendor-neutral core"). It ships as a Claude Code plugin and takes full advantage of the conversation beside it: **judgment is Claude's** (reading the app's code, naming what it uses, changing the code), through the panel's requests and the skills. **Mechanics stay in the CLI**: keys, API calls, the move's state and checks, tested and safe. Working without Claude is not a goal | Desktop already provides chat, live preview, element picking and pull-request tracking. Claude reading the code beats any scan; the CLI keeps what must be exact and never pass through the chat |
+| Q2 | **Any Claude plan, with a clear note:** Pro and Max are personal plans. A company's app needs Claude Team or Enterprise | Anthropic's consumer terms (EEA/Switzerland, section 11) forbid business use of Pro and Max |
+| Q3 | **Developers review in plain GitHub, after the fact.** There is no reviewer screen | Most clients have no developer. GitHub is where developers already are |
+| Q4 | **Security checks** run after every database change (Supabase advisors) and at every Publish (vulnerable packages, leaked keys). **Secret keys are checked before every save goes to GitHub**, with gitleaks (pinned and checksum-verified), not home-made rules | Database rules change live, so checking only at Publish would be too late. Saves go to GitHub after every reply, so a key caught only at Publish would already be on GitHub. GitHub's own push protection is free only on public repositories. BWorlds can add a deeper audit |
+| Q5 | **Leaving Lovable is self-serve, guided inside Clodable** (revised 2026-10-11; was "a skill run by a developer"). Clodable does the technical work: restore, file copy, fixes, checks. The builder clicks and decides: connect accounts, Export in Lovable, enter secret values, try the copy, the final Remove. Claude makes the code changes each app needs. An upfront assessment says when a part is best done with help | The studio migration showed nearly every technical step can be scripted, and every incident would have been caught by an automated check. About half of the clients are on Lovable Cloud |
+| Q5b | **Claude pilots the move, in the builder's conversation** (2026-10-11). Each step the builder presses becomes their request; Claude runs Clodable's command, explains, and fixes what goes wrong. Secrets never pass through Claude: they're typed in the panel | On the first real test, the problems (an API that didn't see the tables, sign-ins sent to the wrong address) were found by investigating, which a button can't do |
+| Q5d | **The move starts with Claude looking at the app** (2026-10-12): before the method question, Claude reads the code from Clodable's scan (`move facts`), confirms each thing, and records what the app uses (`move facts --set`): AI features, how people sign in, its own emails, connected services, payments, scheduled jobs, uploads, notes, each named as the builder sees it. The builder sees them as "What moves" and can correct them in the conversation. The facts decide which steps exist; the scan still says when a switch is done (the code reads the builder's own key) | A scan can't tell dead code from a feature, nor name a feature; Claude can, once, up front, so every later step fits the app |
+| Q5c | **The switch** (2026-10-11): two ways, asked first: *carefully* (for an app people use) or *in one go* (a prototype: one export, no pause, no second export). Carefully means: Netlify only; a short read-only pause (the live app keeps reading, takes no writes) covering the final export and copy; emails through the builder's own Resend account and domain, guided, or skipped knowingly; the irreversible clicks in Lovable are the builder's, with exact instructions, and come last, in a safe order: after a sign-in on the new site, unpublish, disconnect GitHub, then remove Cloud. The pause also holds sign-ups, password changes and uploads. Lovable's AI, email API and connectors switch to the builder's own before going live (or are knowingly left to stop) | Supabase's built-in mailer can't email real people. A pause keeps every write without syncing two databases. Removing Lovable Cloud deletes its data: only the builder should press it, once the new home works |
+| Q6 | **Publish never waits for a developer.** It goes live as soon as the automatic checks pass | Builders expect Lovable's speed. Most have no developer to wait for |
+| Q7 | **Both Lovable app types are supported:** TanStack Start (the default since 2026-05-13, server-rendered) and the classic Vite + React single-page app | Clients have both |
+| Q9 | **Official GitHub and Supabase connections. No Composio** | Composio can't push local commits, holds tokens on its own servers, and duplicates free official tools |
+| Q10 | **Claude can read and write the production database**, and the preview uses live data. A local staging database will come in a later release | This matches Lovable. Builders accept that their changes hit live data |
+| Q11b | **Claude changes the app's own Supabase through Clodable's commands** (2026-10-11): `clodable db query` (reads), `db run` (data), `db apply <migration>` (tables, recorded in Supabase's migration history), over the Supabase connection the builder already gave Clodable. Not through Supabase's MCP server | It works in any conversation with no extra sign-in, and Claude never needs a key. On the first real app, the MCP server wasn't there (added mid-conversation, and it needs its own sign-in), so Claude believed it needed the service key |
+| Q11 | **Every database change is confirmed by the builder in plain words**, including irreversible ones (there's no developer gate), and saved as a migration file in the draft | Lovable asks too. A visible record helps developers |
+| Q12 | **Edge functions go live at Publish**, never when Claude edits them | Publish stays the one moment when code goes live |
+| Q13 | **Flow: GitHub Flow, hidden from the builder.** Each person gets one draft (`draft/<github-login>`) with a pull request opened automatically. Publish merges it once the checks pass, and the host deploys `main`, which always equals what's live | It reuses what GitHub does well (merging, history, revert, notifications) instead of reinventing it. Per-person drafts keep one person from publishing someone else's half-done work |
+| Q14 | **Setup is self-serve from day one** | Most clients have no developer |
+| Q15 | **MIT license** | It's the easiest to adopt. The business value sits around the code (setup, migration, BWorlds audits) |
+| Q16 | **A dev-only preview toolbar** with inline text editing (no AI, no plan usage), device sizes and "Try to fix" | These are Lovable habits that Desktop alone doesn't cover. The toolbar works in any browser, with any agent |
+| Q8 | **Name: Clodable.** It replaces the working name "lovasource" | The owner's final decision. The name puns on Claude and Lovable, and "clod" is a lump of clay you shape |
+
+## Open (to settle with the owner)
+
+- **The default host for clients leaving Lovable's hosting.** Research is in progress. The kit is host-agnostic: anything that deploys `main` works.
+- ~~**Lovable Cloud clients without a developer**~~: settled by the revised Q5. The move is self-serve, and BWorlds' help stays available for the parts the assessment flags.
+- **How the setup wizard handles prerequisites** (Node.js, git, GitHub CLI) on macOS and Windows.
+- **Production secrets:** a secure form that writes straight to the host and Supabase, never through the chat. This is the proposal.
+- **v1 scope and the first pilot client.**
+- **Trademark check before public launch.** The name evokes Claude and Lovable.

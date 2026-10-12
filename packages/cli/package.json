@@ -1,0 +1,41 @@
+{
+  "name": "clodable",
+  "version": "0.1.0",
+  "description": "Shape your app with Claude, publish when you're happy. The Clodable command line: save, publish, undo, preview.",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "clodable": "./dist/clodable.mjs"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=20.19"
+  },
+  "keywords": [
+    "lovable",
+    "claude",
+    "claude-code",
+    "vibe-coding",
+    "publish",
+    "github-flow",
+    "supabase"
+  ],
+  "scripts": {
+    "build": "node build.mjs",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "dev": "tsx src/index.ts"
+  },
+  "dependencies": {
+    "@clodable/core": "workspace:*",
+    "@clodable/design": "workspace:*",
+    "@clodable/preview": "workspace:*"
+  },
+  "devDependencies": {
+    "@clack/prompts": "^1.8.1",
+    "cac": "^7.0.1",
+    "picocolors": "^1.1.1"
+  }
+}

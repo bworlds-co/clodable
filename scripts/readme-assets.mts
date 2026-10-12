@@ -1,0 +1,97 @@
+/**
+ * Composes the README's images from real screenshots (docs/design/shots/toolbar, made by
+ * scripts/toolbar-shots.mts): a hero with the app in a browser window and the phone preview, plus
+ * cropped feature shots. Run: pnpm tsx scripts/readme-assets.mts
+ */
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { chromium } from "playwright";
+import { cssVariables, lockupSvg } from "../packages/design/src/index.ts";
+
+const root = resolve(import.meta.dirname, "..");
+const shots = resolve(root, "docs/design/shots/toolbar");
+const out = resolve(root, "docs/assets");
+mkdirSync(out, { recursive: true });
+const img = (name: string) =>
+  `data:image/png;base64,${readFileSync(resolve(shots, name)).toString("base64")}`;
+
+const page = (
+  body: string,
+  width: number,
+) => `<!doctype html><html lang="en"><head><meta charset="utf-8"><style>
+${cssVariables({ scheme: "light" })}
+* { box-sizing: border-box; }
+body { margin: 0; width: ${width}px; font: 15px/22px var(--cl-font-ui); color: var(--cl-ink);
+  background: radial-gradient(120% 120% at 20% 0%, #FFF6EE 0%, var(--cl-paper) 45%, #F3EDE4 100%); }
+.window { border-radius: 14px; overflow: hidden; background: #fff; box-shadow: 0 1px 0 rgba(255,255,255,.6) inset, 0 0 0 1px rgba(60,38,20,.10), 0 30px 60px -20px rgba(60,38,20,.35), 0 10px 20px -10px rgba(60,38,20,.2); }
+.bar { height: 38px; display: flex; align-items: center; gap: 8px; padding: 0 14px; background: linear-gradient(#F7F3EE, #EFE9E1); border-bottom: 1px solid #E4DCD1; }
+.dot { width: 12px; height: 12px; border-radius: 50%; } .r { background: #EE6A5F } .y { background: #F5BD4F } .g { background: #61C454 }
+.url { margin-left: 18px; height: 24px; flex: 1; max-width: 420px; border-radius: 7px; background: rgba(255,255,255,.75); box-shadow: inset 0 0 0 1px #E4DCD1; font: 12px/24px var(--cl-font-ui); color: var(--cl-ash); padding: 0 10px; }
+.window img { display: block; width: 100%; }
+.caption { font: 600 13px/18px var(--cl-font-ui); color: var(--cl-ash); letter-spacing: .02em; text-transform: uppercase; }
+</style></head><body>${body}</body></html>`;
+
+const hero = page(
+  `<div style="padding:56px 64px 64px;display:grid;grid-template-columns:1fr 300px;gap:44px;align-items:end">
+    <div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:26px">
+        ${lockupSvg({ height: 44 })}
+        <div style="font:500 16px/22px var(--cl-font-ui);color:var(--cl-ash)">Shape your app with Claude. Publish when you're happy.</div>
+      </div>
+      <div class="window"><div class="bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="url">localhost:8080 · your app, running on your computer</span></div><img src="${img("02-edit-hover.png")}"></div>
+    </div>
+    <div style="display:flex;justify-content:center">
+      <img src="__PHONE__" style="width:350px;margin-bottom:-56px">
+    </div>
+  </div>`,
+  1400,
+);
+
+const browser = await chromium.launch();
+// A tall phone shot at its natural aspect ratio, from the running example (scripts/dev-example.mts).
+{
+  const phone = await browser.newPage({
+    viewport: { width: 500, height: 1000 },
+    deviceScaleFactor: 2,
+  });
+  await phone.goto("http://127.0.0.1:5199/__clodable/frame?device=phone&path=%2F", {
+    waitUntil: "networkidle",
+  });
+  await phone.waitForTimeout(1500);
+  // Transparent background, so the device sits directly on the hero's gradient.
+  await phone.addStyleTag({ content: "html, body { background: transparent !important; }" });
+  await phone.screenshot({ path: resolve(shots, "14-phone-tall.png"), omitBackground: true });
+  await phone.close();
+}
+const tab = await browser.newPage({ deviceScaleFactor: 1.5 });
+async function render(html: string, name: string, width: number) {
+  await tab.setViewportSize({ width, height: 400 });
+  await tab.setContent(html, { waitUntil: "load" });
+  await tab.waitForTimeout(150);
+  await tab.screenshot({ path: resolve(out, name), fullPage: true });
+}
+await render(hero.replace("__PHONE__", img("14-phone-tall.png")), "hero.png", 1400);
+
+// Feature crops: each is a slice of a real screenshot, framed.
+const crops: Array<[string, string, string]> = [
+  ["03-editing.png", "edit-text.png", "object-position: 0 18%"],
+  ["06-composer.png", "point-and-ask.png", "object-position: 0 40%"],
+  ["08-error.png", "try-to-fix.png", "object-position: 50% 45%"],
+  ["04-locked.png", "locked-text.png", "object-position: 0 35%"],
+];
+for (const [source, name, position] of crops) {
+  await render(
+    page(
+      `<div style="padding:28px"><div class="window"><div class="bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span></div><img src="${img(source)}" style="height:420px;object-fit:cover;${position}"></div></div>`,
+      760,
+    ),
+    name,
+    760,
+  );
+}
+await browser.close();
+writeFileSync(
+  resolve(out, ".generated"),
+  "README images are generated by scripts/readme-assets.mts\n",
+);
+console.log("README assets written to docs/assets");

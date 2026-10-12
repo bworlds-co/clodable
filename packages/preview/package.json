@@ -1,0 +1,40 @@
+{
+  "name": "@clodable/preview",
+  "version": "0.1.0",
+  "description": "Clodable's dev-only preview toolbar for Vite apps: inline text edits, device sizes, and Try to fix.",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "publishConfig": {
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      }
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=20.19"
+  },
+  "scripts": {
+    "build": "node build.mjs",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@babel/parser": "^8.0.7",
+    "@clodable/core": "workspace:*",
+    "@clodable/design": "workspace:*",
+    "@jridgewell/trace-mapping": "^0.3.31",
+    "magic-string": "^1.4.3"
+  },
+  "devDependencies": {
+    "happy-dom": "^20.14.6",
+    "vite": "^8.3.4"
+  }
+}

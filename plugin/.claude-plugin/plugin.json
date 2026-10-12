@@ -1,0 +1,35 @@
+{
+  "name": "clodable",
+  "version": "0.1.0",
+  "description": "Shape your app with Claude, publish when you're happy. Saves every change to your draft on GitHub, publishes in one click, keeps your live data safe.",
+  "author": {
+    "name": "The Clodable authors",
+    "url": "https://github.com/bworlds-co/clodable"
+  },
+  "homepage": "https://github.com/bworlds-co/clodable",
+  "repository": "https://github.com/bworlds-co/clodable",
+  "license": "MIT",
+  "keywords": [
+    "lovable",
+    "publish",
+    "preview",
+    "github",
+    "supabase",
+    "no-code"
+  ],
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "friendlyRows": {
+      "type": "boolean",
+      "title": "Plain-language activity",
+      "description": "Show Claude's steps in plain words (\"Updated the Hero section\") instead of tool names. Developers may prefer to turn this off.",
+      "default": true
+    },
+    "autoSave": {
+      "type": "boolean",
+      "title": "Save after every reply",
+      "description": "Save Claude's changes to your draft on GitHub after each reply.",
+      "default": true
+    }
+  }
+}

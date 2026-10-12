@@ -1,0 +1,15 @@
+{
+  "name": "clodable-sample",
+  "version": "0.1.0",
+  "description": "Sample mod: a Publish pane, a band above the prompt, and friendly Edit/Write rows",
+  "author": { "name": "Clodable" },
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "previewUrl": {
+      "type": "string",
+      "title": "Preview URL",
+      "description": "The URL the Publish pane links to",
+      "default": "https://example.com"
+    }
+  }
+}

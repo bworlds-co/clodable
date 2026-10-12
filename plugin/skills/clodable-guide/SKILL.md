@@ -1,0 +1,50 @@
+---
+name: clodable-guide
+user-invocable: false
+description: How to work with a builder in a Clodable project, a Lovable-style app edited in Claude Desktop where Clodable saves every reply to a draft on GitHub and the builder publishes with one click. Use when the builder asks about publishing, going live, undoing a publish, restoring an earlier version, what's live versus not yet, their draft, setup, seeing the preview or its toolbar, or changing their live database.
+---
+
+# Working in a Clodable project
+
+The person you're helping is a **builder**. They know their product, not necessarily code. Clodable gives them a Lovable-like flow inside Claude Desktop:
+
+- **Saved:** after every one of your replies, Clodable saves their changes to their draft on GitHub (`draft/<their GitHub login>`). You never commit, push or open pull requests.
+- **Publish:** the **Publish** button in the Clodable bar above the message box (or `/publish`). Clodable checks the app builds, that no secret key is exposed and that packages are safe, then merges the draft and their host puts it live. Every save is also checked for secret keys before it goes to GitHub: if the bar says **Not saved**, a key is in the code. Move it out (a Supabase Edge Function secret, for example) and Clodable saves on its own.
+- **Undo:** `/undo-publish`, or **Undo** in the Clodable panel, puts the previous version live again. Database changes are not undone.
+- **Restore:** any earlier save can be brought back as a new save. Each of your replies that changed the app shows "✓ Saved" with **↶ Restore this version** under it, and the Clodable panel's History lists every version with **Restore**. Point the builder there before running commands.
+
+If `AGENTS.md` exists, it has the project's own rules. Follow it first.
+
+## Answering common questions
+
+| They ask | You do |
+|---|---|
+| "Publish it", "put it live", "deploy" | Tell them to click **Publish** in the Clodable bar, or type `/publish`. Don't run `clodable publish` yourself: going live is their decision. |
+| "Is it live?", "what's not live yet?" | Run `npx clodable status --json` and answer in one or two plain sentences. |
+| "Undo that" (after a publish) | Explain that `/undo-publish` puts the previous version back, and that database changes stay. |
+| "Go back to how it was this morning" | Run `npx clodable history --json`, find the save, and ask which one before restoring with `npx clodable restore <sha>`. |
+| "Publishing failed" | Read the reason in the Clodable panel or in the message they sent, fix the cause, and check the app builds (`npm run build`). |
+| "Set it up", "connect my app" | Point them to `/clodable`, which has a guided setup. |
+| "Open my app's preview here (http://localhost:…)", "show me the preview" | Open Desktop's Browser pane at that address: `preview_start` with `{"url": "http://localhost:…"}`. With `{"name": "app"}` it only starts the server, or reuses a running one and opens nothing. Then say it's open, in one line. If the pane is hidden, ⌘⇧B (Ctrl+Shift+B on Windows) or the globe icon brings it back: only they can. |
+| "Add a column", "add some test data", "fix that record" (their own Supabase) | As on Lovable, through Clodable: `npx clodable db query "select …"` to look, a migration in `supabase/migrations/` applied with `npx clodable db apply <file>` for the tables, `npx clodable db run "…"` for the data. Say what will change in one sentence and wait for a yes first. No key needed: never ask for one. |
+| A feature is empty in the preview, or you add code reading `process.env.X` | Its value is one of the app's settings. Run `npx clodable settings` to see which are missing here or on their site, and tell them to paste the value in the Clodable panel (**Your app's settings**). The preview restarts with it. Never ask for the value in the chat. |
+| "Leave Lovable", "move off Lovable Cloud" | Point them to Move off Lovable in the Clodable panel (`/clodable`): each step they press comes to you, and the `move-off-lovable` skill says how to run it. |
+
+## The preview toolbar
+
+At the bottom of their app's preview there's a small Clodable toolbar. It exists only in development, and visitors never see it. It offers:
+- **Edit text:** they change words in place and Clodable writes the change to the code. No action is needed from you.
+- **Point & ask:** messages starting with "From the preview" come from it and include the file and line. Treat them as the builder's request.
+- **Try to fix:** when a page crashes, they can send the error to you. Fix the cause, then check the page in the preview.
+
+Never remove the toolbar or edit `.clodable/` files, except `.clodable/config.json` when asked.
+
+## Their database is live
+
+The preview uses their real data. Before any database change:
+1. Say what will change in one plain sentence and ask for a yes.
+2. Prefer additive changes. The live site runs the previous code until the next Publish, so it must keep working.
+3. Save each schema change as a migration file in `supabase/migrations/`.
+4. Afterwards, run Supabase's security advisors and fix row-level security issues.
+
+Edge functions in `supabase/functions/` go live at Publish. Don't deploy them yourself unless Clodable asks you to right after a Publish.

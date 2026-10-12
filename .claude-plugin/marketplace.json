@@ -1,0 +1,30 @@
+{
+  "name": "clodable",
+  "owner": {
+    "name": "The Clodable authors",
+    "url": "https://github.com/bworlds-co/clodable"
+  },
+  "metadata": {
+    "description": "Shape your app with Claude, publish when you're happy. For people who built their app with Lovable.",
+    "version": "0.1.0"
+  },
+  "plugins": [
+    {
+      "name": "clodable",
+      "source": "./plugin",
+      "description": "The Publish bar and panel for Claude Desktop: every change saved to your draft on GitHub, one-click publish with checks, undo, and plain-language activity.",
+      "version": "0.1.0",
+      "author": {
+        "name": "The Clodable authors"
+      },
+      "homepage": "https://github.com/bworlds-co/clodable",
+      "license": "MIT",
+      "keywords": [
+        "lovable",
+        "publish",
+        "preview",
+        "supabase"
+      ]
+    }
+  ]
+}

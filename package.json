@@ -1,0 +1,32 @@
+{
+  "name": "clodable-monorepo",
+  "private": true,
+  "type": "module",
+  "description": "Clodable: shape your app with Claude, publish when you're happy. Open source.",
+  "license": "MIT",
+  "packageManager": "pnpm@10.11.1",
+  "engines": {
+    "node": ">=20.19"
+  },
+  "scripts": {
+    "build": "pnpm -r --filter \"./packages/**\" run build && node scripts/build-plugin.mjs",
+    "typecheck": "pnpm -r --filter \"./packages/**\" run typecheck && node scripts/typecheck-plugin.mjs",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:plugin": "claude plugin validate plugin && claude plugin test plugin",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "format": "biome format --write .",
+    "check": "pnpm lint && pnpm typecheck && pnpm test",
+    "shots": "node scripts/shots.mjs"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.15",
+    "@types/node": "^26.6.5",
+    "esbuild": "^0.28.2",
+    "playwright": "^1.64.0",
+    "tsx": "^4.23.15",
+    "typescript": "7.0.2",
+    "vitest": "5.0.3"
+  }
+}
