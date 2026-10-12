@@ -603,6 +603,11 @@ describe("repo kit", () => {
       expect(settings.permissions.allow).toContain("Bash(ls)");
       expect(settings.permissions.deny).toContain("Bash(git push:*)");
       expect(settings.enabledPlugins["clodable@clodable"]).toBe(true);
+      // From the public marketplace, kept up to date on its own.
+      expect(settings.extraKnownMarketplaces.clodable).toEqual({
+        source: { source: "github", repo: "bworlds-co/clodable" },
+        autoUpdate: true,
+      });
 
       const launch = JSON.parse(await readFile(join(root, ".claude/launch.json"), "utf8"));
       expect(launch.configurations[0]).toMatchObject({

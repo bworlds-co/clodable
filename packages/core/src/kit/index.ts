@@ -147,7 +147,8 @@ export async function planKit(
       enabledPlugins: { ...settings.enabledPlugins, "clodable@clodable": true },
       extraKnownMarketplaces: {
         ...settings.extraKnownMarketplaces,
-        clodable: { source: { source: "github", repo: marketplace } },
+        // Kept up to date on its own: a marketplace that isn't Anthropic's doesn't auto-update otherwise.
+        clodable: { source: { source: "github", repo: marketplace }, autoUpdate: true },
       },
       permissions: {
         ...permissions,

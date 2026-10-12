@@ -1240,10 +1240,10 @@ function insideProject(path: unknown): boolean {
 
 // ── Hooks ───────────────────────────────────────────────────────────────────
 
-export const register: Register = (on, options) => {
-  const friendlyRows = options.friendlyRows !== false;
-  const autoSave = options.autoSave !== false;
-
+// Plain-language rows and a save after every reply are what Clodable is, so they aren't options: a
+// developer who'd rather not turns the plugin off for themselves, with "clodable@clodable": false in
+// the project's .claude/settings.local.json.
+export const register: Register = (on) => {
   on("session.start", async ($, e, next) => {
     cwd = e.cwd || (await $.session.cwd());
     inApp = (await $.fs.exists(".clodable/config.json").catch(() => false)) ? true : null;
@@ -1345,7 +1345,7 @@ export const register: Register = (on, options) => {
       $.ui.invalidate("ui.render");
     }
     if (e.agentId === undefined) turnActive = false;
-    if (autoSave && e.agentId === undefined && !e.isAborted) {
+    if (e.agentId === undefined && !e.isAborted) {
       const answer = e.answer;
       const subject = saveMessage(asked ?? "");
       background(
@@ -3967,54 +3967,49 @@ export const register: Register = (on, options) => {
   });
 
   // ── Plain-language activity ─────────────────────────────────────────────
-  if (friendlyRows) {
-    on("ui.render", { component: "ToolUse" }, async ($, e, next) => {
-      if (!(await isApp())) return next(e);
-      const row = describeTool(e.props);
-      if (!row) return next(e);
-      const { Box, Text } = $.ui.resolve(e);
-      const mark = e.props.isRunning
-        ? "◐"
-        : e.props.isErrored
-          ? "↻"
-          : row.tone === "data"
-            ? "◆"
-            : row.tone === "work"
-              ? "✓"
-              : "·";
-      const color = e.props.isErrored
-        ? undefined
+  on("ui.render", { component: "ToolUse" }, async ($, e, next) => {
+    if (!(await isApp())) return next(e);
+    const row = describeTool(e.props);
+    if (!row) return next(e);
+    const { Box, Text } = $.ui.resolve(e);
+    const mark = e.props.isRunning
+      ? "◐"
+      : e.props.isErrored
+        ? "↻"
         : row.tone === "data"
-          ? "warning"
+          ? "◆"
           : row.tone === "work"
-            ? "success"
-            : undefined;
-      return (
-        <Box flexDirection="row" columnGap={1}>
-          <Text
-            {...(color ? { color } : {})}
-            dimColor={row.tone === "look" || row.tone === "quiet"}
-          >
-            {mark}
-          </Text>
-          <Text dimColor={row.tone === "look" || row.tone === "quiet" || e.props.isErrored}>
-            {e.props.isErrored ? `${row.text} didn't work, trying another way` : row.text}
-          </Text>
-        </Box>
-      );
-    });
+            ? "✓"
+            : "·";
+    const color = e.props.isErrored
+      ? undefined
+      : row.tone === "data"
+        ? "warning"
+        : row.tone === "work"
+          ? "success"
+          : undefined;
+    return (
+      <Box flexDirection="row" columnGap={1}>
+        <Text {...(color ? { color } : {})} dimColor={row.tone === "look" || row.tone === "quiet"}>
+          {mark}
+        </Text>
+        <Text dimColor={row.tone === "look" || row.tone === "quiet" || e.props.isErrored}>
+          {e.props.isErrored ? `${row.text} didn't work, trying another way` : row.text}
+        </Text>
+      </Box>
+    );
+  });
 
-    on("ui.render", { component: "ToolGroup" }, async ($, e, next) => {
-      if (e.props.isExpanded || !(await isApp())) return next(e);
-      const { Box, Text } = $.ui.resolve(e);
-      return (
-        <Box flexDirection="row" columnGap={1}>
-          <Text dimColor>{e.props.isActive ? "◐" : "·"}</Text>
-          <Text dimColor>{describeGroup(e.props.calls)}</Text>
-        </Box>
-      );
-    });
-  }
+  on("ui.render", { component: "ToolGroup" }, async ($, e, next) => {
+    if (e.props.isExpanded || !(await isApp())) return next(e);
+    const { Box, Text } = $.ui.resolve(e);
+    return (
+      <Box flexDirection="row" columnGap={1}>
+        <Text dimColor>{e.props.isActive ? "◐" : "·"}</Text>
+        <Text dimColor>{describeGroup(e.props.calls)}</Text>
+      </Box>
+    );
+  });
 
   // Under each of Claude's replies that changed the app: it's saved, and Restore brings that
   // version back, like Lovable's history in the chat.

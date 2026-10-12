@@ -1,6 +1,6 @@
 {
   "name": "clodable",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Shape your app with Claude, publish when you're happy. The Clodable command line: save, publish, undo, preview.",
   "license": "MIT",
   "type": "module",

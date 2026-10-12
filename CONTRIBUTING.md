@@ -34,6 +34,16 @@ With `CLODABLE_TOOLBAR_DEV=1`, the toolbar is rebuilt on every page load. Check 
 - The mods API types are written by Claude Code beside the plugin (`plugin/.claude-plugin/types/claude-code/index.d.ts`, git-ignored) when it loads it in an interactive session. `docs/research/mods-api-cheatsheet.md` explains how, and summarises the API.
 - Every `$` call must be spelled in full (`$.ui.toast(...)`), and helpers that use `$` must be top-level functions in `register.tsx`.
 
+## Releasing
+
+People install Clodable from this repository, which is its own plugin marketplace (`.claude-plugin/marketplace.json`). Claude Code updates an installed plugin only when its version changes, so every release bumps it:
+
+1. `pnpm release patch` (or `minor`, `major`, or an exact `x.y.z`). It sets one version on the packages, the plugin and the marketplace, and rebuilds the plugin's bundled CLI.
+2. Run the checks, commit and push.
+3. `claude plugin tag plugin --push` tags the release as `clodable--v<version>`.
+
+Apps Clodable set up get the new version on their own: the setup turns on auto-update for this marketplace in the app's `.claude/settings.json`. Anyone else updates with `claude plugin update clodable@clodable`.
+
 ## Pull requests
 
 - Keep them small, with tests.

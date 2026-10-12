@@ -25300,7 +25300,8 @@ async function planKit(project, config2, options = {}) {
       enabledPlugins: { ...settings2.enabledPlugins, "clodable@clodable": true },
       extraKnownMarketplaces: {
         ...settings2.extraKnownMarketplaces,
-        clodable: { source: { source: "github", repo: marketplace } }
+        // Kept up to date on its own: a marketplace that isn't Anthropic's doesn't auto-update otherwise.
+        clodable: { source: { source: "github", repo: marketplace }, autoUpdate: true }
       },
       permissions: {
         ...permissions,
@@ -50100,7 +50101,7 @@ async function inboxCommand(ctx2, options) {
 }
 
 // src/index.ts
-var version2 = true ? "0.1.0" : "0.1.0-dev";
+var version2 = true ? "0.1.1" : "0.1.0-dev";
 var cli = cac("clodable");
 cli.option("--json", "Print one JSON event per line (for programs)");
 cli.option("--cwd <dir>", "Run in another folder");
