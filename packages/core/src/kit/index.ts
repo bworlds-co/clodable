@@ -135,6 +135,7 @@ export async function planKit(
 
   // .claude/settings.json: the plugin, plus safe permission defaults for any session in this folder.
   const settingsBefore = await read(root, ".claude/settings.json");
+  // biome-ignore lint/suspicious/noExplicitAny: the person's own settings file, in whatever shape it has
   const settings = parseJson<Record<string, any>>(settingsBefore, {});
   const marketplace = options.marketplaceRepo ?? "bworlds-co/clodable";
   const permissions = settings.permissions ?? {};

@@ -5,7 +5,7 @@ Thank you for helping. Clodable is for builders, not developers. Every change sh
 ## Before you start
 
 - Read [docs/design/PRINCIPLES.md](docs/design/PRINCIPLES.md). Any text a builder sees follows its vocabulary: *Saved*, *Publish*, *Live*, *Undo*. Never "commit", "merge" or "deploy".
-- Read [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Logic belongs in `packages/core`, which is vendor-neutral. `plugin/` stays a thin skin over the CLI.
+- Read [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Judgment belongs to Claude (the panel's requests, the skills); mechanics belong in `packages/core`, behind the CLI: keys, API calls, the move's state, the checks.
 - Product decisions are recorded in [docs/DECISIONS.md](docs/DECISIONS.md). Propose changes to them in an issue first.
 
 ## Setup

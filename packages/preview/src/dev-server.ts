@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, unwatchFile, watchFile } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { repoint } from "@clodable/core";
@@ -146,6 +146,9 @@ export async function startDevServer(options: DevServerOptions): Promise<Running
   const vite = (await import(
     pathToFileURL(resolveProjectVite(options.root)).href
   )) as typeof import("vite");
+  // Look at the watched files before reading them: a change from this moment on is seen.
+  const backendMarker = options.backend?.watch ? markerWatch(options.backend.watch) : undefined;
+  const settingsMarker = options.settings?.watch ? markerWatch(options.settings.watch) : undefined;
   let backend = await options.backend?.current();
   applyBackendEnv(backend);
   let settings = (await options.settings?.current().catch(() => ({}))) ?? {};
@@ -166,11 +169,10 @@ export async function startDevServer(options: DevServerOptions): Promise<Running
   });
   await server.listen();
   // Switching backends: read again, and restart so every module and the server side pick it up.
-  const watched = options.backend?.watch;
   let switching = Promise.resolve();
-  if (watched && options.backend) {
+  if (backendMarker && options.backend) {
     const source = options.backend;
-    watchFile(watched, { interval: 1000 }, () => {
+    backendMarker.start(() => {
       switching = switching.then(async () => {
         let next: PreviewBackend | undefined;
         try {
@@ -194,10 +196,9 @@ export async function startDevServer(options: DevServerOptions): Promise<Running
     });
   }
   // A setting pasted in Clodable: read them again, and restart so the server side has it.
-  const settingsWatch = options.settings?.watch;
-  if (settingsWatch && options.settings) {
+  if (settingsMarker && options.settings) {
     const source = options.settings;
-    watchFile(settingsWatch, { interval: 1000 }, () => {
+    settingsMarker.start(() => {
       switching = switching.then(async () => {
         const next = await source.current().catch(() => settings);
         if (JSON.stringify(next) === JSON.stringify(settings)) return;
@@ -213,9 +214,41 @@ export async function startDevServer(options: DevServerOptions): Promise<Running
     urls,
     backend: backend ? "copy" : "live",
     close: async () => {
-      if (watched) unwatchFile(watched);
-      if (settingsWatch) unwatchFile(settingsWatch);
+      backendMarker?.stop();
+      settingsMarker?.stop();
       await server.close();
+    },
+  };
+}
+
+/**
+ * Notices when a file changes, checking once a second. Unlike `fs.watchFile`, which takes its first
+ * look in the background, the first look happens on creation: a change made right after can't be
+ * taken for the starting point and missed.
+ */
+function markerWatch(path: string) {
+  const look = () => {
+    try {
+      const s = statSync(path, { throwIfNoEntry: false });
+      return s ? `${s.mtimeMs}:${s.ctimeMs}:${s.size}:${s.ino}` : "none";
+    } catch {
+      return "unreadable";
+    }
+  };
+  let seen = look();
+  let timer: NodeJS.Timeout | undefined;
+  return {
+    start(onChange: () => void) {
+      timer = setInterval(() => {
+        const now = look();
+        if (now === seen) return;
+        seen = now;
+        onChange();
+      }, 1000);
+      timer.unref();
+    },
+    stop() {
+      if (timer) clearInterval(timer);
     },
   };
 }

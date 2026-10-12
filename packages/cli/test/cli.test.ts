@@ -32,6 +32,7 @@ function clodable(...args: string[]) {
   });
   const lines = run.stdout.split("\n").filter(Boolean);
   const events = lines.map((line) => JSON.parse(line) as { type: string; [key: string]: unknown });
+  // biome-ignore lint/suspicious/noExplicitAny: each test reads the result's data in its own shape
   const result = events.at(-1) as { type: "result"; ok: boolean; data?: any; error?: any };
   return { events, result, code: run.status, stderr: run.stderr };
 }

@@ -5,15 +5,15 @@
     "url": "https://github.com/bworlds-co/clodable"
   },
   "metadata": {
-    "description": "Shape your app with Claude, publish when you're happy. For people who built their app with Lovable.",
-    "version": "0.1.1"
+    "description": "The AI app builder you own. For people who built their app with Lovable.",
+    "version": "0.1.2"
   },
   "plugins": [
     {
       "name": "clodable",
       "source": "./plugin",
       "description": "The Publish bar and panel for Claude Desktop: every change saved to your draft on GitHub, one-click publish with checks, undo, and plain-language activity.",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "author": {
         "name": "The Clodable authors"
       },

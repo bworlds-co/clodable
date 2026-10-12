@@ -10,8 +10,8 @@
 </p>
 
 <p align="center">
-  <b>Shape your app with Claude. Publish when you're happy.</b><br>
-  An open-source, Lovable-style app builder that runs on your own computer, on top of Claude Code.
+  <b>The AI app builder you own.</b><br>
+  Like Lovable, but on your own computer: open source, built on Claude Code, with every key in your name.
 </p>
 
 <p align="center">
@@ -192,9 +192,9 @@ node <repo>/packages/cli/dist/clodable.mjs publish
 ```bash
 claude plugin install clodable --marketplace "$PWD"
 ```
-In the terminal, Claude Code reads the plugin straight from `plugin/` here, so your edits apply at the next session or `/reload-plugins`. Claude Desktop loads the copy made at install time instead, so point that copy at your checkout once:
+In the terminal, Claude Code reads the plugin straight from `plugin/` here, so your edits apply at the next session or `/reload-plugins`. Claude Desktop loads the copy made at install time instead (`~/.claude/plugins/cache/clodable/clodable/<version>`), so point that copy at your checkout once:
 ```bash
-rm -rf ~/.claude/plugins/cache/clodable/clodable/0.1.0 && ln -s "$PWD/plugin" ~/.claude/plugins/cache/clodable/clodable/0.1.0
+d=$(ls -d ~/.claude/plugins/cache/clodable/clodable/*/ | head -1); rm -rf "$d" && ln -s "$PWD/plugin" "${d%/}"
 ```
 Clodable only acts in apps it set up, so your other projects are unaffected. To remove it: `claude plugin marketplace remove clodable`.
 

@@ -86,7 +86,7 @@ function harness(
   (calls as unknown as { clock: typeof clock }).clock = clock;
   on("session.start", () => ({ cwd: CWD }));
   // Claude Code's own drawing: a plain Box, or the engine reference where a site requires one.
-  on("ui.render", ($: unknown, e: { component: string }) =>
+  on("ui.render", (_$: unknown, e: { component: string }) =>
     e.component === "AskUserQuestion"
       ? { type: "engine", ref: 0 }
       : { type: "Box", props: {}, children: [] },

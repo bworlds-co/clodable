@@ -2,7 +2,7 @@
 
 Clodable turns Claude Desktop's Code tab into a calm, Lovable-style place to shape an app, then publish it.
 
-The guiding rule is **only the visible layer is tied to Claude**. The logic lives in plain, vendor-neutral parts that any agent or front end can drive, and the Claude mod is a thin skin over them.
+The guiding rule is **judgment in Claude, mechanics in the CLI** ([DECISIONS](DECISIONS.md) Q1). Claude reads the app, names what it uses and changes the code, through the panel's requests and the skills. Keys, API calls, the move's state and the checks live in `@clodable/core`, behind the `clodable` CLI, and the Claude mod draws them and asks Claude.
 
 ```
 ┌──────────────────────────── Claude Desktop · Code tab ────────────────────────────┐
@@ -16,7 +16,7 @@ The guiding rule is **only the visible layer is tied to Claude**. The logic live
 └───────────┬───────────────┴───────────────────────────────────────────────────────┘
             │ spawns  `clodable <command> --json`  (NDJSON events on stdout)
             ▼
-┌──────────────── clodable CLI ─── @clodable/core (vendor-neutral) ─────────────────┐
+┌────────────────────────── clodable CLI ─── @clodable/core ────────────────────────┐
 │ save · status · publish · undo · restore · history · check · dev · setup · doctor │
 │ git ─ GitHub (via `gh`) ─ checks (build, packages, leaked keys) ─ repo kit        │
 └───────────┬──────────────────────────────┬─────────────────────────────────────────┘
@@ -67,7 +67,7 @@ The schema lives in `packages/core/src/events.ts` and is the contract between th
 
 ### The inbox (`.clodable/inbox/`)
 
-The preview toolbar can't talk to Claude directly, and it shouldn't, because it must stay vendor-neutral. It writes small JSON files that any front end can read:
+The preview toolbar runs inside the app's page, so it can't talk to Claude directly. It writes small JSON files that the Claude mod reads:
 
 | File | Written when | The Claude mod reacts by |
 |---|---|---|

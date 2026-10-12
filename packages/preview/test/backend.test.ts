@@ -131,4 +131,50 @@ describe("the app's settings in the preview", () => {
       else process.env.CLODABLE_TEST_GREETING = before;
     }
   }, 30_000);
+
+  it("notices a setting pasted while the preview is starting", async () => {
+    const root = mkdtempSync(join(import.meta.dirname, "tmp-settings-"));
+    const cwd = process.cwd();
+    const before = process.env.CLODABLE_TEST_GREETING;
+    delete process.env.CLODABLE_TEST_GREETING;
+    try {
+      writeFileSync(join(root, "index.html"), '<div id="root"></div>');
+      const marker = join(root, "settings.json");
+      let values: Record<string, string> = { CLODABLE_TEST_GREETING: "Hello" };
+      let pasted = false;
+      writeFileSync(marker, '{"names":["CLODABLE_TEST_GREETING"]}');
+      const server = await startDevServer({
+        root,
+        port: await freePort(),
+        host: "127.0.0.1",
+        toolbar: false,
+        settings: {
+          // The builder pastes a new value just after the preview read the old one.
+          current: async () => {
+            const read = values;
+            if (!pasted) {
+              pasted = true;
+              values = { CLODABLE_TEST_GREETING: "Bonjour" };
+              writeFileSync(marker, '{"names":["CLODABLE_TEST_GREETING"],"at":"starting"}');
+            }
+            return read;
+          },
+          watch: marker,
+        },
+      });
+      try {
+        for (let i = 0; i < 60 && process.env.CLODABLE_TEST_GREETING !== "Bonjour"; i++) {
+          await new Promise((r) => setTimeout(r, 100));
+        }
+        expect(process.env.CLODABLE_TEST_GREETING).toBe("Bonjour");
+      } finally {
+        await server.close();
+      }
+    } finally {
+      process.chdir(cwd);
+      rmSync(root, { recursive: true, force: true });
+      if (before === undefined) delete process.env.CLODABLE_TEST_GREETING;
+      else process.env.CLODABLE_TEST_GREETING = before;
+    }
+  }, 30_000);
 });

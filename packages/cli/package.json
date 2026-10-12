@@ -1,7 +1,7 @@
 {
   "name": "clodable",
-  "version": "0.1.1",
-  "description": "Shape your app with Claude, publish when you're happy. The Clodable command line: save, publish, undo, preview.",
+  "version": "0.1.2",
+  "description": "The AI app builder you own. The Clodable command line: save, publish, undo, preview.",
   "license": "MIT",
   "homepage": "https://github.com/bworlds-co/clodable#readme",
   "repository": {

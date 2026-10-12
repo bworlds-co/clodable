@@ -30372,7 +30372,7 @@ import { dirname as dirname10, join as join24, resolve as resolve7 } from "node:
 
 // ../preview/src/dev-server.ts
 init_src();
-import { existsSync as existsSync21, readFileSync as readFileSync3, unwatchFile, watchFile } from "node:fs";
+import { existsSync as existsSync21, readFileSync as readFileSync3, statSync as statSync2 } from "node:fs";
 import { dirname as dirname9, join as join23 } from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -47492,6 +47492,8 @@ function resolveProjectVite(root) {
 async function startDevServer(options) {
   if (process.cwd() !== options.root) process.chdir(options.root);
   const vite = await import(pathToFileURL(resolveProjectVite(options.root)).href);
+  const backendMarker = options.backend?.watch ? markerWatch(options.backend.watch) : void 0;
+  const settingsMarker = options.settings?.watch ? markerWatch(options.settings.watch) : void 0;
   let backend = await options.backend?.current();
   applyBackendEnv(backend);
   let settings2 = await options.settings?.current().catch(() => ({})) ?? {};
@@ -47509,11 +47511,10 @@ async function startDevServer(options) {
     }
   });
   await server.listen();
-  const watched = options.backend?.watch;
   let switching = Promise.resolve();
-  if (watched && options.backend) {
+  if (backendMarker && options.backend) {
     const source = options.backend;
-    watchFile(watched, { interval: 1e3 }, () => {
+    backendMarker.start(() => {
       switching = switching.then(async () => {
         let next;
         try {
@@ -47534,10 +47535,9 @@ async function startDevServer(options) {
       });
     });
   }
-  const settingsWatch = options.settings?.watch;
-  if (settingsWatch && options.settings) {
+  if (settingsMarker && options.settings) {
     const source = options.settings;
-    watchFile(settingsWatch, { interval: 1e3 }, () => {
+    settingsMarker.start(() => {
       switching = switching.then(async () => {
         const next = await source.current().catch(() => settings2);
         if (JSON.stringify(next) === JSON.stringify(settings2)) return;
@@ -47553,9 +47553,35 @@ async function startDevServer(options) {
     urls,
     backend: backend ? "copy" : "live",
     close: async () => {
-      if (watched) unwatchFile(watched);
-      if (settingsWatch) unwatchFile(settingsWatch);
+      backendMarker?.stop();
+      settingsMarker?.stop();
       await server.close();
+    }
+  };
+}
+function markerWatch(path2) {
+  const look = () => {
+    try {
+      const s = statSync2(path2, { throwIfNoEntry: false });
+      return s ? `${s.mtimeMs}:${s.ctimeMs}:${s.size}:${s.ino}` : "none";
+    } catch {
+      return "unreadable";
+    }
+  };
+  let seen = look();
+  let timer;
+  return {
+    start(onChange) {
+      timer = setInterval(() => {
+        const now2 = look();
+        if (now2 === seen) return;
+        seen = now2;
+        onChange();
+      }, 1e3);
+      timer.unref();
+    },
+    stop() {
+      if (timer) clearInterval(timer);
     }
   };
 }
@@ -50101,7 +50127,7 @@ async function inboxCommand(ctx2, options) {
 }
 
 // src/index.ts
-var version2 = true ? "0.1.1" : "0.1.0-dev";
+var version2 = true ? "0.1.2" : "0.1.0-dev";
 var cli = cac("clodable");
 cli.option("--json", "Print one JSON event per line (for programs)");
 cli.option("--cwd <dir>", "Run in another folder");
