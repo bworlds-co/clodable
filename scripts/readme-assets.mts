@@ -6,7 +6,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { chromium } from "playwright";
-import { cssVariables, lockupSvg } from "../packages/design/src/index.ts";
+import { cssVariables } from "../packages/design/src/index.ts";
 
 const root = resolve(import.meta.dirname, "..");
 const shots = resolve(root, "docs/design/shots/toolbar");
@@ -34,10 +34,6 @@ body { margin: 0; width: ${width}px; font: 15px/22px var(--cl-font-ui); color: v
 const hero = page(
   `<div style="padding:56px 64px 64px;display:grid;grid-template-columns:1fr 300px;gap:44px;align-items:end">
     <div>
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:26px">
-        ${lockupSvg({ height: 44 })}
-        <div style="font:500 16px/22px var(--cl-font-ui);color:var(--cl-ash)">Shape your app with Claude. Publish when you're happy.</div>
-      </div>
       <div class="window"><div class="bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="url">localhost:8080 · your app, running on your computer</span></div><img src="${img("02-edit-hover.png")}"></div>
     </div>
     <div style="display:flex;justify-content:center">

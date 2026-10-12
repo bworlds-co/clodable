@@ -53,7 +53,8 @@ button:focus-visible, [tabindex]:focus-visible, textarea:focus-visible {
   display: grid; place-items: center;
   transition: transform var(--cl-fast) var(--cl-ease-out), background var(--cl-fast);
 }
-.brand:hover { background: var(--cl-bisque); transform: rotate(-8deg); }
+/* The clod hops; turning or scaling it would blur its pixels. */
+.brand:hover { background: var(--cl-bisque); transform: translateY(-1px); }
 .brand[aria-expanded="true"] { background: var(--cl-bisque); }
 .tool {
   height: 36px; padding: 0 12px 0 10px;
@@ -109,7 +110,7 @@ button:focus-visible, [tabindex]:focus-visible, textarea:focus-visible {
   animation: rise var(--cl-slow) var(--cl-spring) both;
   transition: transform var(--cl-fast) var(--cl-ease-out);
 }
-.pebble:hover { transform: scale(1.06) rotate(-6deg); }
+.pebble:hover { transform: translateY(-2px); }
 
 /* ── Hint above the dock ──────────────────────────────────────────── */
 .hint {

@@ -1,7 +1,11 @@
 <p align="center">
+  <img src="docs/assets/mascot/hello.png" alt="Clodable's mascot, a little lump of clay, waving hello" width="135">
+</p>
+
+<p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/lockup-dark.svg">
-    <img src="docs/assets/lockup.svg" alt="Clodable" height="60">
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/wordmark-dark.svg">
+    <img src="docs/assets/wordmark.svg" alt="Clodable" height="40">
   </picture>
 </p>
 
@@ -22,6 +26,13 @@
 
 ## What it feels like
 
+<p align="center">
+  <img src="docs/assets/mascot/ask.png" alt="The mascot shaped like a speech bubble" width="131">&nbsp;&nbsp;
+  <img src="docs/assets/mascot/preview.png" alt="The mascot shaped like a browser window" width="131">&nbsp;&nbsp;
+  <img src="docs/assets/mascot/publish.png" alt="The mascot shaped like a rocket taking off" width="102">&nbsp;&nbsp;
+  <img src="docs/assets/mascot/undo.png" alt="The mascot shaped like an arrow turning back" width="131">
+</p>
+
 1. **Ask for a change in your own words.** "Make the header feel warmer", or "Add a pricing page with three plans."
 2. **Watch it appear** in the live preview next to the chat. Your work is saved after every reply.
 3. **Click Publish** when you're happy. Clodable checks your app, and a minute later it's live.
@@ -30,6 +41,10 @@
 You never see git, branches or deploy logs. Your developer, if you have one, sees all of it on GitHub, the way developers like it.
 
 ## Move off Lovable, to a stack you own
+
+<p align="center">
+  <img src="docs/assets/mascot/bridge.png" alt="The mascot shaped like a bridge" width="187">
+</p>
 
 Your app, your data and your people move out of Lovable into accounts in your name. Clodable guides you step by step in its panel, and Claude does the technical work in the conversation. You click, decide, and paste your keys. Your live app keeps running on Lovable until you switch.
 
@@ -182,6 +197,10 @@ Clodable is built for Claude: Claude reads your app and decides, and the CLI doe
 - Touch a project it wasn't set up in. Your other folders look and work exactly as before.
 
 ## Status
+
+<p align="center">
+  <img src="docs/assets/mascot/still-shaping.png" alt="The mascot lying flat, still being shaped, waving" width="177">
+</p>
 
 Clodable is **v0.1**: early, working end to end, and moving fast. The move off Lovable has run end to end on test apps; Google sign-in, your own domain and the careful switch haven't yet run against real accounts. The design decisions are recorded in [docs/DECISIONS.md](docs/DECISIONS.md). Coming next:
 - a local staging database;

@@ -151,7 +151,7 @@ export class Toolbar {
             title: "Show Clodable tools (⌥⇧H)",
             onclick: () => this.setMinimized(false),
           },
-          this.mark(26),
+          this.mark(24),
         ),
       );
       return;

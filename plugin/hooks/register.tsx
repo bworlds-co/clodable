@@ -66,9 +66,9 @@ const activity = atom({ plugin: "clodable", key: "activity" }, {
 } as ClodableActivity);
 const checks = atom({ plugin: "clodable", key: "checks" }, [] as ClodableCheck[]);
 
-/** The clod mark, small enough for the bar. */
+/** The clod, Clodable's mark (packages/design/src/logo.ts). Its pixels stay whole at 16 and 24 px. */
 const LOGO =
-  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><defs><clipPath id="c"><path d="M17.5 12.5C25.2 6.2 41.5 4.6 50.6 11.8c8.6 6.8 9.6 20.7 6.4 30.4-3.3 10.1-13.8 16.7-26.3 16.1C17.4 57.7 7.4 50.3 5.9 38.8 4.5 28.3 10.4 18.3 17.5 12.5z"/></clipPath></defs><path d="M17.5 12.5C25.2 6.2 41.5 4.6 50.6 11.8c8.6 6.8 9.6 20.7 6.4 30.4-3.3 10.1-13.8 16.7-26.3 16.1C17.4 57.7 7.4 50.3 5.9 38.8 4.5 28.3 10.4 18.3 17.5 12.5z" fill="#B9502B"/><g clip-path="url(#c)" fill="none" stroke="#FBF8F3" stroke-width="4.2" stroke-linecap="round"><path d="M34.1 39.66A5.2 7.4 -32 1 1 36.84 36.04"/><path d="M26.8 44.59A11.2 15.2 -32 1 1 36.32 46.99"/></g></svg>';
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" shape-rendering="crispEdges"><path fill="#3B1A10" d="M9 0h3v1h-3zM7 1h2v1h-2zM12 1h1v1h-1zM6 2h1v1h-1zM12 2h1v1h-1zM4 3h2v1h-2zM12 3h1v1h-1zM3 4h1v1h-1zM13 4h1v1h-1zM2 5h1v1h-1zM14 5h1v1h-1zM1 6h1v1h-1zM14 6h1v1h-1zM1 7h1v1h-1zM14 7h1v1h-1zM0 8h1v1h-1zM15 8h1v1h-1zM0 9h1v1h-1zM15 9h1v1h-1zM0 10h1v1h-1zM15 10h1v1h-1zM0 11h2v1h-2zM15 11h1v1h-1zM2 12h1v1h-1zM14 12h1v1h-1zM2 13h2v1h-2zM7 13h3v1h-3zM13 13h2v1h-2zM4 14h1v1h-1zM6 14h1v1h-1zM10 14h1v1h-1zM12 14h1v1h-1zM4 15h3v1h-3zM10 15h3v1h-3z"/><path fill="#E88858" d="M9 1h3v1h-3zM7 2h5v1h-5zM6 3h6v1h-6zM4 4h9v1h-9zM3 5h11v1h-11zM2 6h12v1h-12zM2 7h2v1h-2zM6 7h4v1h-4zM12 7h2v1h-2zM1 8h3v1h-3zM6 8h4v1h-4zM12 8h3v1h-3zM1 9h6v1h-6zM9 9h6v1h-6zM1 10h14v1h-14zM2 11h13v1h-13zM3 12h11v1h-11zM4 13h3v1h-3zM10 13h3v1h-3zM5 14h1v1h-1zM11 14h1v1h-1z"/><path fill="#2A140C" d="M4 7h2v1h-2zM10 7h2v1h-2zM4 8h2v1h-2zM10 8h2v1h-2zM7 9h2v1h-2z"/></svg>';
 
 // Module state: lost on hot reload, and that's fine for all of these.
 let cwd = "";
@@ -1573,7 +1573,7 @@ export const register: Register = (on) => {
     // The logo on Desktop. In the terminal the status dot alone says enough.
     const mark =
       e.surface === "desktop"
-        ? $.ui.resolve(e).Svg({ source: LOGO, alt: "Clodable", width: 15, height: 15 })
+        ? $.ui.resolve(e).Svg({ source: LOGO, alt: "Clodable", width: 16, height: 16 })
         : null;
     const theirs = await next(e);
     const desktop = e.surface === "desktop";
@@ -1787,7 +1787,7 @@ export const register: Register = (on) => {
     const header = (
       <Box flexDirection="row" columnGap={1} alignItems="center">
         {e.surface === "desktop" ? (
-          $.ui.resolve(e).Svg({ source: LOGO, alt: "Clodable", width: 20, height: 20 })
+          $.ui.resolve(e).Svg({ source: LOGO, alt: "Clodable", width: 24, height: 24 })
         ) : (
           <Text color="claude">●</Text>
         )}

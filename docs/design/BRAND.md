@@ -4,9 +4,34 @@
 
 ## Idea
 
-A *clod* is a lump of clay. Clodable means your app is **moldable**: you shape it with Claude, and when you're happy you publish it, the way you fire clay in a kiln. The mark is a clod with a **thumbprint** pressed into it: *made by you*.
+A *clod* is a lump of clay. Clodable means your app is **moldable**: you shape it with Claude, and when you're happy you publish it, the way you fire clay in a kiln.
+
+The mark is the clod itself, Clodable's mascot: a small lump of clay that comes alive, like a pocket golem that's only half sculpted and that you finish shaping. It's the raw material you shape until it walks on its own.
 
 The name also winks at Claude and at Lovable. Keep that wink in the name only. Never use either company's logo, colors as a reference, or wording. Before public launch, see "Trademark check" in [DECISIONS.md](../DECISIONS.md).
+
+## The mark
+
+<img src="../assets/logo.svg" alt="The clod" width="64" height="64">
+
+- The clod's front pose, drawn flat on a 16 × 16 pixel grid: a light clay body (`#E88858`), a warm dark outline (`#3B1A10`) and a dark face (`#2A140C`).
+- The clod's clay is lighter than the palette's `clay`, which stays the color of actions such as Publish. In the deeper clay the clod reads as brown, and a brown lump with a face looks like the poop emoji.
+- Use it at 16, 24, 32, 48 or 64 px. At these sizes every square lands on whole pixels of a 2x screen; other sizes blur its edges.
+- One version works on light and dark backgrounds.
+- Keep its pixels square: never rotate it, scale it in an animation, or smooth it. On hover it hops.
+- The lockup adds "clodable" in Fraunces 600, stored as shapes, so every reader sees the same letters.
+- `packages/design/src/logo.ts` draws both, and `scripts/export-brand.mts` writes the files in `docs/assets`. The plugin keeps a copy of the mark in `plugin/hooks/register.tsx`.
+
+## The drawings
+
+<img src="../assets/mascot/hello.png" alt="The clod waving hello" width="135">
+
+The character's own drawings are in [`docs/design/mascot`](mascot): its views and little adventures (Hello, Thinking, Building, Celebrating…), and the shapes it takes (Ask, Preview, Publish, Undo, a bridge, a house…).
+
+- **The 16 × 16 mark** goes where the logo is small, and everywhere in Claude Desktop: the Publish bar, the panel, the preview toolbar, the favicon.
+- **The drawings** go where there's room: the README header (Hello) and sections (Ask, Preview, Publish and Undo; the bridge; Still shaping), and GitHub's link preview.
+- Show a drawing at its size or smaller. The sheets aren't on an exact pixel grid, so an enlarged drawing blurs.
+- `scripts/mascot-assets.mts` cuts the drawings out of the sheets into `docs/assets/mascot`, and composes the link preview, `docs/assets/social-preview.png`. GitHub takes the preview from the repository's settings, not from a file.
 
 ## Palette: ceramic glazes
 

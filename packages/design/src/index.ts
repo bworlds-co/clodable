@@ -1,12 +1,13 @@
 export { type CssVariablesOptions, cssVariables } from "./css.js";
 export { type IconName, icons, type SvgOptions, svgIcon } from "./icons.js";
 export {
-  CLOD_PATH,
   type LogoOptions,
   lockupSvg,
   logoSvg,
-  PRINT_PATHS,
-  PRINT_PATHS_SMALL,
+  MARK_COLORS,
+  MARK_ROWS,
+  type MarkColors,
+  wordmarkSvg,
 } from "./logo.js";
 export {
   type ColorScheme,

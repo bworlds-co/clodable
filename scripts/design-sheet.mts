@@ -49,12 +49,11 @@ h2{font:600 13px/18px var(--cl-font-ui);text-transform:uppercase;letter-spacing:
 .dark{background:#15110E;color:#F3EEE7}
 .dark .ic svg{color:#F3EEE7}
 </style></head><body>
-<div class="row" style="justify-content:space-between"><div>${lockupSvg({ height: 56 })}</div><div style="color:var(--cl-ash)">Design system · v0.1</div></div>
+<div class="row" style="justify-content:space-between"><div>${lockupSvg({ height: 48 })}</div><div style="color:var(--cl-ash)">Design system · v0.1</div></div>
 <h2>Mark</h2>
 <div class="row">
   <div class="tile" style="background:var(--cl-paper);box-shadow:inset 0 0 0 1px var(--cl-slip)">${[16, 24, 32, 48, 96].map((s) => logoSvg({ size: s })).join("")}</div>
-  <div class="tile" style="background:#15110E">${[16, 24, 32, 48, 96].map((s) => logoSvg({ size: s, clay: "#E5764F", groove: "#15110E" })).join("")}</div>
-  <div class="tile" style="background:#B9502B">${[24, 48, 96].map((s) => logoSvg({ size: s, clay: "#FBF8F3", groove: "#B9502B" })).join("")}</div>
+  <div class="tile" style="background:#15110E">${[16, 24, 32, 48, 96].map((s) => logoSvg({ size: s })).join("")}</div>
 </div>
 <h2>Palette · light</h2><div class="grid">${swatches("light")}</div>
 <h2>Palette · dark</h2><div class="grid tile dark">${swatches("dark")}</div>
