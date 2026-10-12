@@ -7,7 +7,7 @@
 
 <p align="center">
   <b>Shape your app with Claude. Publish when you're happy.</b><br>
-  For people who built their app with Lovable and want to keep shaping it, on their own terms.
+  For people who built their app with Lovable: move it to accounts you own, then keep shaping it with Claude.
 </p>
 
 <p align="center">
@@ -28,6 +28,31 @@
 4. **Changed your mind?** Undo puts the previous version back.
 
 You never see git, branches or deploy logs. Your developer, if you have one, sees all of it on GitHub, the way developers like it.
+
+## Move off Lovable, to a stack you own
+
+Your app, your data and your people move out of Lovable into accounts in your name. Clodable guides you step by step in its panel, and Claude does the technical work in the conversation. You click, decide, and paste your keys. Your live app keeps running on Lovable until you switch.
+
+| On Lovable today | After the move |
+|---|---|
+| Lovable Cloud: your database, your people and their passwords, uploaded files, backend functions | Your own **Supabase** project |
+| Lovable's hosting | Your own **Netlify** site, updated each time you Publish |
+| Your domain | Points at your Netlify site: Clodable shows the records to change |
+| Sign-up confirmations and password resets | Your own **Resend** account, sending from your domain |
+| Lovable's AI | Your own key: OpenRouter, Google Gemini or OpenAI |
+| Google sign-in, managed by Lovable | Your own Google sign-in, in your Google account |
+| Lovable's connectors and app emails | Your own accounts with those services |
+| Your code | On your GitHub, as it already is. Lovable's link to it is turned off at the end |
+
+**How it goes:**
+
+1. **Claude looks at your app** to see what it uses: AI, sign-in, emails, payments, scheduled jobs, uploads. You see what it found, and each step fits your app.
+2. **You choose how to move.** *Carefully*, for an app people use: you try a working copy first, then your live app pauses for a few minutes while the latest data comes over, so nothing is lost. *In one go*, for a prototype: one export, and you're live on your own accounts.
+3. **Get ready, beside your live app.** A copy of your data and people on your Supabase, which you can try in the preview. Your site on Netlify. Your emails, your AI key, your sign-in.
+4. **Go live.** Clodable points your app at its new home, Publish puts it live, and your domain follows.
+5. **Finish in Lovable**, once you've signed in on the new site: unpublish, disconnect GitHub, remove Lovable Cloud. The panel gives you the exact clicks, and a message for your users.
+
+You'll create free accounts with Supabase, Netlify and Resend along the way, plus an AI provider or a Google sign-in if your app uses them. Your keys go into the Clodable panel and stay on your computer or in those accounts: never in the chat. When a part is better done with someone technical, the panel says so up front. Developers and agencies who'd rather do it by hand can use the `lovable-exit` skill, with a rehearsal, real sign-in tests and a rollback plan.
 
 ## In the preview
 
@@ -88,7 +113,7 @@ Underneath it's plain **GitHub Flow**: one draft branch per person, one pull req
 **You'll need:**
 - [Claude Desktop](https://claude.com/download).
 - A GitHub account with your app on it. Lovable can push your project to GitHub in one click.
-- A host that deploys from GitHub, such as Vercel, Netlify or Cloudflare. If Lovable hosts your app today, keep it live there until your first Publish works, then move your domain.
+- Moving off Lovable? Nothing else: Clodable sets up Supabase, Netlify and the rest with you during the move. Already off Lovable? A host that deploys from GitHub, such as Vercel, Netlify or Cloudflare.
 
 > **About Claude plans.** Pro and Max are personal plans. For your company's app, use **Claude Team or Enterprise**. Anthropic's consumer terms don't allow business use of personal plans in the EU.
 
@@ -100,7 +125,7 @@ Underneath it's plain **GitHub Flow**: one draft branch per person, one pull req
 2. **Open an empty folder** in Claude Desktop's Code tab, and type `/clodable`.
 3. **Follow the setup.** It connects GitHub, brings your app in, and adds a few plain files. Then ask for your first change.
 
-**Leaving Lovable Cloud** (the backend Lovable manages for you) is something you do yourself, in the Clodable panel. Claude first looks at your app to see what it uses. Then each step is guided: your data, people and files go to your own Supabase, your site to Netlify, and your live app keeps running on Lovable until you switch. Developers and agencies who'd rather do it by hand can follow the `lovable-exit` skill, with a rehearsal, real sign-in tests and a rollback plan. Helping a client? Follow the [onboarding playbook](docs/ONBOARDING.md).
+On Lovable Cloud, the panel opens on **Move off Lovable** ([how it goes](#move-off-lovable-to-a-stack-you-own)). Helping a client? Follow the [onboarding playbook](docs/ONBOARDING.md).
 
 ## For developers
 
@@ -136,21 +161,21 @@ Clodable only acts in apps it set up, so your other projects are unaffected. To 
 
 | Package | What it is |
 |---|---|
-| [`packages/core`](packages/core) | The vendor-neutral engine: drafts, publish, undo, checks, repo kit, inbox |
+| [`packages/core`](packages/core) | The engine: drafts, publish, undo, checks, the move off Lovable, database and settings commands, repo kit, inbox |
 | [`packages/cli`](packages/cli) | `clodable`: pretty output for people, NDJSON (`--json`) for programs |
 | [`packages/preview`](packages/preview) | The dev-only Vite plugin and preview toolbar |
 | [`packages/design`](packages/design) | Tokens, icons and the logo ([brand](docs/design/BRAND.md), [UX principles](docs/design/PRINCIPLES.md)) |
-| [`plugin`](plugin) | The Claude Code plugin: Publish bar, panel, guards, auto-save, and the `clodable-guide` and `lovable-exit` skills |
+| [`plugin`](plugin) | The Claude Code plugin: Publish bar, panel, guards, auto-save, and the `clodable-guide`, `move-off-lovable` and `lovable-exit` skills |
 | [`examples`](examples) | Faithful Lovable apps, classic Vite and TanStack Start, for development |
 
-Only `plugin/` depends on Claude. Everything else works with any agent, and any front end can drive the CLI's NDJSON events. That's how Clodable keeps its "no lock-in" promise.
+Clodable is built for Claude: Claude reads your app and decides, and the CLI does the exact work (keys, accounts, your data, the checks). Your app itself doesn't depend on Clodable. It's plain code on your GitHub, your data in your Supabase, your site on your host: that's the "no lock-in" promise.
 
 ## What Clodable will never do
 
 - Push to your live branch, force-push, or merge on its own. Only your Publish click does that.
 - Put backend code live before you publish.
 - Change your live data without asking you first.
-- Send your code or data anywhere except your own GitHub, your own Supabase and your own host.
+- Send your code or data anywhere except your own accounts: GitHub, Supabase, your host, and the services you connect.
 - Ask for your secret keys in the chat.
 - Send a secret key to GitHub. Every save is checked with [gitleaks](https://github.com/gitleaks/gitleaks) before it leaves your computer, and a key stops it there.
 - Ship its toolbar to your visitors.
@@ -158,7 +183,7 @@ Only `plugin/` depends on Claude. Everything else works with any agent, and any 
 
 ## Status
 
-Clodable is **v0.1**: early, working end to end, and moving fast. The design decisions are recorded in [docs/DECISIONS.md](docs/DECISIONS.md). Coming next:
+Clodable is **v0.1**: early, working end to end, and moving fast. The move off Lovable has run end to end on test apps; Google sign-in, your own domain and the careful switch haven't yet run against real accounts. The design decisions are recorded in [docs/DECISIONS.md](docs/DECISIONS.md). Coming next:
 - a local staging database;
 - a "wait for my developer" mode;
 - a secure form for your production keys.
