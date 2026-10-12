@@ -141,4 +141,4 @@ Never run `move paused` or `move finished` yourself: they record what the builde
 
 ## Not automated yet
 
-Scheduled jobs that call the app's own routes with Lovable's cron secret (`LOVABLE_CRON_SECRET`): say they need a secret of their own, which you can add. Signed links in their data (see above). If they ask about anything else not listed here, say so plainly. The `lovable-exit` skill's references describe how things are done by hand.
+Scheduled jobs that call the app's own routes with Lovable's cron secret (`LOVABLE_CRON_SECRET`): say they need a secret of their own, which you can add. Signed links in their data (see above). If they ask about anything else not listed here, say so plainly.

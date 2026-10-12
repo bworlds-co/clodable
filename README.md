@@ -11,15 +11,27 @@
 
 <p align="center">
   <b>Shape your app with Claude. Publish when you're happy.</b><br>
-  For people who built their app with Lovable: move it to accounts you own, then keep shaping it with Claude.
+  An open-source, Lovable-style app builder that runs on your own computer, on top of Claude Code.
 </p>
 
 <p align="center">
   <img src="docs/assets/hero.png" alt="A bakery website running locally with Clodable's preview toolbar: the headline is highlighted for editing, and a phone preview sits beside it." width="100%">
 </p>
 
+**Why Clodable.** AI app builders like Lovable showed that anyone can build an app by describing it. Claude Code showed how much an AI can do when it works right in your code. Clodable brings the two together on your own computer: Lovable's simple way of building, the full power of Claude Code, and every account in your name.
+
+**For builders who aren't developers.** If you can say what you want, you can shape your app: Claude makes the change, you see it in the preview beside the chat, and you publish when you're happy.
+
+**All of Claude Code, made simpler.** Clodable is a plugin for Claude Code in Claude Desktop. Claude can change any file, add tables to your database, write backend functions and fix what breaks, and the skills, plugins and connectors you already use with Claude Code keep working. Clodable adds what a builder needs, like the live preview, the Publish button and Undo, and keeps the rest out of the way.
+
+**Yours, down to the keys.** Your code is on your GitHub, your data in your own Supabase, your site on your own host. The keys to those accounts stay on your computer or in the accounts themselves, never in the chat. Clodable has no server, no account and no paid tier: it's free and open source, under the MIT license. Stop using it any day, and your app keeps running exactly as it is.
+
+**Coming from Lovable?** Clodable moves your app, your data and your users to accounts you own, step by step, while your live app keeps running. See [how the move goes](#move-off-lovable-to-a-stack-you-own).
+
+**Still early.** Clodable is v0.1: it works end to end, but it isn't perfect yet, and it changes fast. [Tell us what breaks](https://github.com/bworlds-co/clodable/issues).
+
 <p align="center">
-  <b>Open source. Your code, data and workflow stay yours. Runs on Claude today.</b>
+  <a href="#get-started">Get started</a> · <a href="#how-it-works">How it works</a> · <a href="docs/ARCHITECTURE.md">Architecture</a> · <a href="docs/DECISIONS.md">Decisions</a> · <a href="CONTRIBUTING.md">Contributing</a>
 </p>
 
 ---
@@ -39,6 +51,37 @@
 4. **Changed your mind?** Undo puts the previous version back.
 
 You never see git, branches or deploy logs. Your developer, if you have one, sees all of it on GitHub, the way developers like it.
+
+## What works today
+
+Clodable is built and tested with apps made with **Lovable**:
+
+- **Your app:** either kind Lovable makes, a React app built with Vite or a TanStack Start app.
+- **Your database:** your own Supabase project, or Lovable Cloud, which Clodable moves to a Supabase project in your name.
+- **Your site:** still on Lovable's hosting, on Netlify after the move, or on any host that deploys from GitHub, such as Vercel, Netlify or Cloudflare.
+- **Your computer:** a Mac with Claude Desktop. Windows hasn't been tested yet, and the move off Lovable doesn't run there yet.
+
+Apps from other AI app builders aren't supported yet. A React app built with Vite may already work, since that's what Clodable's preview runs, but none has been tested. Apps built with Next.js don't work yet.
+
+## Get started
+
+**You'll need:**
+- [Claude Desktop](https://claude.com/download).
+- A GitHub account with your app on it. Your AI app builder can push your project there in one click:
+  - [Lovable](https://docs.lovable.dev/integrations/github)
+- Moving off Lovable? Nothing else: Clodable sets up Supabase, Netlify and the rest with you during the move. Already off Lovable? A host that deploys from GitHub, such as Vercel, Netlify or Cloudflare.
+
+> **About Claude plans.** Pro and Max are personal plans. For your company's app, use **Claude Team or Enterprise**. Anthropic's consumer terms don't allow business use of personal plans in the EU.
+
+1. **Add Clodable to Claude.** Run this once in Terminal. Claude Desktop picks it up too.
+   ```
+   claude plugin install clodable --marketplace bworlds-co/clodable
+   ```
+   Already in a Claude Code session in the terminal? Type `/plugin install clodable --marketplace bworlds-co/clodable` there instead.
+2. **Open an empty folder** in Claude Desktop's Code tab, and type `/clodable`.
+3. **Follow the setup.** It connects GitHub, brings your app in, and adds a few plain files. Then ask for your first change.
+
+On Lovable Cloud, the panel opens on **Move off Lovable** ([how it goes](#move-off-lovable-to-a-stack-you-own)). Helping a client? Follow the [onboarding playbook](docs/ONBOARDING.md).
 
 ## Move off Lovable, to a stack you own
 
@@ -67,7 +110,7 @@ Your app, your data and your people move out of Lovable into accounts in your na
 4. **Go live.** Clodable points your app at its new home, Publish puts it live, and your domain follows.
 5. **Finish in Lovable**, once you've signed in on the new site: unpublish, disconnect GitHub, remove Lovable Cloud. The panel gives you the exact clicks, and a message for your users.
 
-You'll create free accounts with Supabase, Netlify and Resend along the way, plus an AI provider or a Google sign-in if your app uses them. Your keys go into the Clodable panel and stay on your computer or in those accounts: never in the chat. When a part is better done with someone technical, the panel says so up front. Developers and agencies who'd rather do it by hand can use the `lovable-exit` skill, with a rehearsal, real sign-in tests and a rollback plan.
+You'll create free accounts with Supabase, Netlify and Resend along the way, plus an AI provider or a Google sign-in if your app uses them. Your keys go into the Clodable panel and stay on your computer or in those accounts: never in the chat. When a part is better done with someone technical, the panel says so up front. It's the same move for everyone, developers and agencies included.
 
 ## In the preview
 
@@ -123,25 +166,6 @@ Underneath it's plain **GitHub Flow**: one draft branch per person, one pull req
 
 **Your database is the one exception.** Like Lovable, your preview uses your real data, and database changes apply when you confirm them. Claude is told to make them additive, so your live site keeps working until you publish.
 
-## Get started
-
-**You'll need:**
-- [Claude Desktop](https://claude.com/download).
-- A GitHub account with your app on it. Lovable can push your project to GitHub in one click.
-- Moving off Lovable? Nothing else: Clodable sets up Supabase, Netlify and the rest with you during the move. Already off Lovable? A host that deploys from GitHub, such as Vercel, Netlify or Cloudflare.
-
-> **About Claude plans.** Pro and Max are personal plans. For your company's app, use **Claude Team or Enterprise**. Anthropic's consumer terms don't allow business use of personal plans in the EU.
-
-1. **Add Clodable to Claude.** Run this once in Terminal. Claude Desktop picks it up too.
-   ```
-   claude plugin install clodable --marketplace bworlds-co/clodable
-   ```
-   Already in a Claude Code session in the terminal? Type `/plugin install clodable --marketplace bworlds-co/clodable` there instead.
-2. **Open an empty folder** in Claude Desktop's Code tab, and type `/clodable`.
-3. **Follow the setup.** It connects GitHub, brings your app in, and adds a few plain files. Then ask for your first change.
-
-On Lovable Cloud, the panel opens on **Move off Lovable** ([how it goes](#move-off-lovable-to-a-stack-you-own)). Helping a client? Follow the [onboarding playbook](docs/ONBOARDING.md).
-
 ## For developers
 
 ```bash
@@ -180,7 +204,7 @@ Clodable only acts in apps it set up, so your other projects are unaffected. To 
 | [`packages/cli`](packages/cli) | `clodable`: pretty output for people, NDJSON (`--json`) for programs |
 | [`packages/preview`](packages/preview) | The dev-only Vite plugin and preview toolbar |
 | [`packages/design`](packages/design) | Tokens, icons and the logo ([brand](docs/design/BRAND.md), [UX principles](docs/design/PRINCIPLES.md)) |
-| [`plugin`](plugin) | The Claude Code plugin: Publish bar, panel, guards, auto-save, and the `clodable-guide`, `move-off-lovable` and `lovable-exit` skills |
+| [`plugin`](plugin) | The Claude Code plugin: Publish bar, panel, guards, auto-save, and the `clodable-guide` and `move-off-lovable` skills |
 | [`examples`](examples) | Faithful Lovable apps, classic Vite and TanStack Start, for development |
 
 Clodable is built for Claude: Claude reads your app and decides, and the CLI does the exact work (keys, accounts, your data, the checks). Your app itself doesn't depend on Clodable. It's plain code on your GitHub, your data in your Supabase, your site on your host: that's the "no lock-in" promise.
