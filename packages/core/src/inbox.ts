@@ -125,24 +125,36 @@ export async function writeInbox(root: string, item: NewInboxItem): Promise<Inbo
   return full;
 }
 
-export async function readInbox(root: string): Promise<InboxItem[]> {
+/** The requests waiting, oldest first, with their files. A malformed one can't be anyone's: dropped. */
+async function waiting(root: string): Promise<Array<{ name: string; item: InboxItem }>> {
   const dir = join(root, INBOX_DIR);
   if (!existsSync(dir)) return [];
-  const names = (await readdir(dir)).filter((n) => n.endsWith(".json")).sort();
-  const items: InboxItem[] = [];
-  for (const name of names) {
+  const found: Array<{ name: string; item: InboxItem }> = [];
+  for (const name of (await readdir(dir)).filter((n) => n.endsWith(".json")).sort()) {
+    let text: string;
     try {
-      items.push(JSON.parse(await readFile(join(dir, name), "utf8")) as InboxItem);
+      text = await readFile(join(dir, name), "utf8");
     } catch {
-      // A malformed item is dropped so it can't block the queue.
+      continue; // Another conversation took it meanwhile.
+    }
+    try {
+      found.push({ name, item: JSON.parse(text) as InboxItem });
+    } catch {
       await rm(join(dir, name), { force: true });
     }
   }
-  return items;
+  return found;
 }
 
+export async function readInbox(root: string): Promise<InboxItem[]> {
+  return (await waiting(root)).map((w) => w.item);
+}
+
+/** Ids and conversation ids name files: letters, digits, `_` and `-` only. */
+const SAFE_ID = /^[\w-]+$/;
+
 export async function ackInbox(root: string, id: string): Promise<void> {
-  if (!/^[\w-]+$/.test(id)) return;
+  if (!SAFE_ID.test(id)) return;
   await rm(join(root, INBOX_DIR, `${id}.json`), { force: true });
 }
 
@@ -207,27 +219,14 @@ export async function inboxOwner(root: string, now = Date.now()): Promise<string
  * exactly one taker: claiming renames the file, and only one rename can win.
  */
 export async function claimInbox(root: string, session: string): Promise<InboxItem[]> {
-  if (!/^[\w-]+$/.test(session)) return [];
-  const dir = join(root, INBOX_DIR);
-  if (!existsSync(dir)) return [];
+  if (!SAFE_ID.test(session)) return [];
+  const found = await waiting(root);
+  if (found.length === 0) return [];
   const live = await livePresences(root, Date.now());
   const owner = usedLast(live);
+  const dir = join(root, INBOX_DIR);
   const items: InboxItem[] = [];
-  for (const name of (await readdir(dir)).filter((n) => n.endsWith(".json")).sort()) {
-    const path = join(dir, name);
-    let text: string;
-    try {
-      text = await readFile(path, "utf8");
-    } catch {
-      continue; // Another conversation took it meanwhile.
-    }
-    let item: InboxItem;
-    try {
-      item = JSON.parse(text) as InboxItem;
-    } catch {
-      await rm(path, { force: true }); // A malformed request can't be anyone's: drop it.
-      continue;
-    }
+  for (const { name, item } of found) {
     const mine =
       item.conversation && live.has(item.conversation)
         ? item.conversation === session
@@ -235,9 +234,9 @@ export async function claimInbox(root: string, session: string): Promise<InboxIt
     if (!mine) continue;
     const claimed = join(dir, `.${name}.${session}.claimed`);
     try {
-      await rename(path, claimed);
+      await rename(join(dir, name), claimed);
     } catch {
-      continue;
+      continue; // Another conversation took it first.
     }
     items.push(item);
     await rm(claimed, { force: true });
