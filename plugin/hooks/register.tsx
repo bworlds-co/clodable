@@ -1051,8 +1051,6 @@ function handleRequest($: EngineInterface, item: ClodableRequest) {
   }
 }
 
-// ── Safety ──────────────────────────────────────────────────────────────────
-
 // ── Hooks ───────────────────────────────────────────────────────────────────
 
 // Plain-language rows and a save after every reply are what Clodable is, so they aren't options: a
