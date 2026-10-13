@@ -296,6 +296,8 @@ export class ErrorWatcher {
     // Nothing to see behind a build error or a blank page: cover it calmly. Otherwise, a small note.
     const screen = error.kind === "build" || pageLooksBlank();
     const still = Boolean(this.card?.isConnected);
+    const root = this.layer.getRootNode() as Document | ShadowRoot;
+    const hadFocus = Boolean(this.card?.contains(root.activeElement));
     this.card?.remove();
     const title = working
       ? "Claude is fixing it…"
@@ -373,6 +375,8 @@ export class ErrorWatcher {
     this.card = card;
     if (screen) this.layer.append(card);
     else this.dockSlot.prepend(card);
+    // A press redrew the card: keep focus in it, on the action that's left.
+    if (hadFocus) (card.querySelector<HTMLElement>(".btn.primary") ?? close).focus();
   }
 
   private async fix() {

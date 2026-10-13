@@ -105,7 +105,17 @@ export class Toolbar {
 
   // ── Rendering ────────────────────────────────────────────────────────────
 
+  /** Redraw, keeping keyboard focus on the control pressed, or on the one that took its place. */
   private render() {
+    const focused = (this.shadow.activeElement as HTMLElement | null)?.dataset.key;
+    this.draw();
+    if (!focused) return;
+    const find = (key: string) => this.shadow.querySelector<HTMLElement>(`[data-key="${key}"]`);
+    // Hiding swaps the dock for the pebble, and showing swaps it back: focus follows.
+    (find(focused) ?? find("pebble") ?? find("hide"))?.focus();
+  }
+
+  private draw() {
     if (this.surface === "outer") {
       this.dockSlot.replaceChildren();
       const params = new URLSearchParams(location.search);
@@ -147,6 +157,7 @@ export class Toolbar {
           "button",
           {
             class: "pebble",
+            "data-key": "pebble",
             "aria-label": "Show Clodable tools",
             title: "Show Clodable tools (⌥⇧H)",
             onclick: () => this.setMinimized(false),
@@ -161,6 +172,7 @@ export class Toolbar {
         "button",
         {
           class: "tool",
+          "data-key": mode,
           "aria-pressed": String(this.mode === mode),
           title: `${label} (${key})`,
           onclick: () => this.setMode(this.mode === mode ? "idle" : mode),
@@ -172,6 +184,7 @@ export class Toolbar {
       "button",
       {
         class: "brand",
+        "data-key": "menu",
         "aria-label": "Clodable menu",
         "aria-haspopup": "menu",
         "aria-expanded": "false",
@@ -209,6 +222,7 @@ export class Toolbar {
         "button",
         {
           class: "icon-btn",
+          "data-key": "hide",
           "aria-label": "Hide Clodable tools",
           title: "Hide (⌥⇧H)",
           onclick: () => this.setMinimized(true),
@@ -217,24 +231,7 @@ export class Toolbar {
       ),
     );
     // A toolbar is one tab stop; arrow keys move between its buttons (WAI-ARIA toolbar pattern).
-    dock.addEventListener("keydown", (e) => {
-      const buttons = Array.from(dock.querySelectorAll<HTMLButtonElement>("button"));
-      const index = buttons.indexOf(this.shadow.activeElement as HTMLButtonElement);
-      if (index < 0) return;
-      const next =
-        e.key === "ArrowRight"
-          ? index + 1
-          : e.key === "ArrowLeft"
-            ? index - 1
-            : e.key === "Home"
-              ? 0
-              : e.key === "End"
-                ? buttons.length - 1
-                : -2;
-      if (next === -2) return;
-      e.preventDefault();
-      buttons[(next + buttons.length) % buttons.length]?.focus();
-    });
+    arrowKeys(dock, this.shadow, "ArrowLeft", "ArrowRight");
     for (const [i, button] of Array.from(
       dock.querySelectorAll<HTMLButtonElement>("button"),
     ).entries()) {
@@ -318,9 +315,13 @@ export class Toolbar {
 
   private setMinimized(minimized: boolean) {
     this.minimized = minimized;
+    try {
+      localStorage.setItem(STORE, JSON.stringify({ minimized }));
+    } catch {
+      // Storage blocked: the tools still hide, just not for the next page.
+    }
     if (minimized) this.setMode("idle");
-    localStorage.setItem(STORE, JSON.stringify({ minimized }));
-    this.render();
+    else this.render();
   }
 
   private setDevice(device: Device) {
@@ -344,8 +345,12 @@ export class Toolbar {
 
   // ── Pointer and keyboard ─────────────────────────────────────────────────
 
+  /** Browsers show events from inside the shadow root as the host's; other DOMs may not. */
   private isOurs(target: EventTarget | null) {
-    return target === this.host || (target instanceof Node && this.host.contains(target));
+    return (
+      target instanceof Node &&
+      (target === this.host || this.host.contains(target) || this.shadow.contains(target))
+    );
   }
 
   private listen() {
@@ -721,12 +726,15 @@ export class Toolbar {
   }
 
   private closePopover(hideHover = true) {
+    const fromMenu =
+      this.popover?.classList.contains("menu") && this.popover.contains(this.shadow.activeElement);
     this.popover?.remove();
     this.popover = undefined;
     if (hideHover) this.hover.hide();
-    this.shadow
-      ?.querySelector('.brand[aria-expanded="true"]')
-      ?.setAttribute("aria-expanded", "false");
+    const brand = this.shadow?.querySelector<HTMLElement>('.brand[aria-expanded="true"]');
+    brand?.setAttribute("aria-expanded", "false");
+    // A menu closed with focus in it hands focus back to its button (WAI-ARIA menu button).
+    if (fromMenu) brand?.focus();
   }
 
   private closePopoverIfDetached() {
@@ -777,6 +785,7 @@ export class Toolbar {
       h("hr"),
       item("minimize", "Hide these tools", "⌥⇧H", () => this.setMinimized(true)),
     );
+    arrowKeys(menu, this.shadow, "ArrowUp", "ArrowDown");
     this.popover = menu;
     this.layer.append(menu);
     button.setAttribute("aria-expanded", "true");
@@ -819,6 +828,25 @@ export class Toolbar {
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
+
+/** Arrow keys move between a group's buttons, round the ends; Home and End jump to them. */
+function arrowKeys(group: HTMLElement, root: ShadowRoot, previous: string, next: string) {
+  group.addEventListener("keydown", (e) => {
+    const buttons = Array.from(group.querySelectorAll<HTMLButtonElement>("button"));
+    const index = buttons.indexOf(root.activeElement as HTMLButtonElement);
+    if (index < 0) return;
+    const to: Record<string, number> = {
+      [previous]: index - 1,
+      [next]: index + 1,
+      Home: 0,
+      End: buttons.length - 1,
+    };
+    const target = to[e.key];
+    if (target === undefined) return;
+    e.preventDefault();
+    buttons[(target + buttons.length) % buttons.length]?.focus();
+  });
+}
 
 const short = (text: string) => {
   const t = text.replace(/\s+/g, " ").trim();
