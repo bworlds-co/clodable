@@ -7,6 +7,7 @@ import {
   localSettings,
   MOVE_PATH,
   messageOf,
+  type PreviewBackend,
   previewBackend,
   SETTINGS_PATH,
 } from "@clodable/core";
@@ -50,7 +51,7 @@ export async function devCommand(
   const port = options.port ?? envPort;
   try {
     // Keys are fetched once per backend, then kept in this process's memory only.
-    const known = new Map<string, NonNullable<Awaited<ReturnType<typeof previewBackend>>>>();
+    const known = new Map<string, PreviewBackend>();
     const server = await startDevServer({
       root,
       ...(port ? { port } : {}),

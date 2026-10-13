@@ -112,6 +112,13 @@ export {
 export { configDir, forgetSecret, readSecret, storeSecret } from "./local-secrets.js";
 export { assessMove, type MoveAssessment, type MoveItem } from "./move/assess.js";
 export {
+  BACKEND_ENV,
+  type Backend,
+  backendEnv,
+  backendOf,
+  type PreviewBackend,
+} from "./move/backend.js";
+export {
   type DomainOutcome,
   isApex,
   NETLIFY_APEX_IP,

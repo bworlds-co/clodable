@@ -8,11 +8,12 @@ import { applyKit, planKit } from "../kit/index.js";
 import { detectProject } from "../project.js";
 import type { Workspace } from "../workspace.js";
 import { textFiles } from "./assess.js";
+import { backendEnv, backendOf } from "./backend.js";
 import { type ExportSummary, JOBS_FILE } from "./export.js";
 import { literal, type NewKeys, repoint, tableName } from "./fixes.js";
 import type { Sql } from "./postgres.js";
 import { forgetMoveFiles, loadMove, type MoveState, moveDir, updateMove } from "./state.js";
-import { projectUrl, SupabaseApi } from "./supabase-api.js";
+import { SupabaseApi } from "./supabase-api.js";
 
 /**
  * The switch: the live app moves from Lovable to the builder's own Supabase and Netlify site.
@@ -413,21 +414,14 @@ export async function* goLive(
   yield step("move:golive", "running", "Switching to your new backend", "Your app's files");
   const files: string[] = [];
   const from = state.source?.ref;
-  const backend = projectUrl(state.home.ref);
-  const anon = keys.legacy.anon ?? keys.publishable;
+  const backend = backendOf(state.home.ref, keys);
+  // Never the service key: these files go to GitHub with the app.
+  const { SUPABASE_SERVICE_ROLE_KEY: _, ...values } = backendEnv(backend);
   for (const name of [".env", ".env.local", ".env.production"]) {
     const path = join(ws.root, name);
     if (!existsSync(path)) continue;
     const before = await readFile(path, "utf8");
-    const after = rewriteEnv(before, {
-      VITE_SUPABASE_URL: backend,
-      VITE_SUPABASE_PUBLISHABLE_KEY: keys.publishable,
-      VITE_SUPABASE_ANON_KEY: anon,
-      VITE_SUPABASE_PROJECT_ID: state.home.ref,
-      SUPABASE_URL: backend,
-      SUPABASE_PUBLISHABLE_KEY: keys.publishable,
-      SUPABASE_ANON_KEY: anon,
-    });
+    const after = rewriteEnv(before, values);
     if (after !== before) {
       await writeFile(path, after);
       files.push(name);
@@ -449,7 +443,7 @@ export async function* goLive(
     // Older Lovable apps write the backend's address and key in their code.
     for (const file of await textFiles(ws.root, ["src"])) {
       if (!file.text.includes(from)) continue;
-      const next = repoint(file.text, from, state.home.ref, { anon, ...keys.legacy });
+      const next = repoint(file.text, from, state.home.ref, { ...keys.legacy, anon: backend.anon });
       if (next.text !== file.text) {
         await writeFile(join(ws.root, file.path), next.text);
         files.push(file.path.replace(/^\//, ""));

@@ -1,8 +1,9 @@
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
 import { join } from "node:path";
+import type { PreviewBackend } from "@clodable/core";
 import { describe, expect, it } from "vitest";
-import { type PreviewBackend, startDevServer } from "../src/dev-server.js";
+import { startDevServer } from "../src/dev-server.js";
 
 const SRC = "srcsrcsrcsrcsrcsrcsr";
 const DST = "dstdstdstdstdstdstds";

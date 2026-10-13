@@ -7,6 +7,7 @@ import { type Flow, step } from "../events.js";
 import { readSecret, storeSecret } from "../local-secrets.js";
 import type { Workspace } from "../workspace.js";
 import { textFiles } from "./assess.js";
+import { backendOf, type PreviewBackend } from "./backend.js";
 import { type ExportSummary, findExport, readExport } from "./export.js";
 import { factsSummary, type RecordedFacts } from "./facts.js";
 import { copyFiles, type FilesOutcome } from "./files.js";
@@ -1355,28 +1356,13 @@ export async function prepareCopySignIn(api: SupabaseApi, ref: string): Promise<
  * preview uses the live backend. Throws when the copy is wanted but its keys can't be had: better
  * no preview than one that quietly shows live data.
  */
-export async function previewBackend(root: string): Promise<
-  | {
-      from?: string;
-      ref: string;
-      url: string;
-      publishable: string;
-      anon: string;
-      serviceRole: string;
-    }
-  | undefined
-> {
+export async function previewBackend(root: string): Promise<PreviewBackend | undefined> {
   const state = await loadMove(root);
   if (state.preview !== "copy" || !state.home) return undefined;
   const api = await SupabaseApi.required();
-  const keys = await homeKeys(api, state.home.ref);
   return {
     ...(state.source ? { from: state.source.ref } : {}),
-    ref: state.home.ref,
-    url: projectUrl(state.home.ref),
-    publishable: keys.publishable,
-    anon: keys.legacy.anon ?? keys.publishable,
-    serviceRole: keys.legacy.serviceRole ?? keys.secret,
+    ...backendOf(state.home.ref, await homeKeys(api, state.home.ref)),
   };
 }
 

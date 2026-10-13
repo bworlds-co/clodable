@@ -8,10 +8,11 @@ import { type PackageManager, type ProjectInfo, runScriptCommand } from "../proj
 import { localSettings } from "../settings.js";
 import type { Workspace } from "../workspace.js";
 import { textFiles } from "./assess.js";
+import { backendEnv, backendOf } from "./backend.js";
 import { homeKeys } from "./flows.js";
 import { NETLIFY_TOKEN, type NetlifyAccount, NetlifyApi } from "./netlify-api.js";
 import { loadMove, updateMove } from "./state.js";
-import { projectUrl, SupabaseApi } from "./supabase-api.js";
+import { SupabaseApi } from "./supabase-api.js";
 
 /**
  * The website's new home: a Netlify site, deployed by a GitHub Actions workflow on each Publish.
@@ -298,22 +299,13 @@ export async function* putSiteOnNetlify(
     "Putting your site on Netlify",
     "Pointing it at your new backend",
   );
-  const keys = await homeKeys(supabase, state.home.ref);
-  const backend = projectUrl(state.home.ref);
+  const backend = backendOf(state.home.ref, await homeKeys(supabase, state.home.ref));
   const existing = await netlify.envKeys(site.account_slug, site.id);
-  const anon = keys.legacy.anon ?? keys.publishable;
-  const values: Array<[string, string, boolean]> = [
-    ["VITE_SUPABASE_URL", backend, false],
-    ["VITE_SUPABASE_PUBLISHABLE_KEY", keys.publishable, false],
-    ["VITE_SUPABASE_ANON_KEY", anon, false],
-    ["VITE_SUPABASE_PROJECT_ID", state.home.ref, false],
-    ["SUPABASE_URL", backend, false],
-    ["SUPABASE_PUBLISHABLE_KEY", keys.publishable, false],
-    ["SUPABASE_ANON_KEY", anon, false],
-    ["SUPABASE_SERVICE_ROLE_KEY", keys.legacy.serviceRole ?? keys.secret, true],
-  ];
-  for (const [key, value, secret] of values) {
-    await netlify.setEnv(site.account_slug, site.id, key, value, { secret, existing });
+  for (const [key, value] of Object.entries(backendEnv(backend))) {
+    await netlify.setEnv(site.account_slug, site.id, key, value, {
+      secret: key === "SUPABASE_SERVICE_ROLE_KEY",
+      existing,
+    });
   }
   // Settings already pasted on this computer (for the preview) go to the site too. VITE_ ones are
   // built into the page on purpose: kept as secrets, Netlify's scan for leaked secrets would stop

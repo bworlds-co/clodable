@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
-import { messageOf, repoint } from "@clodable/core";
+import { BACKEND_ENV, backendEnv, messageOf, type PreviewBackend, repoint } from "@clodable/core";
 import type { Plugin } from "vite";
 import { clodablePreview } from "./plugin.js";
 
@@ -24,41 +24,12 @@ export interface DevServerOptions {
   settings?: { current(): Promise<Record<string, string>>; watch?: string };
 }
 
-export interface PreviewBackend {
-  /** The project the code names today (Lovable Cloud's). */
-  from?: string;
-  ref: string;
-  url: string;
-  publishable: string;
-  /** For code that carries an anon key: the legacy one if the project has it, else publishable. */
-  anon: string;
-  /** For server code: the legacy service key if the project has it, else the secret key. */
-  serviceRole: string;
-}
-
-/** The variables Lovable's templates read, browser side (VITE_) and server side. */
-function backendEnv(b: PreviewBackend): Record<string, string> {
-  return {
-    VITE_SUPABASE_URL: b.url,
-    VITE_SUPABASE_PUBLISHABLE_KEY: b.publishable,
-    VITE_SUPABASE_ANON_KEY: b.anon,
-    VITE_SUPABASE_PROJECT_ID: b.ref,
-    SUPABASE_URL: b.url,
-    SUPABASE_PUBLISHABLE_KEY: b.publishable,
-    SUPABASE_ANON_KEY: b.anon,
-    SUPABASE_SERVICE_ROLE_KEY: b.serviceRole,
-  };
-}
-
 const ORIGINAL_ENV = new Map<string, string | undefined>();
 
 /** Point this process's environment at the backend, or back at what it was. */
 function applyBackendEnv(b: PreviewBackend | undefined) {
-  const wanted = b ? backendEnv(b) : {};
-  const keys = Object.keys(
-    backendEnv({ ref: "", url: "", publishable: "", anon: "", serviceRole: "" }),
-  );
-  for (const key of keys) {
+  const wanted: Partial<Record<string, string>> = b ? backendEnv(b) : {};
+  for (const key of BACKEND_ENV) {
     if (!ORIGINAL_ENV.has(key)) ORIGINAL_ENV.set(key, process.env[key]);
     const value = wanted[key] ?? ORIGINAL_ENV.get(key);
     if (value === undefined) delete process.env[key];
