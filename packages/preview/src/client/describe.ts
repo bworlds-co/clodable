@@ -1,16 +1,11 @@
 /** Builder-friendly names for page elements: "Heading", "Button", "Image", never "div". */
+import { SOURCE_ATTR } from "../shared.js";
 
-const SOURCE_ATTR = "data-cl-src";
-
+/** The nearest element the JSX tagger marked, and where in the code it comes from. */
 export function sourceOf(el: Element | null): { el: Element; src: string } | undefined {
   const host = el?.closest(`[${SOURCE_ATTR}]`);
   const src = host?.getAttribute(SOURCE_ATTR);
   return host && src ? { el: host, src } : undefined;
-}
-
-export function parseSrc(src: string): { file: string; line: number; column: number } | undefined {
-  const match = src.match(/^(.+):(\d+):(\d+)$/);
-  return match ? { file: match[1]!, line: Number(match[2]), column: Number(match[3]) } : undefined;
 }
 
 export type Kind =

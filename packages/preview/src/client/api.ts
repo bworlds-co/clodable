@@ -1,4 +1,5 @@
-import type { CapturedError } from "./errors.js";
+import { type PageError, ROUTES } from "../shared.js";
+import type { TextEditFailure } from "../text-edit.js";
 
 declare global {
   interface Window {
@@ -38,21 +39,21 @@ export const page = () => ({
   title: document.title,
 });
 
-export type Probe =
-  | { editable: true }
-  | { editable: false; reason: "not-found" | "dynamic" | "ambiguous" };
-export type EditResult = { ok: true; file: string; line: number } | { ok: false; reason: string };
+export type Probe = { editable: true } | { editable: false; reason: TextEditFailure };
+export type EditResult =
+  | { ok: true; file: string; line: number }
+  | { ok: false; reason: TextEditFailure | "empty" };
 
 export const api = {
-  probe: (src: string, text: string) => post<Probe>("/__clodable/text/probe", { src, text }),
+  probe: (src: string, text: string) => post<Probe>(ROUTES.probe, { src, text }),
   edit: (src: string, before: string, after: string) =>
-    post<EditResult>("/__clodable/text", { src, before, after, page: page(), ...conversation() }),
+    post<EditResult>(ROUTES.text, { src, before, after, page: page(), ...conversation() }),
   ask: (
     request: string,
     element: string,
     source?: { file: string; line: number; column: number },
   ) =>
-    post<{ ok: boolean }>("/__clodable/inbox", {
+    post<{ ok: boolean }>(ROUTES.inbox, {
       kind: "ask",
       page: page(),
       request,
@@ -60,8 +61,8 @@ export const api = {
       ...(source ? { source } : {}),
       ...conversation(),
     }),
-  fix: (error: CapturedError, consoleLines: string[]) =>
-    post<{ ok: boolean }>("/__clodable/inbox", {
+  fix: (error: PageError, consoleLines: string[]) =>
+    post<{ ok: boolean }>(ROUTES.inbox, {
       kind: "fix",
       page: page(),
       error,
@@ -70,10 +71,8 @@ export const api = {
     }),
   /** The line in the file itself, for a position the browser reported in the code Vite served. */
   originalLine: (at: { file: string; line: number; column: number }) =>
-    post<{ line: number | null }>("/__clodable/original-line", at).then((result) => result.line),
+    post<{ line: number | null }>(ROUTES.originalLine, at).then((result) => result.line),
   /** The last file the dev server couldn't build since `since` (epoch ms), if any. */
   buildError: (since: number) =>
-    post<{ error: CapturedError | null }>("/__clodable/build-error", { since }).then(
-      (result) => result.error,
-    ),
+    post<{ error: PageError | null }>(ROUTES.buildError, { since }).then((result) => result.error),
 };

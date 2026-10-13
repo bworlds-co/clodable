@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { PREFIX, ROUTES } from "./shared.js";
 
-export const TOOLBAR_TAG =
-  '<script src="/__clodable/toolbar.js" defer data-clodable-toolbar></script>';
+export const TOOLBAR_TAG = `<script src="${ROUTES.toolbar}" defer data-clodable-toolbar></script>`;
 
 /** Insert the toolbar script into an HTML document, once. */
 export function injectToolbar(html: string): string | undefined {
@@ -63,7 +63,7 @@ export function htmlInjectionMiddleware(
   if (
     req.method !== "GET" ||
     !accept.includes("text/html") ||
-    url.startsWith("/__clodable") ||
+    url.startsWith(PREFIX) ||
     url.startsWith("/@")
   ) {
     next();

@@ -1,14 +1,7 @@
 import { type IconName, logoSvg } from "@clodable/design";
+import { FRAME_PARAM, parseSourceAttr, ROUTES, SCREENS } from "../shared.js";
 import { api } from "./api.js";
-import {
-  describeForClaude,
-  kindOf,
-  labelOf,
-  parseSrc,
-  SUGGESTIONS,
-  snippet,
-  sourceOf,
-} from "./describe.js";
+import { describeForClaude, kindOf, labelOf, SUGGESTIONS, snippet, sourceOf } from "./describe.js";
 import { h, icon } from "./dom.js";
 import { ErrorWatcher } from "./errors.js";
 import { anchor, Highlight, Toasts } from "./overlay.js";
@@ -20,6 +13,8 @@ type Device = "desktop" | "tablet" | "phone";
 export type Surface = "app" | "outer" | "inner";
 
 const STORE = "clodable:toolbar";
+/** The mark the device frame adds to the app's address, left out of the routes it reports. */
+const FRAME_MARK = new RegExp(`[?&]${FRAME_PARAM}=1`);
 const MESSAGES = {
   dynamic:
     "This text is filled in automatically, from your data or a list in your code, so it can't be typed over here.",
@@ -119,8 +114,9 @@ export class Toolbar {
     if (this.surface === "outer") {
       this.dockSlot.replaceChildren();
       const params = new URLSearchParams(location.search);
-      const [w, hgt] = this.device === "tablet" ? [820, 1180] : [390, 844];
-      const size = params.get("landscape") === "1" ? `${hgt} × ${w}` : `${w} × ${hgt}`;
+      const { width, height } = SCREENS[this.device === "tablet" ? "tablet" : "phone"];
+      const size =
+        params.get("landscape") === "1" ? `${height} × ${width}` : `${width} × ${height}`;
       this.layer.replaceChildren(
         this.hover.box,
         this.hover.chip,
@@ -333,7 +329,7 @@ export class Toolbar {
       if (this.surface === "outer") location.href = path;
       return;
     }
-    const url = `/__clodable/frame?device=${device}&path=${encodeURIComponent(path)}`;
+    const url = `${ROUTES.frame}?device=${device}&path=${encodeURIComponent(path)}`;
     location.href = url;
   }
 
@@ -576,7 +572,7 @@ export class Toolbar {
       } else {
         editing.node.textContent = editing.before;
         this.active.hide();
-        const reason = (result as { reason: string }).reason;
+        const { reason } = result;
         this.toasts.show(
           reason === "dynamic"
             ? MESSAGES.dynamic
@@ -654,7 +650,7 @@ export class Toolbar {
       }
       send.setAttribute("disabled", "");
       try {
-        const location = source ? parseSrc(source.src) : undefined;
+        const location = source ? parseSourceAttr(source.src) : undefined;
         await api.ask(request, describeForClaude(el), location);
         this.closePopover();
         this.setMode("idle");
@@ -801,7 +797,7 @@ export class Toolbar {
       parent.postMessage(
         {
           type: "clodable:route",
-          path: location.pathname + location.search.replace(/[?&]__clodable_frame=1/, ""),
+          path: location.pathname + location.search.replace(FRAME_MARK, ""),
         },
         location.origin,
       );

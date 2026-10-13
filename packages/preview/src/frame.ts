@@ -2,6 +2,7 @@
  * The device stage: the app inside a phone or tablet frame, served at /__clodable/frame.
  * Media queries behave exactly as on a real device, because the app runs in an iframe of that width.
  */
+import { FRAME_PARAM, SCREENS } from "./shared.js";
 
 export interface Device {
   id: "phone" | "tablet";
@@ -12,8 +13,8 @@ export interface Device {
 }
 
 export const DEVICES: Record<Device["id"], Device> = {
-  phone: { id: "phone", label: "Phone", width: 390, height: 844, radius: 46 },
-  tablet: { id: "tablet", label: "Tablet", width: 820, height: 1180, radius: 28 },
+  phone: { id: "phone", label: "Phone", ...SCREENS.phone, radius: 46 },
+  tablet: { id: "tablet", label: "Tablet", ...SCREENS.tablet, radius: 28 },
 };
 
 const escapeHtml = (s: string) =>
@@ -31,7 +32,7 @@ export function framePage(options: {
   const safePath =
     options.path.startsWith("/") && !options.path.startsWith("//") ? options.path : "/";
   const separator = safePath.includes("?") ? "&" : "?";
-  const src = `${safePath}${separator}__clodable_frame=1`;
+  const src = `${safePath}${separator}${FRAME_PARAM}=1`;
   return `<!doctype html>
 <html lang="en">
 <head>

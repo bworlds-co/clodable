@@ -1,8 +1,6 @@
 import MagicString from "magic-string";
 import { jsxName, type Node, parseModule, walk } from "./ast.js";
-
-/** The attribute that carries "file:line:column" of the JSX that rendered an element. */
-export const SOURCE_ATTR = "data-cl-src";
+import { SOURCE_ATTR } from "./shared.js";
 
 const SKIP_ELEMENTS = new Set([
   "Fragment",
@@ -83,16 +81,4 @@ export function tagJsx(
     map: s.generateMap({ hires: "boundary", source: file, includeContent: true }),
     count,
   };
-}
-
-export interface SourceLocation {
-  file: string;
-  line: number;
-  column: number;
-}
-
-export function parseSourceAttr(value: string): SourceLocation | undefined {
-  const match = value.match(/^(.+):(\d+):(\d+)$/);
-  if (!match) return undefined;
-  return { file: match[1]!, line: Number(match[2]), column: Number(match[3]) };
 }

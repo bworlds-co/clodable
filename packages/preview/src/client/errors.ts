@@ -1,3 +1,4 @@
+import { buildError, type PageError, ROUTES } from "../shared.js";
 import { api } from "./api.js";
 import { h, icon } from "./dom.js";
 
@@ -6,18 +7,11 @@ import { h, icon } from "./dom.js";
  * calm way forward: "Try to fix", which hands the error to Claude with the page and the source.
  */
 
-export interface CapturedError {
-  message: string;
-  stack?: string;
-  kind: "runtime" | "build" | "promise";
-  source?: { file: string; line: number };
-}
-
 const recentConsole: string[] = [];
-const early: CapturedError[] = [];
-let sink: ((error: CapturedError) => void) | undefined;
+const early: PageError[] = [];
+let sink: ((error: PageError) => void) | undefined;
 
-function emit(error: CapturedError) {
+function emit(error: PageError) {
   if (sink) sink(error);
   else early.push(error);
 }
@@ -102,7 +96,7 @@ async function viteHot(): Promise<ViteHot | undefined> {
     const client = (await import(/* @vite-ignore */ `${location.origin}/@vite/client`)) as {
       createHotContext?: (path: string) => ViteHot;
     };
-    return client.createHotContext?.("/__clodable/toolbar.js");
+    return client.createHotContext?.(ROUTES.toolbar);
   } catch {
     return undefined;
   }
@@ -128,7 +122,7 @@ const fileName = (path: string) => path.split("/").pop() ?? path;
 const strong = (text: string) => h("strong", {}, text);
 
 /** The error in the builder's words: what's wrong, and where. The raw message waits behind "Show details". */
-function explain(error: CapturedError): Array<Node | string> {
+function explain(error: PageError): Array<Node | string> {
   const at = error.source && fileName(error.source.file);
   const missing = error.message.match(/Failed to resolve import "([^"]+)" from "([^"]+)"/);
   if (missing) {
@@ -160,7 +154,7 @@ function explain(error: CapturedError): Array<Node | string> {
 }
 
 /** For developers: where, the raw message, then the code frame or the stack (without the noise). */
-function technical(error: CapturedError): { where: string; frame: string } {
+function technical(error: PageError): { where: string; frame: string } {
   const where = error.source ? `${error.source.file}:${error.source.line}` : "";
   const frame: string[] = [];
   for (const line of (error.stack ?? "").split("\n")) {
@@ -174,7 +168,7 @@ function technical(error: CapturedError): { where: string; frame: string } {
 
 export class ErrorWatcher {
   private card: HTMLElement | undefined;
-  private current: CapturedError | undefined;
+  private current: PageError | undefined;
   private dismissed = new Set<string>();
   private detailsOpen = false;
   private updateStarted = 0;
@@ -217,12 +211,13 @@ export class ErrorWatcher {
         if (!err) return;
         const file = err.loc?.file ?? err.id ?? "";
         const match = file.match(/(src\/[^?:]+)/);
-        this.capture({
-          message: (err.message ?? "The app couldn't be built").split("\n")[0]!.slice(0, 300),
-          stack: `${file}\n${err.message ?? ""}\n${err.stack ?? ""}`.slice(0, 4000),
-          kind: "build",
-          ...(match ? { source: { file: match[1]!, line: err.loc?.line ?? 1 } } : {}),
-        });
+        this.capture(
+          buildError(
+            err.message ?? "The app couldn't be built",
+            `${file}\n${err.message ?? ""}\n${err.stack ?? ""}`,
+            match ? { file: match[1]!, line: err.loc?.line ?? 1 } : undefined,
+          ),
+        );
       });
       hot?.on("vite:beforeUpdate", () => {
         this.updateStarted = Date.now();
@@ -240,12 +235,13 @@ export class ErrorWatcher {
         "The app couldn't be built";
       const file = overlay.shadowRoot?.querySelector(".file")?.textContent ?? "";
       const match = file.match(/(src\/[^:]+):(\d+)/);
-      this.capture({
-        message: text.trim().split("\n")[0]!.slice(0, 300),
-        stack: `${file}\n${text}`.slice(0, 4000),
-        kind: "build",
-        ...(match ? { source: { file: match[1]!, line: Number(match[2]) } } : {}),
-      });
+      this.capture(
+        buildError(
+          text,
+          `${file}\n${text}`,
+          match ? { file: match[1]!, line: Number(match[2]) } : undefined,
+        ),
+      );
     }).observe(document.documentElement, { childList: true });
   }
 
@@ -263,7 +259,7 @@ export class ErrorWatcher {
     this.dismiss(false);
   }
 
-  private capture(error: CapturedError) {
+  private capture(error: PageError) {
     if (!error.message || IGNORE.some((r) => r.test(error.message))) return;
     if (ASK_SERVER.test(error.message)) {
       api.buildError(performance.timeOrigin).then(
@@ -275,7 +271,7 @@ export class ErrorWatcher {
     this.show(error);
   }
 
-  private show(error: CapturedError) {
+  private show(error: PageError) {
     if (this.dismissed.has(error.message)) return;
     const found = error.source ? undefined : sourceFromStack(error.stack);
     if (found) {
