@@ -24,7 +24,8 @@ export function isApex(domain: string): boolean {
   return TWO_PART_SUFFIXES.test(domain) ? labels === 3 : labels === 2;
 }
 
-const domainPattern = /^(?=.{3,253}$)([a-z0-9-]+\.)+[a-z]{2,}$/;
+/** A domain name as people write it: yourapp.com, mail.yourapp.co.uk. */
+export const isDomainName = (name: string) => /^(?=.{3,253}$)([a-z0-9-]+\.)+[a-z]{2,}$/.test(name);
 
 function clean(input: string): string {
   return input
@@ -70,7 +71,7 @@ export async function setDomain(ws: Workspace, input?: string): Promise<DomainOu
     });
   }
   const name = clean(input ?? state.domain?.name ?? "");
-  if (!domainPattern.test(name) || name.endsWith(".lovable.app") || name.endsWith(".netlify.app")) {
+  if (!isDomainName(name) || name.endsWith(".lovable.app") || name.endsWith(".netlify.app")) {
     throw new ClodableError({
       code: "invalid-config",
       message: name ? `“${name}” isn't a domain of your own.` : "Which domain?",

@@ -6,7 +6,7 @@ import type { Workspace } from "../workspace.js";
 import { textFiles } from "./assess.js";
 import { localFunctions } from "./functions.js";
 import { ResendApi } from "./resend-api.js";
-import { loadMove, updateMove } from "./state.js";
+import { loadMove, updateMove, withNames } from "./state.js";
 import { projectUrl, SupabaseApi } from "./supabase-api.js";
 
 /**
@@ -124,14 +124,17 @@ export async function skipServices(ws: Workspace): Promise<{ skipped: true }> {
   return { skipped: true };
 }
 
-/** The new backend's function secrets, where the backend functions will read them. */
-async function functionSecrets(ws: Workspace, values: Array<{ name: string; value: string }>) {
+/** Set the new backend's function secrets, where the backend functions will read them. */
+async function setFunctionSecrets(ws: Workspace, values: Array<{ name: string; value: string }>) {
   const state = await loadMove(ws.root);
   if (!state.home || (await localFunctions(ws.root)).length === 0) return;
   const api = await SupabaseApi.required();
   await api.setSecrets(state.home.ref, values);
   await updateMove(ws.root, (s) => {
-    s.secrets = [...new Set([...(s.secrets ?? []), ...values.map((v) => v.name)])].sort();
+    s.secrets = withNames(
+      s.secrets,
+      values.map((v) => v.name),
+    );
   });
 }
 
@@ -162,7 +165,7 @@ export async function setAiProvider(
   }
   await setSetting(ws, "AI_API_URL", chosen.url);
   await setSetting(ws, "AI_API_KEY", value);
-  await functionSecrets(ws, [
+  await setFunctionSecrets(ws, [
     { name: "AI_API_URL", value: chosen.url },
     { name: "AI_API_KEY", value },
   ]);
@@ -194,7 +197,7 @@ export async function provisionAppEmails(
   const sender = state.emails.sender;
   await setSetting(ws, "RESEND_API_KEY", key.token);
   await setSetting(ws, "EMAIL_FROM", sender);
-  await functionSecrets(ws, [
+  await setFunctionSecrets(ws, [
     { name: "RESEND_API_KEY", value: key.token },
     { name: "EMAIL_FROM", value: sender },
   ]);

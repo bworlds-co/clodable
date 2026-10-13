@@ -159,6 +159,11 @@ export async function loadMove(root: string): Promise<MoveState> {
   }
 }
 
+/** Names the move has recorded (settings, secrets…), with more added: each once, sorted. */
+export function withNames(recorded: string[] | undefined, more: string[]): string[] {
+  return [...new Set([...(recorded ?? []), ...more])].sort();
+}
+
 export function saveMove(root: string, state: MoveState): Promise<void> {
   return writeJsonFile(join(root, MOVE_PATH), state);
 }

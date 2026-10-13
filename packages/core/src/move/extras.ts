@@ -10,7 +10,7 @@ import {
   localFunctions,
 } from "./functions.js";
 import { homeKeys, homeSql } from "./home.js";
-import { loadMove, moveDir, updateMove } from "./state.js";
+import { loadMove, moveDir, updateMove, withNames } from "./state.js";
 import { SupabaseApi } from "./supabase-api.js";
 
 /**
@@ -113,7 +113,7 @@ export async function functionSecretStatus(
   const have = new Set(await api.secretNames(home.ref));
   const set = wanted.filter((name) => have.has(name));
   await updateMove(ws.root, (s) => {
-    s.secrets = [...new Set([...(s.secrets ?? []), ...set])].sort();
+    s.secrets = withNames(s.secrets, set);
   });
   return { wanted, set };
 }
@@ -207,7 +207,7 @@ export async function setFunctionSecret(
   const api = await SupabaseApi.required();
   await api.setSecrets(home.ref, [{ name, value: value.replace(/\r?\n$/, "") }]);
   await updateMove(ws.root, (s) => {
-    s.secrets = [...new Set([...(s.secrets ?? []), name])].sort();
+    s.secrets = withNames(s.secrets, [name]);
   });
   return functionSecretStatus(ws);
 }

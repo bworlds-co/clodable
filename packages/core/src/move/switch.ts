@@ -51,6 +51,8 @@ export const PAUSE_NAME = "clodable_pause";
 
 /** What stops the live app's scheduled jobs in Lovable (the quick way: going live starts them here). */
 export const STOP_LOVABLE_JOBS = "select cron.alter_job(jobid, active := false) from cron.job;";
+/** And starts them again (undoing the pause). */
+const START_LOVABLE_JOBS = "select cron.alter_job(jobid, active := true) from cron.job;";
 
 const PAUSE_AUTH = `do $pause$ begin
   execute $f$create or replace function public.${PAUSE_NAME}() returns trigger language plpgsql as $b$ begin raise exception 'This app is moving to a new home: try again in a few minutes.'; end $b$$f$;
@@ -105,14 +107,14 @@ export function freezeSql(
     freeze: [
       "-- Clodable: pause changes on the live app while it moves. Reading and signing in keep working.",
       ...pause,
-      ...(hasJobs ? ["select cron.alter_job(jobid, active := false) from cron.job;"] : []),
+      ...(hasJobs ? [STOP_LOVABLE_JOBS] : []),
       PAUSE_AUTH,
       PAUSE_STORAGE,
     ].join("\n"),
     undo: [
       "-- Clodable: undo the pause (only if you're not switching after all).",
       ...resume,
-      ...(hasJobs ? ["select cron.alter_job(jobid, active := true) from cron.job;"] : []),
+      ...(hasJobs ? [START_LOVABLE_JOBS] : []),
       RESUME_AUTH,
       RESUME_STORAGE,
     ].join("\n"),

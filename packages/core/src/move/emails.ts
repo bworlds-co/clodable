@@ -2,6 +2,7 @@ import { ClodableError } from "../errors.js";
 import { type Flow, step } from "../events.js";
 import { storeSecret } from "../local-secrets.js";
 import type { Workspace } from "../workspace.js";
+import { isDomainName } from "./domain.js";
 import { RESEND_KEY, ResendApi } from "./resend-api.js";
 import { loadMove, type MoveState, updateMove } from "./state.js";
 import { SupabaseApi } from "./supabase-api.js";
@@ -58,8 +59,6 @@ export interface EmailsOutcome {
   connected: boolean;
 }
 
-const domainPattern = /^(?=.{3,253}$)([a-z0-9-]+\.)+[a-z]{2,}$/;
-
 export async function* setUpEmails(
   ws: Workspace,
   options: { domain?: string; sender?: string } = {},
@@ -72,7 +71,7 @@ export async function* setUpEmails(
     });
   }
   const domain = (options.domain ?? state.emails?.domain ?? "").trim().toLowerCase();
-  if (!domainPattern.test(domain)) {
+  if (!isDomainName(domain)) {
     throw new ClodableError({
       code: "move-not-ready",
       message: domain

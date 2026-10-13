@@ -10,7 +10,7 @@ import type { Workspace } from "../workspace.js";
 import { backendEnv, backendOf } from "./backend.js";
 import { homeKeys } from "./home.js";
 import { NETLIFY_TOKEN, type NetlifyAccount, NetlifyApi } from "./netlify-api.js";
-import { loadMove, updateMove } from "./state.js";
+import { loadMove, updateMove, withNames } from "./state.js";
 import { SupabaseApi } from "./supabase-api.js";
 
 /**
@@ -284,7 +284,7 @@ export async function* putSiteOnNetlify(
   }
   if (carried.length > 0) {
     await updateMove(ws.root, (s) => {
-      s.siteSettings = [...new Set([...(s.siteSettings ?? []), ...carried])].sort();
+      s.siteSettings = withNames(s.siteSettings, carried);
     });
   }
 
@@ -354,7 +354,7 @@ export async function setSiteSetting(ws: Workspace, name: string, value: string)
     secret: true,
   });
   await updateMove(ws.root, (s) => {
-    s.siteSettings = [...new Set([...(s.siteSettings ?? []), name])].sort();
+    s.siteSettings = withNames(s.siteSettings, [name]);
   });
   return siteSettings(ws);
 }
