@@ -1353,192 +1353,38 @@ export const register: Register = (on) => {
   // ── The bar above the prompt ─────────────────────────────────────────────
   on("ui.render", { component: "AbovePrompt" }, async ($, e, next) => {
     if (e.props.hasSurvey) return next(e);
-    const here = await read($, status);
-    const invite = here !== null && !here.ready && here.reason === "not-a-repo" && emptyFolder;
-    if (inApp !== true && !invite) return next(e);
-    if (e.surface === "desktop" && inApp === true && !previewAsked) background(startPreview($));
-    const { Box, Text, Button: drawButton, Link } = $.ui.resolve(e);
-    const Button = heldButton(drawButton);
-    const ui = { Text, Button, Link };
     const s = await read($, status);
+    const invite = s !== null && !s.ready && s.reason === "not-a-repo" && emptyFolder;
+    if (inApp !== true && !invite) return next(e);
+    const desktop = e.surface === "desktop";
+    if (desktop && inApp === true && !previewAsked) background(startPreview($));
+    const { Box, Text, Button, Link } = $.ui.resolve(e);
+    const ui: BarUi = { Box, Text, Button: heldButton(Button), Link };
     const a = await read($, activity);
     const now = Date.now();
     // The logo on Desktop. In the terminal the status dot alone says enough.
-    const mark =
-      e.surface === "desktop"
-        ? $.ui.resolve(e).Svg({ source: LOGO, alt: "Clodable", width: 16, height: 16 })
-        : null;
+    const mark = desktop
+      ? $.ui.resolve(e).Svg({ source: LOGO, alt: "Clodable", width: 16, height: 16 })
+      : null;
     const theirs = await next(e);
-    const desktop = e.surface === "desktop";
-    // What's true now on the left; what you can do on the right, the main action last.
-    const bar = (left: RenderChildren[], right: RenderChildren[] = []) => (
-      <Box
-        flexDirection="row"
-        justifyContent="space-between"
-        alignItems="center"
-        columnGap={2}
-        width="100%"
-      >
-        <Box flexDirection="row" columnGap={1} alignItems="center" flexShrink={1} minWidth={0}>
-          {mark}
-          {left}
-        </Box>
-        <Box flexDirection="row" columnGap={1} alignItems="center" flexShrink={0}>
-          {right}
-        </Box>
-      </Box>
-    );
-    // In the terminal, where there's no logo, a colored dot carries the state.
-    const dot = (color: string) => (desktop ? null : <Text color={color}>●</Text>);
-    const history = (
-      <Button key="history" variant="secondary" onPress={() => background(openPane($))}>
-        History
-      </Button>
-    );
-    const preview = previewButton($, ui, desktop);
-
-    let ours: RenderElement;
-    if (a.kind === "publishing" || a.kind === "undoing") {
-      const running = [...a.steps].reverse().find((x) => x.state === "running");
-      const last = a.steps[a.steps.length - 1];
-      ours = bar(
-        [
-          <Text bold>{a.kind === "publishing" ? "Publishing" : "Undoing"}</Text>,
-          <Text dimColor wrap="truncate-end">
-            {running
-              ? running.detail
-                ? `${running.title} · ${running.detail}`
-                : `${running.title}…`
-              : last
-                ? last.title
-                : "Starting…"}
-          </Text>,
-        ],
-        [
-          <Button key="progress" variant="secondary" onPress={() => background(openPane($))}>
-            See progress
-          </Button>,
-        ],
-      );
-    } else if (justDone(a, now)) {
-      ours = bar(
-        a.onLovable
-          ? [
-              dot("success"),
-              <Text color="success" bold>
-                {doneTitle(a.kind, true)}
-              </Text>,
-              ...(a.site
-                ? [
-                    a.site.state === "failed" ? (
-                      <Link
-                        href={a.site.logUrl ?? a.site.url}
-                        label="Netlify site didn't update ↗"
-                      />
-                    ) : (
-                      <Link href={a.site.url} label="Netlify site ↗" />
-                    ),
-                  ]
-                : []),
-              <Link
-                href={a.lovableUrl ?? "https://lovable.dev/projects"}
-                label="Put it live in Lovable ↗"
-              />,
-            ]
-          : [
-              dot("success"),
-              <Text color="success" bold>
-                {doneTitle(a.kind, false)}
-              </Text>,
-              a.url ? siteLink(ui, a.url) : null,
-            ],
-        a.kind === "published"
-          ? [
-              <Button key="undo" variant="secondary" onPress={() => background(undoNow($))}>
-                Undo
-              </Button>,
-            ]
-          : [],
-      );
-    } else if (a.kind === "failed" && a.error) {
-      ours = bar(
-        [
-          <Box flexShrink={0}>
-            <Text color={a.error.code === "conflict" ? "warning" : "error"} bold>
-              {stoppedTitle(a.error.code)}
-            </Text>
-          </Box>,
-          <Text wrap="truncate-end">{shortReason(a.error)}</Text>,
-        ],
-        [
-          <Button key="why" variant="secondary" onPress={() => background(openPane($))}>
-            See why
-          </Button>,
-          fixButton($, ui, "fix", a.error.code === "conflict"),
-        ],
-      );
-    } else if (a.kind === "saving") {
-      ours = bar([<Text dimColor>Saving…</Text>], [history, preview]);
-    } else if (!s) {
-      ours = bar([<Text dimColor>Clodable is getting ready…</Text>]);
-    } else if (!s.ready) {
-      ours = bar(
-        [
-          <Text>
-            {s.reason === "not-a-repo"
-              ? "Bring your app into this folder to save and publish"
-              : s.message}
-          </Text>,
-        ],
-        [
-          <Button key="setup" variant="primary" onPress={() => background(openPane($))}>
-            Set up
-          </Button>,
-        ],
-      );
-    } else if (s.merging || s.conflicts.length > 0) {
-      ours = bar(
-        [
-          <Box flexShrink={0}>
-            <Text color="warning" bold>
-              Not published
-            </Text>
-          </Box>,
-          <Text wrap="truncate-end">{shortReason({ code: "conflict", message: "" })}</Text>,
-        ],
-        [fixButton($, ui, "combine", true)],
-      );
-    } else if (s.unpublished.length > 0) {
-      ours = bar(
-        [
-          dot("warning"),
-          <Text>
-            <Text bold>{plural(s.unpublished.length, "change")}</Text> not live yet
-          </Text>,
-        ],
-        [
-          history,
-          preview,
-          <Button key="publish" variant="primary" onPress={() => background(publishNow($))}>
-            Publish
-          </Button>,
-        ],
-      );
-    } else {
-      const url = s.lastPublish?.url ?? s.liveUrl;
-      ours = bar(
-        [
-          dot("success"),
-          // Lovable's hosting only shows what was last published in Lovable: say what's certain.
-          <Text>{s.hosting === "lovable" ? "Everything is published" : "Everything is live"}</Text>,
-          url ? siteLink(ui, url) : null,
-        ],
-        [history, preview],
-      );
-    }
+    const { left, right = [] } = barSides($, ui, s, a, now, desktop);
     return (
       <Box flexDirection="column">
-        {ours}
+        <Box
+          flexDirection="row"
+          justifyContent="space-between"
+          alignItems="center"
+          columnGap={2}
+          width="100%"
+        >
+          <Box flexDirection="row" columnGap={1} alignItems="center" flexShrink={1} minWidth={0}>
+            {mark}
+            {left}
+          </Box>
+          <Box flexDirection="row" columnGap={1} alignItems="center" flexShrink={0}>
+            {right}
+          </Box>
+        </Box>
         {theirs}
       </Box>
     );
@@ -1727,6 +1573,177 @@ export const register: Register = (on) => {
     );
   });
 };
+
+// ── The bar's pieces (top level, so they can use $) ─────────────────────────
+
+/** What the bar draws with: the surface's own pieces, its buttons held across redraws. */
+type BarUi = Pick<PaneUi, "Box" | "Text" | "Button" | "Link">;
+
+/** The bar's two sides: what's true now on the left; what you can do on the right, the main action last. */
+type BarSides = { left: RenderChildren[]; right?: RenderChildren[] };
+
+/** What the bar says now, from the activity first (it's what just happened), then the status. */
+function barSides(
+  $: EngineInterface,
+  ui: BarUi,
+  s: ClodableStatus | ClodableNotReady | null,
+  a: ClodableActivity,
+  now: number,
+  desktop: boolean,
+): BarSides {
+  const { Box, Text, Button, Link } = ui;
+  // In the terminal, where there's no logo, a colored dot carries the state.
+  const dot = (color: string) => (desktop ? null : <Text color={color}>●</Text>);
+  const history = (
+    <Button key="history" variant="secondary" onPress={() => background(openPane($))}>
+      History
+    </Button>
+  );
+  const preview = previewButton($, ui, desktop);
+
+  if (a.kind === "publishing" || a.kind === "undoing") {
+    const running = [...a.steps].reverse().find((x) => x.state === "running");
+    const last = a.steps[a.steps.length - 1];
+    return {
+      left: [
+        <Text bold>{a.kind === "publishing" ? "Publishing" : "Undoing"}</Text>,
+        <Text dimColor wrap="truncate-end">
+          {running
+            ? running.detail
+              ? `${running.title} · ${running.detail}`
+              : `${running.title}…`
+            : last
+              ? last.title
+              : "Starting…"}
+        </Text>,
+      ],
+      right: [
+        <Button key="progress" variant="secondary" onPress={() => background(openPane($))}>
+          See progress
+        </Button>,
+      ],
+    };
+  }
+  if (justDone(a, now)) {
+    const undo =
+      a.kind === "published"
+        ? [
+            <Button key="undo" variant="secondary" onPress={() => background(undoNow($))}>
+              Undo
+            </Button>,
+          ]
+        : [];
+    if (!a.onLovable) {
+      return {
+        left: [
+          dot("success"),
+          <Text color="success" bold>
+            {doneTitle(a.kind, false)}
+          </Text>,
+          a.url ? siteLink(ui, a.url) : null,
+        ],
+        right: undo,
+      };
+    }
+    return {
+      left: [
+        dot("success"),
+        <Text color="success" bold>
+          {doneTitle(a.kind, true)}
+        </Text>,
+        a.site ? (
+          a.site.state === "failed" ? (
+            <Link href={a.site.logUrl ?? a.site.url} label="Netlify site didn't update ↗" />
+          ) : (
+            <Link href={a.site.url} label="Netlify site ↗" />
+          )
+        ) : null,
+        <Link
+          href={a.lovableUrl ?? "https://lovable.dev/projects"}
+          label="Put it live in Lovable ↗"
+        />,
+      ],
+      right: undo,
+    };
+  }
+  if (a.kind === "failed" && a.error) {
+    return {
+      left: [
+        <Box flexShrink={0}>
+          <Text color={a.error.code === "conflict" ? "warning" : "error"} bold>
+            {stoppedTitle(a.error.code)}
+          </Text>
+        </Box>,
+        <Text wrap="truncate-end">{shortReason(a.error)}</Text>,
+      ],
+      right: [
+        <Button key="why" variant="secondary" onPress={() => background(openPane($))}>
+          See why
+        </Button>,
+        fixButton($, ui, "fix", a.error.code === "conflict"),
+      ],
+    };
+  }
+  if (a.kind === "saving")
+    return { left: [<Text dimColor>Saving…</Text>], right: [history, preview] };
+  if (!s) return { left: [<Text dimColor>Clodable is getting ready…</Text>] };
+  if (!s.ready) {
+    return {
+      left: [
+        <Text>
+          {s.reason === "not-a-repo"
+            ? "Bring your app into this folder to save and publish"
+            : s.message}
+        </Text>,
+      ],
+      right: [
+        <Button key="setup" variant="primary" onPress={() => background(openPane($))}>
+          Set up
+        </Button>,
+      ],
+    };
+  }
+  if (s.merging || s.conflicts.length > 0) {
+    return {
+      left: [
+        <Box flexShrink={0}>
+          <Text color="warning" bold>
+            Not published
+          </Text>
+        </Box>,
+        <Text wrap="truncate-end">{shortReason({ code: "conflict", message: "" })}</Text>,
+      ],
+      right: [fixButton($, ui, "combine", true)],
+    };
+  }
+  if (s.unpublished.length > 0) {
+    return {
+      left: [
+        dot("warning"),
+        <Text>
+          <Text bold>{plural(s.unpublished.length, "change")}</Text> not live yet
+        </Text>,
+      ],
+      right: [
+        history,
+        preview,
+        <Button key="publish" variant="primary" onPress={() => background(publishNow($))}>
+          Publish
+        </Button>,
+      ],
+    };
+  }
+  const url = s.lastPublish?.url ?? s.liveUrl;
+  return {
+    left: [
+      dot("success"),
+      // Lovable's hosting only shows what was last published in Lovable: say what's certain.
+      <Text>{s.hosting === "lovable" ? "Everything is published" : "Everything is live"}</Text>,
+      url ? siteLink(ui, url) : null,
+    ],
+    right: [history, preview],
+  };
+}
 
 // ── The panel's pieces (top level, so they can use $) ──────────────────────────
 
