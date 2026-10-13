@@ -11,7 +11,9 @@ import { textFiles } from "./assess.js";
 import { backendEnv, backendOf } from "./backend.js";
 import { type ExportSummary, JOBS_FILE } from "./export.js";
 import { literal, type NewKeys, repoint, tableName } from "./fixes.js";
+import { homeKeys, homeSql } from "./home.js";
 import type { Sql } from "./postgres.js";
+import { liveSignIn } from "./sign-in.js";
 import { forgetMoveFiles, loadMove, type MoveState, moveDir, updateMove } from "./state.js";
 import { SupabaseApi } from "./supabase-api.js";
 
@@ -296,35 +298,6 @@ export async function recreateJobs(
 
 // ── Going live ───────────────────────────────────────────────────────────────
 
-/**
- * Sign-in for real people: links in emails come back to the site (and still to local previews).
- * `confirmEmail` and `signUp` (whether anyone may create an account, or only invited people) are
- * left as they are when not given.
- */
-export async function liveSignIn(
-  api: SupabaseApi,
-  ref: string,
-  url: string,
-  confirmEmail?: boolean,
-  signUp?: boolean,
-): Promise<void> {
-  const auth = await api.authConfig(ref);
-  const allowed = new Set(
-    String(auth.uri_allow_list ?? "")
-      .split(",")
-      .map((u) => u.trim())
-      .filter(Boolean),
-  );
-  allowed.add(`${url}/**`);
-  allowed.add("http://localhost:*/**");
-  await api.updateAuthConfig(ref, {
-    site_url: url,
-    uri_allow_list: [...allowed].join(","),
-    ...(confirmEmail !== undefined ? { mailer_autoconfirm: !confirmEmail } : {}),
-    ...(signUp !== undefined ? { disable_signup: !signUp } : {}),
-  });
-}
-
 export interface GoLiveOutcome {
   url: string;
   files: string[];
@@ -383,7 +356,7 @@ export async function* goLive(
     });
   }
   const supabase = await SupabaseApi.required();
-  const { homeKeys, homeSql } = await import("./flows.js");
+
   const keys = await homeKeys(supabase, state.home.ref);
   const url = state.site.url;
   const emails = Boolean(state.emails?.connectedAt);

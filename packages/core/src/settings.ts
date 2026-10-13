@@ -3,8 +3,8 @@ import { realpathSync } from "node:fs";
 import { join } from "node:path";
 import { ClodableError } from "./errors.js";
 import { readSecret, storeSecret } from "./local-secrets.js";
+import { textFiles } from "./move/assess.js";
 import { NetlifyApi } from "./move/netlify-api.js";
-import { appSettings } from "./move/site.js";
 import { loadMove, updateMove } from "./move/state.js";
 import { writeJsonFile } from "./places.js";
 import type { Workspace } from "./workspace.js";
@@ -15,6 +15,40 @@ import type { Workspace } from "./workspace.js";
  * settings. Their values stay in Clodable's private store, never in the project, and `clodable dev`
  * gives them to the app. A setting pasted once goes to both: here, and the site on Netlify.
  */
+
+/** Settings the host provides on its own, or that Clodable sets from the new backend. */
+const PROVIDED =
+  /^(NODE_ENV|PORT|CI|HOST|NETLIFY.*|CONTEXT|URL|DEPLOY_URL|VERCEL.*|SUPABASE_[A-Z_]+|VITE_[A-Z_]+)$/;
+
+/**
+ * The settings the app's server code reads (`process.env.X`): on Lovable's hosting, Lovable keeps
+ * them; now the builder gives them to the site. Lovable's own (LOVABLE_*) are listed apart: they
+ * only work on Lovable, and their features need switching to the builder's own service.
+ */
+export async function appSettings(root: string): Promise<{ wanted: string[]; lovable: string[] }> {
+  const files = await textFiles(root, ["src", "server", "app"]);
+  const names = new Set<string>();
+  for (const file of files) {
+    for (const match of file.text.matchAll(
+      /process\.env(?:\.([A-Z][A-Z0-9_]*)|\[\s*["'`]([A-Z][A-Z0-9_]*)["'`]\s*\])/g,
+    )) {
+      const name = (match[1] ?? match[2])!;
+      if (!PROVIDED.test(name)) names.add(name);
+    }
+    // `const { STRIPE_KEY, RESEND_KEY: resend } = process.env`
+    for (const match of file.text.matchAll(/\{([^{}]+)\}\s*=\s*process\.env\b/g)) {
+      for (const part of match[1]!.split(",")) {
+        const name = part.split(":")[0]!.split("=")[0]!.trim();
+        if (/^[A-Z][A-Z0-9_]*$/.test(name) && !PROVIDED.test(name)) names.add(name);
+      }
+    }
+  }
+  const all = [...names].sort();
+  return {
+    wanted: all.filter((n) => !n.startsWith("LOVABLE_")),
+    lovable: all.filter((n) => n.startsWith("LOVABLE_")),
+  };
+}
 
 /** Names only (never values): `clodable dev` watches it to restart when a setting changes. */
 export const SETTINGS_PATH = ".clodable/local/settings.json";

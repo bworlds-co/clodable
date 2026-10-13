@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { basename, relative, resolve } from "node:path";
 import { ClodableError } from "./errors.js";
 import { literal } from "./move/fixes.js";
-import { homeSql } from "./move/flows.js";
+import { homeSql } from "./move/home.js";
 import { SupabaseApi } from "./move/supabase-api.js";
 import type { Workspace } from "./workspace.js";
 

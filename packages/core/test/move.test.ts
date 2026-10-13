@@ -12,12 +12,12 @@ import { NetlifyApi } from "../src/move/netlify-api.js";
 import { psqlSql, type Sql } from "../src/move/postgres.js";
 import { ResendApi } from "../src/move/resend-api.js";
 import { copyExport } from "../src/move/restore.js";
-import { appSettings } from "../src/move/site.js";
 import { MOVE_PERMISSIONS, permissionFor, SupabaseApi } from "../src/move/supabase-api.js";
 import { exportTime, freezeSql, madeAfterPause } from "../src/move/switch.js";
 import { appTriggerIds, parseToc, planRestore } from "../src/move/toc.js";
 import { verifyCopy } from "../src/move/verify.js";
 import { extractEntry, zipEntries } from "../src/move/zip.js";
+import { appSettings } from "../src/settings.js";
 import { startFakeSupabase } from "./fake-supabase.js";
 import {
   DST,
@@ -280,7 +280,7 @@ describe("the pause", () => {
 
 describe("Supabase's free plan", () => {
   it("is said to be too small before copying, when the app is larger than it holds", async () => {
-    const { planLimits } = await import("../src/move/flows.js");
+    const { planLimits } = await import("../src/move/progress.js");
     const summary = (bytes: number, files: number) =>
       ({
         bytes,

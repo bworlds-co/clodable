@@ -3,9 +3,9 @@ import { saveConfig } from "../config.js";
 import { ClodableError } from "../errors.js";
 import type { Workspace } from "../workspace.js";
 import { NetlifyApi } from "./netlify-api.js";
+import { liveSignIn } from "./sign-in.js";
 import { loadMove, type MoveState, updateMove } from "./state.js";
 import { SupabaseApi } from "./supabase-api.js";
-import { liveSignIn } from "./switch.js";
 
 /**
  * The app's own domain (yourapp.com), moved to its site on Netlify once it's live there: before

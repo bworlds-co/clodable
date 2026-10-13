@@ -3,15 +3,13 @@ import { functionsNaming, literal, SEQUENCES_BEHIND, tableName, triggersNaming }
 import type { Sql } from "./postgres.js";
 import type { MoveCheck } from "./state.js";
 import { isManaged } from "./toc.js";
+import { count } from "./words.js";
 
 /**
  * Is everything there? The copy is compared with the export, never with itself: rows per table,
  * people and their passwords, the rules and triggers per schema (the incidents of past moves all
  * showed up there first), counters, and nothing still pointing at the old backend.
  */
-
-const plural = (n: number, one: string, many = `${one}s`) =>
-  `${n.toLocaleString("en-US")} ${n === 1 ? one : many}`;
 
 export interface VerifyOptions {
   /** The Lovable Cloud project, which nothing in the copy should still call. */
@@ -56,8 +54,8 @@ export async function verifyCopy(
       ok: missing.length === 0 && short.length === 0,
       label:
         missing.length + short.length === 0
-          ? `All ${plural(tables.length, "table")} and their ${plural(rows, "row")} are there`
-          : `${plural(missing.length + short.length, "table")} didn't copy fully`,
+          ? `All ${count(tables.length, "table")} and their ${count(rows, "row")} are there`
+          : `${count(missing.length + short.length, "table")} didn't copy fully`,
       ...(missing.length + short.length > 0
         ? {
             detail: [
@@ -86,11 +84,11 @@ export async function verifyCopy(
       id: "people",
       ok,
       label: ok
-        ? `${plural(total, "person", "people")} can sign in as before`
-        : `${plural(total, "person", "people")} of ${summary.people.total.toLocaleString("en-US")} came over`,
+        ? `${count(total, "person", "people")} can sign in as before`
+        : `${count(total, "person", "people")} of ${summary.people.total.toLocaleString("en-US")} came over`,
       ...(summary.people.withoutPassword > 0
         ? {
-            detail: `${plural(summary.people.withoutPassword, "person", "people")} sign in without a password (Google and the like, or invited).`,
+            detail: `${count(summary.people.withoutPassword, "person", "people")} sign in without a password (Google and the like, or invited).`,
           }
         : {}),
     });
@@ -199,7 +197,7 @@ export async function verifyCopy(
       label:
         naming.length === 0
           ? "Nothing calls Lovable Cloud anymore"
-          : `${plural(naming.length, "database function or webhook")} still call Lovable Cloud`,
+          : `${count(naming.length, "database function or webhook")} still call Lovable Cloud`,
       ...(naming.length > 0 ? { detail: naming.join(", ") } : {}),
     });
   }
@@ -246,8 +244,8 @@ export async function verifyCopy(
             ? "Some files are missing"
             : "Some file folders are missing"
           : options.files
-            ? `All ${plural(files, "file")} are there`
-            : `${plural(summary.buckets.length, "file folder")} ready for your files`,
+            ? `All ${count(files, "file")} are there`
+            : `${count(summary.buckets.length, "file folder")} ready for your files`,
       ...(problems.length > 0 ? { detail: problems.join("; ") } : {}),
     });
   }

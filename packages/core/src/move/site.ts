@@ -5,11 +5,10 @@ import { ClodableError } from "../errors.js";
 import { type Flow, step } from "../events.js";
 import { readSecret, storeSecret } from "../local-secrets.js";
 import { type PackageManager, type ProjectInfo, runScriptCommand } from "../project.js";
-import { localSettings } from "../settings.js";
+import { appSettings, localSettings } from "../settings.js";
 import type { Workspace } from "../workspace.js";
-import { textFiles } from "./assess.js";
 import { backendEnv, backendOf } from "./backend.js";
-import { homeKeys } from "./flows.js";
+import { homeKeys } from "./home.js";
 import { NETLIFY_TOKEN, type NetlifyAccount, NetlifyApi } from "./netlify-api.js";
 import { loadMove, updateMove } from "./state.js";
 import { SupabaseApi } from "./supabase-api.js";
@@ -183,42 +182,6 @@ export function netlifyWorkflow(project: ProjectInfo, liveBranch: string, siteUr
     `        run: gh api ${repoApi}/${gha("steps.start.outputs.id")}/statuses -f state=failure -f log_url=${gha("github.server_url")}/${gha("github.repository")}/actions/runs/${gha("github.run_id")} > /dev/null`,
     "",
   ].join("\n");
-}
-
-// ── The app's own settings ───────────────────────────────────────────────────
-
-/** Settings the host provides on its own, or that Clodable sets from the new backend. */
-const PROVIDED =
-  /^(NODE_ENV|PORT|CI|HOST|NETLIFY.*|CONTEXT|URL|DEPLOY_URL|VERCEL.*|SUPABASE_[A-Z_]+|VITE_[A-Z_]+)$/;
-
-/**
- * The settings the app's server code reads (`process.env.X`): on Lovable's hosting, Lovable keeps
- * them; now the builder gives them to the site. Lovable's own (LOVABLE_*) are listed apart: they
- * only work on Lovable, and their features need switching to the builder's own service.
- */
-export async function appSettings(root: string): Promise<{ wanted: string[]; lovable: string[] }> {
-  const files = await textFiles(root, ["src", "server", "app"]);
-  const names = new Set<string>();
-  for (const file of files) {
-    for (const match of file.text.matchAll(
-      /process\.env(?:\.([A-Z][A-Z0-9_]*)|\[\s*["'`]([A-Z][A-Z0-9_]*)["'`]\s*\])/g,
-    )) {
-      const name = (match[1] ?? match[2])!;
-      if (!PROVIDED.test(name)) names.add(name);
-    }
-    // `const { STRIPE_KEY, RESEND_KEY: resend } = process.env`
-    for (const match of file.text.matchAll(/\{([^{}]+)\}\s*=\s*process\.env\b/g)) {
-      for (const part of match[1]!.split(",")) {
-        const name = part.split(":")[0]!.split("=")[0]!.trim();
-        if (/^[A-Z][A-Z0-9_]*$/.test(name) && !PROVIDED.test(name)) names.add(name);
-      }
-    }
-  }
-  const all = [...names].sort();
-  return {
-    wanted: all.filter((n) => !n.startsWith("LOVABLE_")),
-    lovable: all.filter((n) => n.startsWith("LOVABLE_")),
-  };
 }
 
 // ── Creating the site ────────────────────────────────────────────────────────

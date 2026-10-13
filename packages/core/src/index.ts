@@ -104,6 +104,14 @@ export {
   planKit,
 } from "./kit/index.js";
 export { forgetSecret, readSecret, storeSecret } from "./local-secrets.js";
+export {
+  connectSupabase,
+  costOf,
+  type HomeChoices,
+  homeChoices,
+  type OrganizationChoice,
+  type RunningFreeProject,
+} from "./move/account.js";
 export { assessMove, type MoveAssessment, type MoveItem } from "./move/assess.js";
 export {
   BACKEND_ENV,
@@ -111,6 +119,9 @@ export {
   backendEnv,
   type PreviewBackend,
 } from "./move/backend.js";
+export { checkCopy, copyData, importExport } from "./move/copy.js";
+export { previewBackend, setPreview } from "./move/copy-preview.js";
+export { diagnoseCopy, type MoveFinding } from "./move/diagnose.js";
 export {
   type DomainOutcome,
   isApex,
@@ -125,6 +136,15 @@ export {
   readExport,
 } from "./move/export.js";
 export {
+  copyUploads,
+  deployBackendFunctions,
+  functionSecretStatus,
+  setFunctionSecret,
+  setVaultValue,
+  skipLeftovers,
+  vaultStatus,
+} from "./move/extras.js";
+export {
   type AppFacts,
   AppFactsSchema,
   type FactsHints,
@@ -136,32 +156,6 @@ export {
 } from "./move/facts.js";
 export type { FilesOutcome } from "./move/files.js";
 export { type NewKeys, repoint } from "./move/fixes.js";
-export {
-  checkCopy,
-  connectSupabase,
-  copyData,
-  copyUploads,
-  costOf,
-  createHome,
-  deployBackendFunctions,
-  diagnoseCopy,
-  functionSecretStatus,
-  type HomeChoices,
-  homeChoices,
-  importExport,
-  type MoveFinding,
-  type MoveProgress,
-  type MoveStep,
-  moveProgress,
-  type OrganizationChoice,
-  previewBackend,
-  type RunningFreeProject,
-  setFunctionSecret,
-  setPreview,
-  setVaultValue,
-  skipLeftovers,
-  vaultStatus,
-} from "./move/flows.js";
 export { type DeployOutcome, localFunctions } from "./move/functions.js";
 export {
   GOOGLE_SETTING,
@@ -170,6 +164,7 @@ export {
   setGoogleSignIn,
   skipGoogle,
 } from "./move/google.js";
+export { createHome } from "./move/home.js";
 export {
   NETLIFY_TOKEN,
   NETLIFY_TOKENS_PAGE,
@@ -182,6 +177,7 @@ export {
   postgresTool,
   ToolUnavailable,
 } from "./move/postgres-tools.js";
+export { type MoveProgress, type MoveStep, moveProgress } from "./move/progress.js";
 export { RESEND_KEY, RESEND_KEYS_PAGE, ResendApi } from "./move/resend-api.js";
 export { copyExport } from "./move/restore.js";
 export {
@@ -196,7 +192,6 @@ export {
   skipServices,
 } from "./move/services.js";
 export {
-  appSettings,
   connectNetlify,
   putSiteOnNetlify,
   type SiteOutcome,
@@ -247,6 +242,7 @@ export {
 } from "./publish.js";
 export type { FunctionsOutcome } from "./publish-functions.js";
 export {
+  appSettings,
   localSettings,
   SETTINGS_PATH,
   type SettingsStatus,

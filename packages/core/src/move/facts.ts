@@ -1,10 +1,10 @@
 import { z } from "zod";
 import { ClodableError } from "../errors.js";
 import { CODE_DIRS, LOVABLE_AI } from "../project.js";
+import { appSettings } from "../settings.js";
 import type { Workspace } from "../workspace.js";
 import { textFiles } from "./assess.js";
 import { localFunctions } from "./functions.js";
-import { appSettings } from "./site.js";
 import { loadMove, updateMove } from "./state.js";
 
 /**
