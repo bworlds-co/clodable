@@ -1,5 +1,5 @@
 import { confirm, isCancel } from "@clack/prompts";
-import { ClodableError, publish, runChecks, undoPublish } from "@clodable/core";
+import { checksFailed, publish, runChecks, undoPublish } from "@clodable/core";
 import pc from "picocolors";
 import { type Context, drive, run } from "../context.js";
 import { ash, celadon, link, ochre } from "../ui.js";
@@ -96,14 +96,7 @@ export async function checkCommand(ctx: Context) {
       const ws = await ctx.workspace();
       const results = await drive(ctx, runChecks(ws.project, ws.config));
       const failed = results.filter((r) => r.status === "failed");
-      if (failed.length > 0) {
-        throw new ClodableError({
-          code: "checks-failed",
-          message: failed[0]!.summary,
-          hint: "Ask Claude to fix it.",
-          details: failed.map((f) => f.details ?? "").join("\n\n"),
-        });
-      }
+      if (failed.length > 0) throw checksFailed(failed, "Ask Claude to fix it.");
       return results;
     },
     () => {

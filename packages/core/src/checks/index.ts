@@ -1,4 +1,5 @@
 import type { ProjectConfig } from "../config.js";
+import { ClodableError } from "../errors.js";
 import { type Flow, step } from "../events.js";
 import { exec } from "../exec.js";
 import { type ProjectInfo, runScriptCommand } from "../project.js";
@@ -166,6 +167,25 @@ const RUNNING: Record<CheckId, string> = {
   packages: "Checking packages for security issues",
   secrets: "Looking for exposed secret keys",
 };
+
+/**
+ * The error for checks that failed: the first one's summary, everything for developers, and the
+ * files the fix should look at, for Claude.
+ */
+export function checksFailed(failed: CheckResult[], hint: string): ClodableError {
+  return new ClodableError({
+    code: "checks-failed",
+    message: failed[0]?.summary ?? "A check failed.",
+    hint,
+    details: failed
+      .map((f) => `${f.summary}\n${f.details ?? ""}`)
+      .join("\n\n")
+      .trim(),
+    files: failed.flatMap(
+      (f) => f.locations?.map((l) => (l.line ? `${l.file}:${l.line}` : l.file)) ?? [],
+    ),
+  });
+}
 
 /** Run the enabled checks in order, reporting each as a step. */
 export async function* runChecks(project: ProjectInfo, config: ProjectConfig): Flow<CheckResult[]> {

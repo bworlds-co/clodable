@@ -5,7 +5,13 @@ export {
   gitleaksBinary,
   ScannerUnavailable,
 } from "./checks/gitleaks.js";
-export { type CheckId, type CheckResult, runChecks, summarizeBuildOutput } from "./checks/index.js";
+export {
+  type CheckId,
+  type CheckResult,
+  checksFailed,
+  runChecks,
+  summarizeBuildOutput,
+} from "./checks/index.js";
 export {
   classify,
   describeFinding,

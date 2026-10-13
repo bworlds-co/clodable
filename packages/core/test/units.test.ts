@@ -9,6 +9,7 @@ import {
   agentsMd,
   applyKit,
   assessMove,
+  checksFailed,
   claimInbox,
   classify,
   cleanSubject,
@@ -681,6 +682,37 @@ describe("the line Publish shows while the host builds", () => {
     );
     // A host that builds outside GitHub: only how long so far.
     expect(buildLine(undefined, 130_000)).toBe("Your host is building it · 2 min so far");
+  });
+});
+
+describe("failed checks", () => {
+  it("say what failed first, keep everything for developers, and name the files", () => {
+    const error = checksFailed(
+      [
+        {
+          id: "build",
+          status: "failed",
+          summary: "Your app doesn't build",
+          details: "src/App.tsx:4 error: Cannot find name 'Hero'",
+          locations: [{ file: "src/App.tsx", line: 4 }],
+        },
+        {
+          id: "secrets",
+          status: "failed",
+          summary: "A secret key is in your code",
+          locations: [{ file: "src/lib/stripe.ts" }],
+        },
+      ],
+      "Ask Claude to fix it.",
+    );
+    expect(error.toJSON()).toEqual({
+      code: "checks-failed",
+      message: "Your app doesn't build",
+      hint: "Ask Claude to fix it.",
+      details:
+        "Your app doesn't build\nsrc/App.tsx:4 error: Cannot find name 'Hero'\n\nA secret key is in your code",
+      files: ["src/App.tsx:4", "src/lib/stripe.ts"],
+    });
   });
 });
 

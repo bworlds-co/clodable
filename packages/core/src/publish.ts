@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import { mkdtemp, readdir, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { runChecks } from "./checks/index.js";
+import { checksFailed, runChecks } from "./checks/index.js";
 import { ensurePullRequest, save } from "./draft.js";
 import { ClodableError } from "./errors.js";
 import { type Flow, log, step } from "./events.js";
@@ -170,20 +170,8 @@ export async function* publish(ws: Workspace, options: PublishOptions = {}): Flo
     for (const warning of results.filter((r) => r.status === "warning"))
       warnings.push(warning.summary);
     if (failed.length > 0) {
-      const first = failed[0]!;
-      yield step("checks", "failed", first.summary);
-      throw new ClodableError({
-        code: "checks-failed",
-        message: first.summary,
-        hint: "Nothing went live. Ask Claude to fix it, then publish again.",
-        details: failed
-          .map((f) => `${f.summary}\n${f.details ?? ""}`)
-          .join("\n\n")
-          .trim(),
-        files: failed.flatMap(
-          (f) => f.locations?.map((l) => (l.line ? `${l.file}:${l.line}` : l.file)) ?? [],
-        ),
-      });
+      yield step("checks", "failed", failed[0]!.summary);
+      throw checksFailed(failed, "Nothing went live. Ask Claude to fix it, then publish again.");
     }
     yield step(
       "checks",
