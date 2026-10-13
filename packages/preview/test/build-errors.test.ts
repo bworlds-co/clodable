@@ -96,6 +96,25 @@ describe("build errors", () => {
       await request('x"; rm -rf /');
       const kept = (await readInbox(root)).map((item) => item.conversation);
       expect(kept.sort()).toEqual([undefined, "smv2abc123"].sort());
+
+      // Only the requests the toolbar makes, with only the fields it sends.
+      const post = (body: object) =>
+        fetch(`${base}/__clodable/inbox`, {
+          method: "POST",
+          headers: { "content-type": "application/json", "x-clodable-token": token },
+          body: JSON.stringify(body),
+        });
+      const asked = await post({
+        kind: "ask",
+        page: { url: base, path: "/" },
+        request: "make it bigger",
+        note: "not the toolbar's",
+      });
+      const { id } = await asked.json();
+      expect((await readInbox(root)).find((item) => item.id === id)).not.toHaveProperty("note");
+      expect((await post({ kind: "ask", page: { url: base, path: "/" } })).status).toBe(400);
+      expect((await post({ kind: "edit", page: { url: base, path: "/" } })).status).toBe(400);
+      expect((await post({ kind: "fix", page: "/", error: { message: "x" } })).status).toBe(400);
     } finally {
       await server.close();
       rmSync(root, { recursive: true, force: true });

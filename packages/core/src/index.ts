@@ -91,6 +91,8 @@ export {
   type Presence,
   readInbox,
   type SourceRef,
+  toolbarPage,
+  toolbarRequest,
   writeInbox,
 } from "./inbox.js";
 export { type AgentsMdInput, agentsMd } from "./kit/agents-md.js";

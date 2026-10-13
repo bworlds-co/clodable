@@ -4,7 +4,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { isAbsolute, relative, resolve, sep } from "node:path";
 import { stripVTControlCharacters } from "node:util";
-import { type NewInboxItem, writeInbox } from "@clodable/core";
+import { toolbarPage, toolbarRequest, writeInbox } from "@clodable/core";
 import { cssVariables } from "@clodable/design";
 import { originalPositionFor, TraceMap } from "@jridgewell/trace-mapping";
 import type { Plugin, ViteDevServer } from "vite";
@@ -156,11 +156,7 @@ export function clodablePreview(options: PreviewOptions = {}): Plugin {
     if (!path.startsWith("/__clodable/")) return next();
 
     if (req.method === "GET" && path === "/__clodable/toolbar.js") {
-      const config = JSON.stringify({
-        token,
-        version: "0.1.0",
-        backend: options.backend?.() ?? "live",
-      });
+      const config = JSON.stringify({ token, backend: options.backend?.() ?? "live" });
       return send(
         res,
         200,
@@ -213,10 +209,7 @@ export function clodablePreview(options: PreviewOptions = {}): Plugin {
       const result = editText(code, location.file, location, before, after);
       if (!result.ok) return send(res, 200, result);
       await writeFile(full, result.code);
-      const page = (body.page as { url: string; path: string } | undefined) ?? {
-        url: "",
-        path: "/",
-      };
+      const page = toolbarPage(body.page) ?? { url: "", path: "/" };
       await writeInbox(root, {
         kind: "edit",
         page,
@@ -229,13 +222,9 @@ export function clodablePreview(options: PreviewOptions = {}): Plugin {
     }
 
     if (path === "/__clodable/inbox") {
-      const kind = body.kind;
-      if (kind !== "fix" && kind !== "ask") return send(res, 400, { error: "kind" });
-      const { conversation: _, ...request } = body;
-      const item = await writeInbox(root, {
-        ...(request as unknown as NewInboxItem),
-        ...conversationOf(body),
-      });
+      const request = toolbarRequest(body);
+      if (!request) return send(res, 400, { error: "bad-request" });
+      const item = await writeInbox(root, { ...request, ...conversationOf(body) });
       return send(res, 200, { ok: true, id: item.id });
     }
 

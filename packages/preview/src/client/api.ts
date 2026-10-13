@@ -2,7 +2,7 @@ import type { CapturedError } from "./errors.js";
 
 declare global {
   interface Window {
-    __CLODABLE__?: { token: string; version: string; backend?: "live" | "copy" };
+    __CLODABLE__?: { token: string; backend?: "live" | "copy" };
     __CLODABLE_MOUNTED__?: boolean;
   }
 }

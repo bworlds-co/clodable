@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import { existsSync } from "node:fs";
 import { mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { z } from "zod";
 
 /**
  * The inbox: how the preview toolbar (which must stay vendor-neutral) hands work to whatever
@@ -70,6 +71,49 @@ export type NewInboxItem = InboxItem extends infer T
     ? Omit<T, "id" | "createdAt">
     : never
   : never;
+
+const Page = z.object({ url: z.string(), path: z.string(), title: z.string().optional() });
+const Source = z.object({
+  file: z.string(),
+  line: z.number().int(),
+  column: z.number().int().optional(),
+  element: z.string().optional(),
+});
+const ToolbarRequest = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal("fix"),
+    page: Page,
+    error: z.object({
+      message: z.string(),
+      stack: z.string().optional(),
+      source: Source.optional(),
+      kind: z.enum(["runtime", "build", "promise"]),
+    }),
+    console: z.array(z.string()).optional(),
+  }),
+  z.object({
+    kind: z.literal("ask"),
+    page: Page,
+    source: Source.optional(),
+    request: z.string().min(1),
+    element: z.string().optional(),
+  }),
+]);
+
+/**
+ * What the preview toolbar posts (Try to fix, Point & ask), checked: the toolbar runs inside the
+ * app's page, so the front end only ever reads the fields it expects. Anything else is undefined.
+ */
+export function toolbarRequest(body: unknown): NewInboxItem | undefined {
+  const parsed = ToolbarRequest.safeParse(body);
+  return parsed.success ? parsed.data : undefined;
+}
+
+/** The page a toolbar request came from, checked. */
+export function toolbarPage(value: unknown): PageRef | undefined {
+  const parsed = Page.safeParse(value);
+  return parsed.success ? parsed.data : undefined;
+}
 
 export async function writeInbox(root: string, item: NewInboxItem): Promise<InboxItem> {
   const dir = join(root, INBOX_DIR);
