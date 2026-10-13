@@ -4,7 +4,7 @@
 // This file is the only Claude-specific part of Clodable. Every real action goes through the
 // vendor-neutral `clodable` CLI, bundled next to this plugin in cli/clodable.mjs, which prints
 // NDJSON events. Any other front end can drive the same commands.
-import type { EngineInterface, Register, RenderElement } from "claude-code";
+import type { Elements, EngineInterface, Register, RenderElement } from "claude-code";
 import { atom, read, update } from "claude-code";
 import type {
   ClodableActivity,
@@ -1534,16 +1534,21 @@ export const register: Register = (on) => {
   // ── The Clodable panel ──────────────────────────────────────────────────
   on("ui.render", { component: "Pane" }, async ($, e, next) => {
     if (e.requestId !== PANE) return next(e);
-    const { Box, Text, Button: drawButton, Link, Code } = $.ui.resolve(e);
-    const Button = heldButton(drawButton);
     const table = $.ui.resolve(e);
-    const Select = "Select" in table ? table.Select : undefined;
-    const Input = "Input" in table ? table.Input : undefined;
+    const ui: PaneUi = {
+      Box: table.Box,
+      Text: table.Text,
+      Button: heldButton(table.Button),
+      Link: table.Link,
+      Code: table.Code,
+      ...("Select" in table ? { Select: table.Select } : {}),
+      ...("Input" in table ? { Input: table.Input } : {}),
+    };
+    const { Box, Text, Button, Link, Code, Select, Input } = ui;
     const s = await read($, status);
     const a = await read($, activity);
     const doctor = await read($, checks);
     const now = Date.now();
-    const section = (title: string) => <Text bold>{title}</Text>;
     const header = (
       <Box flexDirection="row" columnGap={1} alignItems="center">
         {e.surface === "desktop" ? (
@@ -1557,191 +1562,29 @@ export const register: Register = (on) => {
 
     // Not set up yet: a guided, self-serve setup.
     if (!s?.ready) {
-      const tools = doctor.filter((c) => ["node", "git", "gh", "github"].includes(c.id));
-      const blocking = tools.filter((c) => c.status === "fail");
-      const github = doctor.find((c) => c.id === "github");
-      return (
-        <Box flexDirection="column" rowGap={1} paddingX={1}>
-          {header}
-          <Text>Let's bring your app home. It takes a minute, once.</Text>
-          {section("1 · Tools")}
-          {tools.length === 0 ? <Text dimColor>Checking…</Text> : null}
-          {tools.map((c) => (
-            <Box flexDirection="column">
-              <Text color={c.status === "ok" ? "success" : "error"}>
-                {c.status === "ok" ? "✓" : "✕"} {c.label} {c.detail ? `· ${c.detail}` : ""}
-              </Text>
-              {c.status !== "ok" && c.fix ? <Text dimColor> {c.fix}</Text> : null}
-            </Box>
-          ))}
-          {github && github.status !== "ok" ? (
-            <Box flexDirection="column" rowGap={1}>
-              <Button
-                key="connect-github"
-                variant="primary"
-                onPress={() => background(connectGitHub($))}
-              >
-                Connect GitHub
-              </Button>
-              {deviceCode ? (
-                <Box flexDirection="column">
-                  <Text>
-                    Your one-time code: <Text bold>{deviceCode}</Text>
-                  </Text>
-                  <Link
-                    href="https://github.com/login/device"
-                    label="Open github.com/login/device"
-                  />
-                  <Button key="copy-code" plain onPress={() => $.ui.copy({ text: deviceCode })}>
-                    Copy the code
-                  </Button>
-                </Box>
-              ) : null}
-            </Box>
-          ) : null}
-          {section("2 · Your app")}
-          {blocking.length > 0 ? (
-            <Text dimColor>Once the tools above are ready, pick your app here.</Text>
-          ) : s?.reason === "no-kit" ? (
-            <Box flexDirection="column" rowGap={1}>
-              <Text>This folder already holds an app. Clodable can set itself up right here.</Text>
-              {settingUp ? (
-                <Text dimColor>Setting up Clodable… it takes about a minute.</Text>
-              ) : (
-                <Button
-                  key="set-up-here"
-                  variant="primary"
-                  onPress={() => background(setUpHere($))}
-                >
-                  Set up Clodable here
-                </Button>
-              )}
-            </Box>
-          ) : repoChoices.length > 0 && Select ? (
-            <Box flexDirection="column" rowGap={1}>
-              <Select
-                key="repo"
-                label="Your app on GitHub"
-                options={repoChoices}
-                value={chosenRepo || repoChoices[0]!.value}
-                onSelect={(value) => {
-                  chosenRepo = value;
-                  $.ui.invalidate("ui.render");
-                }}
-              />
-              {settingUp ? (
-                <Text dimColor>Bringing in your app… a minute or two.</Text>
-              ) : (
-                <Button key="bring-in" variant="primary" onPress={() => background(bringIn($))}>
-                  Bring it in
-                </Button>
-              )}
-            </Box>
-          ) : Input ? (
-            <Box flexDirection="column" rowGap={1}>
-              <Input
-                key="repo-name"
-                label="Your app's GitHub repository"
-                placeholder="owner/name"
-                value={chosenRepo}
-                submitLabel="bring it in"
-                onSubmit={(value) => {
-                  chosenRepo = value.trim();
-                  background(bringIn($));
-                }}
-              />
-              <Button key="list-repos" plain onPress={() => background(loadRepos($))}>
-                Show my repositories
-              </Button>
-            </Box>
-          ) : (
-            <Text dimColor>Open Clodable in Claude Desktop or the terminal to pick your app.</Text>
-          )}
-          <Text dimColor>
-            {s?.reason === "no-kit"
-              ? "Clodable adds a few plain files and saves them, with any changes in progress, to your draft on GitHub. Nothing goes live."
-              : "Clodable copies your app from GitHub into this folder and adds a few plain files. Nothing goes live."}
-          </Text>
-        </Box>
-      );
+      return setupPane($, ui, header, s, doctor);
     }
 
     const steps = a.steps.length > 0 ? a.steps : [];
     if (versions === null) background(refreshVersions($));
     const desktop = e.surface === "desktop";
-    const stepLine = (step: ClodableStep) => {
-      const mark =
-        step.state === "done"
-          ? "✓"
-          : step.state === "failed"
-            ? "✕"
-            : step.state === "warning"
-              ? "!"
-              : step.state === "running"
-                ? "◐"
-                : "·";
-      const color =
-        step.state === "done"
-          ? "success"
-          : step.state === "failed"
-            ? "error"
-            : step.state === "warning"
-              ? "warning"
-              : undefined;
-      return (
-        <Text
-          {...(color ? { color } : {})}
-          dimColor={step.state === "skipped" || step.state === "pending"}
-        >
-          {mark} {step.title}
-          {step.state === "running" ? "…" : ""}
-          {step.detail ? `  · ${step.detail}` : ""}
-        </Text>
-      );
-    };
     const busy = a.kind === "publishing" || a.kind === "undoing";
     const url = s.lastPublish?.url ?? s.liveUrl;
     const warnings = doctor.filter((c) => c.status === "warn" || c.status === "fail");
     const host = (link: string) => link.replace(/^https?:\/\//, "").replace(/\/$/, "");
 
-    // The app's state in one card: what's true now, and the next thing to do.
-    const card = (
-      title: unknown,
-      subtitle: unknown,
-      actions: unknown[] = [],
-      below: unknown = null,
-    ) => (
-      <Box
-        flexDirection="column"
-        rowGap={1}
-        borderStyle="round"
-        borderColor="promptBorder"
-        paddingX={2}
-        paddingY={1}
-      >
-        <Box flexDirection="row" justifyContent="space-between" alignItems="center" columnGap={2}>
-          <Box flexDirection="column" flexShrink={1}>
-            {title as never}
-            {subtitle as never}
-          </Box>
-          <Box flexDirection="row" columnGap={1} alignItems="center" flexShrink={0}>
-            {actions as never}
-          </Box>
-        </Box>
-        {below as never}
-      </Box>
-    );
-
     let state: RenderElement;
     if (busy) {
       state = card(
+        ui,
         <Text bold>{a.kind === "publishing" ? "Publishing…" : "Undoing…"}</Text>,
         <Text dimColor>Your live site keeps working meanwhile.</Text>,
         [],
-        <Box flexDirection="column">{steps.map(stepLine)}</Box>,
+        <Box flexDirection="column">{steps.map((step) => stepLine(ui, step))}</Box>,
       );
     } else if (a.kind === "failed" && a.error) {
       state = card(
+        ui,
         <Text color="error" bold>
           {a.error.code === "secret-found" ? "Not saved" : "Not published"}
         </Text>,
@@ -1771,7 +1614,9 @@ export const register: Register = (on) => {
         ],
         <Box flexDirection="column" rowGap={1}>
           {a.error.hint ? <Text dimColor>{a.error.hint}</Text> : null}
-          {steps.length > 0 ? <Box flexDirection="column">{steps.map(stepLine)}</Box> : null}
+          {steps.length > 0 ? (
+            <Box flexDirection="column">{steps.map((step) => stepLine(ui, step))}</Box>
+          ) : null}
           {showDetails && a.error.details ? (
             <Code source={a.error.details.slice(0, 6000)} wrap="wrap" />
           ) : null}
@@ -1779,6 +1624,7 @@ export const register: Register = (on) => {
       );
     } else if ((a.kind === "published" || a.kind === "undone") && a.at && now - a.at < 120_000) {
       state = card(
+        ui,
         <Text color="success" bold>
           {a.onLovable
             ? a.kind === "published"
@@ -1809,6 +1655,7 @@ export const register: Register = (on) => {
       );
     } else if (s.merging || s.conflicts.length > 0) {
       state = card(
+        ui,
         <Text color="warning" bold>
           Your draft and the live site changed the same thing
         </Text>,
@@ -1825,6 +1672,7 @@ export const register: Register = (on) => {
       );
     } else if (s.unpublished.length > 0) {
       state = card(
+        ui,
         <Text bold>{plural(s.unpublished.length, "change")} not live yet</Text>,
         <Text dimColor>
           {s.lastPublish
@@ -1846,6 +1694,7 @@ export const register: Register = (on) => {
       );
     } else {
       state = card(
+        ui,
         <Text bold>Everything is live</Text>,
         <Text dimColor>
           {s.lastPublish
@@ -2007,18 +1856,6 @@ export const register: Register = (on) => {
     const org = orgs.find((o) => o.slug === moveOrg) ?? orgs[0];
     const VAULT_QUERY =
       "select decrypted_secret from vault.decrypted_secrets where name = 'email_queue_service_role_key';";
-    const field = (key: string, placeholder: string, submit: string, use: (v: string) => void) =>
-      Input ? (
-        <Input
-          key={key}
-          placeholder={placeholder}
-          submitLabel={submit}
-          value=""
-          onSubmit={(value: string) => use(value)}
-        />
-      ) : (
-        <Text dimColor>Open this panel in Claude Desktop to paste it.</Text>
-      );
     // The settings the app's server code reads, still to paste: for the preview, and the site.
     const settingsFields = (prefix: string, fromLovable: boolean) => {
       const st = appSettingsStatus;
@@ -2043,7 +1880,7 @@ export const register: Register = (on) => {
                   Already on your site. Paste it again for your preview: Netlify keeps it secret.
                 </Text>
               ) : null}
-              {field(`${prefix}-${name}`, "Paste the value", "Save", (v) =>
+              {field(ui, `${prefix}-${name}`, "Paste the value", "Save", (v) =>
                 background(saveSetting($, name, v)),
               )}
             </Box>
@@ -2064,7 +1901,7 @@ export const register: Register = (on) => {
           {missingSecrets.map((name) => (
             <Box key={`secret-${name}`} flexDirection="column">
               <Text bold>{name}</Text>
-              {field(`move-secret-${name}`, "Paste the value", "Save", (v) =>
+              {field(ui, `move-secret-${name}`, "Paste the value", "Save", (v) =>
                 background(moveWith($, ["secret", name], v)),
               )}
             </Box>
@@ -2130,27 +1967,10 @@ export const register: Register = (on) => {
           </Button>
         </Box>
       );
-    const copyable = (key: string, label: string, text: string) => (
-      <Box key={key} flexDirection="row" columnGap={1} alignItems="center">
-        <Text dimColor>{label}</Text>
-        <Text>{text.length > 60 ? `${text.slice(0, 56)}…` : text}</Text>
-        <Button key={`${key}-copy`} plain onPress={() => $.ui.copy({ text })}>
-          Copy
-        </Button>
-      </Box>
-    );
-    const sqlBlock = (key: string, sql: string) => (
-      <Box flexDirection="row" columnGap={1} alignItems="center">
-        <Code source={sql} language="sql" />
-        <Button key={`${key}-copy`} plain onPress={() => $.ui.copy({ text: sql })}>
-          Copy
-        </Button>
-      </Box>
-    );
     const undoBlock = pausePlan ? (
       <Box flexDirection="column" rowGap={1}>
         <Text dimColor>Changed your mind? Run this in Lovable to undo the pause:</Text>
-        {sqlBlock("move-undo", pausePlan.undo)}
+        {sqlBlock($, ui, "move-undo", pausePlan.undo)}
       </Box>
     ) : null;
     const noEmails = (question: string) => (
@@ -2231,7 +2051,9 @@ export const register: Register = (on) => {
             href="https://supabase.com/dashboard/account/tokens"
             label="Open Supabase's token page ↗"
           />
-          {field("move-token", "sbp_…", "Connect", (v) => background(moveWith($, ["connect"], v)))}
+          {field(ui, "move-token", "sbp_…", "Connect", (v) =>
+            background(moveWith($, ["connect"], v)),
+          )}
           {showPermissions ? (
             <Box flexDirection="column">
               <Text dimColor>
@@ -2402,14 +2224,14 @@ export const register: Register = (on) => {
             here. It goes straight into your new backend.
           </Text>
           {moveVault?.query ? (
-            sqlBlock("move-vault-query", moveVault.query)
+            sqlBlock($, ui, "move-vault-query", moveVault.query)
           ) : (
             <Text dimColor>…</Text>
           )}
           {missing.map((name) => (
             <Box key={`vault-${name}`} flexDirection="column">
               <Text bold>{name}</Text>
-              {field(`move-vault-${name}`, "Paste the value", "Save", (v) =>
+              {field(ui, `move-vault-${name}`, "Paste the value", "Save", (v) =>
                 background(moveWith($, ["vault-secret", name], v)),
               )}
             </Box>
@@ -2495,7 +2317,7 @@ export const register: Register = (on) => {
                 Copy
               </Button>
             </Box>
-            {field("move-source-key", "eyJ…", "Copy them", (v) =>
+            {field(ui, "move-source-key", "eyJ…", "Copy them", (v) =>
               background(moveWith($, ["files", "--private"], v)),
             )}
           </Box>
@@ -2564,7 +2386,7 @@ export const register: Register = (on) => {
             href="https://app.netlify.com/user/applications#personal-access-tokens"
             label="Open Netlify's token page ↗"
           />
-          {field("move-netlify-token", "Netlify token", "Connect", (v) =>
+          {field(ui, "move-netlify-token", "Netlify token", "Connect", (v) =>
             background(moveWith($, ["netlify"], v)),
           )}
         </Box>
@@ -2626,7 +2448,7 @@ export const register: Register = (on) => {
             <Text>3. Paste the key here. It stays on this computer.</Text>
           </Box>
           <Link href="https://resend.com/api-keys" label="Open Resend's keys page ↗" />
-          {field("move-resend-key", "re_…", "Connect", (v) =>
+          {field(ui, "move-resend-key", "re_…", "Connect", (v) =>
             background(moveWith($, ["resend"], v)),
           )}
           {noEmails("No domain of your own yet?")}
@@ -2639,7 +2461,7 @@ export const register: Register = (on) => {
             Which domain should your emails come from? One you own, like example.com: they'll come
             from no-reply@ that domain.
           </Text>
-          {field("move-email-domain", "example.com", "Set it up", (v) => {
+          {field(ui, "move-email-domain", "example.com", "Set it up", (v) => {
             const domain = v
               .trim()
               .toLowerCase()
@@ -2679,8 +2501,8 @@ export const register: Register = (on) => {
                 {r.type}
                 {r.priority !== undefined ? `  · priority ${r.priority}` : ""}
               </Text>
-              {copyable(`record-${i}-name`, "Name ", r.name)}
-              {copyable(`record-${i}-value`, "Value", r.value)}
+              {copyable($, ui, `record-${i}-name`, "Name ", r.name)}
+              {copyable($, ui, `record-${i}-value`, "Value", r.value)}
             </Box>
           ))}
           <Box flexDirection="row" columnGap={2} alignItems="center">
@@ -2746,7 +2568,7 @@ export const register: Register = (on) => {
               <Text>2. Paste it here. It goes to your preview, your site and your backend.</Text>
             </Box>
             <Link href={chosen.keys} label={`Open ${chosen.name}'s keys page ↗`} />
-            {field("move-ai-key", "Paste the key", "Save", (v) =>
+            {field(ui, "move-ai-key", "Paste the key", "Save", (v) =>
               background(moveWith($, ["ai", aiChoice], v)),
             )}
           </Box>
@@ -2838,7 +2660,7 @@ export const register: Register = (on) => {
               return (
                 <Box key={`connector-${name}`} flexDirection="column">
                   <Text bold>{name}</Text>
-                  {field(`move-connector-${name}`, `Your ${name} key`, "Save", (v) =>
+                  {field(ui, `move-connector-${name}`, `Your ${name} key`, "Save", (v) =>
                     background(saveSetting($, setting, v)),
                   )}
                 </Box>
@@ -2922,17 +2744,17 @@ export const register: Register = (on) => {
             </Text>
             <Text>2. Under Authorized redirect URIs, add this address:</Text>
           </Box>
-          {redirect ? copyable("move-google-redirect", "", redirect) : null}
+          {redirect ? copyable($, ui, "move-google-redirect", "", redirect) : null}
           <Text>3. Paste the client ID, then its secret, here. The secret stays off the chat.</Text>
           <Link
             href="https://console.cloud.google.com/apis/credentials"
             label="Open Google Cloud's credentials ↗"
           />
           {googleClientId
-            ? field("move-google-secret", "Client secret", "Turn it on", (v) =>
+            ? field(ui, "move-google-secret", "Client secret", "Turn it on", (v) =>
                 background(moveWith($, ["google", googleClientId], v)),
               )
-            : field("move-google-id", "…apps.googleusercontent.com", "Next", (v) => {
+            : field(ui, "move-google-id", "…apps.googleusercontent.com", "Next", (v) => {
                 const id = v.trim();
                 if (!/^[\w-]+\.apps\.googleusercontent\.com$/.test(id)) {
                   moveError = {
@@ -2981,7 +2803,7 @@ export const register: Register = (on) => {
             1. In Lovable, open More → Cloud → SQL editor, paste this and run it. It also stops your
             app's scheduled jobs there:
           </Text>
-          {pausePlan ? sqlBlock("move-freeze", pausePlan.freeze) : <Text dimColor>…</Text>}
+          {pausePlan ? sqlBlock($, ui, "move-freeze", pausePlan.freeze) : <Text dimColor>…</Text>}
           <Text>2. Then tell Clodable.</Text>
           <Box flexDirection="row" columnGap={2} alignItems="center">
             <Button
@@ -3102,7 +2924,7 @@ export const register: Register = (on) => {
                 your new backend when you go live (its signing secret stays the same):
               </Text>
               {(move.stripeWebhooks as Array<{ name: string; url: string }>).map((w, i) =>
-                copyable(`move-stripe-${i}`, "", w.url),
+                copyable($, ui, `move-stripe-${i}`, "", w.url),
               )}
             </Box>
           ) : null}
@@ -3112,7 +2934,7 @@ export const register: Register = (on) => {
                 Your app has {plural(jobs.count, "scheduled job")}: going live starts them here.
                 First stop them in Lovable (More → Cloud → SQL editor), so they don't run twice:
               </Text>
-              {sqlBlock("move-stop-jobs", jobs.stop)}
+              {sqlBlock($, ui, "move-stop-jobs", jobs.stop)}
             </Box>
           ) : null}
           {move?.cronKey ? (
@@ -3167,8 +2989,8 @@ export const register: Register = (on) => {
           {records.map((r, i) => (
             <Box key={`domain-record-${i}`} flexDirection="column">
               <Text bold>{r.type}</Text>
-              {copyable(`domain-record-${i}-name`, "Name ", r.name)}
-              {copyable(`domain-record-${i}-value`, "Value", r.value)}
+              {copyable($, ui, `domain-record-${i}-name`, "Name ", r.name)}
+              {copyable($, ui, `domain-record-${i}-value`, "Value", r.value)}
             </Box>
           ))}
           <Box flexDirection="row" columnGap={2} alignItems="center">
@@ -3197,7 +3019,7 @@ export const register: Register = (on) => {
             it have its own domain, like yourapp.com? Clodable moves it to your new site before
             Lovable goes.
           </Text>
-          {field("move-domain", "yourapp.com", "Move it", (v) => {
+          {field(ui, "move-domain", "yourapp.com", "Move it", (v) => {
             const domain = v
               .trim()
               .toLowerCase()
@@ -3567,6 +3389,7 @@ export const register: Register = (on) => {
     const movedOff =
       s.movedAt && !(s.lastPublish && s.lastPublish.at > s.movedAt)
         ? card(
+            ui,
             <Text bold>Your app is off Lovable</Text>,
             <Box flexDirection="column" rowGap={1}>
               <Text dimColor>
@@ -3592,6 +3415,7 @@ export const register: Register = (on) => {
     const databaseCard =
       s.backend === "supabase" && s.databaseConnected === false
         ? card(
+            ui,
             <Text bold>Let Claude change your database</Text>,
             <Box flexDirection="column" rowGap={1}>
               <Text dimColor>
@@ -3618,7 +3442,7 @@ export const register: Register = (on) => {
     // The settings the app's server code reads, missing on this computer or on the site.
     const settingsBox = settingsFields("app-setting", s.backend === "lovable-cloud");
     const settingsCard = settingsBox
-      ? card(<Text bold>Your app's settings</Text>, settingsBox as never)
+      ? card(ui, <Text bold>Your app's settings</Text>, settingsBox as never)
       : null;
     if (appSettingsStatus === null && !settingsAsked) {
       settingsAsked = true;
@@ -3629,6 +3453,7 @@ export const register: Register = (on) => {
     const lovableHosting =
       s.hosting === "lovable"
         ? card(
+            ui,
             <Text bold>Your site goes live from Lovable</Text>,
             <Text dimColor>
               After Publish here, click Publish, then Publish changes, in Lovable.
@@ -3662,7 +3487,7 @@ export const register: Register = (on) => {
         {lovableHosting}
 
         <Box flexDirection="column">
-          {section("History")}
+          {section(ui, "History")}
           {versions === null ? (
             <Text dimColor>Loading…</Text>
           ) : draftRows.length + publishedRows.length === 0 ? (
@@ -3680,7 +3505,7 @@ export const register: Register = (on) => {
 
         {warnings.length > 0 ? (
           <Box flexDirection="column">
-            {section("Worth a look")}
+            {section(ui, "Worth a look")}
             {warnings.map((c) => (
               <Box flexDirection="column">
                 <Text color={c.status === "fail" ? "error" : "warning"}>
@@ -3834,6 +3659,246 @@ export const register: Register = (on) => {
     );
   });
 };
+
+// ── The panel's pieces (top level, so they can use $) ──────────────────────────
+
+/**
+ * What the panel draws with: every surface's Box, Text, Button (held, see heldButton), Link and
+ * Code, with Input and Select where the surface has them.
+ */
+type PaneUi = Pick<Elements["terminal"], "Box" | "Text" | "Button" | "Link" | "Code"> &
+  Partial<Pick<Elements["terminal"], "Input" | "Select">>;
+
+/** A section's title in the panel. */
+function section(ui: PaneUi, title: string) {
+  const { Text } = ui;
+  return <Text bold>{title}</Text>;
+}
+
+/** The app's state in one card: what's true now, and the next thing to do. */
+function card(
+  ui: PaneUi,
+  title: unknown,
+  subtitle: unknown,
+  actions: unknown[] = [],
+  below: unknown = null,
+) {
+  const { Box } = ui;
+  return (
+    <Box
+      flexDirection="column"
+      rowGap={1}
+      borderStyle="round"
+      borderColor="promptBorder"
+      paddingX={2}
+      paddingY={1}
+    >
+      <Box flexDirection="row" justifyContent="space-between" alignItems="center" columnGap={2}>
+        <Box flexDirection="column" flexShrink={1}>
+          {title as never}
+          {subtitle as never}
+        </Box>
+        <Box flexDirection="row" columnGap={1} alignItems="center" flexShrink={0}>
+          {actions as never}
+        </Box>
+      </Box>
+      {below as never}
+    </Box>
+  );
+}
+
+/** One step of a publish or an undo, as it went. */
+function stepLine(ui: PaneUi, step: ClodableStep) {
+  const { Text } = ui;
+  const mark =
+    step.state === "done"
+      ? "✓"
+      : step.state === "failed"
+        ? "✕"
+        : step.state === "warning"
+          ? "!"
+          : step.state === "running"
+            ? "◐"
+            : "·";
+  const color =
+    step.state === "done"
+      ? "success"
+      : step.state === "failed"
+        ? "error"
+        : step.state === "warning"
+          ? "warning"
+          : undefined;
+  return (
+    <Text
+      {...(color ? { color } : {})}
+      dimColor={step.state === "skipped" || step.state === "pending"}
+    >
+      {mark} {step.title}
+      {step.state === "running" ? "…" : ""}
+      {step.detail ? `  · ${step.detail}` : ""}
+    </Text>
+  );
+}
+
+/** Somewhere to paste a value (a token, a key, a setting): it goes to `use`, never the chat. */
+function field(
+  ui: PaneUi,
+  key: string,
+  placeholder: string,
+  submit: string,
+  use: (v: string) => void,
+) {
+  const { Text, Input } = ui;
+  return Input ? (
+    <Input
+      key={key}
+      placeholder={placeholder}
+      submitLabel={submit}
+      value=""
+      onSubmit={(value: string) => use(value)}
+    />
+  ) : (
+    <Text dimColor>Open this panel in Claude Desktop to paste it.</Text>
+  );
+}
+
+/** A value to copy elsewhere (a DNS record, an address), shortened when it's long. */
+function copyable($: EngineInterface, ui: PaneUi, key: string, label: string, text: string) {
+  const { Box, Text, Button } = ui;
+  return (
+    <Box key={key} flexDirection="row" columnGap={1} alignItems="center">
+      <Text dimColor>{label}</Text>
+      <Text>{text.length > 60 ? `${text.slice(0, 56)}…` : text}</Text>
+      <Button key={`${key}-copy`} plain onPress={() => $.ui.copy({ text })}>
+        Copy
+      </Button>
+    </Box>
+  );
+}
+
+/** SQL for the builder to run in Lovable, with its Copy button. */
+function sqlBlock($: EngineInterface, ui: PaneUi, key: string, sql: string) {
+  const { Box, Button, Code } = ui;
+  return (
+    <Box flexDirection="row" columnGap={1} alignItems="center">
+      <Code source={sql} language="sql" />
+      <Button key={`${key}-copy`} plain onPress={() => $.ui.copy({ text: sql })}>
+        Copy
+      </Button>
+    </Box>
+  );
+}
+
+/** Not set up yet: a guided, self-serve setup, tools first, then the app. */
+function setupPane(
+  $: EngineInterface,
+  ui: PaneUi,
+  header: RenderElement,
+  s: ClodableNotReady | null,
+  doctor: ClodableCheck[],
+) {
+  const { Box, Text, Button, Link, Select, Input } = ui;
+  const tools = doctor.filter((c) => ["node", "git", "gh", "github"].includes(c.id));
+  const blocking = tools.filter((c) => c.status === "fail");
+  const github = doctor.find((c) => c.id === "github");
+  return (
+    <Box flexDirection="column" rowGap={1} paddingX={1}>
+      {header}
+      <Text>Let's bring your app home. It takes a minute, once.</Text>
+      {section(ui, "1 · Tools")}
+      {tools.length === 0 ? <Text dimColor>Checking…</Text> : null}
+      {tools.map((c) => (
+        <Box flexDirection="column">
+          <Text color={c.status === "ok" ? "success" : "error"}>
+            {c.status === "ok" ? "✓" : "✕"} {c.label} {c.detail ? `· ${c.detail}` : ""}
+          </Text>
+          {c.status !== "ok" && c.fix ? <Text dimColor> {c.fix}</Text> : null}
+        </Box>
+      ))}
+      {github && github.status !== "ok" ? (
+        <Box flexDirection="column" rowGap={1}>
+          <Button
+            key="connect-github"
+            variant="primary"
+            onPress={() => background(connectGitHub($))}
+          >
+            Connect GitHub
+          </Button>
+          {deviceCode ? (
+            <Box flexDirection="column">
+              <Text>
+                Your one-time code: <Text bold>{deviceCode}</Text>
+              </Text>
+              <Link href="https://github.com/login/device" label="Open github.com/login/device" />
+              <Button key="copy-code" plain onPress={() => $.ui.copy({ text: deviceCode })}>
+                Copy the code
+              </Button>
+            </Box>
+          ) : null}
+        </Box>
+      ) : null}
+      {section(ui, "2 · Your app")}
+      {blocking.length > 0 ? (
+        <Text dimColor>Once the tools above are ready, pick your app here.</Text>
+      ) : s?.reason === "no-kit" ? (
+        <Box flexDirection="column" rowGap={1}>
+          <Text>This folder already holds an app. Clodable can set itself up right here.</Text>
+          {settingUp ? (
+            <Text dimColor>Setting up Clodable… it takes about a minute.</Text>
+          ) : (
+            <Button key="set-up-here" variant="primary" onPress={() => background(setUpHere($))}>
+              Set up Clodable here
+            </Button>
+          )}
+        </Box>
+      ) : repoChoices.length > 0 && Select ? (
+        <Box flexDirection="column" rowGap={1}>
+          <Select
+            key="repo"
+            label="Your app on GitHub"
+            options={repoChoices}
+            value={chosenRepo || repoChoices[0]!.value}
+            onSelect={(value) => {
+              chosenRepo = value;
+              $.ui.invalidate("ui.render");
+            }}
+          />
+          {settingUp ? (
+            <Text dimColor>Bringing in your app… a minute or two.</Text>
+          ) : (
+            <Button key="bring-in" variant="primary" onPress={() => background(bringIn($))}>
+              Bring it in
+            </Button>
+          )}
+        </Box>
+      ) : Input ? (
+        <Box flexDirection="column" rowGap={1}>
+          <Input
+            key="repo-name"
+            label="Your app's GitHub repository"
+            placeholder="owner/name"
+            value={chosenRepo}
+            submitLabel="bring it in"
+            onSubmit={(value) => {
+              chosenRepo = value.trim();
+              background(bringIn($));
+            }}
+          />
+          <Button key="list-repos" plain onPress={() => background(loadRepos($))}>
+            Show my repositories
+          </Button>
+        </Box>
+      ) : (
+        <Text dimColor>Open Clodable in Claude Desktop or the terminal to pick your app.</Text>
+      )}
+      <Text dimColor>
+        {s?.reason === "no-kit"
+          ? "Clodable adds a few plain files and saves them, with any changes in progress, to your draft on GitHub. Nothing goes live."
+          : "Clodable copies your app from GitHub into this folder and adds a few plain files. Nothing goes live."}
+      </Text>
+    </Box>
+  );
+}
 
 // ── Setup helpers (top level, so they can use $) ─────────────────────────────
 
