@@ -139,44 +139,55 @@ export async function startDevServer(options: DevServerOptions): Promise<Running
     },
   });
   await server.listen();
-  // Switching backends: read again, and restart so every module and the server side pick it up.
-  let switching = Promise.resolve();
+  // When a watched file changes: read it again and, if what it says is new, use it and restart, so
+  // every module and the server side pick it up. One change at a time.
+  let restarting = Promise.resolve();
+  const whenChanged = <T>(
+    marker: ReturnType<typeof markerWatch>,
+    read: () => Promise<T>,
+    now: () => T,
+    use: (next: T) => string,
+  ) =>
+    marker.start(() => {
+      restarting = restarting.then(async () => {
+        const next = await read();
+        if (JSON.stringify(next) === JSON.stringify(now())) return;
+        server.config.logger.info(use(next));
+        await server.restart();
+      });
+    });
   if (backendMarker && options.backend) {
     const source = options.backend;
-    backendMarker.start(() => {
-      switching = switching.then(async () => {
-        let next: PreviewBackend | undefined;
-        try {
-          next = await source.current();
-        } catch (error) {
+    whenChanged(
+      backendMarker,
+      () =>
+        source.current().catch((error: unknown) => {
           server.config.logger.warn(`  clodable · couldn't switch backends: ${messageOf(error)}`);
-          return;
-        }
-        if (JSON.stringify(next) === JSON.stringify(backend)) return;
+          return backend;
+        }),
+      () => backend,
+      (next) => {
         backend = next;
         applyBackendEnv(backend);
-        server.config.logger.info(
-          backend
-            ? "  clodable · the preview now uses your new backend (a copy of your data)"
-            : "  clodable · the preview uses your live backend again",
-        );
-        await server.restart();
-      });
-    });
+        return backend
+          ? "  clodable · the preview now uses your new backend (a copy of your data)"
+          : "  clodable · the preview uses your live backend again";
+      },
+    );
   }
-  // A setting pasted in Clodable: read them again, and restart so the server side has it.
+  // A setting pasted in Clodable.
   if (settingsMarker && options.settings) {
     const source = options.settings;
-    settingsMarker.start(() => {
-      switching = switching.then(async () => {
-        const next = await source.current().catch(() => settings);
-        if (JSON.stringify(next) === JSON.stringify(settings)) return;
+    whenChanged(
+      settingsMarker,
+      () => source.current().catch(() => settings),
+      () => settings,
+      (next) => {
         settings = next;
         applySettingsEnv(settings);
-        server.config.logger.info("  clodable · your app's settings changed: restarting");
-        await server.restart();
-      });
-    });
+        return "  clodable · your app's settings changed: restarting";
+      },
+    );
   }
   const urls = [...(server.resolvedUrls?.local ?? []), ...(server.resolvedUrls?.network ?? [])];
   return {
