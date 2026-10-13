@@ -286,6 +286,13 @@ export class GhCli implements GitHubAdapter {
 }
 
 /**
+ * How gh, git and Go say the network failed. Not "Could not resolve to a Repository": that's
+ * GitHub answering that a name isn't there.
+ */
+const OFFLINE =
+  /error connecting to|could not resolve host|no such host|connection refused|network is unreachable|i\/o timeout|tls handshake timeout|context deadline exceeded/i;
+
+/**
  * A failed `gh` call in the builder's words: not connected to GitHub, offline (gh says "error
  * connecting to api.github.com" when nothing resolves), or else the caller's own message.
  */
@@ -299,11 +306,7 @@ function ghError(result: ExecResult, otherwise: ErrorInfo): ClodableError {
       details: text,
     });
   }
-  if (
-    /error connecting to|could not resolve|no such host|connection refused|timeout|network/i.test(
-      text,
-    )
-  ) {
+  if (OFFLINE.test(text)) {
     return new ClodableError({
       code: "offline",
       message: "GitHub can't be reached right now.",

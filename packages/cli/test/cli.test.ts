@@ -209,4 +209,34 @@ describe("clodable --json", () => {
       await rm(bin, { recursive: true, force: true });
     }
   }, 120_000);
+
+  it("says a repository it can't find is the problem, not the internet", async () => {
+    // A stand-in `gh`, signed in, that finds no such repository, in gh's own words.
+    const bin = await mkdtemp(join(tmpdir(), "clodable-gh-"));
+    const empty = await mkdtemp(join(tmpdir(), "clodable-empty-"));
+    const gh = [
+      "#!/bin/sh",
+      'if [ "$1 $2" = "api user" ]; then echo \'{"login":"ada","name":"Ada","id":1}\'; exit 0; fi',
+      `if [ "$1 $2" = "repo clone" ]; then echo "GraphQL: Could not resolve to a Repository with the name 'ada/typo'. (repository)" >&2; exit 1; fi`,
+      "",
+    ].join("\n");
+    await writeFile(join(bin, "gh"), gh, { mode: 0o755 });
+    try {
+      const run = spawnSync(tsx, [entry, "setup", "--repo", "ada/typo", "--yes", "--json"], {
+        cwd: empty,
+        env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, NO_COLOR: "1" },
+        encoding: "utf8",
+        timeout: 60_000,
+      });
+      const result = JSON.parse(run.stdout.trim().split("\n").at(-1)!);
+      expect(run.status).toBe(1);
+      expect(result.error).toMatchObject({
+        code: "not-found",
+        message: "Couldn't bring in ada/typo.",
+      });
+    } finally {
+      await rm(bin, { recursive: true, force: true });
+      await rm(empty, { recursive: true, force: true });
+    }
+  }, 120_000);
 });

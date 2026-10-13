@@ -749,6 +749,8 @@ describe("GitHub through gh", () => {
     '  signed-out) echo "To get started with GitHub CLI, please run:  gh auth login" >&2; exit 4 ;;',
     "  offline) printf 'error connecting to api.github.com\\ncheck your internet connection\\n' >&2; exit 1 ;;",
     '  refused) echo "HTTP 403: Resource not accessible by integration" >&2; exit 1 ;;',
+    `  missing) echo "GraphQL: Could not resolve to a Repository with the name 'ada/network-app'. (repository)" >&2; exit 1 ;;`,
+    `  no-host) echo "fatal: unable to access 'https://github.com/ada/app.git/': Could not resolve host: github.com" >&2; exit 128 ;;`,
     "esac",
     "",
   ].join("\n");
@@ -791,5 +793,12 @@ describe("GitHub through gh", () => {
       code: "unknown",
       message: "GitHub didn't accept a request.",
     });
+  });
+
+  it("tells a repository GitHub doesn't have from a network that's down", async () => {
+    const clone = (gh: GhCli) => gh.clone("ada/network-app", join(tmpdir(), "clodable-none"));
+    await expect(withGh("missing", clone)).rejects.toMatchObject({ code: "unknown" });
+    await expect(withGh("no-host", clone)).rejects.toMatchObject({ code: "offline" });
+    await expect(withGh("offline", clone)).rejects.toMatchObject({ code: "offline" });
   });
 });
