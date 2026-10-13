@@ -83,6 +83,15 @@ describe("clodable --json", () => {
       ok: false,
       error: { code: "nothing-to-publish", message: expect.any(String) },
     });
+    // A move step that doesn't exist, even one every object has, says which ones do.
+    for (const step of ["nope", "constructor"]) {
+      const move = clodable("move", step);
+      expect(move.code).toBe(1);
+      expect(move.result.error).toMatchObject({
+        code: "not-found",
+        hint: expect.stringContaining("check, facts, status, connect"),
+      });
+    }
   });
 
   it("keeps a secret key off GitHub: the save stops with secret-found", async () => {
