@@ -167,7 +167,8 @@ button:focus-visible, [tabindex]:focus-visible, textarea:focus-visible {
   display: inline-flex; align-items: center; gap: 5px;
   height: 22px; padding: 0 8px 0 6px; border-radius: var(--cl-radius-pill);
   font-size: 11.5px; font-weight: 600; white-space: nowrap; max-width: 320px; overflow: hidden; text-overflow: ellipsis;
-  color: #fff; background: var(--cl-clay);
+  /* on-clay reads on every chip fill (clay, cobalt, ash), in both schemes: see design's contrast test. */
+  color: var(--cl-on-clay); background: var(--cl-clay);
   box-shadow: var(--cl-shadow-sm);
 }
 .chip.ask { background: var(--cl-cobalt); }
