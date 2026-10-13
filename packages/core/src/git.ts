@@ -44,7 +44,8 @@ export class Git {
     if (result.exitCode !== 0) {
       throw new ClodableError({
         code: "unknown",
-        message: "A Git command failed.",
+        message: "Something unexpected went wrong.",
+        hint: "Try again. If it keeps happening, share the details with your developer.",
         details: `git ${args.join(" ")}\n${result.stderr || result.stdout}`.trim(),
       });
     }
