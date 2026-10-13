@@ -13,8 +13,6 @@ export {
 } from "./checks/index.js";
 export {
   classify,
-  describeFinding,
-  mask,
   type SecretFinding,
   scanStaged,
   scanUnsent,
@@ -34,12 +32,8 @@ export {
 } from "./config.js";
 export { applyMigration, checkDatabase, queryDatabase, runOnDatabase } from "./database.js";
 export {
-  countUnpublished,
-  ensureOnDraft,
-  ensurePullRequest,
   type History,
   history,
-  pullRequestBody,
   restore,
   type SaveResult,
   type Status,
@@ -114,7 +108,6 @@ export {
   BACKEND_ENV,
   type Backend,
   backendEnv,
-  backendOf,
   type PreviewBackend,
 } from "./move/backend.js";
 export {
@@ -150,7 +143,6 @@ export {
   costOf,
   createHome,
   deployBackendFunctions,
-  describeExport,
   diagnoseCopy,
   functionSecretStatus,
   type HomeChoices,
@@ -161,7 +153,6 @@ export {
   type MoveStep,
   moveProgress,
   type OrganizationChoice,
-  prepareCopySignIn,
   previewBackend,
   type RunningFreeProject,
   setFunctionSecret,
@@ -187,12 +178,11 @@ export {
 export { type PgTarget, psqlSql, type Sql } from "./move/postgres.js";
 export {
   POSTGRES_BUILD,
-  postgresHome,
   postgresTool,
   ToolUnavailable,
 } from "./move/postgres-tools.js";
 export { RESEND_KEY, RESEND_KEYS_PAGE, ResendApi } from "./move/resend-api.js";
-export { copyExport, emptyCopy } from "./move/restore.js";
+export { copyExport } from "./move/restore.js";
 export {
   AI_PROVIDERS,
   type AiProvider,
@@ -207,8 +197,6 @@ export {
 export {
   appSettings,
   connectNetlify,
-  netlifyToml,
-  netlifyWorkflow,
   putSiteOnNetlify,
   type SiteOutcome,
   setSiteSetting,
@@ -241,28 +229,21 @@ export {
 } from "./move/switch.js";
 export { parseToc, planRestore } from "./move/toc.js";
 export { verifyCopy } from "./move/verify.js";
-export { cacheDir, configDir, writeJsonFile } from "./places.js";
 export {
   type AppType,
   detectPackageManager,
   detectProject,
   type PackageManager,
   type ProjectInfo,
-  readPackageJson,
-  runScriptCommand,
 } from "./project.js";
 export {
-  changedFunctions,
   type FunctionsOutcome,
   type PublishOptions,
   type PublishResult,
   publish,
   publishTitle,
-  runsChecksOnPullRequests,
   type UndoResult,
   undoPublish,
-  waitForCi,
-  waitForDeploy,
 } from "./publish.js";
 export {
   localSettings,
@@ -271,5 +252,5 @@ export {
   setSetting,
   settingsStatus,
 } from "./settings.js";
-export { formatAbsolute, formatClock, formatRelative } from "./time.js";
+export { formatRelative } from "./time.js";
 export { draftBranchFor, Workspace, type WorkspaceOptions } from "./workspace.js";
