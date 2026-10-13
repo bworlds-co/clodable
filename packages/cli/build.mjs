@@ -1,19 +1,17 @@
 // Bundles the CLI into one dependency-free file: dist/clodable.mjs.
-// The toolbar's browser bundle is embedded, so `npx clodable dev` works without anything else.
+// The toolbar's browser bundle (built by @clodable/preview, which pnpm builds first) is embedded,
+// so `npx clodable dev` works without anything else.
 // The app's own Vite is never bundled: it's loaded from the app's node_modules at run time.
-import { chmodSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { build } from "esbuild";
 
 const pkg = JSON.parse(readFileSync("package.json", "utf8"));
-const toolbar = await build({
-  entryPoints: ["../preview/src/client/index.ts"],
-  bundle: true,
-  write: false,
-  format: "iife",
-  target: "es2022",
-  minify: true,
-  legalComments: "none",
-});
+const toolbarPath = "../preview/dist/toolbar.js";
+if (!existsSync(toolbarPath)) {
+  console.error("Build the toolbar first: pnpm --filter @clodable/preview build");
+  process.exit(1);
+}
+const toolbar = readFileSync(toolbarPath, "utf8");
 
 mkdirSync("dist", { recursive: true });
 const result = await build({
@@ -27,7 +25,7 @@ const result = await build({
   legalComments: "none",
   external: ["vite", "esbuild", "fsevents"],
   define: {
-    __CLODABLE_TOOLBAR__: JSON.stringify(toolbar.outputFiles[0].text),
+    __CLODABLE_TOOLBAR__: JSON.stringify(toolbar),
     __CLODABLE_VERSION__: JSON.stringify(pkg.version),
   },
   banner: {

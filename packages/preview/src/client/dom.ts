@@ -43,8 +43,3 @@ export function icon(name: IconName, size = 18): HTMLElement {
   span.innerHTML = svgIcon(name, { size, strokeWidth: size <= 16 ? 1.7 : 1.6 });
   return span;
 }
-
-export const clamp = (value: number, min: number, max: number) =>
-  Math.min(max, Math.max(min, value));
-
-export const reducedMotion = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
