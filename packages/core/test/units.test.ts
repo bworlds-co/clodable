@@ -34,7 +34,7 @@ import {
   summarizeBuildOutput,
   writeInbox,
 } from "../src/index.js";
-import { buildLine } from "../src/publish.js";
+import { buildLine } from "../src/waits.js";
 
 const commit = (subject: string, kind: Commit["kind"] = "save"): Commit => ({
   sha: subject,

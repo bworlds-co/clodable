@@ -238,7 +238,6 @@ export {
   type ProjectInfo,
 } from "./project.js";
 export {
-  type FunctionsOutcome,
   type PublishOptions,
   type PublishResult,
   publish,
@@ -246,6 +245,7 @@ export {
   type UndoResult,
   undoPublish,
 } from "./publish.js";
+export type { FunctionsOutcome } from "./publish-functions.js";
 export {
   localSettings,
   SETTINGS_PATH,
