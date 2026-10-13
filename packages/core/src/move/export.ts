@@ -222,10 +222,13 @@ const ALL_PRIVILEGES = [
   "TRIGGER",
 ];
 
-/** `GRANT SELECT,INSERT ON TABLE public.posts TO authenticated;` lines, for the API's roles. */
+/**
+ * `GRANT SELECT,INSERT ON TABLE public.posts TO authenticated;` lines, for the API's roles. A
+ * quoted table name can hold spaces and dots: `public."my table"`.
+ */
 export function tableGrants(sql: string): Record<string, Record<string, string[]>> {
   const grants: Record<string, Record<string, string[]>> = {};
-  for (const match of sql.matchAll(/^GRANT (.+?) ON TABLE (\S+) TO (\S+);$/gm)) {
+  for (const match of sql.matchAll(/^GRANT (.+?) ON TABLE (.+?) TO (\S+);$/gm)) {
     const role = match[3]!.replace(/"/g, "");
     if (!API_ROLES.has(role)) continue;
     const table = splitNames(match[2]!, ".").join(".");

@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { type LogEvent, runFlow, type StepEvent } from "../src/index.js";
-import { copyValue, readExport, splitNames } from "../src/move/export.js";
+import { copyValue, readExport, splitNames, tableGrants } from "../src/move/export.js";
 import { copyFiles } from "../src/move/files.js";
 import { repoint } from "../src/move/fixes.js";
 import { psqlSql, type Sql } from "../src/move/postgres.js";
@@ -136,6 +136,24 @@ CREATE TRIGGER update_objects_updated_at BEFORE UPDATE ON storage.objects FOR EA
     expect(splitNames('id, "Full name", email', ",")).toEqual(["id", "Full name", "email"]);
   });
 
+  it("reads the API's grants, whatever the tables are called", () => {
+    const grants = tableGrants(
+      [
+        "GRANT SELECT,INSERT ON TABLE public.posts TO authenticated;",
+        'GRANT ALL ON TABLE public."my table" TO anon;',
+        'GRANT SELECT ON TABLE public."v1.2 notes" TO authenticated;',
+        "GRANT ALL ON TABLE public.posts TO postgres;",
+      ].join("\n"),
+    );
+    expect(grants).toEqual({
+      "public.posts": { authenticated: ["INSERT", "SELECT"] },
+      "public.my table": {
+        anon: ["DELETE", "INSERT", "REFERENCES", "SELECT", "TRIGGER", "TRUNCATE", "UPDATE"],
+      },
+      "public.v1.2 notes": { authenticated: ["SELECT"] },
+    });
+  });
+
   it("takes the backup out of a zip, checked", async () => {
     const dir = await mkdtemp(join(tmpdir(), "clodable-zip-"));
     try {
@@ -231,6 +249,15 @@ describe("the pause", () => {
     expect(freezeSql(undefined, false).freeze).toContain(
       "revoke insert, update, delete on all tables in schema public from anon, authenticated;",
     );
+  });
+
+  it("names a table with a dot in it whole", () => {
+    const { freeze, undo } = freezeSql(
+      { "public.v1.2 notes": { authenticated: ["INSERT"] } },
+      true,
+    );
+    expect(freeze).toContain('revoke insert on "public"."v1.2 notes" from authenticated;');
+    expect(undo).toContain('grant insert on "public"."v1.2 notes" to authenticated;');
   });
 
   it("tells an export made after the pause from one made before", () => {

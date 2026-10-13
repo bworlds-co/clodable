@@ -4,7 +4,7 @@ import { appendFile, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { type Flow, log, step } from "../events.js";
 import { FILES_LIST } from "./export.js";
-import { literal } from "./fixes.js";
+import { ident, literal } from "./fixes.js";
 import type { Sql } from "./postgres.js";
 import { projectUrl } from "./supabase-api.js";
 import { MANAGED_SCHEMAS } from "./toc.js";
@@ -316,8 +316,8 @@ async function repointLinks(
   let changed = 0;
   let signed = 0;
   for (const c of columns) {
-    const table = `"${c.schema.replace(/"/g, '""')}"."${c.table.replace(/"/g, '""')}"`;
-    const column = `"${c.column.replace(/"/g, '""')}"`;
+    const table = `${ident(c.schema)}.${ident(c.table)}`;
+    const column = ident(c.column);
     const cast =
       c.type === "jsonb"
         ? "::jsonb"

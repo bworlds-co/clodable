@@ -1,5 +1,5 @@
 import type { ExportSummary } from "./export.js";
-import { functionsNaming, literal, SEQUENCES_BEHIND, triggersNaming } from "./fixes.js";
+import { functionsNaming, literal, SEQUENCES_BEHIND, tableName, triggersNaming } from "./fixes.js";
 import type { Sql } from "./postgres.js";
 import type { MoveCheck } from "./state.js";
 import { isManaged } from "./toc.js";
@@ -39,7 +39,7 @@ export async function verifyCopy(
       tables
         .map(
           (t) =>
-            `select ${literal(t)} as t, case when to_regclass(${literal(quoteName(t))}) is null then null else (xpath('/row/n/text()', query_to_xml(${literal(`select count(*) as n from ${quoteName(t)}`)}, false, true, '')))[1]::text end as n`,
+            `select ${literal(t)} as t, case when to_regclass(${literal(tableName(t))}) is null then null else (xpath('/row/n/text()', query_to_xml(${literal(`select count(*) as n from ${tableName(t)}`)}, false, true, '')))[1]::text end as n`,
         )
         .join(" union all "),
     );
@@ -256,10 +256,3 @@ export async function verifyCopy(
 
 /** What the app's API does with a table; the others (TRUNCATE, MAINTAIN…) never reach a page. */
 const API_PRIVILEGES = new Set(["SELECT", "INSERT", "UPDATE", "DELETE"]);
-
-/** "public.my table" → public."my table", ready for SQL. */
-function quoteName(qualified: string): string {
-  const dot = qualified.indexOf(".");
-  const ident = (s: string) => `"${s.replace(/"/g, '""')}"`;
-  return `${ident(qualified.slice(0, dot))}.${ident(qualified.slice(dot + 1))}`;
-}

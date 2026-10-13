@@ -4,6 +4,7 @@ import { BACKUP, type ExportSummary } from "./export.js";
 import {
   alignSequences,
   createQueues,
+  ident,
   type NewKeys,
   removeExportBucket,
   repairMigrationHistory,
@@ -134,7 +135,7 @@ export async function* copyExport(
     if (options.queueMessages && plan.queueData.length > 0) {
       // Emails waiting to go out at the pause go out from here, once.
       await target.sql
-        .run(plan.queues.map((q) => `truncate pgmq."q_${q.replace(/"/g, '""')}";`).join("\n"))
+        .run(plan.queues.map((q) => `truncate pgmq.${ident(`q_${q}`)};`).join("\n"))
         .catch(() => {});
       keep(
         (

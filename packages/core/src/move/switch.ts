@@ -9,7 +9,7 @@ import { detectProject } from "../project.js";
 import type { Workspace } from "../workspace.js";
 import { textFiles } from "./assess.js";
 import { type ExportSummary, JOBS_FILE } from "./export.js";
-import { literal, type NewKeys, repoint } from "./fixes.js";
+import { literal, type NewKeys, repoint, tableName } from "./fixes.js";
 import type { Sql } from "./postgres.js";
 import { forgetMoveFiles, loadMove, type MoveState, moveDir, updateMove } from "./state.js";
 import { projectUrl, SupabaseApi } from "./supabase-api.js";
@@ -25,12 +25,6 @@ import { projectUrl, SupabaseApi } from "./supabase-api.js";
  *    backend and site; the builder's next Publish puts it live.
  * 4. In Lovable, only once everything works: remove Cloud, stop its GitHub sync.
  */
-
-const qualified = (table: string) =>
-  table
-    .split(".")
-    .map((part) => `"${part.replace(/"/g, '""')}"`)
-    .join(".");
 
 /** The writes Supabase's API roles have, per table, from the export taken before the pause. */
 function writeGrants(grants: Record<string, Record<string, string[]>>) {
@@ -94,14 +88,14 @@ export function freezeSql(
     exact.length > 0
       ? exact.map(
           (g) =>
-            `revoke ${g.privileges.join(", ").toLowerCase()} on ${qualified(g.table)} from ${g.role};`,
+            `revoke ${g.privileges.join(", ").toLowerCase()} on ${tableName(g.table)} from ${g.role};`,
         )
       : ["revoke insert, update, delete on all tables in schema public from anon, authenticated;"];
   const resume =
     exact.length > 0
       ? exact.map(
           (g) =>
-            `grant ${g.privileges.join(", ").toLowerCase()} on ${qualified(g.table)} to ${g.role};`,
+            `grant ${g.privileges.join(", ").toLowerCase()} on ${tableName(g.table)} to ${g.role};`,
         )
       : ["grant insert, update, delete on all tables in schema public to anon, authenticated;"];
   return {
@@ -251,7 +245,7 @@ export async function giveBackGrants(
     lines
       .map(
         (g) =>
-          `grant ${g.privileges.join(", ").toLowerCase()} on ${qualified(g.table)} to ${g.role};`,
+          `grant ${g.privileges.join(", ").toLowerCase()} on ${tableName(g.table)} to ${g.role};`,
       )
       .join("\n"),
   );
