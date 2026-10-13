@@ -47,8 +47,13 @@ import {
   type AiProvider,
   connectorSetting,
   EXPORT_CLICKS,
+  MOVE_LEVELS,
+  MOVE_WHO,
+  type MoveMethod,
   SERVICE_KEY_QUERY,
+  STEP_MARK,
   sizeOf,
+  stagesOf,
   typedDomain,
 } from "./move.ts";
 import {
@@ -180,7 +185,7 @@ let aiChoice: AiProvider = "openrouter";
 /** Going live: who may create an account. "confirm" needs emails. */
 let newPeople: "confirm" | "open" | "invite" = "confirm";
 /** The way chosen a moment ago, shown at once while Clodable records it. */
-let choosingMethod: "careful" | "quick" | null = null;
+let choosingMethod: MoveMethod | null = null;
 let moveOrg = "";
 let moveRegion = "";
 let loadingMove = false;
@@ -684,7 +689,7 @@ async function pilot($: EngineInterface, text: string) {
 }
 
 /** Careful or in one go: the builder's choice, recorded directly (nothing for Claude to do). */
-async function chooseMethod($: EngineInterface, method: "careful" | "quick") {
+async function chooseMethod($: EngineInterface, method: MoveMethod) {
   if (choosingMethod) return;
   choosingMethod = method;
   moveError = null;
@@ -1580,302 +1585,15 @@ export const register: Register = (on) => {
     const warnings = doctor.filter((c) => c.status === "warn" || c.status === "fail");
 
     const state = stateCard($, ui, s, a, now, desktop);
-    const questions = whereQuestions($, ui, s);
-
-    // The move itself, one step at a time: every step listed, only the next one with its controls.
-    const MOVE_MARK: Record<string, string> = { done: "✓", next: "●", later: "·", attention: "!" };
-    const method = moveMethod();
-    // Getting ready happens beside the live app; going live is the one moment it changes.
-    const MOVE_STAGES = [
-      {
-        id: "backend",
-        title: "Get ready: your new backend",
-        about:
-          "A working copy of your data, people and backend, on your own Supabase. Your live app stays on Lovable.",
-        steps: ["connect", "create", "export", "copy", "files", "functions", "try"],
-      },
-      {
-        id: "website",
-        title: (move?.steps ?? []).some((x: any) => x.id === "services")
-          ? "Get ready: your website, emails and services"
-          : "Get ready: your website and emails",
-        about:
-          "Your site on your own Netlify, using the working copy. Your live app stays on Lovable.",
-        steps: ["netlify", "site", "emails", "services", "google"],
-      },
-      {
-        id: "golive",
-        title: "Go live",
-        about:
-          method === "quick"
-            ? "Your app moves over in one go, with your data as of your export."
-            : "Your live app moves over. It pauses for a few minutes, so nothing people write is lost.",
-        steps: ["freeze", "final-export", "final-copy", "golive", "domain", "lovable"],
-      },
-    ];
-    const moveSteps: any[] = move?.steps ?? [];
-    const nextStep = moveSteps.find((x) => x.state === "next" || x.state === "attention");
-    const started = moveSteps.some((x) => x.id === "connect" && x.state === "done");
-    // First, Claude reads the app's code: until it has, nothing else is decided.
-    const factsNeeded = moveSteps.some((x) => x.id === "facts" && x.state !== "done");
-    const moveControls = moveControlsFor($, { ui, s, step: nextStep, now });
-    const moveErrorBlock = moveError ? (
-      <Box flexDirection="column">
-        <Text color="error">{moveError.message}</Text>
-        {moveError.hint ? <Text dimColor>{moveError.hint}</Text> : null}
-      </Box>
-    ) : null;
-    // What's left under a step once it's done: belongs there, not under the next step.
-    // Steps after the one the builder is on read as later ones, done or not: they come next.
-    const nextIndex = nextStep ? moveSteps.indexOf(nextStep) : moveSteps.length;
-    const stepRow = (step: any) => {
-      const ahead = moveSteps.indexOf(step) > nextIndex;
-      const state = ahead ? "later" : step.state;
-      return (
-        <Box key={`step-${step.id}`} flexDirection="column" rowGap={1}>
-          <Text
-            {...(state === "attention"
-              ? { color: "warning" }
-              : state === "done"
-                ? { color: "success" }
-                : {})}
-            dimColor={state === "later"}
-            bold={step === nextStep}
-          >
-            {MOVE_MARK[state] ?? "·"} {step.title}
-            {step.detail && state !== "later" ? `  · ${step.detail}` : ""}
-          </Text>
-          {step === nextStep ? (
-            <Box flexDirection="column" rowGap={1} paddingLeft={2}>
-              {moveErrorBlock}
-              {moveControls as never}
-            </Box>
-          ) : null}
-        </Box>
-      );
-    };
-    const stages: Array<{ id: string; title: string; about: string; steps: any[] }> = [];
-    for (const step of moveSteps) {
-      if (step.id === "facts") continue;
-      const stage = MOVE_STAGES.find((x) => x.steps.includes(step.id));
-      const current = stages.at(-1);
-      if (stage && current?.id !== stage.id) {
-        stages.push({ id: stage.id, title: stage.title, about: stage.about, steps: [step] });
-      } else if (current) current.steps.push(step);
-      else stages.push({ id: "move", title: "", about: "", steps: [step] });
-    }
-    // The stage the builder is in; with nothing left, the last (all of them fold).
-    const currentStage = nextStep
-      ? stages.findIndex((x) => x.steps.includes(nextStep))
-      : stages.length - 1;
-    // The other way to move, offered where it changes something: before Go live starts.
-    const switchStarted = Boolean(move?.switch?.frozenAt || move?.switch?.liveAt);
-    const otherWay =
-      method && !switchStarted && !isPiloting() && !moveRun ? (
-        <Box flexDirection="row" columnGap={2} alignItems="center">
-          <Text dimColor>{method === "quick" ? "People use your app?" : "Just a prototype?"}</Text>
-          <Button
-            key="move-other-way"
-            variant="secondary"
-            onPress={() => background(chooseMethod($, method === "quick" ? "careful" : "quick"))}
-          >
-            {method === "quick" ? "Move it carefully instead" : "Move it in one go instead"}
-          </Button>
-        </Box>
-      ) : null;
-    // Asked before the steps: it decides how the live app moves at the end.
-    const methodQuestion = (
-      <Box flexDirection="column" rowGap={2}>
-        <Text bold>How should your app move?</Text>
-        <Box flexDirection="column" rowGap={1}>
-          <Button
-            key="move-method-careful"
-            variant="secondary"
-            onPress={() => background(chooseMethod($, "careful"))}
-          >
-            Carefully
-          </Button>
-          <Text dimColor>
-            For an app people use. You try a working copy first; at the end your live app pauses for
-            a few minutes while the latest data comes over, so nothing is lost.
-          </Text>
-        </Box>
-        <Box flexDirection="column" rowGap={1}>
-          <Button
-            key="move-method-quick"
-            variant="secondary"
-            onPress={() => background(chooseMethod($, "quick"))}
-          >
-            In one go
-          </Button>
-          <Text dimColor>
-            For a prototype. One export, then your app goes live on your own accounts. Anything
-            written in Lovable after your export stays there.
-          </Text>
-        </Box>
-      </Box>
-    );
-    const stageDetail: Record<string, string | undefined> = {
-      backend: move?.home?.name,
-      website: move?.site?.url,
-    };
-    const factsBlock = (
-      <Box flexDirection="column" rowGap={1}>
-        <Text bold>First, Claude looks at your app</Text>
-        <Text dimColor>
-          It reads your app's code to see what it uses (AI, sign-in, emails, payments…), so each
-          step fits your app. Nothing changes.
-        </Text>
-        {isPiloting() ? (
-          <Text dimColor>Claude is looking at your app…</Text>
-        ) : (
-          <Box flexDirection="row">
-            <Button
-              key="move-facts"
-              variant="primary"
-              onPress={() =>
-                background(
-                  pilot(
-                    $,
-                    `Moving off Lovable: look at my app's code to see what it uses (AI, sign-in, emails, connected services, payments, scheduled jobs, uploads). Start from \`${moveCommand($, ["facts"])}\`, check each thing in the code, record what you found as the move skill says, then tell me in a few plain lines.`,
-                  ),
-                )
-              }
-            >
-              Look at my app
-            </Button>
-          </Box>
-        )}
-      </Box>
-    );
-    const moveSection =
-      move && factsNeeded ? (
-        <Box flexDirection="column" rowGap={1}>
-          {moveErrorBlock}
-          {factsBlock}
-        </Box>
-      ) : move && !method ? (
-        <Box flexDirection="column" rowGap={1}>
-          {moveErrorBlock}
-          {methodQuestion}
-        </Box>
-      ) : moveSteps.length > 0 ? (
-        <Box flexDirection="column" rowGap={2}>
-          {stages.map((stage, index) =>
-            index > currentStage ? (
-              // A stage still ahead: its name only, its steps folded until it comes.
-              <Text key={`stage-${stage.id}`} dimColor>
-                {stage.title}
-              </Text>
-            ) : stage.steps.every((x) => x.state === "done") ? (
-              // A stage that's done: one line.
-              <Text key={`stage-${stage.id}`} color="success">
-                ✓ {stage.title}
-                {stageDetail[stage.id] ? `  · ${stageDetail[stage.id]}` : ""}
-              </Text>
-            ) : (
-              <Box key={`stage-${stage.id}`} flexDirection="column" rowGap={1}>
-                {stage.title ? (
-                  <Box flexDirection="column">
-                    <Text bold>{stage.title}</Text>
-                    <Text dimColor>{stage.about}</Text>
-                  </Box>
-                ) : null}
-                {stage.id === "golive" ? otherWay : null}
-                {stage.steps.map(stepRow)}
-              </Box>
-            ),
-          )}
-          {nextStep ? null : (
-            <Box flexDirection="column" rowGap={1}>
-              {moveErrorBlock}
-              {moveControls as never}
-            </Box>
-          )}
-        </Box>
-      ) : (
-        (moveErrorBlock ?? <Text dimColor>Looking at your app…</Text>)
-      );
 
     // Still on Lovable Cloud, or not known yet: the panel is the move and its questions, nothing else.
-    const who = { clodable: "Clodable", you: "You", help: "Help" } as const;
-    const levels: Record<string, string> = {
-      simple: "A simple move: Clodable does nearly everything, and you click a few buttons.",
-      "some-steps": "A move with a few steps for you, each one guided.",
-      "needs-help": "A move where some parts are best done with someone technical.",
-    };
-    const moveStage =
+    if (
       s.backend === "unknown" ||
       s.hosting === "unknown" ||
       s.backend === "lovable-cloud" ||
-      s.finishingMove;
-    if (moveStage) {
-      // Live on the new backend already, until the builder is done in Lovable: still the move.
-      const moving = s.backend === "lovable-cloud" || s.finishingMove;
-      const onCloud = moving || s.backend === "unknown";
-      if (s.backend === "lovable-cloud" && !assessment && !assessing) {
-        background(loadAssessment($));
-      }
-      if (moving && !move && !loadingMove && !moveError) background(loadMove($));
-      return (
-        <Box flexDirection="column" rowGap={2} paddingX={2} paddingY={1}>
-          {header}
-          {onCloud ? (
-            <Box flexDirection="column" rowGap={1}>
-              <Text bold>Move off Lovable</Text>
-              <Text dimColor>
-                Your data, your people and your backend come to your own Supabase, step by step.
-                Your live app keeps running on Lovable until you switch.
-              </Text>
-            </Box>
-          ) : null}
-          {questions.length > 0 ? (
-            <Box flexDirection="column" rowGap={2}>
-              <Text bold>
-                {questions.length === 2 ? "First, two quick questions" : "One quick question"}
-              </Text>
-              {questions as never}
-            </Box>
-          ) : null}
-          {moving ? (
-            <Box flexDirection="column" rowGap={2}>
-              {assessment?.error ? (
-                <Text color="error">Couldn't look at your app: {assessment.error}</Text>
-              ) : assessment?.checked ? (
-                <Text>{levels[assessment.level] ?? ""}</Text>
-              ) : null}
-              {assessment?.checked && !started && (assessment?.items ?? []).length > 0 ? (
-                <Box flexDirection="column" rowGap={1}>
-                  <Text bold>What moves</Text>
-                  {(assessment.items as any[]).map((item) => (
-                    <Box key={`moves-${item.id}`} flexDirection="column">
-                      <Text>
-                        <Text bold {...(item.by === "help" ? { color: "warning" } : {})}>
-                          {item.label}
-                        </Text>
-                        <Text dimColor> · {who[item.by as keyof typeof who] ?? ""}</Text>
-                      </Text>
-                      <Text dimColor>{item.detail}</Text>
-                    </Box>
-                  ))}
-                  {(assessment.notes ?? []).length > 0 ? (
-                    <Box flexDirection="column">
-                      <Text bold>Worth knowing</Text>
-                      {(assessment.notes as string[]).map((note, i) => (
-                        <Text key={`moves-note-${i}`} dimColor>
-                          {note}
-                        </Text>
-                      ))}
-                    </Box>
-                  ) : null}
-                  <Text dimColor>Something's not right? Tell Claude in the conversation.</Text>
-                </Box>
-              ) : null}
-              {moveSection as never}
-            </Box>
-          ) : null}
-        </Box>
-      );
+      s.finishingMove
+    ) {
+      return movePane($, ui, header, s, now);
     }
 
     // Just moved off Lovable: from here, the app is changed in this conversation. Until the next
@@ -1933,8 +1651,9 @@ export const register: Register = (on) => {
           )
         : null;
 
-    // The settings the app's server code reads, missing on this computer or on the site.
-    const settingsBox = settingsFields($, ui, "app-setting", s.backend === "lovable-cloud");
+    // The settings the app's server code reads, missing on this computer or on the site. Off
+    // Lovable Cloud by now, so not where Lovable lists them.
+    const settingsBox = settingsFields($, ui, "app-setting", false);
     const settingsCard = settingsBox
       ? card(ui, <Text bold>Your app's settings</Text>, settingsBox as never)
       : null;
@@ -2663,13 +2382,301 @@ function whereQuestion(
   );
 }
 
+// ── The move off Lovable (top level, so they can use $) ─────────────────────
+
+/** Still on Lovable Cloud, or not known yet: the panel is the move and its questions, nothing else. */
+function movePane(
+  $: EngineInterface,
+  ui: PaneUi,
+  header: RenderElement,
+  s: ClodableStatus,
+  now: number,
+) {
+  const { Box, Text } = ui;
+  // Live on the new backend already, until the builder is done in Lovable: still the move.
+  const moving = s.backend === "lovable-cloud" || s.finishingMove;
+  const onCloud = moving || s.backend === "unknown";
+  if (s.backend === "lovable-cloud" && !assessment && !assessing) background(loadAssessment($));
+  if (moving && !move && !loadingMove && !moveError) background(loadMove($));
+  const questions = whereQuestions($, ui, s);
+  return (
+    <Box flexDirection="column" rowGap={2} paddingX={2} paddingY={1}>
+      {header}
+      {onCloud ? (
+        <Box flexDirection="column" rowGap={1}>
+          <Text bold>Move off Lovable</Text>
+          <Text dimColor>
+            Your data, your people and your backend come to your own Supabase, step by step. Your
+            live app keeps running on Lovable until you switch.
+          </Text>
+        </Box>
+      ) : null}
+      {questions.length > 0 ? (
+        <Box flexDirection="column" rowGap={2}>
+          <Text bold>
+            {questions.length === 2 ? "First, two quick questions" : "One quick question"}
+          </Text>
+          {questions as never}
+        </Box>
+      ) : null}
+      {moving ? (
+        <Box flexDirection="column" rowGap={2}>
+          {whatMoves(ui)}
+          {moveSection($, ui, s, now)}
+        </Box>
+      ) : null}
+    </Box>
+  );
+}
+
+/** What the move involves for this app, as Clodable's look at it found: until it starts. */
+function whatMoves(ui: PaneUi) {
+  const { Box, Text } = ui;
+  if (assessment?.error) {
+    return <Text color="error">Couldn't look at your app: {assessment.error}</Text>;
+  }
+  if (!assessment?.checked) return null;
+  const started = (move?.steps ?? []).some((x: any) => x.id === "connect" && x.state === "done");
+  const items: any[] = assessment.items ?? [];
+  const notes: string[] = assessment.notes ?? [];
+  return (
+    <Box flexDirection="column" rowGap={2}>
+      <Text>{MOVE_LEVELS[assessment.level] ?? ""}</Text>
+      {!started && items.length > 0 ? (
+        <Box flexDirection="column" rowGap={1}>
+          <Text bold>What moves</Text>
+          {items.map((item) => (
+            <Box key={`moves-${item.id}`} flexDirection="column">
+              <Text>
+                <Text bold {...(item.by === "help" ? { color: "warning" } : {})}>
+                  {item.label}
+                </Text>
+                <Text dimColor> · {MOVE_WHO[item.by] ?? ""}</Text>
+              </Text>
+              <Text dimColor>{item.detail}</Text>
+            </Box>
+          ))}
+          {notes.length > 0 ? (
+            <Box flexDirection="column">
+              <Text bold>Worth knowing</Text>
+              {notes.map((note, i) => (
+                <Text key={`moves-note-${i}`} dimColor>
+                  {note}
+                </Text>
+              ))}
+            </Box>
+          ) : null}
+          <Text dimColor>Something's not right? Tell Claude in the conversation.</Text>
+        </Box>
+      ) : null}
+    </Box>
+  );
+}
+
+/** The move itself, one step at a time: every step listed, only the current one with its controls. */
+function moveSection($: EngineInterface, ui: PaneUi, s: ClodableStatus, now: number) {
+  const { Box, Text } = ui;
+  const steps: any[] = move?.steps ?? [];
+  const method = moveMethod();
+  const problem = moveProblem(ui);
+  // First, Claude reads the app's code: until it has, nothing else is decided.
+  if (move && steps.some((x) => x.id === "facts" && x.state !== "done")) {
+    return (
+      <Box flexDirection="column" rowGap={1}>
+        {problem}
+        {firstLook($, ui)}
+      </Box>
+    );
+  }
+  // Asked before the steps: it decides how the live app moves at the end.
+  if (move && !method) {
+    return (
+      <Box flexDirection="column" rowGap={1}>
+        {problem}
+        {methodQuestion($, ui)}
+      </Box>
+    );
+  }
+  if (steps.length === 0) return problem ?? <Text dimColor>Looking at your app…</Text>;
+
+  const current = steps.find((x) => x.state === "next" || x.state === "attention");
+  const here = (
+    <Box flexDirection="column" rowGap={1} {...(current ? { paddingLeft: 2 } : {})}>
+      {problem}
+      {moveControlsFor($, { ui, s, step: current, now }) as never}
+    </Box>
+  );
+  const stages = stagesOf(steps, method);
+  // The stage the builder is in; with nothing left, the last (all of them fold).
+  const at = current ? stages.findIndex((x) => x.steps.includes(current)) : stages.length - 1;
+  // Steps after the one the builder is on read as later ones, done or not: they come next.
+  const currentIndex = current ? steps.indexOf(current) : steps.length;
+  const detail: Record<string, string | undefined> = {
+    backend: move?.home?.name,
+    website: move?.site?.url,
+  };
+  return (
+    <Box flexDirection="column" rowGap={2}>
+      {stages.map((stage, index) =>
+        index > at ? (
+          // A stage still ahead: its name only, its steps folded until it comes.
+          <Text key={`stage-${stage.id}`} dimColor>
+            {stage.title}
+          </Text>
+        ) : stage.steps.every((x) => x.state === "done") ? (
+          // A stage that's done: one line.
+          <Text key={`stage-${stage.id}`} color="success">
+            ✓ {stage.title}
+            {detail[stage.id] ? `  · ${detail[stage.id]}` : ""}
+          </Text>
+        ) : (
+          <Box key={`stage-${stage.id}`} flexDirection="column" rowGap={1}>
+            {stage.title ? (
+              <Box flexDirection="column">
+                <Text bold>{stage.title}</Text>
+                <Text dimColor>{stage.about}</Text>
+              </Box>
+            ) : null}
+            {stage.id === "golive" ? otherWay($, ui, method) : null}
+            {stage.steps.map((step) =>
+              stepRow(
+                ui,
+                step,
+                steps.indexOf(step) > currentIndex ? "later" : step.state,
+                step === current ? here : null,
+              ),
+            )}
+          </Box>
+        ),
+      )}
+      {current ? null : here}
+    </Box>
+  );
+}
+
+/** One step of the move: its mark and title, and under the current one, what to do now. */
+function stepRow(ui: PaneUi, step: any, state: string, under: RenderElement | null) {
+  const { Box, Text } = ui;
+  return (
+    <Box key={`step-${step.id}`} flexDirection="column" rowGap={1}>
+      <Text
+        {...(state === "attention"
+          ? { color: "warning" }
+          : state === "done"
+            ? { color: "success" }
+            : {})}
+        dimColor={state === "later"}
+        bold={under !== null}
+      >
+        {STEP_MARK[state] ?? "·"} {step.title}
+        {step.detail && state !== "later" ? `  · ${step.detail}` : ""}
+      </Text>
+      {under}
+    </Box>
+  );
+}
+
+/** What went wrong in the move, and what to do about it. */
+function moveProblem(ui: PaneUi) {
+  const { Box, Text } = ui;
+  if (!moveError) return null;
+  return (
+    <Box flexDirection="column">
+      <Text color="error">{moveError.message}</Text>
+      {moveError.hint ? <Text dimColor>{moveError.hint}</Text> : null}
+    </Box>
+  );
+}
+
+/** Before anything else: Claude reads the app's code, so each step fits the app. */
+function firstLook($: EngineInterface, ui: PaneUi) {
+  const { Box, Text } = ui;
+  return (
+    <Box flexDirection="column" rowGap={1}>
+      <Text bold>First, Claude looks at your app</Text>
+      <Text dimColor>
+        It reads your app's code to see what it uses (AI, sign-in, emails, payments…), so each step
+        fits your app. Nothing changes.
+      </Text>
+      {isPiloting() ? (
+        <Text dimColor>Claude is looking at your app…</Text>
+      ) : (
+        <Box flexDirection="row">
+          {pilotButton(
+            $,
+            ui,
+            "move-facts",
+            "Look at my app",
+            `Moving off Lovable: look at my app's code to see what it uses (AI, sign-in, emails, connected services, payments, scheduled jobs, uploads). Start from \`${moveCommand($, ["facts"])}\`, check each thing in the code, record what you found as the move skill says, then tell me in a few plain lines.`,
+          )}
+        </Box>
+      )}
+    </Box>
+  );
+}
+
+/** How the app moves, asked before the steps: it decides how the live app moves at the end. */
+function methodQuestion($: EngineInterface, ui: PaneUi) {
+  const { Box, Text, Button } = ui;
+  return (
+    <Box flexDirection="column" rowGap={2}>
+      <Text bold>How should your app move?</Text>
+      <Box flexDirection="column" rowGap={1}>
+        <Button
+          key="move-method-careful"
+          variant="secondary"
+          onPress={() => background(chooseMethod($, "careful"))}
+        >
+          Carefully
+        </Button>
+        <Text dimColor>
+          For an app people use. You try a working copy first; at the end your live app pauses for a
+          few minutes while the latest data comes over, so nothing is lost.
+        </Text>
+      </Box>
+      <Box flexDirection="column" rowGap={1}>
+        <Button
+          key="move-method-quick"
+          variant="secondary"
+          onPress={() => background(chooseMethod($, "quick"))}
+        >
+          In one go
+        </Button>
+        <Text dimColor>
+          For a prototype. One export, then your app goes live on your own accounts. Anything
+          written in Lovable after your export stays there.
+        </Text>
+      </Box>
+    </Box>
+  );
+}
+
+/** The other way to move, offered where it changes something: before going live starts. */
+function otherWay($: EngineInterface, ui: PaneUi, method: MoveMethod | undefined) {
+  const { Box, Text, Button } = ui;
+  const switchStarted = Boolean(move?.switch?.frozenAt || move?.switch?.liveAt);
+  if (!method || switchStarted || isPiloting() || moveRun) return null;
+  return (
+    <Box flexDirection="row" columnGap={2} alignItems="center">
+      <Text dimColor>{method === "quick" ? "People use your app?" : "Just a prototype?"}</Text>
+      <Button
+        key="move-other-way"
+        variant="secondary"
+        onPress={() => background(chooseMethod($, method === "quick" ? "careful" : "quick"))}
+      >
+        {method === "quick" ? "Move it carefully instead" : "Move it in one go instead"}
+      </Button>
+    </Box>
+  );
+}
+
 // ── The move off Lovable, one function per step (top level, so they can use $) ──
 
 /** What a step of the move draws with, besides the module's own state. */
 type MoveView = { ui: PaneUi; s: ClodableStatus; step: any; now: number };
 
 /** How the app moves: as chosen in the panel a moment ago, or as the move recorded it. */
-function moveMethod(): "careful" | "quick" | undefined {
+function moveMethod(): MoveMethod | undefined {
   return choosingMethod ?? move?.method;
 }
 

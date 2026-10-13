@@ -9,6 +9,7 @@ import {
   SECRET_STEP,
   safeCommand,
 } from "../hooks/guards.ts";
+import { connectorSetting, sizeOf, stagesOf, typedDomain } from "../hooks/move.ts";
 import { hostOf, saveMessage, versionName } from "../hooks/words.ts";
 
 const CWD = "/work/crumb";
@@ -176,6 +177,48 @@ describe("save names", () => {
     );
     expect(hostOf("https://crumb.example/")).toBe("crumb.example");
     expect(hostOf("http://localhost:5199")).toBe("localhost:5199");
+  });
+});
+
+describe("the move's plain facts", () => {
+  test("steps fall into their stages, in the CLI's order; the first look stands apart", () => {
+    const steps = ["facts", "connect", "copy", "netlify", "services", "freeze", "lovable"].map(
+      (id) => ({ id }),
+    );
+    const stages = stagesOf(steps, "careful");
+    expect(stages.map((x) => [x.id, x.steps.map((s) => s.id)])).toEqual([
+      ["backend", ["connect", "copy"]],
+      ["website", ["netlify", "services"]],
+      ["golive", ["freeze", "lovable"]],
+    ]);
+    expect(stages[1]?.title).toBe("Get ready: your website, emails and services");
+    expect(stages[2]?.about).toMatch(/pauses for a few minutes/);
+    expect(stagesOf([{ id: "golive" }], "quick")[0]?.about).toMatch(/in one go/);
+    expect(stagesOf([{ id: "netlify" }], "quick")[0]?.title).toBe(
+      "Get ready: your website and emails",
+    );
+    // A step this panel doesn't know joins the stage before it, or one of its own.
+    expect(stagesOf([{ id: "connect" }, { id: "new" }], "careful")[0]?.steps).toHaveLength(2);
+    expect(stagesOf([{ id: "new" }], "careful")).toEqual([
+      { id: "move", title: "", about: "", steps: [{ id: "new" }] },
+    ]);
+  });
+
+  test("a typed domain is cleaned up, or refused", () => {
+    expect(typedDomain(" https://Crumb.Example/about ")).toBe("crumb.example");
+    expect(typedDomain("www.crumb.example")).toBe("www.crumb.example");
+    expect(typedDomain("www.crumb.example", { bare: true })).toBe("crumb.example");
+    expect(typedDomain("crumb")).toBeUndefined();
+    expect(typedDomain("my site.com")).toBeUndefined();
+    expect(typedDomain("www.com", { bare: true })).toBeUndefined();
+  });
+
+  test("a connector's key, and sizes against the plan, read plainly", () => {
+    expect(connectorSetting("Google Sheets")).toBe("GOOGLE_SHEETS_API_KEY");
+    expect(connectorSetting("x.ai")).toBe("X_AI_API_KEY");
+    expect(sizeOf(10)).toBe("1 MB");
+    expect(sizeOf(340 * 1024 ** 2)).toBe("340 MB");
+    expect(sizeOf(1.25 * 1024 ** 3)).toBe("1.3 GB");
   });
 });
 
