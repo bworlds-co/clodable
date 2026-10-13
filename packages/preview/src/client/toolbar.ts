@@ -609,7 +609,6 @@ export class Toolbar {
         class: "btn primary",
         onclick: () => this.openComposerFor(el, `Change “${short(text)}” to `),
       },
-      icon("sparkles", 16),
       "Ask Claude",
     );
     const panel = h(
