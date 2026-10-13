@@ -54,12 +54,14 @@ import {
   describeGroup,
   describeTool,
   fixPrompt,
+  hostOf,
   plural,
   saveMessage,
   shortReason,
   sqlIsDestructive,
   sqlWrites,
   supabaseTool,
+  versionName,
 } from "./words.ts";
 
 const PANE = "clodable";
@@ -1380,9 +1382,7 @@ export const register: Register = (on) => {
           {conflict ? "Let Claude combine them" : "Fix it"}
         </Button>
       );
-    const site = (url: string) => (
-      <Link href={url} label={`${url.replace(/^https?:\/\//, "")} ↗`} />
-    );
+    const site = (url: string) => <Link href={url} label={`${hostOf(url)} ↗`} />;
 
     let ours: RenderElement;
     if (a.kind === "publishing" || a.kind === "undoing") {
@@ -1565,256 +1565,13 @@ export const register: Register = (on) => {
       return setupPane($, ui, header, s, doctor);
     }
 
-    const steps = a.steps.length > 0 ? a.steps : [];
     if (versions === null) background(refreshVersions($));
     const desktop = e.surface === "desktop";
-    const busy = a.kind === "publishing" || a.kind === "undoing";
     const url = s.lastPublish?.url ?? s.liveUrl;
     const warnings = doctor.filter((c) => c.status === "warn" || c.status === "fail");
-    const host = (link: string) => link.replace(/^https?:\/\//, "").replace(/\/$/, "");
 
-    let state: RenderElement;
-    if (busy) {
-      state = card(
-        ui,
-        <Text bold>{a.kind === "publishing" ? "Publishing…" : "Undoing…"}</Text>,
-        <Text dimColor>Your live site keeps working meanwhile.</Text>,
-        [],
-        <Box flexDirection="column">{steps.map((step) => stepLine(ui, step))}</Box>,
-      );
-    } else if (a.kind === "failed" && a.error) {
-      state = card(
-        ui,
-        <Text color="error" bold>
-          {a.error.code === "secret-found" ? "Not saved" : "Not published"}
-        </Text>,
-        <Text>{a.error.message}</Text>,
-        [
-          a.error.details ? (
-            <Button
-              key="toggle-details"
-              variant="secondary"
-              onPress={() => {
-                showDetails = !showDetails;
-                $.ui.invalidate("ui.render");
-              }}
-            >
-              {showDetails ? "Hide details" : "Details"}
-            </Button>
-          ) : null,
-          isFixing() ? (
-            <Text dimColor>
-              {a.error.code === "conflict" ? "Claude is combining…" : "Claude is fixing…"}
-            </Text>
-          ) : (
-            <Button key="fix" variant="primary" onPress={() => background(fixIt($))}>
-              {a.error.code === "conflict" ? "Let Claude combine them" : "Fix it"}
-            </Button>
-          ),
-        ],
-        <Box flexDirection="column" rowGap={1}>
-          {a.error.hint ? <Text dimColor>{a.error.hint}</Text> : null}
-          {steps.length > 0 ? (
-            <Box flexDirection="column">{steps.map((step) => stepLine(ui, step))}</Box>
-          ) : null}
-          {showDetails && a.error.details ? (
-            <Code source={a.error.details.slice(0, 6000)} wrap="wrap" />
-          ) : null}
-        </Box>,
-      );
-    } else if ((a.kind === "published" || a.kind === "undone") && a.at && now - a.at < 120_000) {
-      state = card(
-        ui,
-        <Text color="success" bold>
-          {a.onLovable
-            ? a.kind === "published"
-              ? "Published on GitHub"
-              : "Undone on GitHub"
-            : a.kind === "published"
-              ? "You're live"
-              : "Undone. The previous version is live"}
-        </Text>,
-        a.onLovable ? (
-          <Box flexDirection="column">
-            <Text dimColor>
-              Lovable hosts your site: in Lovable, click Publish, then Publish changes, to put it
-              live.
-            </Text>
-            <Link href={a.lovableUrl ?? "https://lovable.dev/projects"} label="Open Lovable ↗" />
-          </Box>
-        ) : a.url ? (
-          <Link href={a.url} label={`${host(a.url)} ↗`} />
-        ) : null,
-        a.kind === "published"
-          ? [
-              <Button key="undo" variant="secondary" onPress={() => background(undoNow($))}>
-                Undo
-              </Button>,
-            ]
-          : [],
-      );
-    } else if (s.merging || s.conflicts.length > 0) {
-      state = card(
-        ui,
-        <Text color="warning" bold>
-          Your draft and the live site changed the same thing
-        </Text>,
-        <Text dimColor>Claude can combine them and keep both changes.</Text>,
-        [
-          isFixing() ? (
-            <Text dimColor>Claude is combining…</Text>
-          ) : (
-            <Button key="combine" variant="primary" onPress={() => background(fixIt($))}>
-              Let Claude combine them
-            </Button>
-          ),
-        ],
-      );
-    } else if (s.unpublished.length > 0) {
-      state = card(
-        ui,
-        <Text bold>{plural(s.unpublished.length, "change")} not live yet</Text>,
-        <Text dimColor>
-          {s.lastPublish
-            ? `Visitors still see the version you published ${ago(s.lastPublish.at, now)}.`
-            : "Visitors see them once you publish."}
-        </Text>,
-        [
-          !previewUrl ? null : e.surface === "desktop" ? (
-            <Button key="preview" variant="secondary" onPress={() => askForPreview($)}>
-              Preview
-            </Button>
-          ) : (
-            <Link key="preview" href={previewUrl} label="Preview ↗" />
-          ),
-          <Button key="publish" variant="primary" onPress={() => background(publishNow($))}>
-            Publish
-          </Button>,
-        ],
-      );
-    } else {
-      state = card(
-        ui,
-        <Text bold>Everything is live</Text>,
-        <Text dimColor>
-          {s.lastPublish
-            ? `Published ${ago(s.lastPublish.at, now)}: “${s.lastPublish.title}”`
-            : "Ask Claude for a change. It's saved here automatically."}
-        </Text>,
-        s.lastPublish
-          ? [
-              <Button key="undo" variant="secondary" onPress={() => background(undoNow($))}>
-                Undo last publish
-              </Button>,
-            ]
-          : [],
-      );
-    }
-
-    // History: one line per version, newest first. The first is what the files hold now; the
-    // newest publish is what visitors see. Restore shows on the line under the pointer.
-    const pretty = (v: Version) => {
-      const back = v.subject.match(/^Restored the version from (.+?)(?:: (.+))?$/);
-      if (!back) return v.subject;
-      return back[2] ? `Went back to “${back[2]}”` : `Went back to the version from ${back[1]}`;
-    };
-    const currentSha = versions?.draft[0]?.sha ?? versions?.published[0]?.sha;
-    const liveSha = versions?.published[0]?.sha;
-    const versionRow = (v: Version) => {
-      const current = v.sha === currentSha;
-      const live = v.sha === liveSha;
-      const restore = (
-        <Button
-          key={`restore-${v.sha}`}
-          {...(desktop ? { variant: "secondary" as const } : { plain: true as const })}
-          onPress={() => background(restoreVersion($, v.sha, pretty(v)))}
-        >
-          Restore
-        </Button>
-      );
-      return (
-        <Box
-          key={`version-${v.sha}`}
-          flexDirection="row"
-          justifyContent="space-between"
-          alignItems="center"
-          columnGap={2}
-          paddingX={1}
-          {...(desktop ? { hover: { backgroundColor: "#8080801f" } } : {})}
-        >
-          <Box flexDirection="row" columnGap={1} alignItems="center" flexShrink={1}>
-            <Text wrap="truncate-end">{pretty(v)}</Text>
-            {live ? (
-              <Text color="success" bold>
-                Live
-              </Text>
-            ) : null}
-            {current ? <Text dimColor>Current</Text> : null}
-          </Box>
-          <Box flexDirection="row" columnGap={2} alignItems="center" flexShrink={0}>
-            <Text dimColor>{ago(v.date, now)}</Text>
-            <Box width={11} justifyContent="flex-end">
-              {current ? null : desktop ? (
-                <Box display="none" hover={{ display: "flex" }}>
-                  {restore}
-                </Box>
-              ) : (
-                restore
-              )}
-            </Box>
-          </Box>
-        </Box>
-      );
-    };
-    // Two questions, once: where the data and the live site are decide what Clodable can do.
-    const choice = (key: "backend" | "hosting", value: string, label: string) => (
-      <Button
-        key={`${key}-${value}`}
-        variant="secondary"
-        onPress={() => background(setWhere($, key, value))}
-      >
-        {label}
-      </Button>
-    );
-    const question = (
-      key: "backend" | "hosting",
-      title: string,
-      choices: Array<[string, string]>,
-      hint: string,
-    ) => (
-      <Box key={`question-${key}`} flexDirection="column" rowGap={1}>
-        <Text>{title}</Text>
-        <Box flexDirection="row" columnGap={1} rowGap={1} flexWrap="wrap">
-          {choices.map(([value, label]) => choice(key, value, label))}
-        </Box>
-        <Text dimColor>{hint}</Text>
-      </Box>
-    );
-    const questions = [
-      s.backend === "unknown"
-        ? question(
-            "backend",
-            "Where does your app's data live?",
-            [
-              ["lovable-cloud", "On Lovable Cloud"],
-              ["supabase", "In my own Supabase"],
-              ["none", "No database"],
-            ],
-            "Not sure? If your project in Lovable has Cloud (Database, Users…), it's Lovable Cloud.",
-          )
-        : null,
-      s.hosting === "unknown"
-        ? question(
-            "hosting",
-            "Where is your site live?",
-            [
-              ["lovable", "On Lovable"],
-              ["github", "Elsewhere (Netlify, Vercel…)"],
-            ],
-            "If you click Publish in Lovable to update your site, it's on Lovable.",
-          )
-        : null,
-    ].filter(Boolean);
+    const state = stateCard($, ui, s, a, now, desktop);
+    const questions = whereQuestions($, ui, s);
 
     // The move itself, one step at a time: every step listed, only the next one with its controls.
     const MOVE_MARK: Record<string, string> = { done: "✓", next: "●", later: "·", attention: "!" };
@@ -3394,7 +3151,7 @@ export const register: Register = (on) => {
             <Box flexDirection="column" rowGap={1}>
               <Text dimColor>
                 You change it here now: describe a change in the conversation and watch it in the
-                preview. Publish puts it live{url ? ` at ${host(url)}` : ""}.
+                preview. Publish puts it live{url ? ` at ${hostOf(url)}` : ""}.
               </Text>
               <Text dimColor>
                 Backups: Supabase's Pro plan keeps a copy of your data for each of the last 7 days;
@@ -3473,7 +3230,7 @@ export const register: Register = (on) => {
       <Box flexDirection="column" rowGap={2} paddingX={2} paddingY={1}>
         <Box flexDirection="row" justifyContent="space-between" alignItems="center">
           {header}
-          {url ? <Link href={url} label={`${host(url)} ↗`} /> : null}
+          {url ? <Link href={url} label={`${hostOf(url)} ↗`} /> : null}
         </Box>
 
         {movedOff}
@@ -3495,9 +3252,9 @@ export const register: Register = (on) => {
           ) : (
             <Box flexDirection="column">
               {draftRows.length > 0 ? <Text dimColor>Not live yet</Text> : null}
-              {draftRows.map(versionRow)}
+              {draftRows.map((v) => versionRow($, ui, v, desktop, now))}
               {publishedRows.length > 0 ? <Text dimColor>Published</Text> : null}
-              {publishedRows.map(versionRow)}
+              {publishedRows.map((v) => versionRow($, ui, v, desktop, now))}
               {older > 0 ? <Text dimColor>and {plural(older, "older version")}</Text> : null}
             </Box>
           )}
@@ -3896,6 +3653,275 @@ function setupPane(
           ? "Clodable adds a few plain files and saves them, with any changes in progress, to your draft on GitHub. Nothing goes live."
           : "Clodable copies your app from GitHub into this folder and adds a few plain files. Nothing goes live."}
       </Text>
+    </Box>
+  );
+}
+
+/** The app's state in one card: what's true now, and the next thing to do. */
+function stateCard(
+  $: EngineInterface,
+  ui: PaneUi,
+  s: ClodableStatus,
+  a: ClodableActivity,
+  now: number,
+  desktop: boolean,
+): RenderElement {
+  const { Box, Text, Button, Link, Code } = ui;
+  if (a.kind === "publishing" || a.kind === "undoing") {
+    return card(
+      ui,
+      <Text bold>{a.kind === "publishing" ? "Publishing…" : "Undoing…"}</Text>,
+      <Text dimColor>Your live site keeps working meanwhile.</Text>,
+      [],
+      <Box flexDirection="column">{a.steps.map((step) => stepLine(ui, step))}</Box>,
+    );
+  }
+  if (a.kind === "failed" && a.error) {
+    return card(
+      ui,
+      <Text color="error" bold>
+        {a.error.code === "secret-found" ? "Not saved" : "Not published"}
+      </Text>,
+      <Text>{a.error.message}</Text>,
+      [
+        a.error.details ? (
+          <Button
+            key="toggle-details"
+            variant="secondary"
+            onPress={() => {
+              showDetails = !showDetails;
+              $.ui.invalidate("ui.render");
+            }}
+          >
+            {showDetails ? "Hide details" : "Details"}
+          </Button>
+        ) : null,
+        isFixing() ? (
+          <Text dimColor>
+            {a.error.code === "conflict" ? "Claude is combining…" : "Claude is fixing…"}
+          </Text>
+        ) : (
+          <Button key="fix" variant="primary" onPress={() => background(fixIt($))}>
+            {a.error.code === "conflict" ? "Let Claude combine them" : "Fix it"}
+          </Button>
+        ),
+      ],
+      <Box flexDirection="column" rowGap={1}>
+        {a.error.hint ? <Text dimColor>{a.error.hint}</Text> : null}
+        {a.steps.length > 0 ? (
+          <Box flexDirection="column">{a.steps.map((step) => stepLine(ui, step))}</Box>
+        ) : null}
+        {showDetails && a.error.details ? (
+          <Code source={a.error.details.slice(0, 6000)} wrap="wrap" />
+        ) : null}
+      </Box>,
+    );
+  }
+  if ((a.kind === "published" || a.kind === "undone") && a.at && now - a.at < 120_000) {
+    return card(
+      ui,
+      <Text color="success" bold>
+        {a.onLovable
+          ? a.kind === "published"
+            ? "Published on GitHub"
+            : "Undone on GitHub"
+          : a.kind === "published"
+            ? "You're live"
+            : "Undone. The previous version is live"}
+      </Text>,
+      a.onLovable ? (
+        <Box flexDirection="column">
+          <Text dimColor>
+            Lovable hosts your site: in Lovable, click Publish, then Publish changes, to put it
+            live.
+          </Text>
+          <Link href={a.lovableUrl ?? "https://lovable.dev/projects"} label="Open Lovable ↗" />
+        </Box>
+      ) : a.url ? (
+        <Link href={a.url} label={`${hostOf(a.url)} ↗`} />
+      ) : null,
+      a.kind === "published"
+        ? [
+            <Button key="undo" variant="secondary" onPress={() => background(undoNow($))}>
+              Undo
+            </Button>,
+          ]
+        : [],
+    );
+  }
+  if (s.merging || s.conflicts.length > 0) {
+    return card(
+      ui,
+      <Text color="warning" bold>
+        Your draft and the live site changed the same thing
+      </Text>,
+      <Text dimColor>Claude can combine them and keep both changes.</Text>,
+      [
+        isFixing() ? (
+          <Text dimColor>Claude is combining…</Text>
+        ) : (
+          <Button key="combine" variant="primary" onPress={() => background(fixIt($))}>
+            Let Claude combine them
+          </Button>
+        ),
+      ],
+    );
+  }
+  if (s.unpublished.length > 0) {
+    return card(
+      ui,
+      <Text bold>{plural(s.unpublished.length, "change")} not live yet</Text>,
+      <Text dimColor>
+        {s.lastPublish
+          ? `Visitors still see the version you published ${ago(s.lastPublish.at, now)}.`
+          : "Visitors see them once you publish."}
+      </Text>,
+      [
+        !previewUrl ? null : desktop ? (
+          <Button key="preview" variant="secondary" onPress={() => askForPreview($)}>
+            Preview
+          </Button>
+        ) : (
+          <Link key="preview" href={previewUrl} label="Preview ↗" />
+        ),
+        <Button key="publish" variant="primary" onPress={() => background(publishNow($))}>
+          Publish
+        </Button>,
+      ],
+    );
+  }
+  return card(
+    ui,
+    <Text bold>Everything is live</Text>,
+    <Text dimColor>
+      {s.lastPublish
+        ? `Published ${ago(s.lastPublish.at, now)}: “${s.lastPublish.title}”`
+        : "Ask Claude for a change. It's saved here automatically."}
+    </Text>,
+    s.lastPublish
+      ? [
+          <Button key="undo" variant="secondary" onPress={() => background(undoNow($))}>
+            Undo last publish
+          </Button>,
+        ]
+      : [],
+  );
+}
+
+/**
+ * One line of history. The newest saved version is what the files hold now ("Current"); the
+ * newest publish is what visitors see ("Live"). Restore shows on the line under the pointer.
+ */
+function versionRow($: EngineInterface, ui: PaneUi, v: Version, desktop: boolean, now: number) {
+  const { Box, Text, Button } = ui;
+  const current = v.sha === (versions?.draft[0]?.sha ?? versions?.published[0]?.sha);
+  const live = v.sha === versions?.published[0]?.sha;
+  const name = versionName(v.subject);
+  const restore = (
+    <Button
+      key={`restore-${v.sha}`}
+      {...(desktop ? { variant: "secondary" as const } : { plain: true as const })}
+      onPress={() => background(restoreVersion($, v.sha, name))}
+    >
+      Restore
+    </Button>
+  );
+  return (
+    <Box
+      key={`version-${v.sha}`}
+      flexDirection="row"
+      justifyContent="space-between"
+      alignItems="center"
+      columnGap={2}
+      paddingX={1}
+      {...(desktop ? { hover: { backgroundColor: "#8080801f" } } : {})}
+    >
+      <Box flexDirection="row" columnGap={1} alignItems="center" flexShrink={1}>
+        <Text wrap="truncate-end">{name}</Text>
+        {live ? (
+          <Text color="success" bold>
+            Live
+          </Text>
+        ) : null}
+        {current ? <Text dimColor>Current</Text> : null}
+      </Box>
+      <Box flexDirection="row" columnGap={2} alignItems="center" flexShrink={0}>
+        <Text dimColor>{ago(v.date, now)}</Text>
+        <Box width={11} justifyContent="flex-end">
+          {current ? null : desktop ? (
+            <Box display="none" hover={{ display: "flex" }}>
+              {restore}
+            </Box>
+          ) : (
+            restore
+          )}
+        </Box>
+      </Box>
+    </Box>
+  );
+}
+
+/** Two questions, asked once: where the data and the live site are decide what Clodable can do. */
+function whereQuestions($: EngineInterface, ui: PaneUi, s: ClodableStatus): RenderElement[] {
+  const questions: RenderElement[] = [];
+  if (s.backend === "unknown") {
+    questions.push(
+      whereQuestion(
+        $,
+        ui,
+        "backend",
+        "Where does your app's data live?",
+        [
+          ["lovable-cloud", "On Lovable Cloud"],
+          ["supabase", "In my own Supabase"],
+          ["none", "No database"],
+        ],
+        "Not sure? If your project in Lovable has Cloud (Database, Users…), it's Lovable Cloud.",
+      ),
+    );
+  }
+  if (s.hosting === "unknown") {
+    questions.push(
+      whereQuestion(
+        $,
+        ui,
+        "hosting",
+        "Where is your site live?",
+        [
+          ["lovable", "On Lovable"],
+          ["github", "Elsewhere (Netlify, Vercel…)"],
+        ],
+        "If you click Publish in Lovable to update your site, it's on Lovable.",
+      ),
+    );
+  }
+  return questions;
+}
+
+function whereQuestion(
+  $: EngineInterface,
+  ui: PaneUi,
+  key: "backend" | "hosting",
+  title: string,
+  choices: Array<[value: string, label: string]>,
+  hint: string,
+) {
+  const { Box, Text, Button } = ui;
+  return (
+    <Box key={`question-${key}`} flexDirection="column" rowGap={1}>
+      <Text>{title}</Text>
+      <Box flexDirection="row" columnGap={1} rowGap={1} flexWrap="wrap">
+        {choices.map(([value, label]) => (
+          <Button
+            key={`${key}-${value}`}
+            variant="secondary"
+            onPress={() => background(setWhere($, key, value))}
+          >
+            {label}
+          </Button>
+        ))}
+      </Box>
+      <Text dimColor>{hint}</Text>
     </Box>
   );
 }

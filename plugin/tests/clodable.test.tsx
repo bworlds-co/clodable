@@ -9,7 +9,7 @@ import {
   SECRET_STEP,
   safeCommand,
 } from "../hooks/guards.ts";
-import { saveMessage } from "../hooks/words.ts";
+import { hostOf, saveMessage, versionName } from "../hooks/words.ts";
 
 const CWD = "/work/crumb";
 /** Where the plugin is loaded from: Claude's runs of Clodable name its CLI there. */
@@ -164,6 +164,18 @@ describe("save names", () => {
       ),
     ).toBe("Switch my preview back to my live data");
     expect(saveMessage("make the header blue")).toBe("Make the header blue");
+  });
+
+  test("a version is named by what it did; a site by its address", () => {
+    expect(versionName("Added the menu")).toBe("Added the menu");
+    expect(versionName("Restored the version from Oct 10, 09:00: Warmer welcome")).toBe(
+      "Went back to “Warmer welcome”",
+    );
+    expect(versionName("Restored the version from Oct 10, 09:00")).toBe(
+      "Went back to the version from Oct 10, 09:00",
+    );
+    expect(hostOf("https://crumb.example/")).toBe("crumb.example");
+    expect(hostOf("http://localhost:5199")).toBe("localhost:5199");
   });
 });
 

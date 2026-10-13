@@ -296,6 +296,16 @@ export function supabaseTool(name: string): string | undefined {
 
 export const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
+/** A site's address as people read it: "https://crumb.example/" → "crumb.example". */
+export const hostOf = (url: string) => url.replace(/^https?:\/\//, "").replace(/\/$/, "");
+
+/** A version in the history, by what it did: a restore says which version it went back to. */
+export function versionName(subject: string): string {
+  const back = subject.match(/^Restored the version from (.+?)(?:: (.+))?$/);
+  if (!back) return subject;
+  return back[2] ? `Went back to “${back[2]}”` : `Went back to the version from ${back[1]}`;
+}
+
 /** A commit subject from what the builder asked: first meaningful line, trimmed, at most 72 characters. */
 export function saveMessage(request: string): string {
   // Requests Clodable wrote for the builder get the builder's words, not the error's.
