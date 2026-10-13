@@ -685,6 +685,26 @@ describe("the line Publish shows while the host builds", () => {
   });
 });
 
+describe("settings", () => {
+  it("fill in every default, a section at a time", () => {
+    expect(ProjectConfigSchema.parse({})).toEqual({
+      version: 1,
+      liveBranch: "main",
+      app: { type: "unknown", buildScript: "build" },
+      supabase: {},
+      backend: "unknown",
+      hosting: "unknown",
+      checks: { build: true, packages: true, secrets: true },
+      publish: { waitForCi: true, ciTimeoutMinutes: 20, deployTimeoutMinutes: 10 },
+    });
+    expect(ProjectConfigSchema.parse({ checks: { build: false } }).checks).toEqual({
+      build: false,
+      packages: true,
+      secrets: true,
+    });
+  });
+});
+
 describe("failed checks", () => {
   it("say what failed first, keep everything for developers, and name the files", () => {
     const error = checksFailed(

@@ -20,6 +20,7 @@ import {
   planKit,
   publish,
   save,
+  supabaseRef,
 } from "@clodable/core";
 import pc from "picocolors";
 import { type Context, drive, run } from "../context.js";
@@ -156,7 +157,7 @@ export async function doctor(cwd: string): Promise<DoctorItem[]> {
       : { detail: `${missing.length} file(s) missing`, fix: "Run `clodable kit --apply`" }),
   });
 
-  const ref = config.supabase.projectRef ?? project.supabase.projectRef;
+  const ref = supabaseRef(config, project);
   items.push(
     config.backend === "lovable-cloud"
       ? {

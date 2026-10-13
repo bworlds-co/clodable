@@ -3,6 +3,7 @@ import { mkdtemp, readdir, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { checksFailed, runChecks } from "./checks/index.js";
+import { supabaseRef } from "./config.js";
 import { ensurePullRequest, save } from "./draft.js";
 import { ClodableError, messageOf } from "./errors.js";
 import { type Flow, log, step } from "./events.js";
@@ -500,7 +501,7 @@ async function* deployChangedFunctions(ws: Workspace, sha: string): Flow<Functio
   await ws.git.fetch(ws.remote, ws.liveBranch).catch(() => {});
   const names = await changedFunctions(ws, sha);
   if (names.length === 0) return outcome;
-  const ref = ws.config.supabase.projectRef ?? ws.project.supabase.projectRef;
+  const ref = supabaseRef(ws.config, ws.project);
   yield step(
     "functions",
     "running",

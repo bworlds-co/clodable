@@ -1,7 +1,13 @@
 import { existsSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { CONFIG_PATH, type ProjectConfig, ProjectConfigSchema } from "../config.js";
+import {
+  CONFIG_PATH,
+  configFile,
+  type ProjectConfig,
+  ProjectConfigSchema,
+  supabaseRef,
+} from "../config.js";
 import type { ProjectInfo } from "../project.js";
 import { agentsMd } from "./agents-md.js";
 
@@ -90,7 +96,7 @@ export async function planKit(
         appName: project.name,
         appType: project.appType,
         liveBranch: config.liveBranch,
-        supabaseRef: config.supabase.projectRef ?? project.supabase.projectRef,
+        supabaseRef: supabaseRef(config, project),
         backend: config.backend,
         hosting: config.hosting,
       }),
@@ -180,7 +186,7 @@ export async function planKit(
 
   // .mcp.json: the official Supabase connection, scoped to this app's project only. Not on Lovable
   // Cloud: Lovable owns that project, so the builder's Supabase login can't reach it.
-  const ref = config.supabase.projectRef ?? project.supabase.projectRef;
+  const ref = supabaseRef(config, project);
   if (config.backend === "lovable-cloud") {
     const mcpBefore = await read(root, ".mcp.json");
     const mcp = parseJson<{ mcpServers?: Record<string, { url?: string }> }>(mcpBefore, {});
@@ -229,7 +235,7 @@ export async function planKit(
     CONFIG_PATH,
     "Clodable's settings for this project",
     configBefore,
-    json({ $schema: "https://clodable.dev/schema/config.json", ...nextConfig }),
+    json(configFile(nextConfig)),
   );
 
   // .gitignore: keep this computer's state and the inbox out of git.

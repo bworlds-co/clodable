@@ -29,6 +29,7 @@ export {
   STATE_PATH,
   saveConfig,
   saveState,
+  supabaseRef,
 } from "./config.js";
 export { applyMigration, checkDatabase, queryDatabase, runOnDatabase } from "./database.js";
 export {
