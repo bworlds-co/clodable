@@ -1,0 +1,140 @@
+// What the Clodable CLI prints with --json, read back: one event per line, the result last. Pure
+// functions: no `$`, so they're easy to test and share.
+import type {
+  ClodableError,
+  ClodableNotReady,
+  ClodableStatus,
+  ClodableStep,
+} from "../types/index.d.ts";
+
+export type Result = { type: "result"; ok: boolean; data?: any; error?: ClodableError };
+
+export type Step = {
+  type: "step";
+  id: string;
+  state: ClodableStep["state"];
+  title: string;
+  detail?: string;
+};
+
+/** The result line of a finished command, or a problem that says the CLI didn't answer. */
+export function lastResult(stdout: string, stderr: string): Result {
+  const lines = stdout.split("\n").filter((l) => l.trim().startsWith("{"));
+  for (let i = lines.length - 1; i >= 0; i--) {
+    try {
+      const event = JSON.parse(lines[i]!);
+      if (event.type === "result") return event as Result;
+    } catch {
+      // keep looking
+    }
+  }
+  return {
+    type: "result",
+    ok: false,
+    error: {
+      code: "unknown",
+      message: "Clodable didn't answer.",
+      details: (stderr || stdout).slice(0, 2000),
+    },
+  };
+}
+
+/** Events as a command streams them: each call takes the next chunk and gives the whole lines. */
+export function eventReader(): (chunk: string) => Array<Step | Result> {
+  let buffer = "";
+  return (chunk) => {
+    buffer += chunk;
+    const events: Array<Step | Result> = [];
+    let nl = buffer.indexOf("\n");
+    while (nl >= 0) {
+      const line = buffer.slice(0, nl).trim();
+      buffer = buffer.slice(nl + 1);
+      nl = buffer.indexOf("\n");
+      if (!line.startsWith("{")) continue;
+      try {
+        events.push(JSON.parse(line) as Step | Result);
+      } catch {
+        // not an event
+      }
+    }
+    return events;
+  };
+}
+
+/** `clodable status --json`, as the bar and the panel draw it. */
+export function toStatus(data: any): ClodableStatus {
+  return {
+    ready: true,
+    project: String(data?.project?.name ?? "your app"),
+    branch: data?.branch ?? null,
+    unsaved: Number(data?.unsaved ?? 0),
+    unpublished: (data?.unpublished ?? []).map((c: any) => ({
+      sha: c.sha,
+      subject: c.subject,
+      date: c.date,
+      kind: c.kind ?? null,
+    })),
+    behindLive: Number(data?.behindLive ?? 0),
+    merging: Boolean(data?.merging),
+    conflicts: data?.conflicts ?? [],
+    liveUrl: data?.project?.liveUrl ?? data?.lastPublish?.url ?? null,
+    lastPublish: data?.lastPublish
+      ? {
+          sha: data.lastPublish.sha,
+          title: data.lastPublish.title,
+          at: data.lastPublish.at,
+          url: data.lastPublish.url ?? null,
+        }
+      : null,
+    pullRequest: data?.pullRequest ?? null,
+    backend: data?.project?.backend ?? "unknown",
+    hosting: data?.project?.hosting ?? "unknown",
+    lovableUrl: data?.project?.lovableUrl ?? null,
+    finishingMove: Boolean(data?.finishingMove),
+    movedAt: data?.movedAt ?? null,
+    databaseConnected:
+      typeof data?.database?.connected === "boolean" ? data.database.connected : null,
+  };
+}
+
+/** Why Clodable isn't ready here, from the error `clodable status` gave. */
+export function notReady(error: ClodableError | undefined): ClodableNotReady {
+  const code = error?.code;
+  return {
+    ready: false,
+    reason:
+      code === "not-a-repo"
+        ? "not-a-repo"
+        : code === "not-set-up"
+          ? "no-kit"
+          : code === "gh-auth"
+            ? "no-github"
+            : "unknown",
+    message: error?.message ?? "Clodable isn't ready here.",
+    ...(error?.hint ? { fix: error.hint } : {}),
+  };
+}
+
+/** A problem to show in the panel: what the CLI said, and what to do, or `fallback`. */
+export function problemOf(
+  error: ClodableError | undefined,
+  fallback: string,
+): { message: string; hint?: string } {
+  return { message: error?.message ?? fallback, ...(error?.hint ? { hint: error.hint } : {}) };
+}
+
+export type Version = { sha: string; subject: string; date: string; kind: string | null };
+
+/** One version from `clodable history`. */
+export const toVersion = (c: any): Version => ({
+  sha: String(c.sha),
+  subject: String(c.subject ?? ""),
+  date: String(c.date ?? ""),
+  kind: c.kind ?? null,
+});
+
+/**
+ * Values are written only when they changed. Every redraw hands Clodable's buttons new handles,
+ * and Desktop drops a press that names an old one: a redraw for nothing costs the next click.
+ */
+export const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);

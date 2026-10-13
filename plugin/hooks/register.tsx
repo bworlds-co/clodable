@@ -9,11 +9,46 @@ import { atom, read, update } from "claude-code";
 import type {
   ClodableActivity,
   ClodableCheck,
-  ClodableError,
   ClodableNotReady,
   ClodableStatus,
   ClodableStep,
 } from "../types/index.d.ts";
+import { savingNow, stoppedBy } from "./activity.ts";
+import {
+  eventReader,
+  lastResult,
+  notReady,
+  problemOf,
+  type Result,
+  type Step,
+  same,
+  toStatus,
+  toVersion,
+  type Version,
+} from "./cli.ts";
+import {
+  dbCommandIn,
+  inPrivateFolder,
+  insideProject,
+  isFactsRecord,
+  isMoveStep,
+  LEAVE_DRAFT,
+  moveCommandLine,
+  OUR_PUBLISH,
+  PRIVATE_FOLDER,
+  PRIVATE_FOLDER_DENY,
+  PUSH_OR_REWRITE,
+  SECRET_STEP,
+  SUPABASE_READS,
+  safeCommand,
+} from "./guards.ts";
+import {
+  LABEL_SCRIPT,
+  labelScript,
+  previewPortIn,
+  previewRequest,
+  previewTabIn,
+} from "./preview.ts";
 import {
   ago,
   describeGroup,
@@ -168,7 +203,6 @@ let previewUrl: string | null = null;
 /** The preview is started once per session, from whichever comes first: session start or the bar. */
 let previewAsked = false;
 
-type Version = { sha: string; subject: string; date: string; kind: string | null };
 /** The panel's history: saves not live yet, then recent publishes, newest first. Null until loaded. */
 let versions: { draft: Version[]; published: Version[] } | null = null;
 let loadingVersions = false;
@@ -195,8 +229,6 @@ async function folderIsEmpty($: EngineInterface): Promise<boolean> {
   }
 }
 
-type Result = { type: "result"; ok: boolean; data?: any; error?: ClodableError };
-
 /** Recent notes on what Clodable tried, for developers: .clodable/local/clodable.log (never saved). */
 const notes: string[] = [];
 function note($: EngineInterface, line: string) {
@@ -208,63 +240,15 @@ function note($: EngineInterface, line: string) {
   }
 }
 
-/** The preview's address in any text Desktop's preview tools return. */
-function previewPortIn(text: string): string | undefined {
-  return text.match(/\\?"port\\?":\s*(\d+)/)?.[1] ?? text.match(/localhost:(\d+)/)?.[1];
-}
-
-/** The tab Desktop's preview tools opened, in any text they return. */
-function previewTabIn(text: string): string | undefined {
-  return text.match(/\\?"tabId\\?":\s*\\?"([\w-]+)\\?"/)?.[1];
-}
-
-/**
- * The script that labels this conversation's preview pane with its name, so the pane's requests
- * (Try to fix, Point & ask) come back here and not to another conversation open on the app. It
- * only sets one value in the tab's own storage. Permissions allow exactly this text, nothing else.
- */
-const labelScript = (id: string) =>
-  `/* Clodable: label this preview */ location.protocol.startsWith("http") ? (sessionStorage.setItem("clodable:conversation", "${id}"), "labelled") : "not ready"`;
-const LABEL_SCRIPT =
-  /^\/\* Clodable: label this preview \*\/ location\.protocol\.startsWith\("http"\) \? \(sessionStorage\.setItem\("clodable:conversation", "s[a-z0-9]+"\), "labelled"\) : "not ready"$/;
-
 /** Fire-and-forget background work: never an unhandled rejection (a module can unload mid-way). */
 function background(work: Promise<unknown>): void {
   work.catch(() => {});
 }
-type Step = {
-  type: "step";
-  id: string;
-  state: ClodableStep["state"];
-  title: string;
-  detail?: string;
-};
 
 // ── The CLI, from this plugin's own folder ──────────────────────────────────
 
 function argv($: EngineInterface, args: string[]): string[] {
   return ["node", `${$.plugin.root}/cli/clodable.mjs`, ...args, "--json"];
-}
-
-function lastResult(stdout: string, stderr: string): Result {
-  const lines = stdout.split("\n").filter((l) => l.trim().startsWith("{"));
-  for (let i = lines.length - 1; i >= 0; i--) {
-    try {
-      const event = JSON.parse(lines[i]!);
-      if (event.type === "result") return event as Result;
-    } catch {
-      // keep looking
-    }
-  }
-  return {
-    type: "result",
-    ok: false,
-    error: {
-      code: "unknown",
-      message: "Clodable didn't answer.",
-      details: (stderr || stdout).slice(0, 2000),
-    },
-  };
 }
 
 /** The longest the engine lets `$.process.run` take; it refuses to start anything asking for more. */
@@ -299,6 +283,36 @@ async function cli(
   }
 }
 
+/**
+ * Run a long command, handing each step to `onStep` as it streams in. Then its result, if it gave
+ * one, and what stopped it, if something did: each caller says that in its own words.
+ */
+async function streamCli(
+  $: EngineInterface,
+  args: string[],
+  onStep: (step: Step) => unknown,
+  input?: string,
+): Promise<{ result?: Result; failure?: unknown }> {
+  const read = eventReader();
+  let result: Result | undefined;
+  try {
+    for await (const chunk of $.process.spawn({
+      argv: argv($, args),
+      cwd,
+      ...(input !== undefined ? { input } : {}),
+    })) {
+      if (chunk.stream !== "stdout") continue;
+      for (const event of read(chunk.text)) {
+        if (event.type === "step") await onStep(event);
+        else if (event.type === "result") result = event;
+      }
+    }
+  } catch (failure) {
+    return { ...(result ? { result } : {}), failure };
+  }
+  return result ? { result } : {};
+}
+
 /** Run a long command (publish, undo) and stream its steps into the activity state. */
 async function flow(
   $: EngineInterface,
@@ -306,45 +320,28 @@ async function flow(
   kind: "publishing" | "undoing",
 ): Promise<Result> {
   await update<ClodableActivity>($, activity, () => ({ kind, steps: [] }));
-  let buffer = "";
-  let result: Result | undefined;
   const steps: ClodableStep[] = [];
-  try {
-    for await (const chunk of $.process.spawn({ argv: argv($, args), cwd })) {
-      if (chunk.stream !== "stdout") continue;
-      buffer += chunk.text;
-      let nl = buffer.indexOf("\n");
-      while (nl >= 0) {
-        const line = buffer.slice(0, nl).trim();
-        buffer = buffer.slice(nl + 1);
-        nl = buffer.indexOf("\n");
-        if (!line.startsWith("{")) continue;
-        try {
-          const event = JSON.parse(line) as Step | Result;
-          if (event.type === "step") {
-            const index = steps.findIndex((s) => s.id === event.id);
-            const next: ClodableStep = {
-              id: event.id,
-              state: event.state,
-              title: event.title,
-              ...(event.detail ? { detail: event.detail } : {}),
-            };
-            if (index >= 0) steps[index] = next;
-            else steps.push(next);
-            await update<ClodableActivity>($, activity, (a) => ({ ...a, steps: [...steps] }));
-          } else if (event.type === "result") {
-            result = event;
-          }
-        } catch {
-          // not an event
-        }
-      }
-    }
-  } catch (error) {
-    result = {
+  const { result, failure } = await streamCli($, args, async (event) => {
+    const index = steps.findIndex((s) => s.id === event.id);
+    const next: ClodableStep = {
+      id: event.id,
+      state: event.state,
+      title: event.title,
+      ...(event.detail ? { detail: event.detail } : {}),
+    };
+    if (index >= 0) steps[index] = next;
+    else steps.push(next);
+    await update<ClodableActivity>($, activity, (a) => ({ ...a, steps: [...steps] }));
+  });
+  if (failure !== undefined) {
+    return {
       type: "result",
       ok: false,
-      error: { code: "unknown", message: "Clodable stopped unexpectedly.", details: String(error) },
+      error: {
+        code: "unknown",
+        message: "Clodable stopped unexpectedly.",
+        details: String(failure),
+      },
     };
   }
   return (
@@ -357,47 +354,6 @@ async function flow(
 }
 
 // ── State refresh ───────────────────────────────────────────────────────────
-
-function toStatus(data: any): ClodableStatus {
-  return {
-    ready: true,
-    project: String(data?.project?.name ?? "your app"),
-    branch: data?.branch ?? null,
-    unsaved: Number(data?.unsaved ?? 0),
-    unpublished: (data?.unpublished ?? []).map((c: any) => ({
-      sha: c.sha,
-      subject: c.subject,
-      date: c.date,
-      kind: c.kind ?? null,
-    })),
-    behindLive: Number(data?.behindLive ?? 0),
-    merging: Boolean(data?.merging),
-    conflicts: data?.conflicts ?? [],
-    liveUrl: data?.project?.liveUrl ?? data?.lastPublish?.url ?? null,
-    lastPublish: data?.lastPublish
-      ? {
-          sha: data.lastPublish.sha,
-          title: data.lastPublish.title,
-          at: data.lastPublish.at,
-          url: data.lastPublish.url ?? null,
-        }
-      : null,
-    pullRequest: data?.pullRequest ?? null,
-    backend: data?.project?.backend ?? "unknown",
-    hosting: data?.project?.hosting ?? "unknown",
-    lovableUrl: data?.project?.lovableUrl ?? null,
-    finishingMove: Boolean(data?.finishingMove),
-    movedAt: data?.movedAt ?? null,
-    databaseConnected:
-      typeof data?.database?.connected === "boolean" ? data.database.connected : null,
-  };
-}
-
-/**
- * Values are written only when they changed. Every redraw hands Clodable's buttons new handles,
- * and Desktop drops a press that names an old one: a redraw for nothing costs the next click.
- */
-const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
 async function refreshStatus($: EngineInterface) {
   const result = await cli($, ["status"], 30_000);
@@ -414,19 +370,7 @@ async function refreshStatus($: EngineInterface) {
   if (versions && inApp === true) background(refreshVersions($));
   const next: ClodableStatus | ClodableNotReady = result.ok
     ? ({ ...toStatus(result.data), ...savingWhere } as ClodableStatus)
-    : {
-        ready: false,
-        reason:
-          code === "not-a-repo"
-            ? "not-a-repo"
-            : code === "not-set-up"
-              ? "no-kit"
-              : code === "gh-auth"
-                ? "no-github"
-                : "unknown",
-        message: result.error?.message ?? "Clodable isn't ready here.",
-        ...(result.error?.hint ? { fix: result.error.hint } : {}),
-      };
+    : notReady(result.error);
   if (!same(await read($, status), next)) {
     await update<ClodableStatus | ClodableNotReady | null>($, status, () => next);
   }
@@ -445,11 +389,7 @@ async function refreshChecks($: EngineInterface) {
 async function saveNow($: EngineInterface, message: string): Promise<string | undefined> {
   const a = await read($, activity);
   if (a.kind === "publishing" || a.kind === "undoing") return undefined;
-  await update<ClodableActivity>($, activity, (x) =>
-    x.kind === "idle" || x.kind === "published" || x.kind === "undone" || x.kind === "failed"
-      ? { kind: "saving", steps: [] }
-      : x,
-  );
+  await update<ClodableActivity>($, activity, savingNow);
   const result = await cli($, ["save", "-m", message]);
   await update<ClodableActivity>($, activity, (x) =>
     x.kind !== "saving"
@@ -503,11 +443,7 @@ async function publishNow($: EngineInterface) {
       );
     }
   } else {
-    await update<ClodableActivity>($, activity, (x) => ({
-      kind: "failed",
-      steps: x.steps,
-      ...(result.error ? { error: result.error } : {}),
-    }));
+    await update<ClodableActivity>($, activity, stoppedBy(result.error));
   }
   await refreshStatus($);
   // Moving off Lovable: a Publish moves the move on (the site is live there now).
@@ -555,11 +491,7 @@ async function undoNow($: EngineInterface) {
       );
     }
   } else {
-    await update<ClodableActivity>($, activity, (x) => ({
-      kind: "failed",
-      steps: x.steps,
-      ...(result.error ? { error: result.error } : {}),
-    }));
+    await update<ClodableActivity>($, activity, stoppedBy(result.error));
   }
   await refreshStatus($);
 }
@@ -625,7 +557,7 @@ async function loadMove($: EngineInterface) {
 async function readMove($: EngineInterface) {
   const result = await cli($, ["move", "status"]);
   if (!result.ok) {
-    moveError = { message: result.error?.message ?? "Couldn't read the move." };
+    moveError = problemOf(result.error, "Couldn't read the move.");
     return;
   }
   move = result.data;
@@ -653,10 +585,7 @@ async function readMove($: EngineInterface) {
       }
       moveRegion ||= moveChoices.region?.code ?? moveChoices.regions?.[0]?.code ?? "";
     } else {
-      moveError = {
-        message: choices.error?.message ?? "Couldn't read your Supabase account.",
-        ...(choices.error?.hint ? { hint: choices.error.hint } : {}),
-      };
+      moveError = problemOf(choices.error, "Couldn't read your Supabase account.");
     }
   }
   if (next?.id === "site") {
@@ -682,42 +611,27 @@ async function readMove($: EngineInterface) {
   } else moveSecrets = null;
 }
 
+/** The move starts working on something: it says what, and the last problem goes. */
+function startWork($: EngineInterface, title: string) {
+  moveRun = { title };
+  moveError = null;
+  $.ui.invalidate("ui.render");
+}
+
 /** Run one step of the move, its progress drawn in the panel as it goes. */
 async function moveStep($: EngineInterface, args: string[], input?: string): Promise<Result> {
   if (moveRun) return { type: "result", ok: false };
-  moveRun = { title: "Starting" };
-  moveError = null;
-  $.ui.invalidate("ui.render");
-  let buffer = "";
-  let result: Result | undefined;
-  try {
-    for await (const chunk of $.process.spawn({
-      argv: argv($, ["move", ...args]),
-      cwd,
-      ...(input !== undefined ? { input } : {}),
-    })) {
-      if (chunk.stream !== "stdout") continue;
-      buffer += chunk.text;
-      let nl = buffer.indexOf("\n");
-      while (nl >= 0) {
-        const line = buffer.slice(0, nl).trim();
-        buffer = buffer.slice(nl + 1);
-        nl = buffer.indexOf("\n");
-        if (!line.startsWith("{")) continue;
-        try {
-          const event = JSON.parse(line) as Step | Result;
-          if (event.type === "step") {
-            moveRun = { title: event.title, ...(event.detail ? { detail: event.detail } : {}) };
-            $.ui.invalidate("ui.render");
-          } else if (event.type === "result") result = event;
-        } catch {
-          // not an event
-        }
-      }
-    }
-  } catch (error) {
-    note($, `move ${args[0]}: ${String(error)}`);
-  }
+  startWork($, "Starting");
+  const { result, failure } = await streamCli(
+    $,
+    ["move", ...args],
+    (event) => {
+      moveRun = { title: event.title, ...(event.detail ? { detail: event.detail } : {}) };
+      $.ui.invalidate("ui.render");
+    },
+    input,
+  );
+  if (failure !== undefined) note($, `move ${args[0]}: ${String(failure)}`);
   moveRun = null;
   const done = result ?? {
     type: "result" as const,
@@ -725,10 +639,7 @@ async function moveStep($: EngineInterface, args: string[], input?: string): Pro
     error: { code: "unknown", message: "Clodable stopped before finishing that step." },
   };
   if (!done.ok) {
-    moveError = {
-      message: done.error?.message ?? "That step didn't finish.",
-      ...(done.error?.hint ? { hint: done.error.hint } : {}),
-    };
+    moveError = problemOf(done.error, "That step didn't finish.");
     note($, `move ${args[0]}: ${done.error?.code} ${done.error?.details ?? ""}`.slice(0, 400));
   }
   await loadMove($);
@@ -737,7 +648,7 @@ async function moveStep($: EngineInterface, args: string[], input?: string): Pro
 
 /** How Claude runs a move step: Clodable's own command line, next to this plugin. */
 function moveCommand($: EngineInterface, args: string[]): string {
-  return `node "${$.plugin.root}/cli/clodable.mjs" move ${args.join(" ")}`;
+  return moveCommandLine($.plugin.root, args);
 }
 
 /** The request that creates the new backend, in the builder's words, with the choices made. */
@@ -769,10 +680,7 @@ async function chooseMethod($: EngineInterface, method: "careful" | "quick") {
   $.ui.invalidate("ui.render");
   const result = await cli($, ["move", "method", method]);
   if (!result.ok) {
-    moveError = {
-      message: result.error?.message ?? "That didn't work.",
-      ...(result.error?.hint ? { hint: result.error.hint } : {}),
-    };
+    moveError = problemOf(result.error, "That didn't work.");
   }
   await loadMove($);
   choosingMethod = null;
@@ -790,9 +698,7 @@ async function connectDatabase($: EngineInterface, token: string) {
 
 /** The builder says they signed in on the new site: look again, and say so if nothing is seen. */
 async function checkSignIn($: EngineInterface) {
-  moveRun = { title: "Looking for your sign-in" };
-  moveError = null;
-  $.ui.invalidate("ui.render");
+  startWork($, "Looking for your sign-in");
   await readMove($).catch(() => {});
   moveRun = null;
   if (move?.signIn?.needed && !move.signIn.at) {
@@ -813,26 +719,15 @@ async function moveWith($: EngineInterface, args: string[], value: string) {
       args[0]!,
     )
   ) {
-    moveError = null;
-    moveRun = {
-      title:
-        args[0] === "connect"
-          ? "Connecting to Supabase"
-          : args[0] === "netlify"
-            ? "Connecting to Netlify"
-            : args[0] === "resend"
-              ? "Connecting to Resend"
-              : "Saving it",
+    const connecting: Record<string, string> = {
+      connect: "Connecting to Supabase",
+      netlify: "Connecting to Netlify",
+      resend: "Connecting to Resend",
     };
-    $.ui.invalidate("ui.render");
+    startWork($, connecting[args[0]!] ?? "Saving it");
     const result = await cli($, ["move", ...args], 60_000, text);
     moveRun = null;
-    if (!result.ok) {
-      moveError = {
-        message: result.error?.message ?? "That didn't work.",
-        ...(result.error?.hint ? { hint: result.error.hint } : {}),
-      };
-    }
+    if (!result.ok) moveError = problemOf(result.error, "That didn't work.");
     await loadMove($);
     return;
   }
@@ -862,11 +757,7 @@ async function saveSetting($: EngineInterface, name: string, value: string) {
   // During the move, a setting can be what keeps its step open: say it's saving, then read where
   // the move stands, so the next step opens.
   const moving = move !== null;
-  if (moving) {
-    moveError = null;
-    moveRun = { title: "Saving it" };
-    $.ui.invalidate("ui.render");
-  }
+  if (moving) startWork($, "Saving it");
   const result = await cli($, ["setting", name], 60_000, value);
   if (moving) moveRun = null;
   if (!result.ok) $.ui.toast(result.error?.message ?? `Couldn't save ${name}.`);
@@ -910,15 +801,9 @@ async function refreshVersions($: EngineInterface) {
   try {
     const result = await cli($, ["history"], 30_000);
     if (!result.ok) return;
-    const pick = (c: any): Version => ({
-      sha: String(c.sha),
-      subject: String(c.subject ?? ""),
-      date: String(c.date ?? ""),
-      kind: c.kind ?? null,
-    });
     const next = {
-      draft: (result.data?.draft ?? []).map(pick),
-      published: (result.data?.published ?? []).map(pick),
+      draft: (result.data?.draft ?? []).map(toVersion),
+      published: (result.data?.published ?? []).map(toVersion),
     };
     if (same(versions, next)) return;
     versions = next;
@@ -946,11 +831,7 @@ async function restoreVersion($: EngineInterface, sha: string, subject: string) 
     return;
   }
   if (answer !== "Restore") return;
-  await update<ClodableActivity>($, activity, (x) =>
-    x.kind === "idle" || x.kind === "published" || x.kind === "undone" || x.kind === "failed"
-      ? { kind: "saving", steps: [] }
-      : x,
-  );
+  await update<ClodableActivity>($, activity, savingNow);
   const result = await cli($, ["restore", sha]);
   await update<ClodableActivity>($, activity, (x) =>
     x.kind === "saving" ? { kind: "idle", steps: [] } : x,
@@ -985,20 +866,9 @@ async function startPreview($: EngineInterface, attempt = 0): Promise<void> {
   }
 }
 
-/**
- * The app's preview in Desktop's own Browser pane. A link would open another window, and Desktop
- * opens its pane only for a request in this conversation: Auto mode refuses Clodable's own call,
- * even for a press. So the press becomes the builder's request, and Claude opens it.
- */
-function previewRequest(): string {
-  return previewUrl
-    ? `Open my app's preview here (${previewUrl}).`
-    : "Start my app's preview and open it here.";
-}
-
 function askForPreview($: EngineInterface) {
   markActive($);
-  background($.prompt.submit({ text: previewRequest(), asUser: true }));
+  background($.prompt.submit({ text: previewRequest(previewUrl), asUser: true }));
 }
 
 /**
@@ -1012,7 +882,7 @@ async function finishMove($: EngineInterface) {
   background(
     pilot(
       $,
-      `Moving off Lovable: I've finished in Lovable. ${previewRequest()} Then tell me in a few lines how I change my app from now on.`,
+      `Moving off Lovable: I've finished in Lovable. ${previewRequest(previewUrl)} Then tell me in a few lines how I change my app from now on.`,
     ),
   );
 }
@@ -1082,6 +952,17 @@ async function registerCommands($: EngineInterface) {
   }
 }
 
+/** Before Claude changes the live database: what it means, beside the request to allow it. */
+function liveDataNotice($: EngineInterface, toolUseId: string | undefined, sql: string) {
+  if (!toolUseId) return;
+  $.ui.notice(
+    toolUseId,
+    sqlIsDestructive(sql)
+      ? "This changes your live database and can't be undone."
+      : "This changes your live database right away. Your site keeps working.",
+  );
+}
+
 /** Requests from the preview toolbar: Try to fix, Point & ask, and text edits to save. */
 async function pollInbox($: EngineInterface) {
   if (!cwd || inApp !== true || polling) return;
@@ -1139,104 +1020,6 @@ function handleRequest($: EngineInterface, item: any) {
 }
 
 // ── Safety ──────────────────────────────────────────────────────────────────
-
-const PUSH_OR_REWRITE =
-  /\bgit\s+(push|reset\s+--hard|rebase|filter-branch|filter-repo|update-ref)\b|\bgh\s+pr\s+merge\b/;
-const OUR_PUBLISH = /\bclodable\s+(publish|undo)\b/;
-const LEAVE_DRAFT = /\bgit\s+(checkout|switch)\s+(-[-\w]+\s+)*(main|master)\b/;
-/**
- * Clodable's private folder on this computer: the Supabase token, database passwords, and the
- * export with people's emails and password hashes. It never goes into a conversation.
- */
-const PRIVATE_FOLDER =
-  /Library\/Application Support\/clodable|\.config\/clodable|AppData[\\/]Roaming[\\/]clodable|clodable[\\/]secrets\.json/i;
-const PRIVATE_FOLDER_DENY =
-  "That folder holds Clodable's keys and the people's data from the Lovable export, so it stays out of the conversation. Use `clodable move status` or `clodable move diagnose` instead: they report what's safe to see.";
-/** Move steps that take a secret: the builder types those in the Clodable panel, never in the chat. */
-const SECRET_STEP =
-  /clodable(?:\.mjs"?)?\s+move\s+(connect|secret|vault-secret|disconnect|forget|netlify|setting|resend|ai|google)\b|clodable(?:\.mjs"?)?\s+move\s+files\b.*--private/;
-
-/**
- * Clodable's database commands (`npx clodable db query|run|apply …`, or the plugin's own CLI), with
- * what they act on. `single`: one command and one quoted argument, nothing else for the shell.
- */
-function dbCommandIn(
-  command: string,
-): { action: "query" | "run" | "apply" | "check"; arg: string; single: boolean } | undefined {
-  const m = command.match(
-    /^(?:npx\s+clodable|node\s+"[^"]*clodable\.mjs")\s+db\s+(query|run|apply|check)(?:\s+([\s\S]*))?$/,
-  );
-  if (!m) return undefined;
-  const rest = (m[2] ?? "").trim();
-  const quoted = rest.match(/^"([^"`$\\]*)"$|^'([^']*)'$/);
-  const bare = /^[\w./-]+$/.test(rest) ? rest : undefined;
-  const arg = quoted ? (quoted[1] ?? quoted[2] ?? "") : (bare ?? rest);
-  return {
-    action: m[1] as "query" | "run" | "apply" | "check",
-    arg,
-    single: Boolean(quoted || bare),
-  };
-}
-
-/** Claude's own runs of the move's steps, exactly as the panel's requests spell them. */
-function isMoveStep($: EngineInterface, command: string): boolean {
-  const root = $.plugin.root.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return new RegExp(
-    `^node "${root}/cli/clodable\\.mjs" move (status|check|facts|choices|create|export|copy|verify|diagnose|files|functions|secrets|preview|teams|site|settings|emails|pause|golive|domain|services|app-emails)( --?[\\w-]+| [\\w.:@-]+)*$`,
-  ).test(command);
-}
-
-/**
- * Claude records what it found in the app with a quoted heredoc: inert JSON, nothing in it runs. A
- * line equal to the delimiter would end it early and run the rest, so none is allowed.
- */
-function isFactsRecord($: EngineInterface, command: string): boolean {
-  const root = $.plugin.root.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const m = command.match(
-    new RegExp(
-      `^node "${root}/cli/clodable\\.mjs" move facts --set <<'(\\w+)'\n([\\s\\S]*)\n(\\w+)$`,
-    ),
-  );
-  if (!m || m[1] !== m[3]) return false;
-  return !m[2]!.split("\n").some((line) => line === m[1]);
-}
-
-const SAFE_BASH = [
-  /^(npm|pnpm|yarn|bun)\s+(install|i|ci|add)\b/,
-  /^(npm|pnpm|yarn|bun)\s+run\s+(build|lint|test|typecheck|check)\b/,
-  /^(npm|pnpm|yarn|bun)\s+(test|lint)\b/,
-  /^npx\s+(tsc|eslint|prettier|vitest|clodable\s+(status|check|history|doctor))\b/,
-  /^git\s+(status|diff|log|show|blame)\b/,
-  /^(ls|pwd|cat|head|tail|wc|grep|rg)\b/,
-];
-const SUPABASE_READS = new Set([
-  "list_tables",
-  "list_extensions",
-  "list_migrations",
-  "get_advisors",
-  "get_logs",
-  "search_docs",
-  "get_project_url",
-  "get_publishable_keys",
-  "get_anon_key",
-  "list_edge_functions",
-  "get_edge_function",
-  "generate_typescript_types",
-  "list_storage_buckets",
-  "get_storage_config",
-]);
-
-function insideProject(path: unknown): boolean {
-  // Windows paths use backslashes and drive letters; compare with forward slashes everywhere.
-  const slash = (value: string) => value.replace(/\\/g, "/");
-  const p = slash(String(path ?? ""));
-  const root = slash(cwd).replace(/\/$/, "");
-  if (!p || !root) return false;
-  const absolute = /^([a-zA-Z]:)?\//.test(p) ? p : `${root}/${p}`;
-  if (!absolute.toLowerCase().startsWith(`${root.toLowerCase()}/`) || absolute.includes("/../"))
-    return false;
-  return !/\/\.git\/|\/\.env(\.|$)|\/node_modules\//.test(absolute);
-}
 
 // ── Hooks ───────────────────────────────────────────────────────────────────
 
@@ -1397,20 +1180,14 @@ export const register: Register = (on) => {
   );
 
   // Clodable's private folder stays out of every conversation, whatever tool asks.
-  const keepOut = (e: unknown) => {
-    const input = e as Record<string, unknown>;
-    return [input.file_path, input.path, input.notebook_path].some((v) =>
-      PRIVATE_FOLDER.test(String(v ?? "")),
-    );
-  };
   on("tool.call", { tool: "Read" }, async (_$, e, next) =>
-    keepOut(e) ? { deny: PRIVATE_FOLDER_DENY } : next(e),
+    inPrivateFolder(e) ? { deny: PRIVATE_FOLDER_DENY } : next(e),
   );
   on("tool.call", { tool: "Edit" }, async (_$, e, next) =>
-    keepOut(e) ? { deny: PRIVATE_FOLDER_DENY } : next(e),
+    inPrivateFolder(e) ? { deny: PRIVATE_FOLDER_DENY } : next(e),
   );
   on("tool.call", { tool: "Write" }, async (_$, e, next) =>
-    keepOut(e) ? { deny: PRIVATE_FOLDER_DENY } : next(e),
+    inPrivateFolder(e) ? { deny: PRIVATE_FOLDER_DENY } : next(e),
   );
 
   // Any Supabase server: Clodable's own, or the claude.ai Supabase connector.
@@ -1504,8 +1281,8 @@ export const register: Register = (on) => {
       return { ...verdict, decision: "allow" };
     if (
       e.tool === "Bash" &&
-      (isMoveStep($, String(input.command ?? "").trim()) ||
-        isFactsRecord($, String(input.command ?? "").trim()))
+      (isMoveStep($.plugin.root, String(input.command ?? "").trim()) ||
+        isFactsRecord($.plugin.root, String(input.command ?? "").trim()))
     )
       return { ...verdict, decision: "allow" };
     // The app's database through Clodable: reading is quiet, every change is the builder's to allow.
@@ -1514,14 +1291,7 @@ export const register: Register = (on) => {
       return { ...verdict, decision: "allow" };
     if (db && db.action !== "query") {
       const sql = db.action === "apply" ? await $.fs.read(db.arg).catch(() => "") : db.arg;
-      if (e.tool_use_id) {
-        $.ui.notice(
-          e.tool_use_id,
-          sqlIsDestructive(sql)
-            ? "This changes your live database and can't be undone."
-            : "This changes your live database right away. Your site keeps working.",
-        );
-      }
+      liveDataNotice($, e.tool_use_id, sql);
       return { ...verdict, decision: "ask" };
     }
     const tool = supabaseTool(e.tool);
@@ -1531,14 +1301,7 @@ export const register: Register = (on) => {
         (tool === "execute_sql" && sqlWrites(String(input.query ?? input.sql ?? "")))
       ) {
         const sql = String(input.query ?? input.sql ?? "");
-        if (e.tool_use_id) {
-          $.ui.notice(
-            e.tool_use_id,
-            sqlIsDestructive(sql)
-              ? "This changes your live database and can't be undone."
-              : "This changes your live database right away. Your site keeps working.",
-          );
-        }
+        liveDataNotice($, e.tool_use_id, sql);
         return { ...verdict, decision: "ask" };
       }
       if (SUPABASE_READS.has(tool) || tool === "execute_sql")
@@ -1546,15 +1309,12 @@ export const register: Register = (on) => {
       return verdict;
     }
     if (verdict.decision !== "ask") return verdict;
-    if (["Edit", "Write", "MultiEdit"].includes(e.tool) && insideProject(input.file_path))
+    if (["Edit", "Write", "MultiEdit"].includes(e.tool) && insideProject(input.file_path, cwd))
       return { ...verdict, decision: "allow" };
     if (["Read", "Glob", "Grep", "LS", "TodoWrite"].includes(e.tool))
       return { ...verdict, decision: "allow" };
-    if (e.tool === "Bash") {
-      const command = String(input.command ?? "").trim();
-      if (!/[;&|`$<>]/.test(command) && SAFE_BASH.some((r) => r.test(command)))
-        return { ...verdict, decision: "allow" };
-    }
+    if (e.tool === "Bash" && safeCommand(String(input.command ?? "").trim()))
+      return { ...verdict, decision: "allow" };
     return verdict;
   }).catch(() => ({ decision: "ask" as const }));
 
@@ -2361,7 +2121,7 @@ export const register: Register = (on) => {
               background(
                 pilot(
                   $,
-                  `Moving off Lovable: switch my preview to the copy with \`${moveCommand($, ["preview", "copy"])}\`. ${previewRequest()} Then check my app works on it.`,
+                  `Moving off Lovable: switch my preview to the copy with \`${moveCommand($, ["preview", "copy"])}\`. ${previewRequest(previewUrl)} Then check my app works on it.`,
                 ),
               )
             }
@@ -4092,26 +3852,36 @@ async function loadRepos($: EngineInterface) {
   $.ui.invalidate("ui.render");
 }
 
-async function bringIn($: EngineInterface) {
-  const repo = chosenRepo || repoChoices[0]?.value;
-  if (!repo || !/^[\w.-]+\/[\w.-]+$/.test(repo)) {
-    $.ui.toast("Type your repository as owner/name, for example acme/website.");
-    return;
-  }
-  if (settingUp) return;
+/**
+ * `clodable setup` from the panel: its button gives way to a note meanwhile, and a setup that
+ * didn't finish says why. Its result when it did.
+ */
+async function runSetup($: EngineInterface, args: string[]): Promise<Result | undefined> {
+  if (settingUp) return undefined;
   settingUp = true;
   $.ui.invalidate("ui.render");
   let result: Result;
   try {
-    result = await cli($, ["setup", "--repo", repo, "--yes"], MAX_RUN_MS);
+    result = await cli($, ["setup", ...args, "--yes"], MAX_RUN_MS);
   } finally {
     settingUp = false;
     $.ui.invalidate("ui.render");
   }
   if (!result.ok) {
     $.ui.toast(result.error?.message ?? "Setup didn't finish.");
+    return undefined;
+  }
+  return result;
+}
+
+async function bringIn($: EngineInterface) {
+  const repo = chosenRepo || repoChoices[0]?.value;
+  if (!repo || !/^[\w.-]+\/[\w.-]+$/.test(repo)) {
+    $.ui.toast("Type your repository as owner/name, for example acme/website.");
     return;
   }
+  const result = await runSetup($, ["--repo", repo]);
+  if (!result) return;
   const root = String(result.data?.root ?? "");
   if (root && root !== cwd) {
     await $.ui
@@ -4128,20 +3898,7 @@ async function bringIn($: EngineInterface) {
 }
 
 async function setUpHere($: EngineInterface) {
-  if (settingUp) return;
-  settingUp = true;
-  $.ui.invalidate("ui.render");
-  let result: Result;
-  try {
-    result = await cli($, ["setup", "--yes"], MAX_RUN_MS);
-  } finally {
-    settingUp = false;
-    $.ui.invalidate("ui.render");
-  }
-  if (!result.ok) {
-    $.ui.toast(result.error?.message ?? "Setup didn't finish.");
-    return;
-  }
+  if (!(await runSetup($, []))) return;
   $.ui.toast("Your app is ready. Ask Claude for any change.");
   await refreshStatus($);
   await refreshChecks($);
