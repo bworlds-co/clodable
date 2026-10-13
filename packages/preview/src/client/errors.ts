@@ -166,6 +166,52 @@ function technical(error: PageError): { where: string; frame: string } {
   return { where, frame: frame.slice(0, 24).join("\n") };
 }
 
+/** A build error from Vite's client ("vite:error"), which it sends even with its overlay off. */
+function fromViteEvent(payload: unknown): PageError | undefined {
+  const err = (
+    payload as {
+      err?: {
+        message?: string;
+        stack?: string;
+        loc?: { file?: string; line?: number };
+        id?: string;
+      };
+    }
+  ).err;
+  if (!err) return undefined;
+  const file = err.loc?.file ?? err.id ?? "";
+  const match = file.match(/(src\/[^?:]+)/);
+  return buildError(
+    err.message ?? "The app couldn't be built",
+    `${file}\n${err.message ?? ""}\n${err.stack ?? ""}`,
+    match ? { file: match[1]!, line: err.loc?.line ?? 1 } : undefined,
+  );
+}
+
+/** A build error from Vite's own overlay, when the app keeps it on. */
+function fromOverlay(): PageError | undefined {
+  const overlay = document.querySelector("vite-error-overlay") as
+    | (HTMLElement & { shadowRoot: ShadowRoot | null })
+    | null;
+  if (!overlay) return undefined;
+  const text =
+    overlay.shadowRoot?.querySelector(".message-body")?.textContent ?? "The app couldn't be built";
+  const file = overlay.shadowRoot?.querySelector(".file")?.textContent ?? "";
+  const match = file.match(/(src\/[^:]+):(\d+)/);
+  return buildError(
+    text,
+    `${file}\n${text}`,
+    match ? { file: match[1]!, line: Number(match[2]) } : undefined,
+  );
+}
+
+/** The card's title: what happened, or that Claude is on it. */
+function titleOf(error: PageError, working: boolean, screen: boolean): string {
+  if (working) return "Claude is fixing it…";
+  if (error.kind === "build") return "Your app can’t load";
+  return screen ? "This page can’t load" : "Something broke on this page";
+}
+
 export class ErrorWatcher {
   private card: HTMLElement | undefined;
   private current: PageError | undefined;
@@ -198,50 +244,17 @@ export class ErrorWatcher {
     }, 3000);
     void viteHot().then((hot) => {
       hot?.on("vite:error", (payload) => {
-        const err = (
-          payload as {
-            err?: {
-              message?: string;
-              stack?: string;
-              loc?: { file?: string; line?: number };
-              id?: string;
-            };
-          }
-        ).err;
-        if (!err) return;
-        const file = err.loc?.file ?? err.id ?? "";
-        const match = file.match(/(src\/[^?:]+)/);
-        this.capture(
-          buildError(
-            err.message ?? "The app couldn't be built",
-            `${file}\n${err.message ?? ""}\n${err.stack ?? ""}`,
-            match ? { file: match[1]!, line: err.loc?.line ?? 1 } : undefined,
-          ),
-        );
+        const error = fromViteEvent(payload);
+        if (error) this.capture(error);
       });
       hot?.on("vite:beforeUpdate", () => {
         this.updateStarted = Date.now();
       });
       hot?.on("vite:afterUpdate", () => void this.afterUpdate());
     });
-    // Vite's own overlay, when the app keeps it on.
     new MutationObserver(() => {
-      const overlay = document.querySelector("vite-error-overlay") as
-        | (HTMLElement & { shadowRoot: ShadowRoot | null })
-        | null;
-      if (!overlay) return;
-      const text =
-        overlay.shadowRoot?.querySelector(".message-body")?.textContent ??
-        "The app couldn't be built";
-      const file = overlay.shadowRoot?.querySelector(".file")?.textContent ?? "";
-      const match = file.match(/(src\/[^:]+):(\d+)/);
-      this.capture(
-        buildError(
-          text,
-          `${file}\n${text}`,
-          match ? { file: match[1]!, line: Number(match[2]) } : undefined,
-        ),
-      );
+      const error = fromOverlay();
+      if (error) this.capture(error);
     }).observe(document.documentElement, { childList: true });
   }
 
@@ -295,13 +308,57 @@ export class ErrorWatcher {
     const root = this.layer.getRootNode() as Document | ShadowRoot;
     const hadFocus = Boolean(this.card?.contains(root.activeElement));
     this.card?.remove();
-    const title = working
-      ? "Claude is fixing it…"
-      : error.kind === "build"
-        ? "Your app can’t load"
-        : screen
-          ? "This page can’t load"
-          : "Something broke on this page";
+    const { more, details } = this.detailsToggle(error);
+    // On a full screen, closing belongs to the corner; on a note, next to its title.
+    const close = h(
+      "button",
+      { class: "close", "aria-label": "Dismiss", onclick: () => this.dismiss() },
+      icon("close", 16),
+    );
+    const card = h(
+      "div",
+      {
+        class: `error ${screen ? "screen" : "note"}${working ? " working" : ""}${still ? " still" : ""}`,
+        role: "alert",
+        "aria-labelledby": "cl-err-title",
+        "aria-describedby": "cl-err-why",
+      },
+      h(
+        "div",
+        { class: "error-body" },
+        h(
+          "div",
+          { class: "head" },
+          h("span", { class: working ? "spinner" : "dot", "aria-hidden": "true" }),
+          h("h3", { id: "cl-err-title" }, titleOf(error, working, screen)),
+          screen ? null : close,
+        ),
+        h(
+          "p",
+          { class: "why", id: "cl-err-why" },
+          ...(working ? ["The preview updates by itself when it’s fixed."] : explain(error)),
+        ),
+        working
+          ? null
+          : h(
+              "div",
+              { class: "actions" },
+              h("button", { class: "btn primary", onclick: () => this.fix() }, "Try to fix"),
+              more,
+            ),
+        working ? null : details,
+      ),
+      screen ? close : null,
+    );
+    this.card = card;
+    if (screen) this.layer.append(card);
+    else this.dockSlot.prepend(card);
+    // A press redrew the card: keep focus in it, on the action that's left.
+    if (hadFocus) (card.querySelector<HTMLElement>(".btn.primary") ?? close).focus();
+  }
+
+  /** "Show details" and what it shows, for developers: where, the raw message, the code frame. */
+  private detailsToggle(error: PageError) {
     const { where, frame } = technical(error);
     const details = h(
       "div",
@@ -327,52 +384,7 @@ export class ErrorWatcher {
       label,
       icon("chevronDown", 16),
     );
-    // On a full screen, closing belongs to the corner; on a note, next to its title.
-    const close = h(
-      "button",
-      { class: "close", "aria-label": "Dismiss", onclick: () => this.dismiss() },
-      icon("close", 16),
-    );
-    const card = h(
-      "div",
-      {
-        class: `error ${screen ? "screen" : "note"}${working ? " working" : ""}${still ? " still" : ""}`,
-        role: "alert",
-        "aria-labelledby": "cl-err-title",
-        "aria-describedby": "cl-err-why",
-      },
-      h(
-        "div",
-        { class: "error-body" },
-        h(
-          "div",
-          { class: "head" },
-          h("span", { class: working ? "spinner" : "dot", "aria-hidden": "true" }),
-          h("h3", { id: "cl-err-title" }, title),
-          screen ? null : close,
-        ),
-        h(
-          "p",
-          { class: "why", id: "cl-err-why" },
-          ...(working ? ["The preview updates by itself when it’s fixed."] : explain(error)),
-        ),
-        working
-          ? null
-          : h(
-              "div",
-              { class: "actions" },
-              h("button", { class: "btn primary", onclick: () => this.fix() }, "Try to fix"),
-              more,
-            ),
-        working ? null : details,
-      ),
-      screen ? close : null,
-    );
-    this.card = card;
-    if (screen) this.layer.append(card);
-    else this.dockSlot.prepend(card);
-    // A press redrew the card: keep focus in it, on the action that's left.
-    if (hadFocus) (card.querySelector<HTMLElement>(".btn.primary") ?? close).focus();
+    return { more, details };
   }
 
   private async fix() {
