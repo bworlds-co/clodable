@@ -1,8 +1,9 @@
 import { existsSync } from "node:fs";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import { z } from "zod";
 import { ClodableError } from "./errors.js";
+import { writeJsonFile } from "./places.js";
 
 /** `.clodable/config.json`: committed and shared by everyone working on the project. */
 export const ProjectConfigSchema = z.object({
@@ -104,8 +105,8 @@ export async function loadConfig(root: string): Promise<ProjectConfig> {
   return parsed.data;
 }
 
-export async function saveConfig(root: string, config: ProjectConfig): Promise<void> {
-  await writeJson(join(root, CONFIG_PATH), {
+export function saveConfig(root: string, config: ProjectConfig): Promise<void> {
+  return writeJsonFile(join(root, CONFIG_PATH), {
     $schema: "https://clodable.dev/schema/config.json",
     ...config,
   });
@@ -121,11 +122,6 @@ export async function loadState(root: string): Promise<LocalState> {
   }
 }
 
-export async function saveState(root: string, state: LocalState): Promise<void> {
-  await writeJson(join(root, STATE_PATH), state);
-}
-
-async function writeJson(path: string, value: unknown): Promise<void> {
-  await mkdir(dirname(path), { recursive: true });
-  await writeFile(path, `${JSON.stringify(value, null, 2)}\n`);
+export function saveState(root: string, state: LocalState): Promise<void> {
+  return writeJsonFile(join(root, STATE_PATH), state);
 }

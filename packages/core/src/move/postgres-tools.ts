@@ -3,9 +3,9 @@ import { existsSync } from "node:fs";
 import { chmod, mkdir, mkdtemp, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { inflateRawSync } from "node:zlib";
-import { cacheDir } from "../checks/gitleaks.js";
 import { messageOf } from "../errors.js";
 import { exec } from "../exec.js";
+import { cacheDir } from "../places.js";
 
 /**
  * PostgreSQL's own tools (pg_restore, pg_dump, psql), which restoring a Lovable Cloud export needs:

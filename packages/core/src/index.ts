@@ -1,5 +1,4 @@
 export {
-  cacheDir,
   GITLEAKS_VERSION,
   type GitleaksFinding,
   gitleaksBinary,
@@ -109,7 +108,7 @@ export {
   mergeManagedBlock,
   planKit,
 } from "./kit/index.js";
-export { configDir, forgetSecret, readSecret, storeSecret } from "./local-secrets.js";
+export { forgetSecret, readSecret, storeSecret } from "./local-secrets.js";
 export { assessMove, type MoveAssessment, type MoveItem } from "./move/assess.js";
 export {
   BACKEND_ENV,
@@ -242,6 +241,7 @@ export {
 } from "./move/switch.js";
 export { parseToc, planRestore } from "./move/toc.js";
 export { verifyCopy } from "./move/verify.js";
+export { cacheDir, configDir, writeJsonFile } from "./places.js";
 export {
   type AppType,
   detectPackageManager,

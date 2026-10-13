@@ -3,6 +3,7 @@ import { copyFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, extname, join } from "node:path";
 import { ClodableError, messageOf } from "../errors.js";
+import { writeJsonFile } from "../places.js";
 import { archiveLines, archiveSql, listArchive } from "./postgres.js";
 import {
   appTriggerIds,
@@ -205,9 +206,7 @@ export async function readExport(
       (e.schema === "vault" && e.tag === "secrets"));
   await scanRows(backup, toc.entries.filter(wanted), dir, summary, sourceRefs);
   summary.sourceRefs = [...sourceRefs].sort();
-  await writeFile(join(dir, "export.json"), `${JSON.stringify(summary, null, 2)}\n`, {
-    mode: 0o600,
-  });
+  await writeJsonFile(join(dir, "export.json"), summary, { private: true });
   return { summary, toc };
 }
 
@@ -388,5 +387,5 @@ async function scanRows(
   summary.buckets = [...buckets.values()].sort((a, b) => a.id.localeCompare(b.id));
   summary.scheduledJobs.sort();
   summary.vaultSecrets.sort();
-  await writeFile(join(dir, JOBS_FILE), `${JSON.stringify(jobs, null, 2)}\n`, { mode: 0o600 });
+  await writeJsonFile(join(dir, JOBS_FILE), jobs, { private: true });
 }

@@ -1,8 +1,9 @@
 import { randomBytes } from "node:crypto";
 import { existsSync } from "node:fs";
-import { mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { readdir, readFile, rename, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { z } from "zod";
+import { writeJsonFile } from "./places.js";
 
 /**
  * The inbox: how the preview toolbar (which must stay vendor-neutral) hands work to whatever
@@ -116,15 +117,11 @@ export function toolbarPage(value: unknown): PageRef | undefined {
 }
 
 export async function writeInbox(root: string, item: NewInboxItem): Promise<InboxItem> {
-  const dir = join(root, INBOX_DIR);
-  await mkdir(dir, { recursive: true });
   const createdAt = new Date().toISOString();
   const id = `${item.kind}-${createdAt.replace(/[-:.TZ]/g, "")}-${randomBytes(3).toString("hex")}`;
   const full = { ...item, id, createdAt } as InboxItem;
-  // Write to a temp name and rename, so readers never see half a file.
-  const tmp = join(dir, `.${id}.tmp`);
-  await writeFile(tmp, JSON.stringify(full, null, 2));
-  await rename(tmp, join(dir, `${id}.json`));
+  // Readers take only `.json` files, so they never see one being written.
+  await writeJsonFile(join(root, INBOX_DIR, `${id}.json`), full);
   return full;
 }
 

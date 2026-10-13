@@ -1,12 +1,12 @@
 import { createHash } from "node:crypto";
 import { realpathSync } from "node:fs";
-import { mkdir, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 import { ClodableError } from "./errors.js";
 import { readSecret, storeSecret } from "./local-secrets.js";
 import { NetlifyApi } from "./move/netlify-api.js";
 import { appSettings } from "./move/site.js";
 import { loadMove, updateMove } from "./move/state.js";
+import { writeJsonFile } from "./places.js";
 import type { Workspace } from "./workspace.js";
 
 /**
@@ -85,12 +85,10 @@ export async function setSetting(
   const values = await localSettings(ws.root);
   values[name] = clean;
   await storeSecret(storeKey(ws.root), JSON.stringify(values));
-  const marker = join(ws.root, SETTINGS_PATH);
-  await mkdir(dirname(marker), { recursive: true });
-  await writeFile(
-    marker,
-    `${JSON.stringify({ names: Object.keys(values).sort(), at: new Date().toISOString() }, null, 2)}\n`,
-  );
+  await writeJsonFile(join(ws.root, SETTINGS_PATH), {
+    names: Object.keys(values).sort(),
+    at: new Date().toISOString(),
+  });
   const move = await loadMove(ws.root);
   if (move.site) {
     const netlify = await NetlifyApi.onThisComputer();
