@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { exec } from "../src/exec.js";
 import type { Commit } from "../src/index.js";
 import {
   ackInbox,
@@ -733,6 +734,17 @@ describe("failed checks", () => {
         "Your app doesn't build\nsrc/App.tsx:4 error: Cannot find name 'Hero'\n\nA secret key is in your code",
       files: ["src/App.tsx:4", "src/lib/stripe.ts"],
     });
+  });
+});
+
+describe("running a program", () => {
+  it("gives its exit code when it stops before reading its input", async () => {
+    // More than a pipe holds, so the write fails once the program is gone (EPIPE).
+    const result = await exec("sh", ["-c", "exit 3"], {
+      cwd: tmpdir(),
+      input: "x".repeat(4 * 1024 * 1024),
+    });
+    expect(result.exitCode).toBe(3);
   });
 });
 

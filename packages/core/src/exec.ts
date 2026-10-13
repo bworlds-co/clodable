@@ -31,8 +31,12 @@ export async function exec(
       stdio: [options.input === undefined ? "ignore" : "pipe", "pipe", "pipe"],
     },
   });
-  if (options.input !== undefined) {
-    proc.process?.stdin?.end(options.input);
+  const stdin = proc.process?.stdin;
+  if (options.input !== undefined && stdin) {
+    // A program that exits before reading its input closes the pipe (EPIPE). Its exit code and
+    // stderr say what went wrong; unhandled, the write's error would crash the whole process.
+    stdin.on("error", () => {});
+    stdin.end(options.input);
   }
   try {
     const result = await proc;
