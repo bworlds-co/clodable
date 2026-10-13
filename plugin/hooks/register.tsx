@@ -4,12 +4,24 @@
 // This file is the only Claude-specific part of Clodable. Every real action goes through the
 // vendor-neutral `clodable` CLI, bundled next to this plugin in cli/clodable.mjs, which prints
 // NDJSON events. Any other front end can drive the same commands.
-import type { Elements, EngineInterface, Register, RenderElement } from "claude-code";
+import type {
+  Elements,
+  EngineInterface,
+  Register,
+  RenderChildren,
+  RenderElement,
+} from "claude-code";
 import { atom, read, update } from "claude-code";
 import type {
   ClodableActivity,
+  ClodableAssessment,
   ClodableCheck,
+  ClodableDnsRecord,
+  ClodableMove,
+  ClodableMoveChoices,
+  ClodableMoveStep,
   ClodableNotReady,
+  ClodableRequest,
   ClodableStatus,
   ClodableStep,
 } from "../types/index.d.ts";
@@ -147,7 +159,7 @@ let polling = false;
  */
 let fixing: { at: number; turnId?: string } | null = null;
 /** What the move off Lovable involves for this app, read from its code. */
-let assessment: any = null;
+let assessment: ClodableAssessment | { error: string } | null = null;
 let assessing = false;
 /** When the facts the assessment was read with were recorded ("" before Claude looked). */
 let assessedFacts = "";
@@ -156,8 +168,8 @@ let assessedFacts = "";
  * step running now, and its last problem. Keys and tokens typed in the panel go straight to the
  * CLI's stdin: never into this state, the chat or a log.
  */
-let move: any = null;
-let moveChoices: any = null;
+let move: ClodableMove | null = null;
+let moveChoices: ClodableMoveChoices | null = null;
 let moveRun: { title: string; detail?: string } | null = null;
 let moveError: { message: string; hint?: string } | null = null;
 let moveSecrets: { wanted: string[]; set: string[] } | null = null;
@@ -578,20 +590,22 @@ async function readMove($: EngineInterface) {
     moveError = problemOf(result.error, "Couldn't read the move.");
     return;
   }
-  move = result.data;
+  const progress: ClodableMove = result.data;
+  move = progress;
   // What Claude found in the app changes what the move involves: read the assessment again.
-  const factsAt: string = move.facts?.at ?? "";
+  const factsAt = progress.facts?.at ?? "";
   if (factsAt !== assessedFacts) {
     assessedFacts = factsAt;
     background(loadAssessment($));
   }
-  const next = (move.steps ?? []).find((x: any) => x.state === "next" || x.state === "attention");
+  const next = (progress.steps ?? []).find((x) => x.state === "next" || x.state === "attention");
   // Read fresh each time: projects get paused or deleted in Supabase between two looks.
   if (next?.id === "create") {
     const choices = await cli($, ["move", "choices"]);
     if (choices.ok) {
-      moveChoices = choices.data;
-      const orgs: any[] = moveChoices.organizations ?? [];
+      const offered: ClodableMoveChoices = choices.data;
+      moveChoices = offered;
+      const orgs = offered.organizations ?? [];
       // Free first, never a paid organization unless the builder picks it: it costs money.
       if (!orgs.some((o) => o.slug === moveOrg)) {
         moveOrg =
@@ -601,7 +615,7 @@ async function readMove($: EngineInterface) {
             orgs[0]
           )?.slug ?? "";
       }
-      moveRegion ||= moveChoices.region?.code ?? moveChoices.regions?.[0]?.code ?? "";
+      moveRegion ||= offered.region?.code ?? offered.regions?.[0]?.code ?? "";
     } else {
       moveError = problemOf(choices.error, "Couldn't read your Supabase account.");
     }
@@ -615,15 +629,15 @@ async function readMove($: EngineInterface) {
   }
   await loadSettings($);
   // What keeps a step open: read only while it does.
-  if ((move.vaultLeft ?? []).length > 0) {
+  if ((progress.vaultLeft ?? []).length > 0) {
     const vault = await cli($, ["move", "vault"]);
     moveVault = vault.ok ? vault.data : null;
   } else moveVault = null;
-  if (["freeze", "final-export", "final-copy"].includes(next?.id)) {
+  if (next && ["freeze", "final-export", "final-copy"].includes(next.id)) {
     const plan = await cli($, ["move", "pause"]);
     pausePlan = plan.ok ? plan.data : null;
   }
-  if ((move.secretsLeft ?? []).length > 0) {
+  if ((progress.secretsLeft ?? []).length > 0) {
     const secrets = await cli($, ["move", "secrets"]);
     moveSecrets = secrets.ok ? secrets.data : null;
   } else moveSecrets = null;
@@ -672,12 +686,12 @@ function moveCommand($: EngineInterface, args: string[]): string {
 /** The request that creates the new backend, in the builder's words, with the choices made. */
 function createRequest(
   $: EngineInterface,
-  org: any,
-  choices: any,
+  org: { name: string } | undefined,
+  choices: ClodableMoveChoices,
   slug: string,
   region: string,
 ): string {
-  const where = (choices?.regions ?? []).find((r: any) => r.code === region)?.name;
+  const where = (choices.regions ?? []).find((r) => r.code === region)?.name;
   return `Moving off Lovable: create my new backend${org ? ` in my Supabase organization “${org.name}”` : ""}${where ? `, in ${where}` : ""}. Run \`${moveCommand($, ["create", ...(slug ? ["--org", slug] : []), ...(region ? ["--region", region] : [])])}\`, then tell me how it went.`;
 }
 
@@ -996,7 +1010,7 @@ async function pollInbox($: EngineInterface) {
     if (!entries.some((e) => e.kind === "file" && e.name.endsWith(".json"))) return;
     // Every open conversation sees the request; only the one its person used last takes it.
     const claimed = await cli($, ["inbox", "--claim", me], 15_000);
-    const items: any[] = claimed.ok && Array.isArray(claimed.data) ? claimed.data : [];
+    const items: ClodableRequest[] = claimed.ok && Array.isArray(claimed.data) ? claimed.data : [];
     for (const item of items) handleRequest($, item);
   } finally {
     polling = false;
@@ -1004,7 +1018,7 @@ async function pollInbox($: EngineInterface) {
 }
 
 /** One request from the preview, now this conversation's to handle. */
-function handleRequest($: EngineInterface, item: any) {
+function handleRequest($: EngineInterface, item: ClodableRequest) {
   if (item.kind === "fix") {
     const where = item.error?.source
       ? ` (around ${item.error.source.file}:${item.error.source.line})`
@@ -1357,7 +1371,7 @@ export const register: Register = (on) => {
     const theirs = await next(e);
     const desktop = e.surface === "desktop";
     // What's true now on the left; what you can do on the right, the main action last.
-    const bar = (left: unknown[], right: unknown[] = []) => (
+    const bar = (left: RenderChildren[], right: RenderChildren[] = []) => (
       <Box
         flexDirection="row"
         justifyContent="space-between"
@@ -1367,10 +1381,10 @@ export const register: Register = (on) => {
       >
         <Box flexDirection="row" columnGap={1} alignItems="center" flexShrink={1} minWidth={0}>
           {mark}
-          {left as never}
+          {left}
         </Box>
         <Box flexDirection="row" columnGap={1} alignItems="center" flexShrink={0}>
-          {right as never}
+          {right}
         </Box>
       </Box>
     );
@@ -1732,10 +1746,10 @@ function section(ui: PaneUi, title: string) {
 /** The app's state in one card: what's true now, and the next thing to do. */
 function card(
   ui: PaneUi,
-  title: unknown,
-  subtitle: unknown,
-  actions: unknown[] = [],
-  below: unknown = null,
+  title: RenderChildren,
+  subtitle: RenderChildren,
+  actions: RenderChildren[] = [],
+  below: RenderChildren = null,
 ) {
   const { Box } = ui;
   return (
@@ -1749,14 +1763,14 @@ function card(
     >
       <Box flexDirection="row" justifyContent="space-between" alignItems="center" columnGap={2}>
         <Box flexDirection="column" flexShrink={1}>
-          {title as never}
-          {subtitle as never}
+          {title}
+          {subtitle}
         </Box>
         <Box flexDirection="row" columnGap={1} alignItems="center" flexShrink={0}>
-          {actions as never}
+          {actions}
         </Box>
       </Box>
-      {below as never}
+      {below}
     </Box>
   );
 }
@@ -2419,7 +2433,7 @@ function movePane(
           <Text bold>
             {questions.length === 2 ? "First, two quick questions" : "One quick question"}
           </Text>
-          {questions as never}
+          {questions}
         </Box>
       ) : null}
       {moving ? (
@@ -2435,12 +2449,12 @@ function movePane(
 /** What the move involves for this app, as Clodable's look at it found: until it starts. */
 function whatMoves(ui: PaneUi) {
   const { Box, Text } = ui;
-  if (assessment?.error) {
+  if (assessment && "error" in assessment) {
     return <Text color="error">Couldn't look at your app: {assessment.error}</Text>;
   }
   if (!assessment?.checked) return null;
-  const started = (move?.steps ?? []).some((x: any) => x.id === "connect" && x.state === "done");
-  const items: any[] = assessment.items ?? [];
+  const started = (move?.steps ?? []).some((x) => x.id === "connect" && x.state === "done");
+  const items = assessment.items ?? [];
   const notes: string[] = assessment.notes ?? [];
   return (
     <Box flexDirection="column" rowGap={2}>
@@ -2479,7 +2493,7 @@ function whatMoves(ui: PaneUi) {
 /** The move itself, one step at a time: every step listed, only the current one with its controls. */
 function moveSection($: EngineInterface, ui: PaneUi, s: ClodableStatus, now: number) {
   const { Box, Text } = ui;
-  const steps: any[] = move?.steps ?? [];
+  const steps = move?.steps ?? [];
   const method = moveMethod();
   const problem = moveProblem(ui);
   // First, Claude reads the app's code: until it has, nothing else is decided.
@@ -2506,7 +2520,7 @@ function moveSection($: EngineInterface, ui: PaneUi, s: ClodableStatus, now: num
   const here = (
     <Box flexDirection="column" rowGap={1} {...(current ? { paddingLeft: 2 } : {})}>
       {problem}
-      {moveControlsFor($, { ui, s, step: current, now }) as never}
+      {moveControlsFor($, { ui, s, now }, current)}
     </Box>
   );
   const stages = stagesOf(steps, method);
@@ -2558,7 +2572,7 @@ function moveSection($: EngineInterface, ui: PaneUi, s: ClodableStatus, now: num
 }
 
 /** One step of the move: its mark and title, and under the current one, what to do now. */
-function stepRow(ui: PaneUi, step: any, state: string, under: RenderElement | null) {
+function stepRow(ui: PaneUi, step: ClodableMoveStep, state: string, under: RenderElement | null) {
   const { Box, Text } = ui;
   return (
     <Box key={`step-${step.id}`} flexDirection="column" rowGap={1}>
@@ -2675,8 +2689,10 @@ function otherWay($: EngineInterface, ui: PaneUi, method: MoveMethod | undefined
 
 // ── The move off Lovable, one function per step (top level, so they can use $) ──
 
-/** What a step of the move draws with, besides the module's own state. */
-type MoveView = { ui: PaneUi; s: ClodableStatus; step: any; now: number };
+/** What the move's steps draw with, besides the module's own state. */
+type MoveView = { ui: PaneUi; s: ClodableStatus; now: number };
+/** …and the step they draw. */
+type StepView = MoveView & { step: ClodableMoveStep };
 
 /** How the app moves: as chosen in the panel a moment ago, or as the move recorded it. */
 function moveMethod(): MoveMethod | undefined {
@@ -2684,7 +2700,11 @@ function moveMethod(): MoveMethod | undefined {
 }
 
 /** The controls under the move's current step; with no step left, where the move ended. */
-function moveControlsFor($: EngineInterface, view: MoveView): RenderElement | null {
+function moveControlsFor(
+  $: EngineInterface,
+  view: MoveView,
+  step: ClodableMoveStep | undefined,
+): RenderElement | null {
   const { Text } = view.ui;
   if (isPiloting()) return <Text dimColor>Claude is on it, in the conversation.</Text>;
   if (moveRun) {
@@ -2694,7 +2714,7 @@ function moveControlsFor($: EngineInterface, view: MoveView): RenderElement | nu
       </Text>
     );
   }
-  if (!view.step) {
+  if (!step) {
     return (move?.steps ?? []).length > 0 ? (
       <Text>
         Your app is off Lovable: it runs on your own Supabase and Netlify, and each Publish updates
@@ -2702,50 +2722,51 @@ function moveControlsFor($: EngineInterface, view: MoveView): RenderElement | nu
       </Text>
     ) : null;
   }
-  switch (view.step.id) {
+  const here: StepView = { ...view, step };
+  switch (step.id) {
     case "connect":
-      return connectStep($, view);
+      return connectStep($, here);
     case "create":
-      return createStep($, view);
+      return createStep($, here);
     case "export":
-      return exportStep($, view);
+      return exportStep($, here);
     case "copy":
-      return copyStep($, view);
+      return copyStep($, here);
     case "files":
-      return filesStep($, view);
+      return filesStep($, here);
     case "functions":
-      return functionsStep($, view);
+      return functionsStep($, here);
     case "try":
-      return tryStep($, view);
+      return tryStep($, here);
     case "netlify":
-      return netlifyStep($, view);
+      return netlifyStep($, here);
     case "site":
-      return siteStep($, view);
+      return siteStep($, here);
     case "emails":
-      return emailsStep($, view);
+      return emailsStep($, here);
     case "services":
-      return servicesStep($, view);
+      return servicesStep($, here);
     case "google":
-      return googleStep($, view);
+      return googleStep($, here);
     case "freeze":
-      return freezeStep($, view);
+      return freezeStep($, here);
     case "final-export":
-      return finalExportStep($, view);
+      return finalExportStep($, here);
     case "final-copy":
-      return finalCopyStep($, view);
+      return finalCopyStep($, here);
     case "golive":
-      return goLiveStep($, view);
+      return goLiveStep($, here);
     case "domain":
-      return domainStep($, view);
+      return domainStep($, here);
     case "lovable":
-      return lovableStep($, view);
+      return lovableStep($, here);
     default:
       return null;
   }
 }
 
 /** Supabase: an access token that can create the new backend and copy the data into it. */
-function connectStep($: EngineInterface, { ui }: MoveView) {
+function connectStep($: EngineInterface, { ui }: StepView) {
   const { Box, Text, Button, Link } = ui;
   return (
     <Box flexDirection="column" rowGap={1}>
@@ -2794,10 +2815,10 @@ function connectStep($: EngineInterface, { ui }: MoveView) {
 }
 
 /** Supabase: where the new backend goes (organization, region), then Claude creates it. */
-function createStep($: EngineInterface, { ui }: MoveView) {
+function createStep($: EngineInterface, { ui }: StepView) {
   const { Box, Text, Button, Select } = ui;
   if (moveChoices === null) return <Text dimColor>Looking at your Supabase account…</Text>;
-  const orgs: any[] = moveChoices.organizations ?? [];
+  const orgs = moveChoices.organizations ?? [];
   const org = orgs.find((o) => o.slug === moveOrg) ?? orgs[0];
   const request = createRequest($, org, moveChoices, moveOrg, moveRegion);
   return (
@@ -2819,7 +2840,7 @@ function createStep($: EngineInterface, { ui }: MoveView) {
           <Select
             key="move-region"
             label="Where it runs"
-            options={moveChoices.regions.map((r: any) => ({ value: r.code, label: r.name }))}
+            options={moveChoices.regions.map((r) => ({ value: r.code, label: r.name }))}
             value={moveRegion}
             onSelect={(value: string) => {
               moveRegion = value;
@@ -2837,7 +2858,7 @@ function createStep($: EngineInterface, { ui }: MoveView) {
           <Text color="warning">
             Supabase runs 2 free projects per person, counted across all your organizations, and you
             already run{" "}
-            {((moveChoices.freeProjects ?? []) as any[])
+            {(moveChoices.freeProjects ?? [])
               .map((p) => `${p.name} (${p.organization})`)
               .join(" and ") || "2"}
             .
@@ -2874,7 +2895,7 @@ function createStep($: EngineInterface, { ui }: MoveView) {
 }
 
 /** Lovable: the data export, which Claude reads once the builder has downloaded it. */
-function exportStep($: EngineInterface, { ui, s }: MoveView) {
+function exportStep($: EngineInterface, { ui, s }: StepView) {
   const { Box, Text } = ui;
   return (
     <Box flexDirection="column" rowGap={1}>
@@ -2901,7 +2922,7 @@ function exportStep($: EngineInterface, { ui, s }: MoveView) {
 }
 
 /** The data copy. Once it's in, the database's encrypted secrets are the step's last part. */
-function copyStep($: EngineInterface, { ui, step }: MoveView) {
+function copyStep($: EngineInterface, { ui, step }: StepView) {
   const { Box, Text } = ui;
   const again = step.state === "attention";
   if (!again && (move?.vaultLeft ?? []).length > 0) return vaultSecrets($, ui);
@@ -2956,17 +2977,19 @@ function vaultSecrets($: EngineInterface, ui: PaneUi) {
 }
 
 /** The uploaded files, copied as they are; private folders need Lovable Cloud's key once. */
-function filesStep($: EngineInterface, { ui }: MoveView) {
+function filesStep($: EngineInterface, { ui }: StepView) {
   const { Box, Text } = ui;
-  const waiting: string[] = move?.files?.waiting ?? [];
+  const waiting = move?.files?.waiting ?? [];
+  const tooBig = move?.files?.tooBig ?? 0;
   if (waiting.length === 0) {
     return (
       <Box flexDirection="column" rowGap={1}>
         <Text dimColor>The images and documents people uploaded, copied as they are.</Text>
         {planNote(ui, "files")}
-        {(move?.files?.tooBig ?? 0) > 0 ? (
+        {tooBig > 0 ? (
           <Text color="warning">
-            {plural(move.files.tooBig, "file")} are larger than your Supabase plan accepts.
+            {plural(tooBig, "file")} {tooBig === 1 ? "is" : "are"} larger than your Supabase plan
+            accepts.
           </Text>
         ) : null}
         {pilotButton(
@@ -3006,7 +3029,7 @@ function filesStep($: EngineInterface, { ui }: MoveView) {
 }
 
 /** The backend functions, deployed together. Then the secret keys they read. */
-function functionsStep($: EngineInterface, { ui, step }: MoveView) {
+function functionsStep($: EngineInterface, { ui, step }: StepView) {
   const { Box, Text } = ui;
   const again = step.state === "attention";
   if (!again && (move?.secretsLeft ?? []).length > 0) {
@@ -3048,7 +3071,7 @@ function functionsStep($: EngineInterface, { ui, step }: MoveView) {
 }
 
 /** The preview on the copy: the builder tries the app on its new backend. */
-function tryStep($: EngineInterface, { ui }: MoveView) {
+function tryStep($: EngineInterface, { ui }: StepView) {
   const { Box, Text, Link } = ui;
   const onCopy =
     move?.preview === "copy" ? (
@@ -3090,7 +3113,7 @@ function tryStep($: EngineInterface, { ui }: MoveView) {
 }
 
 /** Netlify: a token, so each Publish puts the site live there. */
-function netlifyStep($: EngineInterface, { ui }: MoveView) {
+function netlifyStep($: EngineInterface, { ui }: StepView) {
   const { Box, Text, Link } = ui;
   return (
     <Box flexDirection="column" rowGap={1}>
@@ -3115,7 +3138,7 @@ function netlifyStep($: EngineInterface, { ui }: MoveView) {
 }
 
 /** The site on Netlify. Once it's there, the settings its server code reads are the last part. */
-function siteStep($: EngineInterface, { ui }: MoveView) {
+function siteStep($: EngineInterface, { ui }: StepView) {
   const { Box, Text, Select } = ui;
   const settingsLeft: string[] = move?.settingsLeft ?? [];
   if (settingsLeft.length > 0) {
@@ -3157,7 +3180,7 @@ function siteStep($: EngineInterface, { ui }: MoveView) {
 }
 
 /** Sign-up and password emails from the builder's own domain: a Resend key, a domain, records. */
-function emailsStep($: EngineInterface, { ui }: MoveView) {
+function emailsStep($: EngineInterface, { ui }: StepView) {
   const { Box, Text, Link } = ui;
   if (!move?.resend) {
     return (
@@ -3198,7 +3221,7 @@ function emailsStep($: EngineInterface, { ui }: MoveView) {
       </Box>
     );
   }
-  const records: any[] = move.emails.records ?? [];
+  const records = move.emails.records ?? [];
   return (
     <Box flexDirection="column" rowGap={1}>
       <Text>
@@ -3226,7 +3249,7 @@ const KEEP_LOVABLE_WORKING =
   "Keep Lovable's as the fallback when that key isn't set, so my app keeps working on Lovable until the switch.";
 
 /** The services the app reaches through Lovable (AI, its own emails, connectors), one at a time. */
-function servicesStep($: EngineInterface, { ui }: MoveView) {
+function servicesStep($: EngineInterface, { ui }: StepView) {
   const { Box } = ui;
   const left: string[] = move?.services?.left ?? [];
   return (
@@ -3367,7 +3390,7 @@ function serviceToSwitch($: EngineInterface, ui: PaneUi): RenderElement | null {
 }
 
 /** Google sign-in: a Google client of the builder's own, then Claude switches the button. */
-function googleStep($: EngineInterface, { ui }: MoveView) {
+function googleStep($: EngineInterface, { ui }: StepView) {
   const { Box, Text, Link } = ui;
   if (move?.google?.configured) {
     return (
@@ -3431,7 +3454,7 @@ function googleStep($: EngineInterface, { ui }: MoveView) {
 }
 
 /** Going live, part one: the live app pauses, by SQL the builder runs in Lovable. */
-function freezeStep($: EngineInterface, { ui, s, now }: MoveView) {
+function freezeStep($: EngineInterface, { ui, s, now }: StepView) {
   const { Box, Text, Button } = ui;
   const last = move?.lastExport ? new Date(move.lastExport).getTime() : 0;
   const nextExport = last + 24 * 60 * 60_000;
@@ -3473,7 +3496,7 @@ function freezeStep($: EngineInterface, { ui, s, now }: MoveView) {
 }
 
 /** Going live, part two: the last export, with everything written until the pause. */
-function finalExportStep($: EngineInterface, { ui, s }: MoveView) {
+function finalExportStep($: EngineInterface, { ui, s }: StepView) {
   const { Box, Text } = ui;
   return (
     <Box flexDirection="column" rowGap={1}>
@@ -3498,10 +3521,10 @@ function finalExportStep($: EngineInterface, { ui, s }: MoveView) {
 }
 
 /** Going live, part three: the last export replaces the copy, for good. */
-function finalCopyStep($: EngineInterface, { ui, step }: MoveView) {
+function finalCopyStep($: EngineInterface, { ui, step }: StepView) {
   const { Box, Text } = ui;
   const again = step.state === "attention";
-  const hasFiles = (move?.steps ?? []).some((x: any) => x.id === "files");
+  const hasFiles = (move?.steps ?? []).some((x) => x.id === "files");
   return (
     <Box flexDirection="column" rowGap={1}>
       {again ? (
@@ -3525,7 +3548,7 @@ function finalCopyStep($: EngineInterface, { ui, step }: MoveView) {
 }
 
 /** Going live: who may sign up, what to change elsewhere (payments, scheduled jobs), then go. */
-function goLiveStep($: EngineInterface, { ui }: MoveView) {
+function goLiveStep($: EngineInterface, { ui }: StepView) {
   const { Box, Text, Select } = ui;
   const emailsOn = Boolean(move?.emails?.connected);
   // Without emails, nobody can confirm one: that choice isn't offered.
@@ -3599,7 +3622,7 @@ function goLiveStep($: EngineInterface, { ui }: MoveView) {
 }
 
 /** The app's own domain, moved to the new site once a Publish has put it there. */
-function domainStep($: EngineInterface, { ui }: MoveView) {
+function domainStep($: EngineInterface, { ui }: StepView) {
   const { Box, Text } = ui;
   const publishedSinceLive = Boolean(
     move?.site?.liveAt && move.site.liveAt > (move.switch?.liveAt ?? ""),
@@ -3614,7 +3637,7 @@ function domainStep($: EngineInterface, { ui }: MoveView) {
     );
   }
   if (move?.domain) {
-    const records: any[] = move.domain.records ?? [];
+    const records = move.domain.records ?? [];
     return (
       <Box flexDirection="column" rowGap={1}>
         <Text>
@@ -3661,7 +3684,7 @@ function domainStep($: EngineInterface, { ui }: MoveView) {
 }
 
 /** The last clicks in Lovable, once the builder has signed in on the new site. */
-function lovableStep($: EngineInterface, { ui, s, now }: MoveView) {
+function lovableStep($: EngineInterface, { ui, s, now }: StepView) {
   const { Box, Text, Button, Link } = ui;
   const liveAddress: string =
     (s.liveUrl && !/lovable\.app/.test(s.liveUrl) ? s.liveUrl : undefined) ??
@@ -3802,7 +3825,7 @@ function domainField(
 }
 
 /** DNS records to add at the domain's provider, each part with its Copy button. */
-function dnsRecords($: EngineInterface, ui: PaneUi, key: string, records: any[]) {
+function dnsRecords($: EngineInterface, ui: PaneUi, key: string, records: ClodableDnsRecord[]) {
   const { Box, Text } = ui;
   return records.map((r, i) => (
     <Box key={`${key}-${i}`} flexDirection="column">
@@ -3872,7 +3895,7 @@ function copyChecks(ui: PaneUi) {
   const { Box, Text } = ui;
   return (
     <Box flexDirection="column">
-      {(move?.checks ?? []).map((c: any) => (
+      {(move?.checks ?? []).map((c) => (
         <Text key={`check-${c.id}`} {...(c.ok ? {} : { color: "warning" })}>
           {c.ok ? "✓" : "!"} {c.label}
           {c.detail && !c.ok ? `  · ${c.detail}` : ""}

@@ -66,15 +66,12 @@ export function toStatus(data: any): ClodableStatus {
   return {
     ready: true,
     project: String(data?.project?.name ?? "your app"),
-    branch: data?.branch ?? null,
-    unsaved: Number(data?.unsaved ?? 0),
     unpublished: (data?.unpublished ?? []).map((c: any) => ({
       sha: c.sha,
       subject: c.subject,
       date: c.date,
       kind: c.kind ?? null,
     })),
-    behindLive: Number(data?.behindLive ?? 0),
     merging: Boolean(data?.merging),
     conflicts: data?.conflicts ?? [],
     liveUrl: data?.project?.liveUrl ?? data?.lastPublish?.url ?? null,

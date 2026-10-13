@@ -4,10 +4,7 @@
 export interface ClodableStatus {
   ready: true;
   project: string;
-  branch: string | null;
-  unsaved: number;
   unpublished: Array<{ sha: string; subject: string; date: string; kind: string | null }>;
-  behindLive: number;
   merging: boolean;
   conflicts: string[];
   liveUrl: string | null;
@@ -30,7 +27,7 @@ export interface ClodableStatus {
 /** Why the bar shows "set up" instead of the draft. */
 export interface ClodableNotReady {
   ready: false;
-  reason: "not-a-repo" | "no-kit" | "no-github" | "no-tools" | "unknown";
+  reason: "not-a-repo" | "no-kit" | "no-github" | "unknown";
   message: string;
   fix?: string;
 }
@@ -73,6 +70,107 @@ export interface ClodableCheck {
   status: "ok" | "warn" | "fail" | "info";
   detail?: string;
   fix?: string;
+}
+
+/**
+ * A request from the preview toolbar, as `clodable inbox --claim --json` hands it over. It comes
+ * from a file on disk: what the plugin reads stays optional.
+ */
+export type ClodableRequest =
+  | {
+      kind: "fix";
+      page?: { path: string };
+      error?: { message?: string; stack?: string; source?: { file: string; line: number } };
+      console?: string[];
+    }
+  | {
+      kind: "ask";
+      page?: { path: string };
+      source?: { file: string; line: number };
+      request: string;
+      element?: string;
+    }
+  | { kind: "edit"; before: string; after: string };
+
+/** One step of the move off Lovable. */
+export interface ClodableMoveStep {
+  id: string;
+  state: "done" | "next" | "later" | "attention";
+  title: string;
+  detail?: string;
+}
+
+/** A DNS record for the builder to add at their domain's provider. */
+export interface ClodableDnsRecord {
+  type: string;
+  name: string;
+  value: string;
+  priority?: number;
+}
+
+/** What `clodable move status --json` reports, trimmed to what the panel draws. */
+export interface ClodableMove {
+  steps: ClodableMoveStep[];
+  home?: { name: string; dashboard: string };
+  preview: "live" | "copy";
+  checks?: Array<{ id: string; ok: boolean; label: string; detail?: string }>;
+  files?: { waiting: string[]; tooBig: number };
+  vaultKey: boolean;
+  functions: number;
+  tokenPermissions?: string[];
+  site?: { name: string; url: string; liveAt?: string };
+  resend: boolean;
+  emails?: { domain: string; sender: string; records: ClodableDnsRecord[]; connected: boolean };
+  method?: "careful" | "quick";
+  switch?: { frozenAt?: string; liveAt?: string };
+  lastExport?: string;
+  lovableJobs?: { count: number; stop: string };
+  signIn?: { needed: boolean; at?: string };
+  plan?: { data: number; dataLimit: number; files: number; filesLimit: number };
+  stripeWebhooks?: Array<{ name: string; url: string }>;
+  google?: { configured: boolean; redirect?: string };
+  services?: {
+    ai: boolean;
+    aiSwitched: boolean;
+    aiProvider?: string;
+    emails: boolean;
+    emailsSwitched: boolean;
+    hook: boolean;
+    hookOn: boolean;
+    connectors: string[];
+    left: string[];
+  };
+  domain?: { name: string; records: ClodableDnsRecord[] };
+  settingsLeft?: string[];
+  secretsLeft?: string[];
+  vaultLeft?: string[];
+  facts?: { at: string };
+  cronKey?: boolean;
+}
+
+/** Where the new backend can go: what `clodable move choices --json` reports. */
+export interface ClodableMoveChoices {
+  organizations: Array<{
+    slug: string;
+    name: string;
+    plan: string;
+    freeLeft?: number;
+    /** What a new project costs there, in plain words. */
+    cost: string;
+  }>;
+  /** The free projects already running: the ones to pause when the limit is reached. */
+  freeProjects: Array<{ name: string; organization: string }>;
+  region?: { code: string; name: string };
+  regions: Array<{ code: string; name: string }>;
+}
+
+/** What the move involves for this app: what `clodable move check --json` reports. */
+export interface ClodableAssessment {
+  level: "simple" | "some-steps" | "needs-help";
+  items: Array<{ id: string; label: string; by: "clodable" | "you" | "help"; detail: string }>;
+  /** Whether Claude has looked at the app's code: then the items come from what it found. */
+  checked: boolean;
+  notes: string[];
 }
 
 declare module "claude-code" {
