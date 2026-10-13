@@ -8,7 +8,9 @@ import { type LogEvent, runFlow, type StepEvent } from "../src/index.js";
 import { copyValue, readExport, splitNames, tableGrants } from "../src/move/export.js";
 import { copyFiles } from "../src/move/files.js";
 import { repoint } from "../src/move/fixes.js";
+import { NetlifyApi } from "../src/move/netlify-api.js";
 import { psqlSql, type Sql } from "../src/move/postgres.js";
+import { ResendApi } from "../src/move/resend-api.js";
 import { copyExport } from "../src/move/restore.js";
 import { appSettings } from "../src/move/site.js";
 import { MOVE_PERMISSIONS, permissionFor, SupabaseApi } from "../src/move/supabase-api.js";
@@ -345,6 +347,40 @@ describe("a Supabase token that's too narrow", () => {
         code: "supabase-auth",
         message:
           "Your Supabase access token is missing a permission: Organization Projects: Read-write.",
+      });
+    } finally {
+      await new Promise((resolve) => server.close(resolve));
+    }
+  });
+});
+
+describe("Netlify and Resend", () => {
+  it("say what went wrong in their own terms, even when the answer isn't JSON", async () => {
+    const answers = [
+      { status: 200, body: "<html>Maintenance</html>" },
+      { status: 401, body: '{"message":"Access Denied"}' },
+      { status: 403, body: '{"message":"This API key is restricted to only send emails"}' },
+    ];
+    const server = createServer((_req, res) => {
+      const answer = answers.shift()!;
+      res.writeHead(answer.status);
+      res.end(answer.body);
+    });
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const base = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
+    try {
+      await expect(new NetlifyApi("nfp_x", base).user()).rejects.toMatchObject({
+        code: "netlify-failed",
+        message: "Netlify answered in a way Clodable didn't expect.",
+        details: "Netlify answered 200: <html>Maintenance</html>",
+      });
+      await expect(new NetlifyApi("nfp_x", base).user()).rejects.toMatchObject({
+        code: "netlify-auth",
+        details: "Netlify answered 401: Access Denied",
+      });
+      await expect(new ResendApi("re_x", base).domains()).rejects.toMatchObject({
+        code: "resend-auth",
+        message: "That Resend key can only send emails.",
       });
     } finally {
       await new Promise((resolve) => server.close(resolve));
