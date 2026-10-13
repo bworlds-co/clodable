@@ -1,4 +1,5 @@
 import { resolve } from "node:path";
+import { isCancel, password } from "@clack/prompts";
 import {
   ClodableError,
   type ErrorInfo,
@@ -60,4 +61,36 @@ export async function run<T>(
 /** Drive a flow, streaming its steps to the output. */
 export function drive<T>(ctx: Context, flow: Flow<T>): Promise<T> {
   return runFlow(flow, (event) => ctx.out.event(event));
+}
+
+/** Everything piped in, as it came; undefined in a terminal. */
+export async function readStdin(): Promise<string | undefined> {
+  if (process.stdin.isTTY) return undefined;
+  const chunks: Buffer[] = [];
+  for await (const chunk of process.stdin) chunks.push(chunk as Buffer);
+  return Buffer.concat(chunks).toString("utf8");
+}
+
+/**
+ * A value that must never be a command-line argument (a key, a token, a setting): piped in, or
+ * typed in a hidden prompt in a terminal. Spaces around it go, unless `exact`: a setting's value
+ * is the builder's to the letter (core drops only the newline a pipe adds).
+ */
+export async function secretInput(
+  ctx: Context,
+  message: string,
+  options: { exact?: boolean } = {},
+): Promise<string> {
+  const tidy = (value: string) => (options.exact ? value : value.trim());
+  const piped = await readStdin();
+  if (piped?.trim()) return tidy(piped);
+  if (piped === undefined && !ctx.out.json) {
+    const typed = await password({ message });
+    if (!isCancel(typed) && typed.trim()) return tidy(typed);
+  }
+  throw new ClodableError({
+    code: "invalid-config",
+    message: "Nothing was given.",
+    hint: "Pipe the value in (never as an argument), or run this in a terminal to type it.",
+  });
 }
