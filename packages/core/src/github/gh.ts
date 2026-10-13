@@ -1,5 +1,5 @@
-import { ClodableError } from "../errors.js";
-import { exec, hasCommand } from "../exec.js";
+import { ClodableError, type ErrorInfo } from "../errors.js";
+import { type ExecResult, exec, hasCommand } from "../exec.js";
 import type {
   BuildProgress,
   CheckSummary,
@@ -16,34 +16,23 @@ export class GhCli implements GitHubAdapter {
 
   constructor(readonly cwd: string) {}
 
-  private async gh(args: string[], timeout = 60_000) {
-    const result = await exec("gh", args, {
+  /** Run `gh` without prompts, colors or update notices; never throws for its exit code. */
+  private run(args: string[], options: { timeout?: number; input?: string } = {}) {
+    return exec("gh", args, {
       cwd: this.cwd,
-      timeout,
+      timeout: options.timeout ?? 60_000,
       env: { GH_PROMPT_DISABLED: "1", GH_NO_UPDATE_NOTIFIER: "1", NO_COLOR: "1" },
+      ...(options.input === undefined ? {} : { input: options.input }),
     });
+  }
+
+  private async gh(args: string[], timeout = 60_000) {
+    const result = await this.run(args, { timeout });
     if (result.exitCode !== 0) {
-      const text = `${result.stderr}\n${result.stdout}`;
-      if (/auth login|not logged|authentication/i.test(text)) {
-        throw new ClodableError({
-          code: "gh-auth",
-          message: "Clodable isn't connected to your GitHub account.",
-          hint: "Run `clodable setup` to connect it.",
-          details: text.trim(),
-        });
-      }
-      if (/could not resolve|connection refused|timeout|network/i.test(text)) {
-        throw new ClodableError({
-          code: "offline",
-          message: "GitHub can't be reached right now.",
-          hint: "Check your internet connection and try again.",
-          details: text.trim(),
-        });
-      }
-      throw new ClodableError({
+      throw ghError(result, {
         code: "unknown",
         message: "GitHub didn't accept a request.",
-        details: `gh ${args.join(" ")}\n${text.trim()}`,
+        details: `gh ${args.join(" ")}\n${result.stderr}\n${result.stdout}`.trim(),
       });
     }
     return result.stdout;
@@ -55,8 +44,7 @@ export class GhCli implements GitHubAdapter {
 
   async ready() {
     if (!(await hasCommand("gh", this.cwd))) return { installed: false, authenticated: false };
-    const status = await exec("gh", ["auth", "status", "--hostname", "github.com"], {
-      cwd: this.cwd,
+    const status = await this.run(["auth", "status", "--hostname", "github.com"], {
       timeout: 20_000,
     });
     return { installed: true, authenticated: status.exitCode === 0 };
@@ -138,21 +126,18 @@ export class GhCli implements GitHubAdapter {
   }
 
   async checks(number: number): Promise<CheckSummary> {
-    const result = await exec(
-      "gh",
-      ["pr", "checks", String(number), "--json", "name,bucket,link"],
-      { cwd: this.cwd, timeout: 60_000, env: { GH_PROMPT_DISABLED: "1", NO_COLOR: "1" } },
-    );
+    const result = await this.run(["pr", "checks", String(number), "--json", "name,bucket,link"]);
     // `gh pr checks` exits 8 while checks are pending and 1 when any failed; the JSON is still printed.
     if (!result.stdout.trim()) {
       if (/no checks reported/i.test(result.stderr)) return { state: "none" };
-      if (result.exitCode !== 0 && result.exitCode !== 8 && result.exitCode !== 1) {
-        throw new ClodableError({
-          code: "unknown",
-          message: "Couldn't read the checks on GitHub.",
-          details: result.stderr,
-        });
-      }
+      const failure = ghError(result, {
+        code: "unknown",
+        message: "Couldn't read the checks on GitHub.",
+        details: result.stderr.trim(),
+      });
+      // Signed out or offline exits 1 too: that isn't "no checks".
+      if (failure.code !== "unknown") throw failure;
+      if (result.exitCode !== 0 && result.exitCode !== 8 && result.exitCode !== 1) throw failure;
       return { state: "none" };
     }
     const checks = JSON.parse(result.stdout) as Array<{
@@ -201,18 +186,12 @@ export class GhCli implements GitHubAdapter {
 
   async setSecret(name: string, value: string): Promise<void> {
     const repo = await this.repo();
-    const result = await exec(
-      "gh",
-      ["secret", "set", name, "--repo", `${repo.owner}/${repo.name}`],
-      {
-        cwd: this.cwd,
-        timeout: 60_000,
-        input: value,
-        env: { GH_PROMPT_DISABLED: "1", GH_NO_UPDATE_NOTIFIER: "1", NO_COLOR: "1" },
-      },
-    );
+    // The value goes in on stdin, never as an argument.
+    const result = await this.run(["secret", "set", name, "--repo", `${repo.owner}/${repo.name}`], {
+      input: value,
+    });
     if (result.exitCode !== 0) {
-      throw new ClodableError({
+      throw ghError(result, {
         code: "unknown",
         message: `GitHub didn't accept the ${name} secret your site's deploys need.`,
         hint: "Check you can change this repository's settings on GitHub, then try again.",
@@ -285,6 +264,35 @@ export class GhCli implements GitHubAdapter {
     }
     return out;
   }
+}
+
+/**
+ * A failed `gh` call in the builder's words: not connected to GitHub, offline (gh says "error
+ * connecting to api.github.com" when nothing resolves), or else the caller's own message.
+ */
+function ghError(result: ExecResult, otherwise: ErrorInfo): ClodableError {
+  const text = `${result.stderr}\n${result.stdout}`.trim();
+  if (/auth login|not logged|authentication/i.test(text)) {
+    return new ClodableError({
+      code: "gh-auth",
+      message: "Clodable isn't connected to your GitHub account.",
+      hint: "Run `clodable setup` to connect it.",
+      details: text,
+    });
+  }
+  if (
+    /error connecting to|could not resolve|no such host|connection refused|timeout|network/i.test(
+      text,
+    )
+  ) {
+    return new ClodableError({
+      code: "offline",
+      message: "GitHub can't be reached right now.",
+      hint: "Check your internet connection and try again.",
+      details: text,
+    });
+  }
+  return new ClodableError(otherwise);
 }
 
 const PR_FIELDS = "number,url,title,body,headRefName,baseRefName,state,mergeCommit";

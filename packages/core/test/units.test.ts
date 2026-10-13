@@ -16,6 +16,7 @@ import {
   draftBranchFor,
   forgetSecret,
   formatRelative,
+  GhCli,
   Git,
   inboxOwner,
   lovableAiLeft,
@@ -680,5 +681,63 @@ describe("the line Publish shows while the host builds", () => {
     );
     // A host that builds outside GitHub: only how long so far.
     expect(buildLine(undefined, 130_000)).toBe("Your host is building it · 2 min so far");
+  });
+});
+
+describe("GitHub through gh", () => {
+  // A stand-in `gh` on the PATH: it answers `repo view`, and fails everything else the way
+  // FAKE_GH says, in gh's own words (as gh 2.87 prints them).
+  const script = [
+    "#!/bin/sh",
+    'if [ "$1 $2" = "repo view" ]; then',
+    `  echo '{"name":"app","owner":{"login":"ada"},"url":"u","isPrivate":true,"defaultBranchRef":{"name":"main"}}'`,
+    "  exit 0",
+    "fi",
+    'case "$FAKE_GH" in',
+    '  signed-out) echo "To get started with GitHub CLI, please run:  gh auth login" >&2; exit 4 ;;',
+    "  offline) printf 'error connecting to api.github.com\\ncheck your internet connection\\n' >&2; exit 1 ;;",
+    '  refused) echo "HTTP 403: Resource not accessible by integration" >&2; exit 1 ;;',
+    "esac",
+    "",
+  ].join("\n");
+  const withGh = async (mode: string, run: (gh: GhCli) => Promise<unknown>) => {
+    const dir = await mkdtemp(join(tmpdir(), "clodable-gh-"));
+    await writeFile(join(dir, "gh"), script, { mode: 0o755 });
+    const before = { path: process.env.PATH, mode: process.env.FAKE_GH };
+    process.env.PATH = `${dir}:${process.env.PATH}`;
+    process.env.FAKE_GH = mode;
+    try {
+      return await run(new GhCli(dir));
+    } finally {
+      process.env.PATH = before.path;
+      if (before.mode === undefined) delete process.env.FAKE_GH;
+      else process.env.FAKE_GH = before.mode;
+      await rm(dir, { recursive: true, force: true });
+    }
+  };
+
+  it("says when GitHub isn't connected, or can't be reached, whatever the call", async () => {
+    for (const call of [
+      (gh: GhCli) => gh.viewer(),
+      (gh: GhCli) => gh.checks(7),
+      (gh: GhCli) => gh.setSecret("NETLIFY_AUTH_TOKEN", "nfp_x"),
+    ]) {
+      await expect(withGh("signed-out", call)).rejects.toMatchObject({ code: "gh-auth" });
+      await expect(withGh("offline", call)).rejects.toMatchObject({
+        code: "offline",
+        message: "GitHub can't be reached right now.",
+      });
+    }
+  });
+
+  it("keeps each call's own words for anything else", async () => {
+    await expect(withGh("refused", (gh) => gh.setSecret("X", "y"))).rejects.toMatchObject({
+      code: "unknown",
+      message: "GitHub didn't accept the X secret your site's deploys need.",
+    });
+    await expect(withGh("refused", (gh) => gh.viewer())).rejects.toMatchObject({
+      code: "unknown",
+      message: "GitHub didn't accept a request.",
+    });
   });
 });
