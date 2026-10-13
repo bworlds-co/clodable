@@ -3,8 +3,23 @@ import { join } from "node:path";
 import { ClodableError } from "./errors.js";
 import { type ExecResult, exec } from "./exec.js";
 
+const COMMIT_KINDS = ["save", "restore", "sync", "publish", "undo", "setup"] as const;
+
 /** What a commit was, recorded as a `Clodable-Kind` trailer so history can be read back. */
-export type CommitKind = "save" | "restore" | "sync" | "publish" | "undo" | "setup";
+export type CommitKind = (typeof COMMIT_KINDS)[number];
+
+const KIND_KEY = "Clodable-Kind";
+
+/** The trailer a commit's message ends with: `Clodable-Kind: publish`. */
+export const kindTrailer = (kind: CommitKind) => `${KIND_KEY}: ${kind}`;
+
+const KIND_LINE = new RegExp(`\\n?${KIND_KEY}:.*$`, "m");
+
+/** A trailer's value, if it's a kind Clodable knows. */
+function kindOf(value: string): CommitKind | undefined {
+  const kind = value.trim();
+  return (COMMIT_KINDS as readonly string[]).includes(kind) ? (kind as CommitKind) : undefined;
+}
 
 export interface Commit {
   sha: string;
@@ -117,7 +132,7 @@ export class Git {
     const message = [
       cleanSubject(subject),
       options.body?.trim() ? `\n${options.body.trim()}` : "",
-      `\nClodable-Kind: ${options.kind}`,
+      `\n${kindTrailer(options.kind)}`,
     ].join("\n");
     const identityArgs = options.identity
       ? ["-c", `user.name=${options.identity.name}`, "-c", `user.email=${options.identity.email}`]
@@ -234,7 +249,7 @@ export class Git {
       "%b",
       "%aI",
       "%an",
-      "%(trailers:key=Clodable-Kind,valueonly,separator=)",
+      `%(trailers:key=${KIND_KEY},valueonly,separator=)`,
     ]
       .join(FIELD)
       .concat(RECORD);
@@ -255,14 +270,13 @@ export class Git {
       .map((record) => {
         const [sha = "", subject = "", body = "", date = "", author = "", kind = ""] =
           record.split(FIELD);
-        const cleanBody = body.replace(/\n?Clodable-Kind:.*$/m, "").trim();
         return {
           sha,
           subject,
-          body: cleanBody,
+          body: body.replace(KIND_LINE, "").trim(),
           date,
           author,
-          kind: (kind.trim() || undefined) as CommitKind | undefined,
+          kind: kindOf(kind),
         };
       });
   }

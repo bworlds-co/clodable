@@ -7,7 +7,7 @@ import { ensurePullRequest, save } from "./draft.js";
 import { ClodableError, messageOf } from "./errors.js";
 import { type Flow, log, step } from "./events.js";
 import { exec, hasCommand } from "./exec.js";
-import type { Commit } from "./git.js";
+import { type Commit, kindTrailer } from "./git.js";
 import type { BuildProgress } from "./github/types.js";
 import { localFunctions, uploadFunction } from "./move/functions.js";
 import { loadMove, updateMove } from "./move/state.js";
@@ -213,7 +213,7 @@ export async function* publish(ws: Workspace, options: PublishOptions = {}): Flo
     "",
     `Published by @${await ws.login()} with Clodable.`,
     "",
-    "Clodable-Kind: publish",
+    kindTrailer("publish"),
   ].join("\n");
   const { sha } = await ws.github.merge(pr.number, { subject: title, body });
   yield step("merge", "done", "Published");
@@ -582,7 +582,6 @@ export async function* undoPublish(
 
   const dir = await mkdtemp(join(tmpdir(), "clodable-undo-"));
   const branch = `undo/${target.sha.slice(0, 7)}`;
-  let pr: { number: number; url: string } | undefined;
   try {
     const side = await ws.git.worktreeAdd(dir, branch, ws.liveRef);
     const reverted = await side.run(["revert", "--no-edit", "--no-commit", target.sha]);
@@ -618,7 +617,6 @@ export async function* undoPublish(
       title: undoTitle,
       body: `Undoes the publish “${target.subject}”, requested with Clodable.`,
     });
-    pr = { number: created.number, url: created.url };
     yield step("revert", "done", "Prepared the undo");
 
     if (ws.config.publish.waitForCi && (await runsChecksOnPullRequests(ws.root))) {
@@ -632,7 +630,7 @@ export async function* undoPublish(
     yield step("merge", "running", "Putting the previous version back");
     const { sha } = await ws.github.merge(created.number, {
       subject: undoTitle,
-      body: `Reverts ${target.sha}.\n\nClodable-Kind: undo`,
+      body: `Reverts ${target.sha}.\n\n${kindTrailer("undo")}`,
     });
     yield step("merge", "done", "Previous version restored");
     const deployed = yield* waitForDeploy(ws, sha, {
@@ -676,6 +674,5 @@ export async function* undoPublish(
     await ws.git.worktreeRemove(dir);
     await rm(dir, { recursive: true, force: true });
     await ws.git.run(["branch", "-D", branch]);
-    void pr;
   }
 }
