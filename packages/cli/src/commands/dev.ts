@@ -6,6 +6,7 @@ import {
   loadMove,
   localSettings,
   MOVE_PATH,
+  messageOf,
   previewBackend,
   SETTINGS_PATH,
 } from "@clodable/core";
@@ -84,7 +85,7 @@ export async function devCommand(
     process.on("SIGTERM", stop);
   } catch (error) {
     process.stderr.write(
-      `\n  ${oxide("✕")} ${pc.bold("Your app couldn't start.")}\n\n    ${error instanceof Error ? error.message : String(error)}\n\n`,
+      `\n  ${oxide("✕")} ${pc.bold("Your app couldn't start.")}\n\n    ${messageOf(error)}\n\n`,
     );
     process.exitCode = 1;
   }

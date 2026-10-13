@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { appendFile, readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { messageOf } from "../errors.js";
 import { type Flow, log, step } from "../events.js";
 import { FILES_LIST } from "./export.js";
 import { ident, literal } from "./fixes.js";
@@ -178,9 +179,7 @@ export async function* copyFiles(
         failed++;
         notCopied.add(key(file));
         if (failures.length < 20) {
-          failures.push(
-            `${file.bucket}: ${error instanceof Error ? error.message : String(error)}`,
-          );
+          failures.push(`${file.bucket}: ${messageOf(error)}`);
         }
       }
     }
@@ -229,7 +228,7 @@ export async function* copyFiles(
         }
       } catch (error) {
         failed++;
-        failures.push(`${bucket}: ${error instanceof Error ? error.message : String(error)}`);
+        failures.push(`${bucket}: ${messageOf(error)}`);
       }
     }
   }

@@ -1,3 +1,4 @@
+import { messageOf } from "@clodable/core";
 import { cac } from "cac";
 import { dbCommand } from "./commands/db.js";
 import { devCommand } from "./commands/dev.js";
@@ -206,6 +207,6 @@ try {
     await cli.runMatchedCommand();
   }
 } catch (error) {
-  process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+  process.stderr.write(`${messageOf(error)}\n`);
   process.exitCode = 1;
 }

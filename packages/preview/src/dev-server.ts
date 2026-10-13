@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
-import { repoint } from "@clodable/core";
+import { messageOf, repoint } from "@clodable/core";
 import type { Plugin } from "vite";
 import { clodablePreview } from "./plugin.js";
 
@@ -178,9 +178,7 @@ export async function startDevServer(options: DevServerOptions): Promise<Running
         try {
           next = await source.current();
         } catch (error) {
-          server.config.logger.warn(
-            `  clodable · couldn't switch backends: ${error instanceof Error ? error.message : String(error)}`,
-          );
+          server.config.logger.warn(`  clodable · couldn't switch backends: ${messageOf(error)}`);
           return;
         }
         if (JSON.stringify(next) === JSON.stringify(backend)) return;

@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import { messageOf } from "../errors.js";
 import { type Flow, step } from "../events.js";
 import { BACKUP, type ExportSummary } from "./export.js";
 import {
@@ -130,7 +131,7 @@ export async function* copyExport(
   );
   if (plan.queues.length > 0) {
     await createQueues(target.sql, plan.queues).catch((error: unknown) => {
-      problems.push(`queues: ${error instanceof Error ? error.message : String(error)}`);
+      problems.push(`queues: ${messageOf(error)}`);
     });
     if (options.queueMessages && plan.queueData.length > 0) {
       // Emails waiting to go out at the pause go out from here, once.
@@ -182,7 +183,7 @@ export async function* copyExport(
       const done = await work();
       if (done) fixes.push(done);
     } catch (error) {
-      problems.push(`${what}: ${error instanceof Error ? error.message : String(error)}`);
+      problems.push(`${what}: ${messageOf(error)}`);
     }
   };
   await attempt("export folder", async () => {

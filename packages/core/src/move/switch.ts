@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { type ProjectConfig, saveConfig } from "../config.js";
-import { ClodableError } from "../errors.js";
+import { ClodableError, messageOf } from "../errors.js";
 import { type Flow, step } from "../events.js";
 import { applyKit, planKit } from "../kit/index.js";
 import { detectProject } from "../project.js";
@@ -406,7 +406,7 @@ export async function* goLive(
     ).catch((error: unknown) => ({
       created: 0,
       check: [],
-      error: error instanceof Error ? error.message : String(error),
+      error: messageOf(error),
     }));
   }
 

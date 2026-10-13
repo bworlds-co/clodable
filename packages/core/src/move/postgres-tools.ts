@@ -4,6 +4,7 @@ import { chmod, mkdir, mkdtemp, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { inflateRawSync } from "node:zlib";
 import { cacheDir } from "../checks/gitleaks.js";
+import { messageOf } from "../errors.js";
 import { exec } from "../exec.js";
 
 /**
@@ -242,9 +243,7 @@ async function install(): Promise<string> {
     return home;
   } catch (error) {
     if (error instanceof ToolUnavailable) throw error;
-    throw new ToolUnavailable(
-      `Couldn't fetch PostgreSQL's tools: ${error instanceof Error ? error.message : String(error)}`,
-    );
+    throw new ToolUnavailable(`Couldn't fetch PostgreSQL's tools: ${messageOf(error)}`);
   } finally {
     await rm(work, { recursive: true, force: true });
   }

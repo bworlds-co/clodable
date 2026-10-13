@@ -2,7 +2,7 @@ import { randomInt } from "node:crypto";
 import { existsSync } from "node:fs";
 import { mkdtemp, readdir, readFile, rename, rm } from "node:fs/promises";
 import { join } from "node:path";
-import { ClodableError } from "../errors.js";
+import { ClodableError, messageOf } from "../errors.js";
 import { type Flow, step } from "../events.js";
 import { readSecret, storeSecret } from "../local-secrets.js";
 import type { Workspace } from "../workspace.js";
@@ -479,7 +479,7 @@ export async function* copyData(ws: Workspace): Flow<{ ok: boolean; checks: Move
         (n) => {
           if (n > 0) outcome.fixes.push("Gave your app its writes back");
         },
-        (error: unknown) => outcome.problems.push(`writes: ${String(error)}`),
+        (error: unknown) => outcome.problems.push(`writes: ${messageOf(error)}`),
       );
     }
     if (state.source) {
@@ -498,16 +498,13 @@ export async function* copyData(ws: Workspace): Flow<{ ok: boolean; checks: Move
             outcome.problems.push(`scheduled jobs still naming Lovable: ${check.join(", ")}`);
           }
         },
-        (error: unknown) => outcome.problems.push(`scheduled jobs: ${String(error)}`),
+        (error: unknown) => outcome.problems.push(`scheduled jobs: ${messageOf(error)}`),
       );
     }
   } else {
     await prepareCopySignIn(api, state.home.ref).then(
       () => outcome.fixes.push("Let the preview sign people in"),
-      (error: unknown) =>
-        outcome.problems.push(
-          `sign-in settings: ${error instanceof Error ? error.message : String(error)}`,
-        ),
+      (error: unknown) => outcome.problems.push(`sign-in settings: ${messageOf(error)}`),
     );
   }
 

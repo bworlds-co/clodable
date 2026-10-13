@@ -47,7 +47,13 @@ export {
   save,
   status,
 } from "./draft.js";
-export { ClodableError, type ErrorCode, type ErrorInfo, toErrorInfo } from "./errors.js";
+export {
+  ClodableError,
+  type ErrorCode,
+  type ErrorInfo,
+  messageOf,
+  toErrorInfo,
+} from "./errors.js";
 export {
   type ClodableEvent,
   type Flow,

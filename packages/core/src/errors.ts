@@ -76,11 +76,15 @@ export class ClodableError extends Error {
 
 export function toErrorInfo(error: unknown): ErrorInfo {
   if (error instanceof ClodableError) return error.toJSON();
-  const message = error instanceof Error ? error.message : String(error);
   return {
     code: "unknown",
     message: "Something unexpected went wrong.",
     hint: "Try again. If it keeps happening, share the details with your developer.",
-    details: message,
+    details: messageOf(error),
   };
+}
+
+/** What an error says, without the "Error: " that String(error) puts first. */
+export function messageOf(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }

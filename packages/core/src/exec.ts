@@ -1,4 +1,5 @@
 import { x } from "tinyexec";
+import { messageOf } from "./errors.js";
 
 export interface ExecResult {
   stdout: string;
@@ -43,7 +44,7 @@ export async function exec(
   } catch (error) {
     return {
       stdout: "",
-      stderr: error instanceof Error ? error.message : String(error),
+      stderr: messageOf(error),
       exitCode: 127,
     };
   }

@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { checksFailed, runChecks } from "./checks/index.js";
 import { ensurePullRequest, save } from "./draft.js";
-import { ClodableError } from "./errors.js";
+import { ClodableError, messageOf } from "./errors.js";
 import { type Flow, log, step } from "./events.js";
 import { exec, hasCommand } from "./exec.js";
 import type { Commit } from "./git.js";
@@ -522,10 +522,7 @@ async function* deployChangedFunctions(ws: Workspace, sha: string): Flow<Functio
           outcome.pending.push(name);
         else {
           outcome.failed.push(name);
-          yield log(
-            "warn",
-            `Function ${name}: ${error instanceof Error ? error.message : String(error)}`,
-          );
+          yield log("warn", `Function ${name}: ${messageOf(error)}`);
         }
       }
     }

@@ -2,7 +2,7 @@ import { createWriteStream, existsSync } from "node:fs";
 import { copyFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, extname, join } from "node:path";
-import { ClodableError } from "../errors.js";
+import { ClodableError, messageOf } from "../errors.js";
 import { archiveLines, archiveSql, listArchive } from "./postgres.js";
 import {
   appTriggerIds,
@@ -123,7 +123,7 @@ const unreadable = (error: unknown) =>
     code: "export-unreadable",
     message: "Couldn't open that export.",
     hint: "Download it again (from Lovable's email, or More → Cloud → Storage), then try again.",
-    details: error instanceof Error ? error.message : String(error),
+    details: messageOf(error),
   });
 
 /** Read the export: table of contents, triggers, then one streamed pass over the rows. */

@@ -1,4 +1,4 @@
-import { ClodableError } from "../errors.js";
+import { ClodableError, messageOf } from "../errors.js";
 import { readSecret } from "../local-secrets.js";
 
 /**
@@ -72,7 +72,7 @@ export class NetlifyApi {
         code: "offline",
         message: "Couldn't reach Netlify.",
         hint: "Check your internet connection, then try again.",
-        details: error instanceof Error ? error.message : String(error),
+        details: messageOf(error),
       });
     }
     const text = await response.text();

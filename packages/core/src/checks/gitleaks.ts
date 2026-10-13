@@ -3,6 +3,7 @@ import { existsSync } from "node:fs";
 import { chmod, mkdir, mkdtemp, rename, rm, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { messageOf } from "../errors.js";
 import { exec, hasCommand } from "../exec.js";
 
 /**
@@ -85,7 +86,7 @@ async function locate(): Promise<string> {
       await download(release, dir, path);
       return path;
     } catch (error) {
-      reason = `Couldn't download gitleaks ${GITLEAKS_VERSION}: ${error instanceof Error ? error.message : String(error)}`;
+      reason = `Couldn't download gitleaks ${GITLEAKS_VERSION}: ${messageOf(error)}`;
     }
   }
   if (await hasCommand("gitleaks")) return "gitleaks";
