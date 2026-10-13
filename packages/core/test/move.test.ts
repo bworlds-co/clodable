@@ -4,8 +4,9 @@ import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { runFlow } from "../src/index.js";
+import { type LogEvent, runFlow, type StepEvent } from "../src/index.js";
 import { copyValue, readExport, splitNames } from "../src/move/export.js";
+import { copyFiles } from "../src/move/files.js";
 import { repoint } from "../src/move/fixes.js";
 import { psqlSql, type Sql } from "../src/move/postgres.js";
 import { copyExport } from "../src/move/restore.js";
@@ -15,6 +16,7 @@ import { exportTime, freezeSql, madeAfterPause } from "../src/move/switch.js";
 import { appTriggerIds, parseToc, planRestore } from "../src/move/toc.js";
 import { verifyCopy } from "../src/move/verify.js";
 import { extractEntry, zipEntries } from "../src/move/zip.js";
+import { startFakeSupabase } from "./fake-supabase.js";
 import {
   DST,
   jwt,
@@ -319,6 +321,41 @@ describe("a Supabase token that's too narrow", () => {
       });
     } finally {
       await new Promise((resolve) => server.close(resolve));
+    }
+  });
+});
+
+describe("copying files", () => {
+  it("says why a file didn't come over", async () => {
+    const fake = await startFakeSupabase({ token: "sbp_test", nextRef: DST, sourceKey: "src" });
+    const previous = process.env.CLODABLE_SUPABASE_PROJECT_URL;
+    process.env.CLODABLE_SUPABASE_PROJECT_URL = fake.projectUrl;
+    const dir = await mkdtemp(join(tmpdir(), "clodable-files-"));
+    try {
+      fake.publicBuckets.add(`${SRC}/images`);
+      fake.files.set(`${SRC}/images/here.png`, { body: Buffer.from("png"), type: "image/png" });
+      const listed = (name: string) =>
+        JSON.stringify({ bucket: "images", name, size: 3, owner: null, ownerId: null });
+      await writeFile(join(dir, "files.jsonl"), `${listed("here.png")}\n${listed("gone.png")}\n`);
+      const sql: Sql = { rows: async () => [], run: async () => {} };
+      const events: Array<StepEvent | LogEvent> = [];
+      const outcome = await runFlow(
+        copyFiles({ from: SRC, to: DST, secretKey: `sb_secret_${DST}`, maxBytes: 1024, sql }, dir, [
+          { id: "images", public: true },
+        ]),
+        (event) => events.push(event),
+      );
+      expect(outcome).toMatchObject({ copied: 1, total: 2, failed: 1 });
+      expect(events).toContainEqual({
+        type: "log",
+        level: "warn",
+        message: "images: download answered 404",
+      });
+    } finally {
+      if (previous === undefined) delete process.env.CLODABLE_SUPABASE_PROJECT_URL;
+      else process.env.CLODABLE_SUPABASE_PROJECT_URL = previous;
+      await fake.close();
+      await rm(dir, { recursive: true, force: true });
     }
   });
 });

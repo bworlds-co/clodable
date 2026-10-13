@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { appendFile, readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { type Flow, step } from "../events.js";
+import { type Flow, log, step } from "../events.js";
 import { FILES_LIST } from "./export.js";
 import { literal } from "./fixes.js";
 import type { Sql } from "./postgres.js";
@@ -135,6 +135,7 @@ export async function* copyFiles(
   let tooBig = 0;
   let failed = 0;
   const failures: string[] = [];
+  const notCopied = new Set<string>();
   const todo: StoredFile[] = [];
   for (const file of files) {
     if (done.has(key(file))) {
@@ -175,6 +176,7 @@ export async function* copyFiles(
         copied++;
       } catch (error) {
         failed++;
+        notCopied.add(key(file));
         if (failures.length < 20) {
           failures.push(
             `${file.bucket}: ${error instanceof Error ? error.message : String(error)}`,
@@ -204,12 +206,13 @@ export async function* copyFiles(
   }
   await all;
 
-  // The bytes themselves, on a sample of every bucket: smallest, middle, largest.
+  // The bytes themselves, on a sample of every bucket: smallest, middle, largest. A file that
+  // didn't come over is already counted.
   yield step("move:files", "running", "Checking your files", "Comparing them byte for byte");
   for (const bucket of new Set(files.map((f) => f.bucket))) {
     if (waiting.has(bucket)) continue;
     const copiedHere = files
-      .filter((f) => f.bucket === bucket && f.size <= target.maxBytes)
+      .filter((f) => f.bucket === bucket && f.size <= target.maxBytes && !notCopied.has(key(f)))
       .sort((a, b) => a.size - b.size);
     const sample = [...new Set([0, Math.floor(copiedHere.length / 2), copiedHere.length - 1])]
       .map((i) => copiedHere[i])
@@ -252,6 +255,7 @@ export async function* copyFiles(
     signedLinks,
   };
   const pending = outcome.waiting.length > 0 || tooBig > 0 || failed > 0;
+  for (const failure of failures) yield log("warn", failure);
   yield step(
     "move:files",
     pending ? "warning" : "done",
