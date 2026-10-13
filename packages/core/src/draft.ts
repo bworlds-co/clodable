@@ -236,16 +236,22 @@ async function pushWithRetry(
   });
 }
 
+/** What's live: GitHub's live branch as last fetched, else the local one, else nothing yet. */
+async function liveBase(ws: Workspace): Promise<string | undefined> {
+  if (await ws.git.revParse(ws.liveRef)) return ws.liveRef;
+  return (await ws.git.revParse(ws.liveBranch)) ? ws.liveBranch : undefined;
+}
+
 export async function countUnpublished(ws: Workspace): Promise<number> {
-  const live = (await ws.git.revParse(ws.liveRef)) ? ws.liveRef : ws.liveBranch;
-  if (!(await ws.git.revParse(live))) return await ws.git.count("HEAD", { noMerges: true });
-  return ws.git.count(`${live}..HEAD`, { noMerges: true });
+  const live = await liveBase(ws);
+  return ws.git.count(live ? `${live}..HEAD` : "HEAD", { noMerges: true });
 }
 
 async function unpublishedSaves(ws: Workspace): Promise<Commit[]> {
-  const live = (await ws.git.revParse(ws.liveRef)) ? ws.liveRef : ws.liveBranch;
-  if (!(await ws.git.revParse(live))) return ws.git.log("HEAD", { noMerges: true, limit: 50 });
-  return ws.git.log(`${live}..HEAD`, { noMerges: true, limit: 200 });
+  const live = await liveBase(ws);
+  return live
+    ? ws.git.log(`${live}..HEAD`, { noMerges: true, limit: 200 })
+    : ws.git.log("HEAD", { noMerges: true, limit: 50 });
 }
 
 /** The draft's page on GitHub: one pull request per draft, opened at the first save. */
@@ -336,7 +342,7 @@ export interface History {
 }
 
 export async function history(ws: Workspace, options: { limit?: number } = {}): Promise<History> {
-  const live = (await ws.git.revParse(ws.liveRef)) ? ws.liveRef : ws.liveBranch;
+  const live = (await liveBase(ws)) ?? ws.liveBranch;
   const [draft, published] = await Promise.all([
     unpublishedSaves(ws),
     ws.git.log(live, { firstParent: true, limit: options.limit ?? 30 }),
