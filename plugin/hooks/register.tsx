@@ -43,6 +43,15 @@ import {
   safeCommand,
 } from "./guards.ts";
 import {
+  AI_PROVIDERS,
+  type AiProvider,
+  connectorSetting,
+  EXPORT_CLICKS,
+  SERVICE_KEY_QUERY,
+  sizeOf,
+  typedDomain,
+} from "./move.ts";
+import {
   LABEL_SCRIPT,
   labelScript,
   previewPortIn,
@@ -167,7 +176,7 @@ let pausePlan: { freeze: string; undo: string } | null = null;
 /** Google sign-in: the client ID typed first; its secret comes next, to the CLI's stdin. */
 let googleClientId = "";
 /** Switching off Lovable's AI: the provider picked in the panel. */
-let aiChoice: "openrouter" | "gemini" | "openai" = "openrouter";
+let aiChoice: AiProvider = "openrouter";
 /** Going live: who may create an account. "confirm" needs emails. */
 let newPeople: "confirm" | "open" | "invite" = "confirm";
 /** The way chosen a moment ago, shown at once while Clodable records it. */
@@ -1544,7 +1553,7 @@ export const register: Register = (on) => {
       ...("Select" in table ? { Select: table.Select } : {}),
       ...("Input" in table ? { Input: table.Input } : {}),
     };
-    const { Box, Text, Button, Link, Code, Select, Input } = ui;
+    const { Box, Text, Button, Link, Input } = ui;
     const s = await read($, status);
     const a = await read($, activity);
     const doctor = await read($, checks);
@@ -1575,7 +1584,7 @@ export const register: Register = (on) => {
 
     // The move itself, one step at a time: every step listed, only the next one with its controls.
     const MOVE_MARK: Record<string, string> = { done: "✓", next: "●", later: "·", attention: "!" };
-    const method: "careful" | "quick" | undefined = choosingMethod ?? move?.method;
+    const method = moveMethod();
     // Getting ready happens beside the live app; going live is the one moment it changes.
     const MOVE_STAGES = [
       {
@@ -1609,1279 +1618,7 @@ export const register: Register = (on) => {
     const started = moveSteps.some((x) => x.id === "connect" && x.state === "done");
     // First, Claude reads the app's code: until it has, nothing else is decided.
     const factsNeeded = moveSteps.some((x) => x.id === "facts" && x.state !== "done");
-    const orgs: any[] = moveChoices?.organizations ?? [];
-    const org = orgs.find((o) => o.slug === moveOrg) ?? orgs[0];
-    const VAULT_QUERY =
-      "select decrypted_secret from vault.decrypted_secrets where name = 'email_queue_service_role_key';";
-    // The settings the app's server code reads, still to paste: for the preview, and the site.
-    const settingsFields = (prefix: string, fromLovable: boolean) => {
-      const st = appSettingsStatus;
-      const missing = (st?.wanted ?? []).filter(
-        (n) => !st?.local.includes(n) || (st.site !== undefined && !st.site.includes(n)),
-      );
-      if (missing.length === 0) return null;
-      return (
-        <Box flexDirection="column" rowGap={1}>
-          <Text>
-            Your app's server code reads {plural(missing.length, "setting")} (environment
-            variables).
-            {fromLovable ? " On Lovable they're listed in More → Cloud → Secrets." : ""} Paste each
-            one here: it goes to your preview
-            {st?.site ? " and to your site on Netlify" : ", and stays on this computer"}.
-          </Text>
-          {missing.map((name) => (
-            <Box key={`${prefix}-row-${name}`} flexDirection="column">
-              <Text bold>{name}</Text>
-              {st?.site?.includes(name) ? (
-                <Text dimColor>
-                  Already on your site. Paste it again for your preview: Netlify keeps it secret.
-                </Text>
-              ) : null}
-              {field(ui, `${prefix}-${name}`, "Paste the value", "Save", (v) =>
-                background(saveSetting($, name, v)),
-              )}
-            </Box>
-          ))}
-        </Box>
-      );
-    };
-    const missingSecrets = ((move?.secretsLeft ?? []) as string[]).filter(
-      (name) => !(moveSecrets?.set ?? []).includes(name),
-    );
-    const secretsBlock =
-      missingSecrets.length > 0 ? (
-        <Box flexDirection="column" rowGap={1}>
-          <Text>
-            Your functions use {plural(missingSecrets.length, "secret key")}. Paste each value from
-            the service it belongs to (Lovable doesn't show them). They go straight to Supabase.
-          </Text>
-          {missingSecrets.map((name) => (
-            <Box key={`secret-${name}`} flexDirection="column">
-              <Text bold>{name}</Text>
-              {field(ui, `move-secret-${name}`, "Paste the value", "Save", (v) =>
-                background(moveWith($, ["secret", name], v)),
-              )}
-            </Box>
-          ))}
-        </Box>
-      ) : null;
-    // Going on without what's left of a step: a short question, then the way out.
-    const goOnWithout = (key: string, what: "settings" | "secrets" | "vault", count: number) => (
-      <Box flexDirection="row" columnGap={2} alignItems="center">
-        <Text dimColor>{count === 1 ? "Don't have it yet?" : "Don't have them yet?"}</Text>
-        <Button
-          key={key}
-          variant="secondary"
-          onPress={() => background(moveStep($, [what, "--skip"]))}
-        >
-          {count === 1 ? "Go on without it" : "Go on without them"}
-        </Button>
-      </Box>
-    );
-    const tryBlock =
-      move?.preview === "copy" ? (
-        <Box flexDirection="column" rowGap={1}>
-          <Text>
-            The preview shows your copy: sign in, click around, change things. Your live app is
-            untouched.
-          </Text>
-          <Box flexDirection="row" columnGap={2} alignItems="center">
-            <Button
-              key="move-live"
-              variant="secondary"
-              onPress={() =>
-                background(
-                  pilot(
-                    $,
-                    `Switch my preview back to my live data with \`${moveCommand($, ["preview", "live"])}\`.`,
-                  ),
-                )
-              }
-            >
-              Back to live data
-            </Button>
-            {move?.home ? <Link href={move.home.dashboard} label="Open it in Supabase ↗" /> : null}
-          </Box>
-        </Box>
-      ) : (
-        <Box flexDirection="column" rowGap={1}>
-          <Text dimColor>
-            The preview restarts on your new backend. Your live app is untouched.
-          </Text>
-          <Button
-            key="move-try"
-            variant="primary"
-            onPress={() =>
-              background(
-                pilot(
-                  $,
-                  `Moving off Lovable: switch my preview to the copy with \`${moveCommand($, ["preview", "copy"])}\`. ${previewRequest(previewUrl)} Then check my app works on it.`,
-                ),
-              )
-            }
-          >
-            Try my app on the copy
-          </Button>
-        </Box>
-      );
-    const undoBlock = pausePlan ? (
-      <Box flexDirection="column" rowGap={1}>
-        <Text dimColor>Changed your mind? Run this in Lovable to undo the pause:</Text>
-        {sqlBlock($, ui, "move-undo", pausePlan.undo)}
-      </Box>
-    ) : null;
-    const noEmails = (question: string) => (
-      <Box flexDirection="column" rowGap={1} marginTop={1}>
-        <Box flexDirection="row" columnGap={2} alignItems="center">
-          <Text>{question}</Text>
-          <Button
-            key="move-no-emails"
-            variant="secondary"
-            onPress={() => background(moveStep($, ["emails", "--skip"]))}
-          >
-            Continue without emails
-          </Button>
-        </Box>
-        <Text dimColor>
-          New people then sign in without confirming their email, and nobody can reset a forgotten
-          password. You can add emails later.
-        </Text>
-      </Box>
-    );
-    const publishedSinceLive = Boolean(
-      move?.site?.liveAt && move.site.liveAt > (move.switch?.liveAt ?? ""),
-    );
-    const liveAddress: string =
-      (s.liveUrl && !/lovable\.app/.test(s.liveUrl) ? s.liveUrl : undefined) ??
-      move?.site?.url ??
-      "your new address";
-    // Larger than Supabase's free plan holds: said before copying, while upgrading is easy.
-    const sizeOf = (bytes: number) =>
-      bytes >= 1024 ** 3
-        ? `${(bytes / 1024 ** 3).toFixed(1)} GB`
-        : `${Math.max(1, Math.round(bytes / 1024 ** 2))} MB`;
-    const planNote = (kind: "data" | "files") => {
-      const plan = move?.plan as
-        | { data: number; dataLimit: number; files: number; filesLimit: number }
-        | undefined;
-      if (!plan || plan[kind] <= plan[kind === "data" ? "dataLimit" : "filesLimit"]) return null;
-      const limit = kind === "data" ? plan.dataLimit : plan.filesLimit;
-      return (
-        <Box flexDirection="column">
-          <Text color="warning">
-            Your {kind === "data" ? "data takes about" : "files take"} {sizeOf(plan[kind])}:
-            Supabase's free plan holds {sizeOf(limit)}.
-          </Text>
-          <Text dimColor>
-            Move your organization to Pro first (about $25 a month, in Supabase: Organization
-            settings → Billing), or the copy stops when it's full.
-          </Text>
-        </Box>
-      );
-    };
-    let moveControls: unknown = null;
-    if (isPiloting()) {
-      moveControls = <Text dimColor>Claude is on it, in the conversation.</Text>;
-    } else if (moveRun) {
-      moveControls = (
-        <Text>
-          ◐ {moveRun.title}…{moveRun.detail ? `  · ${moveRun.detail}` : ""}
-        </Text>
-      );
-    } else if (nextStep?.id === "connect") {
-      moveControls = (
-        <Box flexDirection="column" rowGap={1}>
-          <Text>
-            Your data goes to Supabase, under your own account (free to start). Clodable needs an
-            access token that can create your new backend and copy your data into it.
-          </Text>
-          <Box flexDirection="column">
-            <Text>1. Open Supabase's token page.</Text>
-            <Text>2. Click “Create legacy token”: the full-access kind.</Text>
-            <Text>
-              3. Name it Clodable, choose the longest expiry it offers, and generate it. Clodable
-              uses it after the move too, for changes to your database.
-            </Text>
-            <Text>4. Paste it here. It stays on this computer.</Text>
-          </Box>
-          <Link
-            href="https://supabase.com/dashboard/account/tokens"
-            label="Open Supabase's token page ↗"
-          />
-          {field(ui, "move-token", "sbp_…", "Connect", (v) =>
-            background(moveWith($, ["connect"], v)),
-          )}
-          {showPermissions ? (
-            <Box flexDirection="column">
-              <Text dimColor>
-                A narrower token works too: choose Organization access, your organization, and these
-                permissions.
-              </Text>
-              {((move?.tokenPermissions ?? []) as string[]).map((permission) => (
-                <Text dimColor>· {permission}</Text>
-              ))}
-            </Box>
-          ) : (
-            <Button
-              key="move-narrower"
-              plain
-              onPress={() => {
-                showPermissions = true;
-                $.ui.invalidate("ui.render");
-              }}
-            >
-              Prefer a narrower token?
-            </Button>
-          )}
-          <Text dimColor>Once the move is done, delete the token in Supabase.</Text>
-        </Box>
-      );
-    } else if (nextStep?.id === "create") {
-      moveControls =
-        moveChoices === null ? (
-          <Text dimColor>Looking at your Supabase account…</Text>
-        ) : (
-          <Box flexDirection="column" rowGap={1}>
-            {orgs.length > 1 && Select ? (
-              <Select
-                key="move-org"
-                label="Organization"
-                options={orgs.map((o) => ({ value: o.slug, label: `${o.name} · ${o.cost}` }))}
-                value={moveOrg}
-                onSelect={(v: string) => {
-                  moveOrg = v;
-                  $.ui.invalidate("ui.render");
-                }}
-              />
-            ) : null}
-            {Select && (moveChoices.regions ?? []).length > 1 ? (
-              <Box flexDirection="column">
-                <Select
-                  key="move-region"
-                  label="Where it runs"
-                  options={moveChoices.regions.map((r: any) => ({ value: r.code, label: r.name }))}
-                  value={moveRegion}
-                  onSelect={(v: string) => {
-                    moveRegion = v;
-                    $.ui.invalidate("ui.render");
-                  }}
-                />
-                <Text dimColor>
-                  Picked from where this computer is. Choose where most of your app's users are:
-                  it's faster for them.
-                </Text>
-              </Box>
-            ) : null}
-            {org?.plan === "free" && org?.freeLeft === 0 ? (
-              <Box flexDirection="column" rowGap={1}>
-                <Text color="warning">
-                  Supabase runs 2 free projects per person, counted across all your organizations,
-                  and you already run{" "}
-                  {((moveChoices.freeProjects ?? []) as any[])
-                    .map((p) => `${p.name} (${p.organization})`)
-                    .join(" and ") || "2"}
-                  .
-                </Text>
-                <Text dimColor>
-                  Pause one in Supabase (Project settings → Pause project), then check again. Or
-                  pick an organization on a paid plan.
-                </Text>
-                {loadingMove ? (
-                  <Text dimColor>Checking your Supabase account…</Text>
-                ) : (
-                  <Box flexDirection="row" columnGap={2} alignItems="center">
-                    <Button
-                      key="move-recheck"
-                      variant="secondary"
-                      onPress={() => background(loadMove($))}
-                    >
-                      Check again
-                    </Button>
-                    <Button
-                      key="move-create-anyway"
-                      plain
-                      onPress={() =>
-                        background(
-                          pilot($, createRequest($, org, moveChoices, moveOrg, moveRegion)),
-                        )
-                      }
-                    >
-                      Try anyway
-                    </Button>
-                  </Box>
-                )}
-              </Box>
-            ) : (
-              <Box flexDirection="row" columnGap={2} alignItems="center">
-                <Button
-                  key="move-create"
-                  variant="primary"
-                  onPress={() =>
-                    background(pilot($, createRequest($, org, moveChoices, moveOrg, moveRegion)))
-                  }
-                >
-                  Create it
-                </Button>
-                <Text dimColor>{org?.cost ?? ""}</Text>
-              </Box>
-            )}
-          </Box>
-        );
-    } else if (nextStep?.id === "export") {
-      moveControls = (
-        <Box flexDirection="column" rowGap={1}>
-          <Box flexDirection="column">
-            <Text>1. In Lovable: More → Cloud → Overview → Advanced settings.</Text>
-            <Text>
-              2. Under Export project data, click Export data, then Export on the Database card,
-              then Start export.
-            </Text>
-            <Text>
-              3. Lovable emails you a download link (it's also in Cloud → Storage). Download the
-              zip.
-            </Text>
-          </Box>
-          <Box flexDirection="row" columnGap={2} alignItems="center">
-            <Button
-              key="move-export"
-              variant="primary"
-              onPress={() =>
-                background(
-                  pilot(
-                    $,
-                    `Moving off Lovable: I've downloaded my Lovable export. Read it with \`${moveCommand($, ["export"])}\` and tell me what's in it.`,
-                  ),
-                )
-              }
-            >
-              I've downloaded it
-            </Button>
-            {s.lovableUrl ? <Link href={s.lovableUrl} label="Open Lovable ↗" /> : null}
-          </Box>
-          <Text dimColor>
-            Clodable finds it in your Downloads. Lovable allows one export a day, while your backend
-            is running.
-          </Text>
-        </Box>
-      );
-    } else if (
-      nextStep?.id === "copy" &&
-      nextStep.state !== "attention" &&
-      (move?.vaultLeft ?? []).length > 0
-    ) {
-      // Copied: the database's encrypted secrets are the step's last part.
-      const missing = ((move?.vaultLeft ?? []) as string[]).filter(
-        (n) => !(moveVault?.set ?? []).includes(n),
-      );
-      moveControls = (
-        <Box flexDirection="column" rowGap={1}>
-          <Text>
-            Your database keeps {plural(missing.length, "secret")} Lovable can't hand over (they're
-            encrypted). In Lovable, open More → Cloud → SQL editor, run this, then paste each value
-            here. It goes straight into your new backend.
-          </Text>
-          {moveVault?.query ? (
-            sqlBlock($, ui, "move-vault-query", moveVault.query)
-          ) : (
-            <Text dimColor>…</Text>
-          )}
-          {missing.map((name) => (
-            <Box key={`vault-${name}`} flexDirection="column">
-              <Text bold>{name}</Text>
-              {field(ui, `move-vault-${name}`, "Paste the value", "Save", (v) =>
-                background(moveWith($, ["vault-secret", name], v)),
-              )}
-            </Box>
-          ))}
-          {goOnWithout("move-vault-skip", "vault", missing.length)}
-        </Box>
-      );
-    } else if (nextStep?.id === "copy") {
-      moveControls = (
-        <Box flexDirection="column" rowGap={1}>
-          {planNote("data")}
-          {nextStep.state === "attention" ? (
-            <Box flexDirection="column">
-              {(move?.checks ?? []).map((c: any) => (
-                <Text key={`check-${c.id}`} {...(c.ok ? {} : { color: "warning" })}>
-                  {c.ok ? "✓" : "!"} {c.label}
-                  {c.detail && !c.ok ? `  · ${c.detail}` : ""}
-                </Text>
-              ))}
-            </Box>
-          ) : (
-            <Text dimColor>
-              Your people, tables and settings go into your new backend. Your live app keeps running
-              on Lovable meanwhile.
-            </Text>
-          )}
-          <Button
-            key="move-copy"
-            variant="primary"
-            onPress={() =>
-              background(
-                pilot(
-                  $,
-                  `Moving off Lovable: copy my data into my new backend with \`${moveCommand($, ["copy"])}\`, then make sure my app works on it.`,
-                ),
-              )
-            }
-          >
-            {nextStep.state === "attention" ? "Copy again" : "Copy my data"}
-          </Button>
-        </Box>
-      );
-    } else if (nextStep?.id === "files") {
-      const waiting: string[] = move?.files?.waiting ?? [];
-      moveControls =
-        waiting.length === 0 ? (
-          <Box flexDirection="column" rowGap={1}>
-            <Text dimColor>The images and documents people uploaded, copied as they are.</Text>
-            {planNote("files")}
-            {(move?.files?.tooBig ?? 0) > 0 ? (
-              <Text color="warning">
-                {plural(move.files.tooBig, "file")} are larger than your Supabase plan accepts.
-              </Text>
-            ) : null}
-            <Button
-              key="move-files"
-              variant="primary"
-              onPress={() =>
-                background(
-                  pilot(
-                    $,
-                    `Moving off Lovable: copy my uploaded files to my new backend with \`${moveCommand($, ["files"])}\`.`,
-                  ),
-                )
-              }
-            >
-              {move?.files ? "Copy the rest" : "Copy my files"}
-            </Button>
-          </Box>
-        ) : move?.vaultKey ? (
-          <Box flexDirection="column" rowGap={1}>
-            <Text>
-              Your private folders ({waiting.join(", ")}) need Lovable Cloud's service key, to read
-              them once.
-            </Text>
-            <Text dimColor>
-              In Lovable, run this query (or ask Lovable's chat to run it), then paste the result
-              here. It's used for this copy only and never saved.
-            </Text>
-            <Box flexDirection="row" columnGap={1} alignItems="center">
-              <Code source={VAULT_QUERY} language="sql" />
-              <Button key="copy-vault-query" plain onPress={() => $.ui.copy({ text: VAULT_QUERY })}>
-                Copy
-              </Button>
-            </Box>
-            {field(ui, "move-source-key", "eyJ…", "Copy them", (v) =>
-              background(moveWith($, ["files", "--private"], v)),
-            )}
-          </Box>
-        ) : (
-          <Text>
-            Your private folders ({waiting.join(", ")}) can't be copied on their own yet: download
-            those files in Lovable (More → Cloud → Storage) and upload them in Supabase, or ask a
-            developer.
-          </Text>
-        );
-    } else if (
-      nextStep?.id === "functions" &&
-      nextStep.state !== "attention" &&
-      (move?.secretsLeft ?? []).length > 0
-    ) {
-      // Deployed: the secrets they read are the step's last part.
-      moveControls = (
-        <Box flexDirection="column" rowGap={1}>
-          {secretsBlock}
-          {goOnWithout("move-secrets-skip", "secrets", missingSecrets.length)}
-        </Box>
-      );
-    } else if (nextStep?.id === "functions") {
-      moveControls = (
-        <Box flexDirection="column" rowGap={1}>
-          <Text dimColor>
-            Your {plural(move?.functions ?? 0, "backend function")} go to your new backend, all
-            together.
-          </Text>
-          <Button
-            key="move-functions"
-            variant="primary"
-            onPress={() =>
-              background(
-                pilot(
-                  $,
-                  `Moving off Lovable: deploy my backend functions to my new backend with \`${moveCommand($, ["functions"])}\`.`,
-                ),
-              )
-            }
-          >
-            {nextStep.state === "attention" ? "Deploy them again" : "Deploy my functions"}
-          </Button>
-        </Box>
-      );
-    } else if (nextStep?.id === "try") {
-      moveControls = (
-        <Box flexDirection="column" rowGap={1}>
-          {settingsFields("move-setting", true)}
-          {tryBlock}
-        </Box>
-      );
-    } else if (nextStep?.id === "netlify") {
-      moveControls = (
-        <Box flexDirection="column" rowGap={1}>
-          <Text>
-            Your website moves to Netlify, under your own account (free to start). Each Publish will
-            put it live there; your live app stays on Lovable until the switch.
-          </Text>
-          <Box flexDirection="column">
-            <Text>1. Open Netlify's token page.</Text>
-            <Text>2. Create a personal access token named Clodable.</Text>
-            <Text>3. Paste it here. It stays on this computer.</Text>
-          </Box>
-          <Link
-            href="https://app.netlify.com/user/applications#personal-access-tokens"
-            label="Open Netlify's token page ↗"
-          />
-          {field(ui, "move-netlify-token", "Netlify token", "Connect", (v) =>
-            background(moveWith($, ["netlify"], v)),
-          )}
-        </Box>
-      );
-    } else if (nextStep?.id === "site" && (move?.settingsLeft ?? []).length > 0) {
-      // The site is there: the settings its server code reads are the step's last part.
-      moveControls = (
-        <Box flexDirection="column" rowGap={1}>
-          {settingsFields("move-setting", true)}
-          {goOnWithout("move-settings-skip", "settings", (move?.settingsLeft ?? []).length)}
-        </Box>
-      );
-    } else if (nextStep?.id === "site") {
-      const teams = moveTeams ?? [];
-      moveControls = (
-        <Box flexDirection="column" rowGap={1}>
-          <Text dimColor>
-            Clodable creates the site, points it at your new backend, and sets up Publish to put it
-            live on Netlify through GitHub.
-          </Text>
-          {teams.length > 1 && Select ? (
-            <Select
-              key="move-team"
-              label="Netlify team"
-              options={teams.map((t) => ({ value: t.slug, label: t.name }))}
-              value={moveTeam}
-              onSelect={(v: string) => {
-                moveTeam = v;
-                $.ui.invalidate("ui.render");
-              }}
-            />
-          ) : null}
-          <Button
-            key="move-site"
-            variant="primary"
-            onPress={() =>
-              background(
-                pilot(
-                  $,
-                  `Moving off Lovable: put my site on Netlify with \`${moveCommand($, ["site", ...(moveTeam ? ["--account", moveTeam] : [])])}\`, then tell me what's left before I can see it there.`,
-                ),
-              )
-            }
-          >
-            Put my site on Netlify
-          </Button>
-        </Box>
-      );
-    } else if (nextStep?.id === "emails" && !move?.resend) {
-      moveControls = (
-        <Box flexDirection="column" rowGap={1}>
-          <Text>
-            Clodable sends your users' sign-up confirmations and password resets from your own
-            domain (like yourapp.com), through your Resend account.
-          </Text>
-          <Box flexDirection="column">
-            <Text>1. Sign in to Resend, or sign up (it's free to start).</Text>
-            <Text>2. API Keys → Create API Key, with Full access.</Text>
-            <Text>3. Paste the key here. It stays on this computer.</Text>
-          </Box>
-          <Link href="https://resend.com/api-keys" label="Open Resend's keys page ↗" />
-          {field(ui, "move-resend-key", "re_…", "Connect", (v) =>
-            background(moveWith($, ["resend"], v)),
-          )}
-          {noEmails("No domain of your own yet?")}
-        </Box>
-      );
-    } else if (nextStep?.id === "emails" && !move?.emails) {
-      moveControls = (
-        <Box flexDirection="column" rowGap={1}>
-          <Text>
-            Which domain should your emails come from? One you own, like example.com: they'll come
-            from no-reply@ that domain.
-          </Text>
-          {field(ui, "move-email-domain", "example.com", "Set it up", (v) => {
-            const domain = v
-              .trim()
-              .toLowerCase()
-              .replace(/^https?:\/\//, "")
-              .replace(/^www\./, "")
-              .replace(/\/.*$/, "");
-            if (!/^([a-z0-9-]+\.)+[a-z]{2,}$/.test(domain)) {
-              moveError = {
-                message: `“${v.trim()}” isn't a domain name.`,
-                hint: "Just the domain, like example.com.",
-              };
-              $.ui.invalidate("ui.render");
-              return;
-            }
-            background(
-              pilot(
-                $,
-                `Moving off Lovable: set up emails for my users from ${domain} with \`${moveCommand($, ["emails", "--domain", domain])}\`, then tell me what to do at my domain's provider.`,
-              ),
-            );
-          })}
-          {noEmails("No domain of your own yet?")}
-        </Box>
-      );
-    } else if (nextStep?.id === "emails") {
-      const records: any[] = move?.emails?.records ?? [];
-      moveControls = (
-        <Box flexDirection="column" rowGap={1}>
-          <Text>
-            Add {records.length === 1 ? "this record" : `these ${records.length} records`} where you
-            manage {move.emails.domain} (where you bought it: Namecheap, GoDaddy, Cloudflare…). They
-            can take a few minutes to show, sometimes a few hours.
-          </Text>
-          {records.map((r, i) => (
-            <Box key={`record-${i}`} flexDirection="column">
-              <Text bold>
-                {r.type}
-                {r.priority !== undefined ? `  · priority ${r.priority}` : ""}
-              </Text>
-              {copyable($, ui, `record-${i}-name`, "Name ", r.name)}
-              {copyable($, ui, `record-${i}-value`, "Value", r.value)}
-            </Box>
-          ))}
-          <Box flexDirection="row" columnGap={2} alignItems="center">
-            <Button
-              key="move-emails-check"
-              variant="primary"
-              onPress={() =>
-                background(
-                  pilot(
-                    $,
-                    `Moving off Lovable: check whether ${move.emails.domain}'s email records are in place with \`${moveCommand($, ["emails"])}\`, and finish setting up my emails if they are.`,
-                  ),
-                )
-              }
-            >
-              Check again
-            </Button>
-          </Box>
-          {noEmails("Rather do this later?")}
-        </Box>
-      );
-    } else if (nextStep?.id === "services") {
-      const sv = move?.services as any;
-      const emailsOn = Boolean(move?.emails?.connected);
-      const providers = {
-        openrouter: {
-          label: "OpenRouter (the same models Lovable uses)",
-          name: "OpenRouter",
-          keys: "https://openrouter.ai/settings/keys",
-        },
-        gemini: {
-          label: "Google Gemini",
-          name: "Google Gemini",
-          keys: "https://aistudio.google.com/apikey",
-        },
-        openai: { label: "OpenAI", name: "OpenAI", keys: "https://platform.openai.com/api-keys" },
-      } as const;
-      const chosen = providers[aiChoice];
-      const fallback =
-        "Keep Lovable's as the fallback when that key isn't set, so my app keeps working on Lovable until the switch.";
-      let part: unknown = null;
-      if (sv?.ai && !sv.aiSwitched && !sv.aiProvider) {
-        part = (
-          <Box flexDirection="column" rowGap={1}>
-            <Text>
-              Your app's AI features run on Lovable's AI, which stops when it leaves. Clodable moves
-              them to an AI provider of your own.
-            </Text>
-            {Select ? (
-              <Select
-                key="move-ai-provider"
-                label="Provider"
-                options={Object.entries(providers).map(([value, p]) => ({ value, label: p.label }))}
-                value={aiChoice}
-                onSelect={(v: string) => {
-                  aiChoice = v in providers ? (v as typeof aiChoice) : "openrouter";
-                  $.ui.invalidate("ui.render");
-                }}
-              />
-            ) : null}
-            <Box flexDirection="column">
-              <Text>1. Create a key on {chosen.name}.</Text>
-              <Text>2. Paste it here. It goes to your preview, your site and your backend.</Text>
-            </Box>
-            <Link href={chosen.keys} label={`Open ${chosen.name}'s keys page ↗`} />
-            {field(ui, "move-ai-key", "Paste the key", "Save", (v) =>
-              background(moveWith($, ["ai", aiChoice], v)),
-            )}
-          </Box>
-        );
-      } else if (sv?.ai && !sv.aiSwitched) {
-        const name = providers[sv.aiProvider as keyof typeof providers]?.name ?? sv.aiProvider;
-        part = (
-          <Box flexDirection="column" rowGap={1}>
-            <Text>Your {name} key is saved. Claude now points your app's AI features at it.</Text>
-            <Button
-              key="move-ai-switch"
-              variant="primary"
-              onPress={() =>
-                background(
-                  pilot(
-                    $,
-                    `Moving off Lovable: switch my app's AI features from Lovable's AI to ${name}. Clodable saved AI_API_URL and AI_API_KEY for my preview, my site and my backend functions: make the code call \`\${AI_API_URL}/chat/completions\` with AI_API_KEY (the same OpenAI-style API). ${fallback} Deploy my backend functions with \`${moveCommand($, ["functions"])}\` if you changed any, then check it works in the preview.`,
-                  ),
-                )
-              }
-            >
-              Switch my AI features
-            </Button>
-          </Box>
-        );
-      } else if (sv?.emails && !sv.emailsSwitched && emailsOn) {
-        part = (
-          <Box flexDirection="column" rowGap={1}>
-            <Text>
-              Your app sends its own emails through Lovable. Clodable gives it a Resend key of its
-              own, sending from {move?.emails?.sender}, and Claude switches the sending.
-            </Text>
-            <Button
-              key="move-app-emails"
-              variant="primary"
-              onPress={() =>
-                background(
-                  pilot(
-                    $,
-                    `Moving off Lovable: switch my app's own emails from Lovable to Resend. Run \`${moveCommand($, ["app-emails"])}\`: it gives my app RESEND_API_KEY and EMAIL_FROM. Then make the code send through Resend's API with them. ${fallback} Deploy my backend functions with \`${moveCommand($, ["functions"])}\`${sv.hook ? `, then turn on my own sign-in emails with \`${moveCommand($, ["emails", "--hook"])}\`` : ""}.`,
-                  ),
-                )
-              }
-            >
-              Switch my emails
-            </Button>
-          </Box>
-        );
-      } else if (sv?.emails && !sv.emailsSwitched) {
-        part = (
-          <Text>
-            Your app also sends its own emails through Lovable: they move with your emails, in the
-            step above.
-          </Text>
-        );
-      } else if (sv?.hook && emailsOn && !sv.hookOn) {
-        part = (
-          <Box flexDirection="column" rowGap={1}>
-            <Text>
-              Your app has its own sign-in emails (from Lovable). Clodable turns them on, so
-              confirmations and password resets look like your app.
-            </Text>
-            <Button
-              key="move-email-hook"
-              variant="primary"
-              onPress={() =>
-                background(
-                  pilot(
-                    $,
-                    `Moving off Lovable: turn on my app's own sign-in emails with \`${moveCommand($, ["emails", "--hook"])}\` (deploy my backend functions with \`${moveCommand($, ["functions"])}\` first if it asks).`,
-                  ),
-                )
-              }
-            >
-              Turn on my sign-in emails
-            </Button>
-          </Box>
-        );
-      } else if ((sv?.connectors ?? []).length > 0) {
-        const names: string[] = sv.connectors;
-        part = (
-          <Box flexDirection="column" rowGap={1}>
-            <Text>
-              Your app reaches {names.join(", ")} through Lovable's connectors, which stop when it
-              leaves. Paste your own key for each: it goes to your preview and your site.
-            </Text>
-            {names.map((name) => {
-              const setting = `${name.toUpperCase().replace(/[^A-Z0-9]+/g, "_")}_API_KEY`;
-              return (
-                <Box key={`connector-${name}`} flexDirection="column">
-                  <Text bold>{name}</Text>
-                  {field(ui, `move-connector-${name}`, `Your ${name} key`, "Save", (v) =>
-                    background(saveSetting($, setting, v)),
-                  )}
-                </Box>
-              );
-            })}
-            <Button
-              key="move-connectors"
-              variant="primary"
-              onPress={() =>
-                background(
-                  pilot(
-                    $,
-                    `Moving off Lovable: my app reaches ${names.join(", ")} through Lovable's connectors (connector-gateway.lovable.dev). Switch each to that service's own API, reading its key from ${names.map((n) => `${n.toUpperCase().replace(/[^A-Z0-9]+/g, "_")}_API_KEY`).join(", ")} (process.env on the server; tell me where to paste any that's missing). Check it works in the preview.`,
-                  ),
-                )
-              }
-            >
-              Switch them
-            </Button>
-          </Box>
-        );
-      }
-      const left: string[] = sv?.left ?? [];
-      moveControls = (
-        <Box flexDirection="column" rowGap={1}>
-          {part as never}
-          {left.length > 0 ? (
-            <Box flexDirection="column" rowGap={1} marginTop={1}>
-              <Box flexDirection="row" columnGap={2} alignItems="center">
-                <Text>Rather not switch now?</Text>
-                <Button
-                  key="move-services-skip"
-                  variant="secondary"
-                  onPress={() => background(moveStep($, ["services", "--skip"]))}
-                >
-                  Go on without them
-                </Button>
-              </Box>
-              <Text dimColor>
-                Then {left.join(", ")} stop working when Lovable goes. Claude can switch them later.
-              </Text>
-            </Box>
-          ) : null}
-        </Box>
-      );
-    } else if (nextStep?.id === "google" && move?.google?.configured) {
-      moveControls = (
-        <Box flexDirection="column" rowGap={1}>
-          <Text>
-            Google sign-in is on in your new backend. Claude now switches your app's Google button
-            to it.
-          </Text>
-          <Button
-            key="move-google-switch"
-            variant="primary"
-            onPress={() =>
-              background(
-                pilot(
-                  $,
-                  "Moving off Lovable: my app signs in with Google through Lovable's broker (@lovable.dev/cloud-auth-js), which only works on Lovable. Clodable turned Google on in my new backend and set VITE_GOOGLE_SIGN_IN=supabase for my preview and my site. Make the Google button call supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin } }) when import.meta.env.VITE_GOOGLE_SIGN_IN is 'supabase', and keep Lovable's broker otherwise, so my app keeps working on Lovable until the switch. Check it in the preview.",
-                ),
-              )
-            }
-          >
-            Switch my Google sign-in
-          </Button>
-        </Box>
-      );
-    } else if (nextStep?.id === "google") {
-      const redirect = move?.google?.redirect as string | undefined;
-      moveControls = (
-        <Box flexDirection="column" rowGap={1}>
-          <Text>
-            People sign in to your app with Google. On your new backend that needs a Google client
-            of your own: Clodable turns it on with it.
-          </Text>
-          <Box flexDirection="column">
-            <Text>
-              1. In Google Cloud: APIs & Services → Credentials → Create credentials → OAuth client
-              ID → Web application.
-            </Text>
-            <Text>2. Under Authorized redirect URIs, add this address:</Text>
-          </Box>
-          {redirect ? copyable($, ui, "move-google-redirect", "", redirect) : null}
-          <Text>3. Paste the client ID, then its secret, here. The secret stays off the chat.</Text>
-          <Link
-            href="https://console.cloud.google.com/apis/credentials"
-            label="Open Google Cloud's credentials ↗"
-          />
-          {googleClientId
-            ? field(ui, "move-google-secret", "Client secret", "Turn it on", (v) =>
-                background(moveWith($, ["google", googleClientId], v)),
-              )
-            : field(ui, "move-google-id", "…apps.googleusercontent.com", "Next", (v) => {
-                const id = v.trim();
-                if (!/^[\w-]+\.apps\.googleusercontent\.com$/.test(id)) {
-                  moveError = {
-                    message: "That doesn't look like a Google client ID.",
-                    hint: "It ends with .apps.googleusercontent.com.",
-                  };
-                } else {
-                  googleClientId = id;
-                  moveError = null;
-                }
-                $.ui.invalidate("ui.render");
-              })}
-          <Box flexDirection="row" columnGap={2} alignItems="center" marginTop={1}>
-            <Text>Rather not now?</Text>
-            <Button
-              key="move-google-skip"
-              variant="secondary"
-              onPress={() => background(moveStep($, ["google", "--skip"]))}
-            >
-              Leave Google sign-in off
-            </Button>
-          </Box>
-        </Box>
-      );
-    } else if (nextStep?.id === "freeze") {
-      const last = move?.lastExport ? new Date(move.lastExport).getTime() : 0;
-      const nextExport = last + 24 * 60 * 60_000;
-      moveControls = (
-        <Box flexDirection="column" rowGap={1}>
-          <Text>
-            Now your live app moves over. It pauses for the few minutes this takes: people still see
-            everything and can sign in; changes, new sign-ups and uploads wait until it runs on your
-            new backend.
-          </Text>
-          {nextExport > now ? (
-            <Text color="warning">
-              Lovable allows one export a day: your next one is possible{" "}
-              {new Date(nextExport).toDateString() === new Date(now).toDateString()
-                ? "after"
-                : "tomorrow after"}{" "}
-              {new Date(nextExport).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}.
-              Pause after that, so the pause stays short.
-            </Text>
-          ) : null}
-          <Text>
-            1. In Lovable, open More → Cloud → SQL editor, paste this and run it. It also stops your
-            app's scheduled jobs there:
-          </Text>
-          {pausePlan ? sqlBlock($, ui, "move-freeze", pausePlan.freeze) : <Text dimColor>…</Text>}
-          <Text>2. Then tell Clodable.</Text>
-          <Box flexDirection="row" columnGap={2} alignItems="center">
-            <Button
-              key="move-paused"
-              variant="primary"
-              onPress={() => background(moveStep($, ["paused"]))}
-            >
-              I've paused it
-            </Button>
-            {s.lovableUrl ? <Link href={s.lovableUrl} label="Open Lovable ↗" /> : null}
-          </Box>
-        </Box>
-      );
-    } else if (nextStep?.id === "final-export") {
-      moveControls = (
-        <Box flexDirection="column" rowGap={1}>
-          <Text>
-            Your live app is paused. Export your data once more: this export has everything people
-            wrote until the pause.
-          </Text>
-          <Box flexDirection="column">
-            <Text>1. In Lovable: More → Cloud → Overview → Advanced settings.</Text>
-            <Text>
-              2. Under Export project data, click Export data, then Export on the Database card,
-              then Start export.
-            </Text>
-            <Text>3. Download the zip from the email Lovable sends.</Text>
-          </Box>
-          <Box flexDirection="row" columnGap={2} alignItems="center">
-            <Button
-              key="move-final-export"
-              variant="primary"
-              onPress={() =>
-                background(
-                  pilot(
-                    $,
-                    `Moving off Lovable: I've downloaded my final Lovable export, made after the pause. Read it with \`${moveCommand($, ["export"])}\` and tell me what's in it.`,
-                  ),
-                )
-              }
-            >
-              I've downloaded it
-            </Button>
-            {s.lovableUrl ? <Link href={s.lovableUrl} label="Open Lovable ↗" /> : null}
-          </Box>
-          {undoBlock}
-        </Box>
-      );
-    } else if (nextStep?.id === "final-copy") {
-      const hasFiles = moveSteps.some((x) => x.id === "files");
-      moveControls = (
-        <Box flexDirection="column" rowGap={1}>
-          {nextStep.state === "attention" ? (
-            <Box flexDirection="column">
-              {(move?.checks ?? []).map((c: any) => (
-                <Text key={`check-${c.id}`} {...(c.ok ? {} : { color: "warning" })}>
-                  {c.ok ? "✓" : "!"} {c.label}
-                  {c.detail && !c.ok ? `  · ${c.detail}` : ""}
-                </Text>
-              ))}
-            </Box>
-          ) : (
-            <Text dimColor>
-              Your data as of the pause replaces the copy (what you tried on it goes), with your
-              app's scheduled jobs. Your new backend then takes changes again.
-            </Text>
-          )}
-          <Button
-            key="move-final-copy"
-            variant="primary"
-            onPress={() =>
-              background(
-                pilot(
-                  $,
-                  `Moving off Lovable: copy my final export into my new backend for good with \`${moveCommand($, ["copy"])}\`${hasFiles ? `, then copy the files uploaded since with \`${moveCommand($, ["files"])}\`` : ""}, and make sure everything is there.`,
-                ),
-              )
-            }
-          >
-            {nextStep.state === "attention" ? "Copy again" : "Copy it in for good"}
-          </Button>
-          {undoBlock}
-        </Box>
-      );
-    } else if (nextStep?.id === "golive") {
-      const emailsOn = Boolean(move?.emails?.connected);
-      // Without emails, nobody can confirm one: that choice isn't offered.
-      const people = !emailsOn && newPeople === "confirm" ? "open" : newPeople;
-      const jobs = move?.lovableJobs as { count: number; stop: string } | undefined;
-      moveControls = (
-        <Box flexDirection="column" rowGap={1}>
-          <Text dimColor>
-            Clodable points your app's files and its sign-in at your new backend and at{" "}
-            {move?.site?.url ?? "your site"}. Then Publish puts it live.
-          </Text>
-          {Select ? (
-            <Select
-              key="move-new-people"
-              label="New people"
-              options={[
-                ...(emailsOn
-                  ? [{ value: "confirm", label: "Sign up, confirming their email" }]
-                  : []),
-                { value: "open", label: "Sign up straight away" },
-                { value: "invite", label: "Only people you invite" },
-              ]}
-              value={people}
-              onSelect={(v: string) => {
-                newPeople = v === "invite" ? "invite" : v === "open" ? "open" : "confirm";
-                $.ui.invalidate("ui.render");
-              }}
-            />
-          ) : null}
-          {(move?.stripeWebhooks ?? []).length > 0 ? (
-            <Box flexDirection="column" rowGap={1}>
-              <Text>
-                Your payments: in Stripe → Developers → Webhooks, change your endpoint's address to
-                your new backend when you go live (its signing secret stays the same):
-              </Text>
-              {(move.stripeWebhooks as Array<{ name: string; url: string }>).map((w, i) =>
-                copyable($, ui, `move-stripe-${i}`, "", w.url),
-              )}
-            </Box>
-          ) : null}
-          {jobs ? (
-            <Box flexDirection="column" rowGap={1}>
-              <Text>
-                Your app has {plural(jobs.count, "scheduled job")}: going live starts them here.
-                First stop them in Lovable (More → Cloud → SQL editor), so they don't run twice:
-              </Text>
-              {sqlBlock($, ui, "move-stop-jobs", jobs.stop)}
-            </Box>
-          ) : null}
-          {move?.cronKey ? (
-            <Text>
-              Your scheduled jobs call your app with a key Lovable keeps. Once live, ask Claude to
-              give them one of your own.
-            </Text>
-          ) : null}
-          {method === "quick" ? (
-            <Text dimColor>
-              Your data is as of your export
-              {move?.lastExport
-                ? ` (${new Date(move.lastExport).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })})`
-                : ""}
-              . Anything written in your Lovable app since stays there.
-            </Text>
-          ) : null}
-
-          <Button
-            key="move-golive"
-            variant="primary"
-            onPress={() =>
-              background(
-                pilot(
-                  $,
-                  `Moving off Lovable: switch my app to its new backend and site with \`${moveCommand($, ["golive", "--sign-up", people === "invite" ? "no" : "yes", ...(emailsOn ? ["--confirm-email", people === "confirm" ? "yes" : "no"] : [])])}\`, then tell me what changed and how to put it live.`,
-                ),
-              )
-            }
-          >
-            Go live
-          </Button>
-        </Box>
-      );
-    } else if (nextStep?.id === "domain" && !publishedSinceLive) {
-      // Right after going live, one thing only: Publish puts it there.
-      moveControls = (
-        <Text>
-          First, Publish (in the Clodable bar): it puts your app live at{" "}
-          {move?.site?.url ?? "its new address"}.
-        </Text>
-      );
-    } else if (nextStep?.id === "domain" && move?.domain) {
-      const records: any[] = move.domain.records ?? [];
-      moveControls = (
-        <Box flexDirection="column" rowGap={1}>
-          <Text>
-            Where you manage {move.domain.name} (where you bought it), replace the records that
-            point to Lovable with {records.length === 1 ? "this one" : "these"}. They can take a few
-            minutes to show, sometimes a few hours.
-          </Text>
-          {records.map((r, i) => (
-            <Box key={`domain-record-${i}`} flexDirection="column">
-              <Text bold>{r.type}</Text>
-              {copyable($, ui, `domain-record-${i}-name`, "Name ", r.name)}
-              {copyable($, ui, `domain-record-${i}-value`, "Value", r.value)}
-            </Box>
-          ))}
-          <Box flexDirection="row" columnGap={2} alignItems="center">
-            <Button
-              key="move-domain-check"
-              variant="primary"
-              onPress={() =>
-                background(
-                  pilot(
-                    $,
-                    `Moving off Lovable: check whether ${move.domain.name} points to my new site with \`${moveCommand($, ["domain"])}\`, and tell me what's left if it doesn't.`,
-                  ),
-                )
-              }
-            >
-              Check again
-            </Button>
-          </Box>
-        </Box>
-      );
-    } else if (nextStep?.id === "domain") {
-      moveControls = (
-        <Box flexDirection="column" rowGap={1}>
-          <Text>
-            Your app is live at {move?.site ? new URL(move.site.url).host : "its new address"}. Does
-            it have its own domain, like yourapp.com? Clodable moves it to your new site before
-            Lovable goes.
-          </Text>
-          {field(ui, "move-domain", "yourapp.com", "Move it", (v) => {
-            const domain = v
-              .trim()
-              .toLowerCase()
-              .replace(/^https?:\/\//, "")
-              .replace(/\/.*$/, "");
-            if (!/^([a-z0-9-]+\.)+[a-z]{2,}$/.test(domain)) {
-              moveError = {
-                message: `“${v.trim()}” isn't a domain name.`,
-                hint: "Just the domain, like yourapp.com.",
-              };
-              $.ui.invalidate("ui.render");
-              return;
-            }
-            background(
-              pilot(
-                $,
-                `Moving off Lovable: move my domain ${domain} to my new site with \`${moveCommand($, ["domain", domain])}\`, then tell me what to change at my domain's provider.`,
-              ),
-            );
-          })}
-          <Box flexDirection="row" columnGap={2} alignItems="center" marginTop={1}>
-            <Text>No domain of its own?</Text>
-            <Button
-              key="move-domain-skip"
-              variant="secondary"
-              onPress={() => background(moveStep($, ["domain", "--skip"]))}
-            >
-              Keep this address
-            </Button>
-          </Box>
-        </Box>
-      );
-    } else if (nextStep?.id === "lovable" && move?.signIn?.needed && !move.signIn.at) {
-      // Proof first: the app works on its new home before its old one goes.
-      moveControls = (
-        <Box flexDirection="column" rowGap={1}>
-          <Text>
-            Sign in on your new site with your own account and change something. Lovable's last
-            steps show once Clodable sees you signed in there.
-          </Text>
-          <Box flexDirection="row" columnGap={2} alignItems="center">
-            <Link href={liveAddress} label="Open your site ↗" />
-            <Button
-              key="move-signed-in"
-              variant="secondary"
-              onPress={() => background(checkSignIn($))}
-            >
-              I've signed in
-            </Button>
-          </Box>
-        </Box>
-      );
-    } else if (nextStep?.id === "lovable") {
-      const signedIn = move?.signIn?.at as string | undefined;
-      const message = move?.signIn?.needed
-        ? `We've moved ${s.project} to ${liveAddress}. Sign in with your usual email and password: nothing else changes.`
-        : `We've moved ${s.project} to ${liveAddress}.`;
-      moveControls = (
-        <Box flexDirection="column" rowGap={1}>
-          {signedIn ? (
-            <Text color="success">✓ You signed in on your new site, {ago(signedIn, now)}.</Text>
-          ) : null}
-          <Text>Now finish in Lovable, in this order:</Text>
-          <Box flexDirection="column">
-            <Text>
-              1. Unpublish your app (More → Settings → General → Unpublish project), so nobody keeps
-              using its Lovable address.
-            </Text>
-            <Text>
-              2. More → Settings → Git → GitHub → Disconnect, so Lovable stops changing your code.
-            </Text>
-            <Text>
-              3. More → Cloud → Overview → Advanced settings → Remove Lovable Cloud. Tick both boxes
-              and type your project's name. This deletes Lovable's copy of your data, for good.
-            </Text>
-          </Box>
-          <Box flexDirection="row" columnGap={2} alignItems="center">
-            <Button key="move-finished" variant="primary" onPress={() => background(finishMove($))}>
-              I've done it
-            </Button>
-            {s.lovableUrl ? <Link href={s.lovableUrl} label="Open Lovable ↗" /> : null}
-          </Box>
-          <Box flexDirection="column" rowGap={1} marginTop={1}>
-            <Text dimColor>A message for your users, if you'd like one:</Text>
-            <Box flexDirection="row" columnGap={1} alignItems="center">
-              <Text>{message}</Text>
-              <Button
-                key="move-users-message-copy"
-                plain
-                onPress={() => $.ui.copy({ text: message })}
-              >
-                Copy
-              </Button>
-            </Box>
-          </Box>
-        </Box>
-      );
-    } else if (move && moveSteps.length > 0) {
-      moveControls = (
-        <Text>
-          Your app is off Lovable: it runs on your own Supabase and Netlify, and each Publish
-          updates it.
-        </Text>
-      );
-    }
+    const moveControls = moveControlsFor($, { ui, s, step: nextStep, now });
     const moveErrorBlock = moveError ? (
       <Box flexDirection="column">
         <Text color="error">{moveError.message}</Text>
@@ -3197,7 +1934,7 @@ export const register: Register = (on) => {
         : null;
 
     // The settings the app's server code reads, missing on this computer or on the site.
-    const settingsBox = settingsFields("app-setting", s.backend === "lovable-cloud");
+    const settingsBox = settingsFields($, ui, "app-setting", s.backend === "lovable-cloud");
     const settingsCard = settingsBox
       ? card(ui, <Text bold>Your app's settings</Text>, settingsBox as never)
       : null;
@@ -3922,6 +2659,1279 @@ function whereQuestion(
         ))}
       </Box>
       <Text dimColor>{hint}</Text>
+    </Box>
+  );
+}
+
+// ── The move off Lovable, one function per step (top level, so they can use $) ──
+
+/** What a step of the move draws with, besides the module's own state. */
+type MoveView = { ui: PaneUi; s: ClodableStatus; step: any; now: number };
+
+/** How the app moves: as chosen in the panel a moment ago, or as the move recorded it. */
+function moveMethod(): "careful" | "quick" | undefined {
+  return choosingMethod ?? move?.method;
+}
+
+/** The controls under the move's current step; with no step left, where the move ended. */
+function moveControlsFor($: EngineInterface, view: MoveView): RenderElement | null {
+  const { Text } = view.ui;
+  if (isPiloting()) return <Text dimColor>Claude is on it, in the conversation.</Text>;
+  if (moveRun) {
+    return (
+      <Text>
+        ◐ {moveRun.title}…{moveRun.detail ? `  · ${moveRun.detail}` : ""}
+      </Text>
+    );
+  }
+  if (!view.step) {
+    return (move?.steps ?? []).length > 0 ? (
+      <Text>
+        Your app is off Lovable: it runs on your own Supabase and Netlify, and each Publish updates
+        it.
+      </Text>
+    ) : null;
+  }
+  switch (view.step.id) {
+    case "connect":
+      return connectStep($, view);
+    case "create":
+      return createStep($, view);
+    case "export":
+      return exportStep($, view);
+    case "copy":
+      return copyStep($, view);
+    case "files":
+      return filesStep($, view);
+    case "functions":
+      return functionsStep($, view);
+    case "try":
+      return tryStep($, view);
+    case "netlify":
+      return netlifyStep($, view);
+    case "site":
+      return siteStep($, view);
+    case "emails":
+      return emailsStep($, view);
+    case "services":
+      return servicesStep($, view);
+    case "google":
+      return googleStep($, view);
+    case "freeze":
+      return freezeStep($, view);
+    case "final-export":
+      return finalExportStep($, view);
+    case "final-copy":
+      return finalCopyStep($, view);
+    case "golive":
+      return goLiveStep($, view);
+    case "domain":
+      return domainStep($, view);
+    case "lovable":
+      return lovableStep($, view);
+    default:
+      return null;
+  }
+}
+
+/** Supabase: an access token that can create the new backend and copy the data into it. */
+function connectStep($: EngineInterface, { ui }: MoveView) {
+  const { Box, Text, Button, Link } = ui;
+  return (
+    <Box flexDirection="column" rowGap={1}>
+      <Text>
+        Your data goes to Supabase, under your own account (free to start). Clodable needs an access
+        token that can create your new backend and copy your data into it.
+      </Text>
+      {numbered(ui, [
+        "Open Supabase's token page.",
+        "Click “Create legacy token”: the full-access kind.",
+        "Name it Clodable, choose the longest expiry it offers, and generate it. Clodable uses it after the move too, for changes to your database.",
+        "Paste it here. It stays on this computer.",
+      ])}
+      <Link
+        href="https://supabase.com/dashboard/account/tokens"
+        label="Open Supabase's token page ↗"
+      />
+      {field(ui, "move-token", "sbp_…", "Connect", (value) =>
+        background(moveWith($, ["connect"], value)),
+      )}
+      {showPermissions ? (
+        <Box flexDirection="column">
+          <Text dimColor>
+            A narrower token works too: choose Organization access, your organization, and these
+            permissions.
+          </Text>
+          {((move?.tokenPermissions ?? []) as string[]).map((permission) => (
+            <Text dimColor>· {permission}</Text>
+          ))}
+        </Box>
+      ) : (
+        <Button
+          key="move-narrower"
+          plain
+          onPress={() => {
+            showPermissions = true;
+            $.ui.invalidate("ui.render");
+          }}
+        >
+          Prefer a narrower token?
+        </Button>
+      )}
+      <Text dimColor>Once the move is done, delete the token in Supabase.</Text>
+    </Box>
+  );
+}
+
+/** Supabase: where the new backend goes (organization, region), then Claude creates it. */
+function createStep($: EngineInterface, { ui }: MoveView) {
+  const { Box, Text, Button, Select } = ui;
+  if (moveChoices === null) return <Text dimColor>Looking at your Supabase account…</Text>;
+  const orgs: any[] = moveChoices.organizations ?? [];
+  const org = orgs.find((o) => o.slug === moveOrg) ?? orgs[0];
+  const request = createRequest($, org, moveChoices, moveOrg, moveRegion);
+  return (
+    <Box flexDirection="column" rowGap={1}>
+      {orgs.length > 1 && Select ? (
+        <Select
+          key="move-org"
+          label="Organization"
+          options={orgs.map((o) => ({ value: o.slug, label: `${o.name} · ${o.cost}` }))}
+          value={moveOrg}
+          onSelect={(value: string) => {
+            moveOrg = value;
+            $.ui.invalidate("ui.render");
+          }}
+        />
+      ) : null}
+      {Select && (moveChoices.regions ?? []).length > 1 ? (
+        <Box flexDirection="column">
+          <Select
+            key="move-region"
+            label="Where it runs"
+            options={moveChoices.regions.map((r: any) => ({ value: r.code, label: r.name }))}
+            value={moveRegion}
+            onSelect={(value: string) => {
+              moveRegion = value;
+              $.ui.invalidate("ui.render");
+            }}
+          />
+          <Text dimColor>
+            Picked from where this computer is. Choose where most of your app's users are: it's
+            faster for them.
+          </Text>
+        </Box>
+      ) : null}
+      {org?.plan === "free" && org?.freeLeft === 0 ? (
+        <Box flexDirection="column" rowGap={1}>
+          <Text color="warning">
+            Supabase runs 2 free projects per person, counted across all your organizations, and you
+            already run{" "}
+            {((moveChoices.freeProjects ?? []) as any[])
+              .map((p) => `${p.name} (${p.organization})`)
+              .join(" and ") || "2"}
+            .
+          </Text>
+          <Text dimColor>
+            Pause one in Supabase (Project settings → Pause project), then check again. Or pick an
+            organization on a paid plan.
+          </Text>
+          {loadingMove ? (
+            <Text dimColor>Checking your Supabase account…</Text>
+          ) : (
+            <Box flexDirection="row" columnGap={2} alignItems="center">
+              <Button
+                key="move-recheck"
+                variant="secondary"
+                onPress={() => background(loadMove($))}
+              >
+                Check again
+              </Button>
+              <Button key="move-create-anyway" plain onPress={() => background(pilot($, request))}>
+                Try anyway
+              </Button>
+            </Box>
+          )}
+        </Box>
+      ) : (
+        <Box flexDirection="row" columnGap={2} alignItems="center">
+          {pilotButton($, ui, "move-create", "Create it", request)}
+          <Text dimColor>{org?.cost ?? ""}</Text>
+        </Box>
+      )}
+    </Box>
+  );
+}
+
+/** Lovable: the data export, which Claude reads once the builder has downloaded it. */
+function exportStep($: EngineInterface, { ui, s }: MoveView) {
+  const { Box, Text } = ui;
+  return (
+    <Box flexDirection="column" rowGap={1}>
+      {numbered(ui, [
+        ...EXPORT_CLICKS,
+        "Lovable emails you a download link (it's also in Cloud → Storage). Download the zip.",
+      ])}
+      <Box flexDirection="row" columnGap={2} alignItems="center">
+        {pilotButton(
+          $,
+          ui,
+          "move-export",
+          "I've downloaded it",
+          `Moving off Lovable: I've downloaded my Lovable export. Read it with \`${moveCommand($, ["export"])}\` and tell me what's in it.`,
+        )}
+        {openLovable(ui, s)}
+      </Box>
+      <Text dimColor>
+        Clodable finds it in your Downloads. Lovable allows one export a day, while your backend is
+        running.
+      </Text>
+    </Box>
+  );
+}
+
+/** The data copy. Once it's in, the database's encrypted secrets are the step's last part. */
+function copyStep($: EngineInterface, { ui, step }: MoveView) {
+  const { Box, Text } = ui;
+  const again = step.state === "attention";
+  if (!again && (move?.vaultLeft ?? []).length > 0) return vaultSecrets($, ui);
+  return (
+    <Box flexDirection="column" rowGap={1}>
+      {planNote(ui, "data")}
+      {again ? (
+        copyChecks(ui)
+      ) : (
+        <Text dimColor>
+          Your people, tables and settings go into your new backend. Your live app keeps running on
+          Lovable meanwhile.
+        </Text>
+      )}
+      {pilotButton(
+        $,
+        ui,
+        "move-copy",
+        again ? "Copy again" : "Copy my data",
+        `Moving off Lovable: copy my data into my new backend with \`${moveCommand($, ["copy"])}\`, then make sure my app works on it.`,
+      )}
+    </Box>
+  );
+}
+
+/** The database's encrypted secrets, which Lovable can't hand over: pasted one by one. */
+function vaultSecrets($: EngineInterface, ui: PaneUi) {
+  const { Box, Text } = ui;
+  const missing = ((move?.vaultLeft ?? []) as string[]).filter(
+    (name) => !(moveVault?.set ?? []).includes(name),
+  );
+  return (
+    <Box flexDirection="column" rowGap={1}>
+      <Text>
+        Your database keeps {plural(missing.length, "secret")} Lovable can't hand over (they're
+        encrypted). In Lovable, open More → Cloud → SQL editor, run this, then paste each value
+        here. It goes straight into your new backend.
+      </Text>
+      {moveVault?.query ? (
+        sqlBlock($, ui, "move-vault-query", moveVault.query)
+      ) : (
+        <Text dimColor>…</Text>
+      )}
+      {missing.map((name) =>
+        pasteField(ui, `move-vault-${name}`, name, (value) =>
+          background(moveWith($, ["vault-secret", name], value)),
+        ),
+      )}
+      {goOnWithout($, ui, "move-vault-skip", "vault", missing.length)}
+    </Box>
+  );
+}
+
+/** The uploaded files, copied as they are; private folders need Lovable Cloud's key once. */
+function filesStep($: EngineInterface, { ui }: MoveView) {
+  const { Box, Text } = ui;
+  const waiting: string[] = move?.files?.waiting ?? [];
+  if (waiting.length === 0) {
+    return (
+      <Box flexDirection="column" rowGap={1}>
+        <Text dimColor>The images and documents people uploaded, copied as they are.</Text>
+        {planNote(ui, "files")}
+        {(move?.files?.tooBig ?? 0) > 0 ? (
+          <Text color="warning">
+            {plural(move.files.tooBig, "file")} are larger than your Supabase plan accepts.
+          </Text>
+        ) : null}
+        {pilotButton(
+          $,
+          ui,
+          "move-files",
+          move?.files ? "Copy the rest" : "Copy my files",
+          `Moving off Lovable: copy my uploaded files to my new backend with \`${moveCommand($, ["files"])}\`.`,
+        )}
+      </Box>
+    );
+  }
+  if (!move?.vaultKey) {
+    return (
+      <Text>
+        Your private folders ({waiting.join(", ")}) can't be copied on their own yet: download those
+        files in Lovable (More → Cloud → Storage) and upload them in Supabase, or ask a developer.
+      </Text>
+    );
+  }
+  return (
+    <Box flexDirection="column" rowGap={1}>
+      <Text>
+        Your private folders ({waiting.join(", ")}) need Lovable Cloud's service key, to read them
+        once.
+      </Text>
+      <Text dimColor>
+        In Lovable, run this query (or ask Lovable's chat to run it), then paste the result here.
+        It's used for this copy only and never saved.
+      </Text>
+      {sqlBlock($, ui, "move-service-key-query", SERVICE_KEY_QUERY)}
+      {field(ui, "move-source-key", "eyJ…", "Copy them", (value) =>
+        background(moveWith($, ["files", "--private"], value)),
+      )}
+    </Box>
+  );
+}
+
+/** The backend functions, deployed together. Then the secret keys they read. */
+function functionsStep($: EngineInterface, { ui, step }: MoveView) {
+  const { Box, Text } = ui;
+  const again = step.state === "attention";
+  if (!again && (move?.secretsLeft ?? []).length > 0) {
+    const missing = ((move?.secretsLeft ?? []) as string[]).filter(
+      (name) => !(moveSecrets?.set ?? []).includes(name),
+    );
+    return (
+      <Box flexDirection="column" rowGap={1}>
+        {missing.length > 0 ? (
+          <Text>
+            Your functions use {plural(missing.length, "secret key")}. Paste each value from the
+            service it belongs to (Lovable doesn't show them). They go straight to Supabase.
+          </Text>
+        ) : null}
+        {missing.map((name) =>
+          pasteField(ui, `move-secret-${name}`, name, (value) =>
+            background(moveWith($, ["secret", name], value)),
+          ),
+        )}
+        {goOnWithout($, ui, "move-secrets-skip", "secrets", missing.length)}
+      </Box>
+    );
+  }
+  return (
+    <Box flexDirection="column" rowGap={1}>
+      <Text dimColor>
+        Your {plural(move?.functions ?? 0, "backend function")} go to your new backend, all
+        together.
+      </Text>
+      {pilotButton(
+        $,
+        ui,
+        "move-functions",
+        again ? "Deploy them again" : "Deploy my functions",
+        `Moving off Lovable: deploy my backend functions to my new backend with \`${moveCommand($, ["functions"])}\`.`,
+      )}
+    </Box>
+  );
+}
+
+/** The preview on the copy: the builder tries the app on its new backend. */
+function tryStep($: EngineInterface, { ui }: MoveView) {
+  const { Box, Text, Link } = ui;
+  const onCopy =
+    move?.preview === "copy" ? (
+      <Box flexDirection="column" rowGap={1}>
+        <Text>
+          The preview shows your copy: sign in, click around, change things. Your live app is
+          untouched.
+        </Text>
+        <Box flexDirection="row" columnGap={2} alignItems="center">
+          {pilotButton(
+            $,
+            ui,
+            "move-live",
+            "Back to live data",
+            `Switch my preview back to my live data with \`${moveCommand($, ["preview", "live"])}\`.`,
+            "secondary",
+          )}
+          {move?.home ? <Link href={move.home.dashboard} label="Open it in Supabase ↗" /> : null}
+        </Box>
+      </Box>
+    ) : (
+      <Box flexDirection="column" rowGap={1}>
+        <Text dimColor>The preview restarts on your new backend. Your live app is untouched.</Text>
+        {pilotButton(
+          $,
+          ui,
+          "move-try",
+          "Try my app on the copy",
+          `Moving off Lovable: switch my preview to the copy with \`${moveCommand($, ["preview", "copy"])}\`. ${previewRequest(previewUrl)} Then check my app works on it.`,
+        )}
+      </Box>
+    );
+  return (
+    <Box flexDirection="column" rowGap={1}>
+      {settingsFields($, ui, "move-setting", true)}
+      {onCopy}
+    </Box>
+  );
+}
+
+/** Netlify: a token, so each Publish puts the site live there. */
+function netlifyStep($: EngineInterface, { ui }: MoveView) {
+  const { Box, Text, Link } = ui;
+  return (
+    <Box flexDirection="column" rowGap={1}>
+      <Text>
+        Your website moves to Netlify, under your own account (free to start). Each Publish will put
+        it live there; your live app stays on Lovable until the switch.
+      </Text>
+      {numbered(ui, [
+        "Open Netlify's token page.",
+        "Create a personal access token named Clodable.",
+        "Paste it here. It stays on this computer.",
+      ])}
+      <Link
+        href="https://app.netlify.com/user/applications#personal-access-tokens"
+        label="Open Netlify's token page ↗"
+      />
+      {field(ui, "move-netlify-token", "Netlify token", "Connect", (value) =>
+        background(moveWith($, ["netlify"], value)),
+      )}
+    </Box>
+  );
+}
+
+/** The site on Netlify. Once it's there, the settings its server code reads are the last part. */
+function siteStep($: EngineInterface, { ui }: MoveView) {
+  const { Box, Text, Select } = ui;
+  const settingsLeft: string[] = move?.settingsLeft ?? [];
+  if (settingsLeft.length > 0) {
+    return (
+      <Box flexDirection="column" rowGap={1}>
+        {settingsFields($, ui, "move-setting", true)}
+        {goOnWithout($, ui, "move-settings-skip", "settings", settingsLeft.length)}
+      </Box>
+    );
+  }
+  const teams = moveTeams ?? [];
+  return (
+    <Box flexDirection="column" rowGap={1}>
+      <Text dimColor>
+        Clodable creates the site, points it at your new backend, and sets up Publish to put it live
+        on Netlify through GitHub.
+      </Text>
+      {teams.length > 1 && Select ? (
+        <Select
+          key="move-team"
+          label="Netlify team"
+          options={teams.map((t) => ({ value: t.slug, label: t.name }))}
+          value={moveTeam}
+          onSelect={(value: string) => {
+            moveTeam = value;
+            $.ui.invalidate("ui.render");
+          }}
+        />
+      ) : null}
+      {pilotButton(
+        $,
+        ui,
+        "move-site",
+        "Put my site on Netlify",
+        `Moving off Lovable: put my site on Netlify with \`${moveCommand($, ["site", ...(moveTeam ? ["--account", moveTeam] : [])])}\`, then tell me what's left before I can see it there.`,
+      )}
+    </Box>
+  );
+}
+
+/** Sign-up and password emails from the builder's own domain: a Resend key, a domain, records. */
+function emailsStep($: EngineInterface, { ui }: MoveView) {
+  const { Box, Text, Link } = ui;
+  if (!move?.resend) {
+    return (
+      <Box flexDirection="column" rowGap={1}>
+        <Text>
+          Clodable sends your users' sign-up confirmations and password resets from your own domain
+          (like yourapp.com), through your Resend account.
+        </Text>
+        {numbered(ui, [
+          "Sign in to Resend, or sign up (it's free to start).",
+          "API Keys → Create API Key, with Full access.",
+          "Paste the key here. It stays on this computer.",
+        ])}
+        <Link href="https://resend.com/api-keys" label="Open Resend's keys page ↗" />
+        {field(ui, "move-resend-key", "re_…", "Connect", (value) =>
+          background(moveWith($, ["resend"], value)),
+        )}
+        {noEmails($, ui, "No domain of your own yet?")}
+      </Box>
+    );
+  }
+  if (!move.emails) {
+    return (
+      <Box flexDirection="column" rowGap={1}>
+        <Text>
+          Which domain should your emails come from? One you own, like example.com: they'll come
+          from no-reply@ that domain.
+        </Text>
+        {domainField($, ui, "move-email-domain", "example.com", "Set it up", true, (domain) =>
+          background(
+            pilot(
+              $,
+              `Moving off Lovable: set up emails for my users from ${domain} with \`${moveCommand($, ["emails", "--domain", domain])}\`, then tell me what to do at my domain's provider.`,
+            ),
+          ),
+        )}
+        {noEmails($, ui, "No domain of your own yet?")}
+      </Box>
+    );
+  }
+  const records: any[] = move.emails.records ?? [];
+  return (
+    <Box flexDirection="column" rowGap={1}>
+      <Text>
+        Add {records.length === 1 ? "this record" : `these ${records.length} records`} where you
+        manage {move.emails.domain} (where you bought it: Namecheap, GoDaddy, Cloudflare…). They can
+        take a few minutes to show, sometimes a few hours.
+      </Text>
+      {dnsRecords($, ui, "record", records)}
+      <Box flexDirection="row" columnGap={2} alignItems="center">
+        {pilotButton(
+          $,
+          ui,
+          "move-emails-check",
+          "Check again",
+          `Moving off Lovable: check whether ${move.emails.domain}'s email records are in place with \`${moveCommand($, ["emails"])}\`, and finish setting up my emails if they are.`,
+        )}
+      </Box>
+      {noEmails($, ui, "Rather do this later?")}
+    </Box>
+  );
+}
+
+/** Said in each request that switches a service: the app keeps working on Lovable until the end. */
+const KEEP_LOVABLE_WORKING =
+  "Keep Lovable's as the fallback when that key isn't set, so my app keeps working on Lovable until the switch.";
+
+/** The services the app reaches through Lovable (AI, its own emails, connectors), one at a time. */
+function servicesStep($: EngineInterface, { ui }: MoveView) {
+  const { Box } = ui;
+  const left: string[] = move?.services?.left ?? [];
+  return (
+    <Box flexDirection="column" rowGap={1}>
+      {serviceToSwitch($, ui)}
+      {left.length > 0
+        ? skipRow($, ui, {
+            key: "move-services-skip",
+            part: "services",
+            question: "Rather not switch now?",
+            label: "Go on without them",
+            cost: `Then ${left.join(", ")} stop working when Lovable goes. Claude can switch them later.`,
+          })
+        : null}
+    </Box>
+  );
+}
+
+/** The next service to switch off Lovable, with what the builder does for it. */
+function serviceToSwitch($: EngineInterface, ui: PaneUi): RenderElement | null {
+  const { Box, Text, Link, Select } = ui;
+  const sv = move?.services;
+  const emailsOn = Boolean(move?.emails?.connected);
+  if (sv?.ai && !sv.aiSwitched && !sv.aiProvider) {
+    const chosen = AI_PROVIDERS[aiChoice];
+    return (
+      <Box flexDirection="column" rowGap={1}>
+        <Text>
+          Your app's AI features run on Lovable's AI, which stops when it leaves. Clodable moves
+          them to an AI provider of your own.
+        </Text>
+        {Select ? (
+          <Select
+            key="move-ai-provider"
+            label="Provider"
+            options={Object.entries(AI_PROVIDERS).map(([value, p]) => ({ value, label: p.label }))}
+            value={aiChoice}
+            onSelect={(value: string) => {
+              aiChoice = value in AI_PROVIDERS ? (value as AiProvider) : "openrouter";
+              $.ui.invalidate("ui.render");
+            }}
+          />
+        ) : null}
+        {numbered(ui, [
+          `Create a key on ${chosen.name}.`,
+          "Paste it here. It goes to your preview, your site and your backend.",
+        ])}
+        <Link href={chosen.keys} label={`Open ${chosen.name}'s keys page ↗`} />
+        {field(ui, "move-ai-key", "Paste the key", "Save", (value) =>
+          background(moveWith($, ["ai", aiChoice], value)),
+        )}
+      </Box>
+    );
+  }
+  if (sv?.ai && !sv.aiSwitched) {
+    const name = AI_PROVIDERS[sv.aiProvider as AiProvider]?.name ?? sv.aiProvider;
+    return (
+      <Box flexDirection="column" rowGap={1}>
+        <Text>Your {name} key is saved. Claude now points your app's AI features at it.</Text>
+        {pilotButton(
+          $,
+          ui,
+          "move-ai-switch",
+          "Switch my AI features",
+          `Moving off Lovable: switch my app's AI features from Lovable's AI to ${name}. Clodable saved AI_API_URL and AI_API_KEY for my preview, my site and my backend functions: make the code call \`\${AI_API_URL}/chat/completions\` with AI_API_KEY (the same OpenAI-style API). ${KEEP_LOVABLE_WORKING} Deploy my backend functions with \`${moveCommand($, ["functions"])}\` if you changed any, then check it works in the preview.`,
+        )}
+      </Box>
+    );
+  }
+  if (sv?.emails && !sv.emailsSwitched && emailsOn) {
+    return (
+      <Box flexDirection="column" rowGap={1}>
+        <Text>
+          Your app sends its own emails through Lovable. Clodable gives it a Resend key of its own,
+          sending from {move?.emails?.sender}, and Claude switches the sending.
+        </Text>
+        {pilotButton(
+          $,
+          ui,
+          "move-app-emails",
+          "Switch my emails",
+          `Moving off Lovable: switch my app's own emails from Lovable to Resend. Run \`${moveCommand($, ["app-emails"])}\`: it gives my app RESEND_API_KEY and EMAIL_FROM. Then make the code send through Resend's API with them. ${KEEP_LOVABLE_WORKING} Deploy my backend functions with \`${moveCommand($, ["functions"])}\`${sv.hook ? `, then turn on my own sign-in emails with \`${moveCommand($, ["emails", "--hook"])}\`` : ""}.`,
+        )}
+      </Box>
+    );
+  }
+  if (sv?.emails && !sv.emailsSwitched) {
+    return (
+      <Text>
+        Your app also sends its own emails through Lovable: they move with your emails, in the step
+        above.
+      </Text>
+    );
+  }
+  if (sv?.hook && emailsOn && !sv.hookOn) {
+    return (
+      <Box flexDirection="column" rowGap={1}>
+        <Text>
+          Your app has its own sign-in emails (from Lovable). Clodable turns them on, so
+          confirmations and password resets look like your app.
+        </Text>
+        {pilotButton(
+          $,
+          ui,
+          "move-email-hook",
+          "Turn on my sign-in emails",
+          `Moving off Lovable: turn on my app's own sign-in emails with \`${moveCommand($, ["emails", "--hook"])}\` (deploy my backend functions with \`${moveCommand($, ["functions"])}\` first if it asks).`,
+        )}
+      </Box>
+    );
+  }
+  const names: string[] = sv?.connectors ?? [];
+  if (names.length === 0) return null;
+  return (
+    <Box flexDirection="column" rowGap={1}>
+      <Text>
+        Your app reaches {names.join(", ")} through Lovable's connectors, which stop when it leaves.
+        Paste your own key for each: it goes to your preview and your site.
+      </Text>
+      {names.map((name) =>
+        pasteField(
+          ui,
+          `move-connector-${name}`,
+          name,
+          (value) => background(saveSetting($, connectorSetting(name), value)),
+          { placeholder: `Your ${name} key` },
+        ),
+      )}
+      {pilotButton(
+        $,
+        ui,
+        "move-connectors",
+        "Switch them",
+        `Moving off Lovable: my app reaches ${names.join(", ")} through Lovable's connectors (connector-gateway.lovable.dev). Switch each to that service's own API, reading its key from ${names.map(connectorSetting).join(", ")} (process.env on the server; tell me where to paste any that's missing). Check it works in the preview.`,
+      )}
+    </Box>
+  );
+}
+
+/** Google sign-in: a Google client of the builder's own, then Claude switches the button. */
+function googleStep($: EngineInterface, { ui }: MoveView) {
+  const { Box, Text, Link } = ui;
+  if (move?.google?.configured) {
+    return (
+      <Box flexDirection="column" rowGap={1}>
+        <Text>
+          Google sign-in is on in your new backend. Claude now switches your app's Google button to
+          it.
+        </Text>
+        {pilotButton(
+          $,
+          ui,
+          "move-google-switch",
+          "Switch my Google sign-in",
+          "Moving off Lovable: my app signs in with Google through Lovable's broker (@lovable.dev/cloud-auth-js), which only works on Lovable. Clodable turned Google on in my new backend and set VITE_GOOGLE_SIGN_IN=supabase for my preview and my site. Make the Google button call supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin } }) when import.meta.env.VITE_GOOGLE_SIGN_IN is 'supabase', and keep Lovable's broker otherwise, so my app keeps working on Lovable until the switch. Check it in the preview.",
+        )}
+      </Box>
+    );
+  }
+  const redirect = move?.google?.redirect as string | undefined;
+  return (
+    <Box flexDirection="column" rowGap={1}>
+      <Text>
+        People sign in to your app with Google. On your new backend that needs a Google client of
+        your own: Clodable turns it on with it.
+      </Text>
+      {numbered(ui, [
+        "In Google Cloud: APIs & Services → Credentials → Create credentials → OAuth client ID → Web application.",
+        "Under Authorized redirect URIs, add this address:",
+      ])}
+      {redirect ? copyable($, ui, "move-google-redirect", "", redirect) : null}
+      <Text>3. Paste the client ID, then its secret, here. The secret stays off the chat.</Text>
+      <Link
+        href="https://console.cloud.google.com/apis/credentials"
+        label="Open Google Cloud's credentials ↗"
+      />
+      {googleClientId
+        ? field(ui, "move-google-secret", "Client secret", "Turn it on", (value) =>
+            background(moveWith($, ["google", googleClientId], value)),
+          )
+        : field(ui, "move-google-id", "…apps.googleusercontent.com", "Next", (value) => {
+            const id = value.trim();
+            if (!/^[\w-]+\.apps\.googleusercontent\.com$/.test(id)) {
+              moveError = {
+                message: "That doesn't look like a Google client ID.",
+                hint: "It ends with .apps.googleusercontent.com.",
+              };
+            } else {
+              googleClientId = id;
+              moveError = null;
+            }
+            $.ui.invalidate("ui.render");
+          })}
+      {skipRow($, ui, {
+        key: "move-google-skip",
+        part: "google",
+        question: "Rather not now?",
+        label: "Leave Google sign-in off",
+      })}
+    </Box>
+  );
+}
+
+/** Going live, part one: the live app pauses, by SQL the builder runs in Lovable. */
+function freezeStep($: EngineInterface, { ui, s, now }: MoveView) {
+  const { Box, Text, Button } = ui;
+  const last = move?.lastExport ? new Date(move.lastExport).getTime() : 0;
+  const nextExport = last + 24 * 60 * 60_000;
+  return (
+    <Box flexDirection="column" rowGap={1}>
+      <Text>
+        Now your live app moves over. It pauses for the few minutes this takes: people still see
+        everything and can sign in; changes, new sign-ups and uploads wait until it runs on your new
+        backend.
+      </Text>
+      {nextExport > now ? (
+        <Text color="warning">
+          Lovable allows one export a day: your next one is possible{" "}
+          {new Date(nextExport).toDateString() === new Date(now).toDateString()
+            ? "after"
+            : "tomorrow after"}{" "}
+          {new Date(nextExport).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}.
+          Pause after that, so the pause stays short.
+        </Text>
+      ) : null}
+      <Text>
+        1. In Lovable, open More → Cloud → SQL editor, paste this and run it. It also stops your
+        app's scheduled jobs there:
+      </Text>
+      {pausePlan ? sqlBlock($, ui, "move-freeze", pausePlan.freeze) : <Text dimColor>…</Text>}
+      <Text>2. Then tell Clodable.</Text>
+      <Box flexDirection="row" columnGap={2} alignItems="center">
+        <Button
+          key="move-paused"
+          variant="primary"
+          onPress={() => background(moveStep($, ["paused"]))}
+        >
+          I've paused it
+        </Button>
+        {openLovable(ui, s)}
+      </Box>
+    </Box>
+  );
+}
+
+/** Going live, part two: the last export, with everything written until the pause. */
+function finalExportStep($: EngineInterface, { ui, s }: MoveView) {
+  const { Box, Text } = ui;
+  return (
+    <Box flexDirection="column" rowGap={1}>
+      <Text>
+        Your live app is paused. Export your data once more: this export has everything people wrote
+        until the pause.
+      </Text>
+      {numbered(ui, [...EXPORT_CLICKS, "Download the zip from the email Lovable sends."])}
+      <Box flexDirection="row" columnGap={2} alignItems="center">
+        {pilotButton(
+          $,
+          ui,
+          "move-final-export",
+          "I've downloaded it",
+          `Moving off Lovable: I've downloaded my final Lovable export, made after the pause. Read it with \`${moveCommand($, ["export"])}\` and tell me what's in it.`,
+        )}
+        {openLovable(ui, s)}
+      </Box>
+      {undoPause($, ui)}
+    </Box>
+  );
+}
+
+/** Going live, part three: the last export replaces the copy, for good. */
+function finalCopyStep($: EngineInterface, { ui, step }: MoveView) {
+  const { Box, Text } = ui;
+  const again = step.state === "attention";
+  const hasFiles = (move?.steps ?? []).some((x: any) => x.id === "files");
+  return (
+    <Box flexDirection="column" rowGap={1}>
+      {again ? (
+        copyChecks(ui)
+      ) : (
+        <Text dimColor>
+          Your data as of the pause replaces the copy (what you tried on it goes), with your app's
+          scheduled jobs. Your new backend then takes changes again.
+        </Text>
+      )}
+      {pilotButton(
+        $,
+        ui,
+        "move-final-copy",
+        again ? "Copy again" : "Copy it in for good",
+        `Moving off Lovable: copy my final export into my new backend for good with \`${moveCommand($, ["copy"])}\`${hasFiles ? `, then copy the files uploaded since with \`${moveCommand($, ["files"])}\`` : ""}, and make sure everything is there.`,
+      )}
+      {undoPause($, ui)}
+    </Box>
+  );
+}
+
+/** Going live: who may sign up, what to change elsewhere (payments, scheduled jobs), then go. */
+function goLiveStep($: EngineInterface, { ui }: MoveView) {
+  const { Box, Text, Select } = ui;
+  const emailsOn = Boolean(move?.emails?.connected);
+  // Without emails, nobody can confirm one: that choice isn't offered.
+  const people = !emailsOn && newPeople === "confirm" ? "open" : newPeople;
+  const jobs = move?.lovableJobs as { count: number; stop: string } | undefined;
+  const webhooks: Array<{ name: string; url: string }> = move?.stripeWebhooks ?? [];
+  return (
+    <Box flexDirection="column" rowGap={1}>
+      <Text dimColor>
+        Clodable points your app's files and its sign-in at your new backend and at{" "}
+        {move?.site?.url ?? "your site"}. Then Publish puts it live.
+      </Text>
+      {Select ? (
+        <Select
+          key="move-new-people"
+          label="New people"
+          options={[
+            ...(emailsOn ? [{ value: "confirm", label: "Sign up, confirming their email" }] : []),
+            { value: "open", label: "Sign up straight away" },
+            { value: "invite", label: "Only people you invite" },
+          ]}
+          value={people}
+          onSelect={(value: string) => {
+            newPeople = value === "invite" ? "invite" : value === "open" ? "open" : "confirm";
+            $.ui.invalidate("ui.render");
+          }}
+        />
+      ) : null}
+      {webhooks.length > 0 ? (
+        <Box flexDirection="column" rowGap={1}>
+          <Text>
+            Your payments: in Stripe → Developers → Webhooks, change your endpoint's address to your
+            new backend when you go live (its signing secret stays the same):
+          </Text>
+          {webhooks.map((w, i) => copyable($, ui, `move-stripe-${i}`, "", w.url))}
+        </Box>
+      ) : null}
+      {jobs ? (
+        <Box flexDirection="column" rowGap={1}>
+          <Text>
+            Your app has {plural(jobs.count, "scheduled job")}: going live starts them here. First
+            stop them in Lovable (More → Cloud → SQL editor), so they don't run twice:
+          </Text>
+          {sqlBlock($, ui, "move-stop-jobs", jobs.stop)}
+        </Box>
+      ) : null}
+      {move?.cronKey ? (
+        <Text>
+          Your scheduled jobs call your app with a key Lovable keeps. Once live, ask Claude to give
+          them one of your own.
+        </Text>
+      ) : null}
+      {moveMethod() === "quick" ? (
+        <Text dimColor>
+          Your data is as of your export
+          {move?.lastExport
+            ? ` (${new Date(move.lastExport).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })})`
+            : ""}
+          . Anything written in your Lovable app since stays there.
+        </Text>
+      ) : null}
+      {pilotButton(
+        $,
+        ui,
+        "move-golive",
+        "Go live",
+        `Moving off Lovable: switch my app to its new backend and site with \`${moveCommand($, ["golive", "--sign-up", people === "invite" ? "no" : "yes", ...(emailsOn ? ["--confirm-email", people === "confirm" ? "yes" : "no"] : [])])}\`, then tell me what changed and how to put it live.`,
+      )}
+    </Box>
+  );
+}
+
+/** The app's own domain, moved to the new site once a Publish has put it there. */
+function domainStep($: EngineInterface, { ui }: MoveView) {
+  const { Box, Text } = ui;
+  const publishedSinceLive = Boolean(
+    move?.site?.liveAt && move.site.liveAt > (move.switch?.liveAt ?? ""),
+  );
+  if (!publishedSinceLive) {
+    // Right after going live, one thing only: Publish puts it there.
+    return (
+      <Text>
+        First, Publish (in the Clodable bar): it puts your app live at{" "}
+        {move?.site?.url ?? "its new address"}.
+      </Text>
+    );
+  }
+  if (move?.domain) {
+    const records: any[] = move.domain.records ?? [];
+    return (
+      <Box flexDirection="column" rowGap={1}>
+        <Text>
+          Where you manage {move.domain.name} (where you bought it), replace the records that point
+          to Lovable with {records.length === 1 ? "this one" : "these"}. They can take a few minutes
+          to show, sometimes a few hours.
+        </Text>
+        {dnsRecords($, ui, "domain-record", records)}
+        <Box flexDirection="row" columnGap={2} alignItems="center">
+          {pilotButton(
+            $,
+            ui,
+            "move-domain-check",
+            "Check again",
+            `Moving off Lovable: check whether ${move.domain.name} points to my new site with \`${moveCommand($, ["domain"])}\`, and tell me what's left if it doesn't.`,
+          )}
+        </Box>
+      </Box>
+    );
+  }
+  return (
+    <Box flexDirection="column" rowGap={1}>
+      <Text>
+        Your app is live at {move?.site ? new URL(move.site.url).host : "its new address"}. Does it
+        have its own domain, like yourapp.com? Clodable moves it to your new site before Lovable
+        goes.
+      </Text>
+      {domainField($, ui, "move-domain", "yourapp.com", "Move it", false, (domain) =>
+        background(
+          pilot(
+            $,
+            `Moving off Lovable: move my domain ${domain} to my new site with \`${moveCommand($, ["domain", domain])}\`, then tell me what to change at my domain's provider.`,
+          ),
+        ),
+      )}
+      {skipRow($, ui, {
+        key: "move-domain-skip",
+        part: "domain",
+        question: "No domain of its own?",
+        label: "Keep this address",
+      })}
+    </Box>
+  );
+}
+
+/** The last clicks in Lovable, once the builder has signed in on the new site. */
+function lovableStep($: EngineInterface, { ui, s, now }: MoveView) {
+  const { Box, Text, Button, Link } = ui;
+  const liveAddress: string =
+    (s.liveUrl && !/lovable\.app/.test(s.liveUrl) ? s.liveUrl : undefined) ??
+    move?.site?.url ??
+    "your new address";
+  if (move?.signIn?.needed && !move.signIn.at) {
+    // Proof first: the app works on its new home before its old one goes.
+    return (
+      <Box flexDirection="column" rowGap={1}>
+        <Text>
+          Sign in on your new site with your own account and change something. Lovable's last steps
+          show once Clodable sees you signed in there.
+        </Text>
+        <Box flexDirection="row" columnGap={2} alignItems="center">
+          <Link href={liveAddress} label="Open your site ↗" />
+          <Button
+            key="move-signed-in"
+            variant="secondary"
+            onPress={() => background(checkSignIn($))}
+          >
+            I've signed in
+          </Button>
+        </Box>
+      </Box>
+    );
+  }
+  const signedIn = move?.signIn?.at as string | undefined;
+  const message = move?.signIn?.needed
+    ? `We've moved ${s.project} to ${liveAddress}. Sign in with your usual email and password: nothing else changes.`
+    : `We've moved ${s.project} to ${liveAddress}.`;
+  return (
+    <Box flexDirection="column" rowGap={1}>
+      {signedIn ? (
+        <Text color="success">✓ You signed in on your new site, {ago(signedIn, now)}.</Text>
+      ) : null}
+      <Text>Now finish in Lovable, in this order:</Text>
+      {numbered(ui, [
+        "Unpublish your app (More → Settings → General → Unpublish project), so nobody keeps using its Lovable address.",
+        "More → Settings → Git → GitHub → Disconnect, so Lovable stops changing your code.",
+        "More → Cloud → Overview → Advanced settings → Remove Lovable Cloud. Tick both boxes and type your project's name. This deletes Lovable's copy of your data, for good.",
+      ])}
+      <Box flexDirection="row" columnGap={2} alignItems="center">
+        <Button key="move-finished" variant="primary" onPress={() => background(finishMove($))}>
+          I've done it
+        </Button>
+        {openLovable(ui, s)}
+      </Box>
+      <Box flexDirection="column" rowGap={1} marginTop={1}>
+        <Text dimColor>A message for your users, if you'd like one:</Text>
+        <Box flexDirection="row" columnGap={1} alignItems="center">
+          <Text>{message}</Text>
+          <Button key="move-users-message-copy" plain onPress={() => $.ui.copy({ text: message })}>
+            Copy
+          </Button>
+        </Box>
+      </Box>
+    </Box>
+  );
+}
+
+// The move's shared pieces.
+
+/** A button that hands a part of the move to Claude, as the builder's request. */
+function pilotButton(
+  $: EngineInterface,
+  ui: PaneUi,
+  key: string,
+  label: string,
+  request: string,
+  variant: "primary" | "secondary" = "primary",
+) {
+  const { Button } = ui;
+  return (
+    <Button key={key} variant={variant} onPress={() => background(pilot($, request))}>
+      {label}
+    </Button>
+  );
+}
+
+/** Clicks for the builder to make elsewhere, numbered. */
+function numbered(ui: PaneUi, lines: string[]) {
+  const { Box, Text } = ui;
+  return (
+    <Box flexDirection="column">
+      {lines.map((line, i) => (
+        <Text>{`${i + 1}. ${line}`}</Text>
+      ))}
+    </Box>
+  );
+}
+
+/** The project in Lovable, when its address is known. */
+function openLovable(ui: PaneUi, s: ClodableStatus) {
+  const { Link } = ui;
+  return s.lovableUrl ? <Link href={s.lovableUrl} label="Open Lovable ↗" /> : null;
+}
+
+/** A value only the builder has (a secret key, a setting), pasted under its name. */
+function pasteField(
+  ui: PaneUi,
+  key: string,
+  name: string,
+  save: (value: string) => void,
+  { placeholder = "Paste the value", note }: { placeholder?: string; note?: string } = {},
+) {
+  const { Box, Text } = ui;
+  return (
+    <Box key={`${key}-row`} flexDirection="column">
+      <Text bold>{name}</Text>
+      {note ? <Text dimColor>{note}</Text> : null}
+      {field(ui, key, placeholder, "Save", save)}
+    </Box>
+  );
+}
+
+/** A field for a domain the builder owns. Anything else typed says so, in place. */
+function domainField(
+  $: EngineInterface,
+  ui: PaneUi,
+  key: string,
+  example: string,
+  submit: string,
+  bare: boolean,
+  use: (domain: string) => void,
+) {
+  return field(ui, key, example, submit, (value) => {
+    const domain = typedDomain(value, { bare });
+    if (domain) {
+      use(domain);
+      return;
+    }
+    moveError = {
+      message: `“${value.trim()}” isn't a domain name.`,
+      hint: `Just the domain, like ${example}.`,
+    };
+    $.ui.invalidate("ui.render");
+  });
+}
+
+/** DNS records to add at the domain's provider, each part with its Copy button. */
+function dnsRecords($: EngineInterface, ui: PaneUi, key: string, records: any[]) {
+  const { Box, Text } = ui;
+  return records.map((r, i) => (
+    <Box key={`${key}-${i}`} flexDirection="column">
+      <Text bold>
+        {r.type}
+        {r.priority !== undefined ? `  · priority ${r.priority}` : ""}
+      </Text>
+      {copyable($, ui, `${key}-${i}-name`, "Name ", r.name)}
+      {copyable($, ui, `${key}-${i}-value`, "Value", r.value)}
+    </Box>
+  ));
+}
+
+/** The way past a part of the move the builder can't or won't do now, and what it costs. */
+function skipRow(
+  $: EngineInterface,
+  ui: PaneUi,
+  way: { key: string; part: string; question: string; label: string; cost?: string },
+) {
+  const { Box, Text, Button } = ui;
+  return (
+    <Box flexDirection="column" rowGap={1} marginTop={1}>
+      <Box flexDirection="row" columnGap={2} alignItems="center">
+        <Text>{way.question}</Text>
+        <Button
+          key={way.key}
+          variant="secondary"
+          onPress={() => background(moveStep($, [way.part, "--skip"]))}
+        >
+          {way.label}
+        </Button>
+      </Box>
+      {way.cost ? <Text dimColor>{way.cost}</Text> : null}
+    </Box>
+  );
+}
+
+/** Going on without what's left of a step: the values the builder doesn't have yet. */
+function goOnWithout(
+  $: EngineInterface,
+  ui: PaneUi,
+  key: string,
+  part: "settings" | "secrets" | "vault",
+  count: number,
+) {
+  return skipRow($, ui, {
+    key,
+    part,
+    question: count === 1 ? "Don't have it yet?" : "Don't have them yet?",
+    label: count === 1 ? "Go on without it" : "Go on without them",
+  });
+}
+
+/** Going on without emails of the app's own, and what that costs its users. */
+function noEmails($: EngineInterface, ui: PaneUi, question: string) {
+  return skipRow($, ui, {
+    key: "move-no-emails",
+    part: "emails",
+    question,
+    label: "Continue without emails",
+    cost: "New people then sign in without confirming their email, and nobody can reset a forgotten password. You can add emails later.",
+  });
+}
+
+/** What the copy's checks found, one line each. */
+function copyChecks(ui: PaneUi) {
+  const { Box, Text } = ui;
+  return (
+    <Box flexDirection="column">
+      {(move?.checks ?? []).map((c: any) => (
+        <Text key={`check-${c.id}`} {...(c.ok ? {} : { color: "warning" })}>
+          {c.ok ? "✓" : "!"} {c.label}
+          {c.detail && !c.ok ? `  · ${c.detail}` : ""}
+        </Text>
+      ))}
+    </Box>
+  );
+}
+
+/** Larger than Supabase's free plan holds: said before copying, while upgrading is easy. */
+function planNote(ui: PaneUi, kind: "data" | "files") {
+  const { Box, Text } = ui;
+  const plan = move?.plan as
+    | { data: number; dataLimit: number; files: number; filesLimit: number }
+    | undefined;
+  if (!plan) return null;
+  const limit = kind === "data" ? plan.dataLimit : plan.filesLimit;
+  if (plan[kind] <= limit) return null;
+  return (
+    <Box flexDirection="column">
+      <Text color="warning">
+        Your {kind === "data" ? "data takes about" : "files take"} {sizeOf(plan[kind])}: Supabase's
+        free plan holds {sizeOf(limit)}.
+      </Text>
+      <Text dimColor>
+        Move your organization to Pro first (about $25 a month, in Supabase: Organization settings →
+        Billing), or the copy stops when it's full.
+      </Text>
+    </Box>
+  );
+}
+
+/** While the live app is paused: the SQL that undoes the pause, should the builder change their mind. */
+function undoPause($: EngineInterface, ui: PaneUi) {
+  const { Box, Text } = ui;
+  if (!pausePlan) return null;
+  return (
+    <Box flexDirection="column" rowGap={1}>
+      <Text dimColor>Changed your mind? Run this in Lovable to undo the pause:</Text>
+      {sqlBlock($, ui, "move-undo", pausePlan.undo)}
+    </Box>
+  );
+}
+
+/** The settings the app's server code reads, still to paste: for the preview, and the site. */
+function settingsFields($: EngineInterface, ui: PaneUi, key: string, fromLovable: boolean) {
+  const { Box, Text } = ui;
+  const st = appSettingsStatus;
+  const missing = (st?.wanted ?? []).filter(
+    (name) => !st?.local.includes(name) || (st.site !== undefined && !st.site.includes(name)),
+  );
+  if (missing.length === 0) return null;
+  return (
+    <Box flexDirection="column" rowGap={1}>
+      <Text>
+        Your app's server code reads {plural(missing.length, "setting")} (environment variables).
+        {fromLovable ? " On Lovable they're listed in More → Cloud → Secrets." : ""} Paste each one
+        here: it goes to your preview
+        {st?.site ? " and to your site on Netlify" : ", and stays on this computer"}.
+      </Text>
+      {missing.map((name) =>
+        pasteField(ui, `${key}-${name}`, name, (value) => background(saveSetting($, name, value)), {
+          ...(st?.site?.includes(name)
+            ? {
+                note: "Already on your site. Paste it again for your preview: Netlify keeps it secret.",
+              }
+            : {}),
+        }),
+      )}
     </Box>
   );
 }
