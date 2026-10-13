@@ -111,58 +111,64 @@ export class Toolbar {
   }
 
   private draw() {
-    if (this.surface === "outer") {
-      this.dockSlot.replaceChildren();
-      const params = new URLSearchParams(location.search);
-      const { width, height } = SCREENS[this.device === "tablet" ? "tablet" : "phone"];
-      const size =
-        params.get("landscape") === "1" ? `${height} × ${width}` : `${width} × ${height}`;
-      this.layer.replaceChildren(
-        this.hover.box,
-        this.hover.chip,
-        this.active.box,
-        this.active.chip,
-        h(
-          "div",
-          { class: "devicebar" },
-          h(
-            "div",
-            { class: "dock", role: "toolbar", "aria-label": "Device preview" },
-            this.deviceSwitch(),
-            h("span", { class: "size", "aria-label": `Screen size ${size}` }, size),
-            h("span", { class: "sep", "aria-hidden": "true" }),
-            h(
-              "button",
-              {
-                class: "icon-btn",
-                "aria-label": "Rotate",
-                title: "Rotate",
-                onclick: () => this.rotate(),
-              },
-              icon("refresh"),
-            ),
-          ),
-        ),
-      );
-      return;
-    }
-    if (this.minimized) {
-      this.hintSlot.replaceChildren();
-      this.dockSlot.replaceChildren(
-        h(
-          "button",
-          {
-            class: "pebble",
-            "data-key": "pebble",
-            "aria-label": "Show Clodable tools",
-            title: "Show Clodable tools (⌥⇧H)",
-            onclick: () => this.setMinimized(false),
-          },
-          this.mark(24),
-        ),
-      );
-      return;
-    }
+    if (this.surface === "outer") this.drawDeviceBar();
+    else if (this.minimized) this.drawPebble();
+    else this.drawDock();
+  }
+
+  /** Around the device frame: the size switch, the screen's size, and Rotate. */
+  private drawDeviceBar() {
+    this.dockSlot.replaceChildren();
+    const params = new URLSearchParams(location.search);
+    const { width, height } = SCREENS[this.device === "tablet" ? "tablet" : "phone"];
+    const size = params.get("landscape") === "1" ? `${height} × ${width}` : `${width} × ${height}`;
+    const dock = h(
+      "div",
+      { class: "dock", role: "toolbar", "aria-label": "Device preview" },
+      this.deviceSwitch(),
+      h("span", { class: "size", "aria-label": `Screen size ${size}` }, size),
+      h("span", { class: "sep", "aria-hidden": "true" }),
+      h(
+        "button",
+        {
+          class: "icon-btn",
+          "aria-label": "Rotate",
+          title: "Rotate",
+          onclick: () => this.rotate(),
+        },
+        icon("refresh"),
+      ),
+    );
+    oneTabStop(dock, this.shadow);
+    this.layer.replaceChildren(
+      this.hover.box,
+      this.hover.chip,
+      this.active.box,
+      this.active.chip,
+      h("div", { class: "devicebar" }, dock),
+    );
+  }
+
+  /** The tools, hidden: one clod in the corner that brings them back. */
+  private drawPebble() {
+    this.hintSlot.replaceChildren();
+    this.dockSlot.replaceChildren(
+      h(
+        "button",
+        {
+          class: "pebble",
+          "data-key": "pebble",
+          "aria-label": "Show Clodable tools",
+          title: "Show Clodable tools (⌥⇧H)",
+          onclick: () => this.setMinimized(false),
+        },
+        this.mark(24),
+      ),
+    );
+  }
+
+  /** The dock: the menu, the two tools, the size switch (on the app itself), and Hide. */
+  private drawDock() {
     const tool = (mode: Mode, iconName: IconName, label: string, key: string) =>
       h(
         "button",
@@ -226,17 +232,7 @@ export class Toolbar {
         icon("minimize"),
       ),
     );
-    // A toolbar is one tab stop; arrow keys move between its buttons (WAI-ARIA toolbar pattern).
-    arrowKeys(dock, this.shadow, "ArrowLeft", "ArrowRight");
-    for (const [i, button] of Array.from(
-      dock.querySelectorAll<HTMLButtonElement>("button"),
-    ).entries()) {
-      button.tabIndex = i === 0 ? 0 : -1;
-      button.addEventListener("focus", () => {
-        for (const other of dock.querySelectorAll<HTMLButtonElement>("button")) other.tabIndex = -1;
-        button.tabIndex = 0;
-      });
-    }
+    oneTabStop(dock, this.shadow);
     this.dockSlot.replaceChildren(dock);
     this.renderHint();
   }
@@ -260,7 +256,8 @@ export class Toolbar {
       h("span", {
         class: "thumb",
         "aria-hidden": "true",
-        style: `transform: translateX(${index * 34}px)`,
+        // One button's width per step: the thumb is as wide as a button.
+        style: `transform: translateX(${index * 100}%)`,
       }),
       ...devices.map(([id, iconName, label]) =>
         h(
@@ -566,8 +563,7 @@ export class Toolbar {
       if (result.ok) {
         // Keep the new words on screen: the app reloads them from the source in a moment.
         editing.node.textContent = keepEdges(editing.before, after);
-        this.active.show(editing.el, "saved");
-        setTimeout(() => this.active.hide(), 900);
+        this.active.fadeOut(editing.el, "saved");
         this.toasts.show("Text updated · saved to your draft");
       } else {
         editing.node.textContent = editing.before;
@@ -823,6 +819,22 @@ export class Toolbar {
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
+
+/**
+ * A toolbar is one tab stop, the button last focused (the first at the start), and arrow keys move
+ * between its buttons: the WAI-ARIA toolbar pattern.
+ */
+function oneTabStop(toolbar: HTMLElement, root: ShadowRoot) {
+  arrowKeys(toolbar, root, "ArrowLeft", "ArrowRight");
+  const buttons = Array.from(toolbar.querySelectorAll<HTMLButtonElement>("button"));
+  for (const [i, button] of buttons.entries()) {
+    button.tabIndex = i === 0 ? 0 : -1;
+    button.addEventListener("focus", () => {
+      for (const other of buttons) other.tabIndex = -1;
+      button.tabIndex = 0;
+    });
+  }
+}
 
 /** Arrow keys move between a group's buttons, round the ends; Home and End jump to them. */
 function arrowKeys(group: HTMLElement, root: ShadowRoot, previous: string, next: string) {

@@ -1,4 +1,4 @@
-import { cssVariables } from "@clodable/design";
+import { cssVariables, z } from "@clodable/design";
 
 /** Everything lives in a shadow root: nothing leaks into the app, and the app's CSS can't reach in. */
 export const styles = `
@@ -8,7 +8,7 @@ ${cssVariables({ selector: ":host" })}
   position: fixed;
   inset: 0;
   pointer-events: none;
-  z-index: 2147483000;
+  z-index: ${z.toolbar};
   font: 13px/18px var(--cl-font-ui);
   color: var(--cl-ink);
   -webkit-font-smoothing: antialiased;

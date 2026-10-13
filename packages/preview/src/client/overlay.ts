@@ -46,6 +46,15 @@ export class Highlight {
     if (!this.frame) this.loop();
   }
 
+  /**
+   * Show the target in `variant`, whose stylesheet animation fades it, and stop following it when
+   * the fade ends. Shown again in another way meanwhile, the fade stops and nothing is hidden.
+   */
+  fadeOut(target: Element, variant: string) {
+    this.show(target, variant);
+    this.box.addEventListener("animationend", () => this.hide(), { once: true });
+  }
+
   hide() {
     this.target = undefined;
     this.box.style.opacity = "0";
