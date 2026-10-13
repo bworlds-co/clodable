@@ -5,7 +5,7 @@ import { textFiles } from "./assess.js";
 import { describeExport } from "./copy.js";
 import { AUTO_VAULT } from "./extras.js";
 import { factsSummary, type RecordedFacts } from "./facts.js";
-import { literal } from "./fixes.js";
+import { EMAIL_QUEUE_KEY, literal } from "./fixes.js";
 import { localFunctions, stripeWebhooks } from "./functions.js";
 import { type GoogleStatus, googleStatus } from "./google.js";
 import { homeSql } from "./home.js";
@@ -173,12 +173,43 @@ async function usesSignIn(root: string): Promise<boolean> {
   );
 }
 
-export async function moveProgress(ws: Workspace): Promise<MoveProgress> {
-  const state = await loadMove(ws.root);
-  const connected = Boolean(await readSecret(SUPABASE_TOKEN));
-  const fns = await localFunctions(ws.root);
-  const functionCount = fns.length;
-  const stripe = await stripeWebhooks(ws.root, fns);
+/** What the move's progress reads besides its own state: this computer, the app's code, its services. */
+interface Surroundings {
+  /** Accounts connected on this computer, for any app: one connected for another counts. */
+  supabase: boolean;
+  netlify: boolean;
+  resend: boolean;
+  /** The app's backend functions, and those that receive Stripe's webhooks. */
+  functions: number;
+  stripe: string[];
+  /** The settings the app's server code reads. */
+  settings: { wanted: string[]; lovable: string[] };
+  services: ServicesStatus;
+  google: GoogleStatus;
+}
+
+async function lookAround(ws: Workspace): Promise<Surroundings> {
+  const functions = await localFunctions(ws.root);
+  return {
+    supabase: Boolean(await readSecret(SUPABASE_TOKEN)),
+    netlify: Boolean(await readSecret(NETLIFY_TOKEN)),
+    resend: Boolean(await readSecret(RESEND_KEY)),
+    functions: functions.length,
+    stripe: await stripeWebhooks(ws.root, functions),
+    settings: await appSettings(ws.root),
+    // Lovable's AI, email API and connectors stop working off Lovable: switched before going live.
+    services: await servicesStatus(ws),
+    // Google sign-in: Lovable's broker only works on Lovable.
+    google: await googleStatus(ws),
+  };
+}
+
+/**
+ * The steps, in order: each done, next (the first that isn't), later, or needing attention. What's
+ * still to do inside a step keeps it open, unless the builder goes on without it; that's returned
+ * too, with how the live app moves.
+ */
+function moveSteps(state: MoveState, around: Surroundings) {
   const steps: MoveStep[] = [];
   const add = (s: Omit<MoveStep, "state">, done: boolean, attention = false) => {
     const before = steps.some((x) => x.state === "next" || x.state === "attention");
@@ -199,8 +230,12 @@ export async function moveProgress(ws: Workspace): Promise<MoveProgress> {
   // Accounts are connected per computer, not per app: one connected for another app shows done.
   const onThisComputer = { detail: "Connected on this computer" };
   add(
-    { id: "connect", title: "Connect your Supabase account", ...(connected ? onThisComputer : {}) },
-    connected,
+    {
+      id: "connect",
+      title: "Connect your Supabase account",
+      ...(around.supabase ? onThisComputer : {}),
+    },
+    around.supabase,
   );
   add(
     {
@@ -260,7 +295,7 @@ export async function moveProgress(ws: Workspace): Promise<MoveProgress> {
     (n) => !(state.secrets ?? []).includes(n),
   );
   const secretsOpen = secretsLeft.length > 0 && !state.skipped?.secrets;
-  if (functionCount > 0) {
+  if (around.functions > 0) {
     add(
       {
         id: "functions",
@@ -292,18 +327,16 @@ export async function moveProgress(ws: Workspace): Promise<MoveProgress> {
       onNewBackend,
     );
   }
-  const netlifyConnected = Boolean(await readSecret(NETLIFY_TOKEN));
   add(
     {
       id: "netlify",
       title: "Connect your Netlify account",
-      ...(netlifyConnected ? onThisComputer : {}),
+      ...(around.netlify ? onThisComputer : {}),
     },
-    netlifyConnected,
+    around.netlify,
   );
-  const { wanted: settingsWanted, lovable: lovableKeys } = await appSettings(ws.root);
   const settingsLeft = state.site
-    ? settingsWanted.filter((n) => !(state.siteSettings ?? []).includes(n))
+    ? around.settings.wanted.filter((n) => !(state.siteSettings ?? []).includes(n))
     : [];
   const settingsOpen = settingsLeft.length > 0 && !state.skipped?.settings;
   add(
@@ -320,15 +353,12 @@ export async function moveProgress(ws: Workspace): Promise<MoveProgress> {
     },
     Boolean(state.site) && !settingsOpen,
   );
-  // Lovable's AI, email API and connectors stop working off Lovable: switched before going live.
-  const services = await servicesStatus(ws);
+  const { services, google } = around;
   const servicesToDo = servicesLeft(
     services,
     Boolean(state.emails?.connectedAt),
     Boolean(state.switch?.noEmailsAt),
   );
-  // Google sign-in: Lovable's broker only works on Lovable.
-  const google = await googleStatus(ws);
   const frozenAt = state.switch?.frozenAt;
   add(
     {
@@ -435,13 +465,34 @@ export async function moveProgress(ws: Workspace): Promise<MoveProgress> {
     Boolean(domain?.name && !domain.readyAt),
   );
   add({ id: "lovable", title: "Finish in Lovable" }, Boolean(state.switch?.finishedAt));
+  return {
+    steps,
+    method,
+    servicesToDo,
+    /** What keeps an open step open, by name. */
+    left: {
+      ...(settingsOpen ? { settingsLeft } : {}),
+      ...(secretsOpen ? { secretsLeft } : {}),
+      ...(vaultOpen ? { vaultLeft } : {}),
+    },
+  };
+}
+
+export async function moveProgress(ws: Workspace): Promise<MoveProgress> {
+  const state = await loadMove(ws.root);
+  const around = await lookAround(ws);
+  const { services, google, stripe } = around;
+  const { steps, method, servicesToDo, left } = moveSteps(state, around);
   // Before Lovable goes: has someone signed in on the new site? (Lovable's steps wait for it.)
   const finishing = Boolean(state.switch?.liveAt && !state.switch.finishedAt);
   const signIn = finishing ? await signInSince(state, state.switch!.liveAt!) : undefined;
+  const plan = planLimits(state);
+  const lastExport = exportTime(state.export?.summary.madeAt);
+  const domain = state.domain;
   return {
     steps,
     ...(usesLovableServices(services) ? { services: { ...services, left: servicesToDo } } : {}),
-    ...(planLimits(state) ? { plan: planLimits(state)! } : {}),
+    ...(plan ? { plan } : {}),
     ...(google.used ? { google } : {}),
     ...(state.home && stripe.length > 0
       ? {
@@ -458,14 +509,12 @@ export async function moveProgress(ws: Workspace): Promise<MoveProgress> {
       ? { domain: { name: domain.name, records: domain.records ?? [] } }
       : {}),
     ...(state.facts ? { facts: state.facts } : {}),
-    ...(settingsOpen ? { settingsLeft } : {}),
-    ...(secretsOpen ? { secretsLeft } : {}),
-    ...(vaultOpen ? { vaultLeft } : {}),
+    ...left,
     ...(!state.switch?.liveAt &&
     (state.facts
       ? state.facts.scheduledJobs.length > 0
       : (state.export?.summary.scheduledJobs.length ?? 0) > 0) &&
-    lovableKeys.some((k) => k.startsWith("LOVABLE_CRON"))
+    around.settings.lovable.some((k) => k.startsWith("LOVABLE_CRON"))
       ? { cronKey: true }
       : {}),
     ...(state.home
@@ -489,9 +538,9 @@ export async function moveProgress(ws: Workspace): Promise<MoveProgress> {
           },
         }
       : {}),
-    vaultKey: Boolean(state.export?.summary.vaultSecrets.includes("email_queue_service_role_key")),
-    functions: functionCount,
-    ...(connected ? {} : { tokenPermissions: MOVE_PERMISSIONS }),
+    vaultKey: Boolean(state.export?.summary.vaultSecrets.includes(EMAIL_QUEUE_KEY)),
+    functions: around.functions,
+    ...(around.supabase ? {} : { tokenPermissions: MOVE_PERMISSIONS }),
     ...(state.site
       ? {
           site: {
@@ -502,7 +551,7 @@ export async function moveProgress(ws: Workspace): Promise<MoveProgress> {
           },
         }
       : {}),
-    resend: Boolean(await readSecret(RESEND_KEY)),
+    resend: around.resend,
     ...(method ? { method } : {}),
     ...(state.emails
       ? {
@@ -540,8 +589,6 @@ export async function moveProgress(ws: Workspace): Promise<MoveProgress> {
           },
         }
       : {}),
-    ...(exportTime(state.export?.summary.madeAt)
-      ? { lastExport: exportTime(state.export?.summary.madeAt)!.toISOString() }
-      : {}),
+    ...(lastExport ? { lastExport: lastExport.toISOString() } : {}),
   };
 }

@@ -2,7 +2,7 @@ import { ClodableError } from "../errors.js";
 import type { Flow } from "../events.js";
 import type { Workspace } from "../workspace.js";
 import { copyFiles, type FilesOutcome } from "./files.js";
-import { literal, setVaultSecret } from "./fixes.js";
+import { EMAIL_QUEUE_KEY, literal, setVaultSecret } from "./fixes.js";
 import {
   type DeployOutcome,
   deployFunctions,
@@ -133,7 +133,7 @@ export async function skipLeftovers(
 }
 
 /** Vault secrets Clodable fills in itself (the email queue's key is the new project's own). */
-export const AUTO_VAULT = new Set(["email_queue_service_role_key"]);
+export const AUTO_VAULT = new Set([EMAIL_QUEUE_KEY]);
 
 /**
  * The database's own secrets (Supabase Vault). They're encrypted with the old project's key, so

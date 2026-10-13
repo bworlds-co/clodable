@@ -245,6 +245,12 @@ export async function repairMigrationHistory(sql: Sql, versions: string[]): Prom
   return Number(after[0]?.n ?? 0) - Number(before[0]?.n ?? 0);
 }
 
+/**
+ * The vault secret Lovable's email queue calls its functions with: the project's own service key,
+ * so Clodable sets it on the copy itself, and it tells that Lovable Cloud's key is in the export.
+ */
+export const EMAIL_QUEUE_KEY = "email_queue_service_role_key";
+
 /** A secret the app keeps in the database's vault, set by name (its value never logged). */
 export async function setVaultSecret(sql: Sql, name: string, value: string): Promise<void> {
   await sql.run(`

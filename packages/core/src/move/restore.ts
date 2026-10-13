@@ -5,6 +5,7 @@ import { BACKUP, type ExportSummary } from "./export.js";
 import {
   alignSequences,
   createQueues,
+  EMAIL_QUEUE_KEY,
   ident,
   type NewKeys,
   removeExportBucket,
@@ -216,10 +217,10 @@ export async function* copyExport(
         : undefined;
     });
   }
-  if (summary.vaultSecrets.includes("email_queue_service_role_key") && target.keys.serviceRole) {
+  if (summary.vaultSecrets.includes(EMAIL_QUEUE_KEY) && target.keys.serviceRole) {
     const key = target.keys.serviceRole;
     await attempt("email queue", async () => {
-      await setVaultSecret(target.sql, "email_queue_service_role_key", key);
+      await setVaultSecret(target.sql, EMAIL_QUEUE_KEY, key);
       return "Gave the email queue its new key";
     });
   }
