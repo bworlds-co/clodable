@@ -50,6 +50,25 @@ export class GhCli implements GitHubAdapter {
     return { installed: true, authenticated: status.exitCode === 0 };
   }
 
+  /** The builder's own repositories (not forks), most recently changed first. */
+  async repositories(limit = 40): Promise<Array<{ name: string; description: string | null }>> {
+    const repos = await this.json<Array<{ nameWithOwner: string; description: string | null }>>([
+      "repo",
+      "list",
+      "--limit",
+      String(limit),
+      "--json",
+      "nameWithOwner,description",
+      "--source",
+    ]);
+    return repos.map((r) => ({ name: r.nameWithOwner, description: r.description }));
+  }
+
+  /** Bring a repository onto this computer, into `target`. */
+  async clone(repo: string, target: string): Promise<void> {
+    await this.gh(["repo", "clone", repo, target], 10 * 60_000);
+  }
+
   async viewer(): Promise<Viewer> {
     const user = await this.json<{ login: string; name: string | null; id: number }>([
       "api",
