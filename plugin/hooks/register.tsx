@@ -13,7 +13,7 @@ import type {
   ClodableStatus,
   ClodableStep,
 } from "../types/index.d.ts";
-import { savingNow, stoppedBy } from "./activity.ts";
+import { justDone, savingNow, stoppedBy } from "./activity.ts";
 import {
   eventReader,
   lastResult,
@@ -67,6 +67,7 @@ import {
   ago,
   describeGroup,
   describeTool,
+  doneTitle,
   fixPrompt,
   hostOf,
   plural,
@@ -74,6 +75,7 @@ import {
   shortReason,
   sqlIsDestructive,
   sqlWrites,
+  stoppedTitle,
   supabaseTool,
   versionName,
 } from "./words.ts";
@@ -1343,6 +1345,7 @@ export const register: Register = (on) => {
     if (e.surface === "desktop" && inApp === true && !previewAsked) background(startPreview($));
     const { Box, Text, Button: drawButton, Link } = $.ui.resolve(e);
     const Button = heldButton(drawButton);
+    const ui = { Text, Button, Link };
     const s = await read($, status);
     const a = await read($, activity);
     const now = Date.now();
@@ -1378,25 +1381,7 @@ export const register: Register = (on) => {
         History
       </Button>
     );
-    // On Desktop, in its own Browser pane; a link would open another window.
-    const preview = !previewUrl ? null : desktop ? (
-      <Button key="preview" variant="secondary" onPress={() => askForPreview($)}>
-        Preview
-      </Button>
-    ) : (
-      <Link key="preview" href={previewUrl} label="Preview ↗" />
-    );
-    // A button that can't be used isn't drawn (Desktop's buttons can't be disabled). While Claude
-    // works on a fix, a quiet note takes its place, so nothing is asked twice.
-    const fixButton = (key: string, conflict: boolean) =>
-      isFixing() ? (
-        <Text dimColor>{conflict ? "Claude is combining…" : "Claude is fixing…"}</Text>
-      ) : (
-        <Button key={key} variant="primary" onPress={() => background(fixIt($))}>
-          {conflict ? "Let Claude combine them" : "Fix it"}
-        </Button>
-      );
-    const site = (url: string) => <Link href={url} label={`${hostOf(url)} ↗`} />;
+    const preview = previewButton($, ui, desktop);
 
     let ours: RenderElement;
     if (a.kind === "publishing" || a.kind === "undoing") {
@@ -1421,13 +1406,13 @@ export const register: Register = (on) => {
           </Button>,
         ],
       );
-    } else if ((a.kind === "published" || a.kind === "undone") && a.at && now - a.at < 120_000) {
+    } else if (justDone(a, now)) {
       ours = bar(
         a.onLovable
           ? [
               dot("success"),
               <Text color="success" bold>
-                {a.kind === "published" ? "Published on GitHub" : "Undone on GitHub"}
+                {doneTitle(a.kind, true)}
               </Text>,
               ...(a.site
                 ? [
@@ -1449,9 +1434,9 @@ export const register: Register = (on) => {
           : [
               dot("success"),
               <Text color="success" bold>
-                {a.kind === "published" ? "You're live" : "Undone. The previous version is live"}
+                {doneTitle(a.kind, false)}
               </Text>,
-              a.url ? site(a.url) : null,
+              a.url ? siteLink(ui, a.url) : null,
             ],
         a.kind === "published"
           ? [
@@ -1466,7 +1451,7 @@ export const register: Register = (on) => {
         [
           <Box flexShrink={0}>
             <Text color={a.error.code === "conflict" ? "warning" : "error"} bold>
-              {a.error.code === "secret-found" ? "Not saved" : "Not published"}
+              {stoppedTitle(a.error.code)}
             </Text>
           </Box>,
           <Text wrap="truncate-end">{shortReason(a.error)}</Text>,
@@ -1475,7 +1460,7 @@ export const register: Register = (on) => {
           <Button key="why" variant="secondary" onPress={() => background(openPane($))}>
             See why
           </Button>,
-          fixButton("fix", a.error.code === "conflict"),
+          fixButton($, ui, "fix", a.error.code === "conflict"),
         ],
       );
     } else if (a.kind === "saving") {
@@ -1507,7 +1492,7 @@ export const register: Register = (on) => {
           </Box>,
           <Text wrap="truncate-end">{shortReason({ code: "conflict", message: "" })}</Text>,
         ],
-        [fixButton("combine", true)],
+        [fixButton($, ui, "combine", true)],
       );
     } else if (s.unpublished.length > 0) {
       ours = bar(
@@ -1532,7 +1517,7 @@ export const register: Register = (on) => {
           dot("success"),
           // Lovable's hosting only shows what was last published in Lovable: say what's certain.
           <Text>{s.hosting === "lovable" ? "Everything is published" : "Everything is live"}</Text>,
-          url ? site(url) : null,
+          url ? siteLink(ui, url) : null,
         ],
         [history, preview],
       );
@@ -1558,7 +1543,7 @@ export const register: Register = (on) => {
       ...("Select" in table ? { Select: table.Select } : {}),
       ...("Input" in table ? { Input: table.Input } : {}),
     };
-    const { Box, Text, Button, Link, Input } = ui;
+    const { Box, Text, Link } = ui;
     const s = await read($, status);
     const a = await read($, activity);
     const doctor = await read($, checks);
@@ -1581,10 +1566,6 @@ export const register: Register = (on) => {
 
     if (versions === null) background(refreshVersions($));
     const desktop = e.surface === "desktop";
-    const url = s.lastPublish?.url ?? s.liveUrl;
-    const warnings = doctor.filter((c) => c.status === "warn" || c.status === "fail");
-
-    const state = stateCard($, ui, s, a, now, desktop);
 
     // Still on Lovable Cloud, or not known yet: the panel is the move and its questions, nothing else.
     if (
@@ -1596,164 +1577,24 @@ export const register: Register = (on) => {
       return movePane($, ui, header, s, now);
     }
 
-    // Just moved off Lovable: from here, the app is changed in this conversation. Until the next
-    // Publish, say so, with the preview one press away.
-    const movedOff =
-      s.movedAt && !(s.lastPublish && s.lastPublish.at > s.movedAt)
-        ? card(
-            ui,
-            <Text bold>Your app is off Lovable</Text>,
-            <Box flexDirection="column" rowGap={1}>
-              <Text dimColor>
-                You change it here now: describe a change in the conversation and watch it in the
-                preview. Publish puts it live{url ? ` at ${hostOf(url)}` : ""}.
-              </Text>
-              <Text dimColor>
-                Backups: Supabase's Pro plan keeps a copy of your data for each of the last 7 days;
-                the free plan doesn't.
-              </Text>
-            </Box>,
-            e.surface === "desktop" && previewUrl
-              ? [
-                  <Button key="moved-preview" variant="secondary" onPress={() => askForPreview($)}>
-                    Show the preview
-                  </Button>,
-                ]
-              : [],
-          )
-        : null;
-
-    // On its own Supabase, with no connection here yet: Claude can't change the database.
-    const databaseCard =
-      s.backend === "supabase" && s.databaseConnected === false
-        ? card(
-            ui,
-            <Text bold>Let Claude change your database</Text>,
-            <Box flexDirection="column" rowGap={1}>
-              <Text dimColor>
-                Connect your Supabase account once: Claude can then add tables and change data, as
-                on Lovable, asking you before each change. The token stays on this computer.
-              </Text>
-              <Link
-                href="https://supabase.com/dashboard/account/tokens"
-                label="Create a token in Supabase ↗"
-              />
-              {Input ? (
-                <Input
-                  key="database-token"
-                  placeholder="sbp_…"
-                  submitLabel="Connect"
-                  value=""
-                  onSubmit={(value: string) => background(connectDatabase($, value))}
-                />
-              ) : null}
-            </Box>,
-          )
-        : null;
-
-    // The settings the app's server code reads, missing on this computer or on the site. Off
-    // Lovable Cloud by now, so not where Lovable lists them.
-    const settingsBox = settingsFields($, ui, "app-setting", false);
-    const settingsCard = settingsBox
-      ? card(ui, <Text bold>Your app's settings</Text>, settingsBox as never)
-      : null;
     if (appSettingsStatus === null && !settingsAsked) {
       settingsAsked = true;
       background(loadSettings($));
     }
-
-    // On Lovable's hosting only: where the last click is.
-    const lovableHosting =
-      s.hosting === "lovable"
-        ? card(
-            ui,
-            <Text bold>Your site goes live from Lovable</Text>,
-            <Text dimColor>
-              After Publish here, click Publish, then Publish changes, in Lovable.
-            </Text>,
-          )
-        : null;
-
-    const draftRows = (versions?.draft ?? []).slice(0, 10);
-    const publishedRows = (versions?.published ?? []).slice(0, Math.max(3, 12 - draftRows.length));
-    const older =
-      (versions?.draft.length ?? 0) -
-      draftRows.length +
-      (versions?.published.length ?? 0) -
-      publishedRows.length;
-
+    const url = s.lastPublish?.url ?? s.liveUrl;
     return (
       <Box flexDirection="column" rowGap={2} paddingX={2} paddingY={1}>
         <Box flexDirection="row" justifyContent="space-between" alignItems="center">
           {header}
-          {url ? <Link href={url} label={`${hostOf(url)} ↗`} /> : null}
+          {url ? siteLink(ui, url) : null}
         </Box>
-
-        {movedOff}
-
-        {databaseCard}
-
-        {settingsCard}
-
-        {state}
-
-        {lovableHosting}
-
-        <Box flexDirection="column">
-          {section(ui, "History")}
-          {versions === null ? (
-            <Text dimColor>Loading…</Text>
-          ) : draftRows.length + publishedRows.length === 0 ? (
-            <Text dimColor>No versions yet.</Text>
-          ) : (
-            <Box flexDirection="column">
-              {draftRows.length > 0 ? <Text dimColor>Not live yet</Text> : null}
-              {draftRows.map((v) => versionRow($, ui, v, desktop, now))}
-              {publishedRows.length > 0 ? <Text dimColor>Published</Text> : null}
-              {publishedRows.map((v) => versionRow($, ui, v, desktop, now))}
-              {older > 0 ? <Text dimColor>and {plural(older, "older version")}</Text> : null}
-            </Box>
-          )}
-        </Box>
-
-        {warnings.length > 0 ? (
-          <Box flexDirection="column">
-            {section(ui, "Worth a look")}
-            {warnings.map((c) => (
-              <Box flexDirection="column">
-                <Text color={c.status === "fail" ? "error" : "warning"}>
-                  ! {c.label}
-                  {c.detail ? ` · ${c.detail}` : ""}
-                </Text>
-                {c.id === "lovable-ai" && c.status === "warn" ? (
-                  // Claude switches it; the key goes in the panel's settings once the code reads it.
-                  <Box flexDirection="row" columnGap={2} alignItems="center">
-                    <Text dimColor> {c.fix}</Text>
-                    {isPiloting() ? null : (
-                      <Button
-                        key="worth-lovable-ai"
-                        variant="secondary"
-                        onPress={() =>
-                          background(
-                            pilot(
-                              $,
-                              "Switch my app's AI features off Lovable's AI to an AI provider of my own (OpenRouter, Google Gemini or OpenAI). Keep the provider's address and model in the code, read the key from a setting named AI_API_KEY that I'll paste in the Clodable panel, and tell me where to create the key.",
-                            ),
-                          )
-                        }
-                      >
-                        Switch it
-                      </Button>
-                    )}
-                  </Box>
-                ) : c.fix ? (
-                  <Text dimColor> {c.fix}</Text>
-                ) : null}
-              </Box>
-            ))}
-          </Box>
-        ) : null}
-
+        {movedOffCard($, ui, s, desktop)}
+        {databaseCard($, ui, s)}
+        {settingsCard($, ui)}
+        {stateCard($, ui, s, a, now, desktop)}
+        {lovableHostingCard(ui, s)}
+        {historySection($, ui, desktop, now)}
+        {warningsSection($, ui, doctor)}
         <Box flexDirection="row" columnGap={1} alignItems="center">
           <Text dimColor>
             Saved to GitHub after every reply. Only Publish changes your live site.
@@ -2123,24 +1964,26 @@ function stateCard(
   desktop: boolean,
 ): RenderElement {
   const { Box, Text, Button, Link, Code } = ui;
+  const steps = <Box flexDirection="column">{a.steps.map((step) => stepLine(ui, step))}</Box>;
   if (a.kind === "publishing" || a.kind === "undoing") {
     return card(
       ui,
       <Text bold>{a.kind === "publishing" ? "Publishing…" : "Undoing…"}</Text>,
       <Text dimColor>Your live site keeps working meanwhile.</Text>,
       [],
-      <Box flexDirection="column">{a.steps.map((step) => stepLine(ui, step))}</Box>,
+      steps,
     );
   }
   if (a.kind === "failed" && a.error) {
+    const error = a.error;
     return card(
       ui,
       <Text color="error" bold>
-        {a.error.code === "secret-found" ? "Not saved" : "Not published"}
+        {stoppedTitle(error.code)}
       </Text>,
-      <Text>{a.error.message}</Text>,
+      <Text>{error.message}</Text>,
       [
-        a.error.details ? (
+        error.details ? (
           <Button
             key="toggle-details"
             variant="secondary"
@@ -2152,38 +1995,22 @@ function stateCard(
             {showDetails ? "Hide details" : "Details"}
           </Button>
         ) : null,
-        isFixing() ? (
-          <Text dimColor>
-            {a.error.code === "conflict" ? "Claude is combining…" : "Claude is fixing…"}
-          </Text>
-        ) : (
-          <Button key="fix" variant="primary" onPress={() => background(fixIt($))}>
-            {a.error.code === "conflict" ? "Let Claude combine them" : "Fix it"}
-          </Button>
-        ),
+        fixButton($, ui, "fix", error.code === "conflict"),
       ],
       <Box flexDirection="column" rowGap={1}>
-        {a.error.hint ? <Text dimColor>{a.error.hint}</Text> : null}
-        {a.steps.length > 0 ? (
-          <Box flexDirection="column">{a.steps.map((step) => stepLine(ui, step))}</Box>
-        ) : null}
-        {showDetails && a.error.details ? (
-          <Code source={a.error.details.slice(0, 6000)} wrap="wrap" />
+        {error.hint ? <Text dimColor>{error.hint}</Text> : null}
+        {a.steps.length > 0 ? steps : null}
+        {showDetails && error.details ? (
+          <Code source={error.details.slice(0, 6000)} wrap="wrap" />
         ) : null}
       </Box>,
     );
   }
-  if ((a.kind === "published" || a.kind === "undone") && a.at && now - a.at < 120_000) {
+  if (justDone(a, now)) {
     return card(
       ui,
       <Text color="success" bold>
-        {a.onLovable
-          ? a.kind === "published"
-            ? "Published on GitHub"
-            : "Undone on GitHub"
-          : a.kind === "published"
-            ? "You're live"
-            : "Undone. The previous version is live"}
+        {doneTitle(a.kind, Boolean(a.onLovable))}
       </Text>,
       a.onLovable ? (
         <Box flexDirection="column">
@@ -2194,7 +2021,7 @@ function stateCard(
           <Link href={a.lovableUrl ?? "https://lovable.dev/projects"} label="Open Lovable ↗" />
         </Box>
       ) : a.url ? (
-        <Link href={a.url} label={`${hostOf(a.url)} ↗`} />
+        siteLink(ui, a.url)
       ) : null,
       a.kind === "published"
         ? [
@@ -2212,15 +2039,7 @@ function stateCard(
         Your draft and the live site changed the same thing
       </Text>,
       <Text dimColor>Claude can combine them and keep both changes.</Text>,
-      [
-        isFixing() ? (
-          <Text dimColor>Claude is combining…</Text>
-        ) : (
-          <Button key="combine" variant="primary" onPress={() => background(fixIt($))}>
-            Let Claude combine them
-          </Button>
-        ),
-      ],
+      [fixButton($, ui, "combine", true)],
     );
   }
   if (s.unpublished.length > 0) {
@@ -2233,13 +2052,7 @@ function stateCard(
           : "Visitors see them once you publish."}
       </Text>,
       [
-        !previewUrl ? null : desktop ? (
-          <Button key="preview" variant="secondary" onPress={() => askForPreview($)}>
-            Preview
-          </Button>
-        ) : (
-          <Link key="preview" href={previewUrl} label="Preview ↗" />
-        ),
+        previewButton($, ui, desktop),
         <Button key="publish" variant="primary" onPress={() => background(publishNow($))}>
           Publish
         </Button>,
@@ -2261,6 +2074,196 @@ function stateCard(
           </Button>,
         ]
       : [],
+  );
+}
+
+/** "Fix it", or while Claude works on it, a quiet note in its place, so nothing is asked twice. */
+function fixButton(
+  $: EngineInterface,
+  ui: Pick<PaneUi, "Text" | "Button">,
+  key: string,
+  conflict: boolean,
+) {
+  const { Text, Button } = ui;
+  // A button that can't be used isn't drawn: Desktop's buttons can't be disabled.
+  if (isFixing()) {
+    return <Text dimColor>{conflict ? "Claude is combining…" : "Claude is fixing…"}</Text>;
+  }
+  return (
+    <Button key={key} variant="primary" onPress={() => background(fixIt($))}>
+      {conflict ? "Let Claude combine them" : "Fix it"}
+    </Button>
+  );
+}
+
+/** The preview, once there is one. On Desktop, in its own Browser pane: a link opens a window. */
+function previewButton($: EngineInterface, ui: Pick<PaneUi, "Button" | "Link">, desktop: boolean) {
+  const { Button, Link } = ui;
+  if (!previewUrl) return null;
+  return desktop ? (
+    <Button key="preview" variant="secondary" onPress={() => askForPreview($)}>
+      Preview
+    </Button>
+  ) : (
+    <Link key="preview" href={previewUrl} label="Preview ↗" />
+  );
+}
+
+/** The live site, by its address. */
+function siteLink(ui: Pick<PaneUi, "Link">, url: string) {
+  const { Link } = ui;
+  return <Link href={url} label={`${hostOf(url)} ↗`} />;
+}
+
+/** Just moved off Lovable: from here, the app changes in this conversation. Until the next Publish. */
+function movedOffCard($: EngineInterface, ui: PaneUi, s: ClodableStatus, desktop: boolean) {
+  const { Box, Text, Button } = ui;
+  if (!s.movedAt || (s.lastPublish && s.lastPublish.at > s.movedAt)) return null;
+  const url = s.lastPublish?.url ?? s.liveUrl;
+  return card(
+    ui,
+    <Text bold>Your app is off Lovable</Text>,
+    <Box flexDirection="column" rowGap={1}>
+      <Text dimColor>
+        You change it here now: describe a change in the conversation and watch it in the preview.
+        Publish puts it live{url ? ` at ${hostOf(url)}` : ""}.
+      </Text>
+      <Text dimColor>
+        Backups: Supabase's Pro plan keeps a copy of your data for each of the last 7 days; the free
+        plan doesn't.
+      </Text>
+    </Box>,
+    desktop && previewUrl
+      ? [
+          <Button key="moved-preview" variant="secondary" onPress={() => askForPreview($)}>
+            Show the preview
+          </Button>,
+        ]
+      : [],
+  );
+}
+
+/** On its own Supabase, with no connection here yet: Claude can't change the database. */
+function databaseCard($: EngineInterface, ui: PaneUi, s: ClodableStatus) {
+  const { Box, Text, Link, Input } = ui;
+  if (s.backend !== "supabase" || s.databaseConnected !== false) return null;
+  return card(
+    ui,
+    <Text bold>Let Claude change your database</Text>,
+    <Box flexDirection="column" rowGap={1}>
+      <Text dimColor>
+        Connect your Supabase account once: Claude can then add tables and change data, as on
+        Lovable, asking you before each change. The token stays on this computer.
+      </Text>
+      <Link
+        href="https://supabase.com/dashboard/account/tokens"
+        label="Create a token in Supabase ↗"
+      />
+      {Input ? (
+        <Input
+          key="database-token"
+          placeholder="sbp_…"
+          submitLabel="Connect"
+          value=""
+          onSubmit={(value: string) => background(connectDatabase($, value))}
+        />
+      ) : null}
+    </Box>,
+  );
+}
+
+/**
+ * The settings the app's server code reads, missing on this computer or on the site. Off Lovable
+ * Cloud by now, so not where Lovable lists them.
+ */
+function settingsCard($: EngineInterface, ui: PaneUi) {
+  const { Text } = ui;
+  const fields = settingsFields($, ui, "app-setting", false);
+  return fields ? card(ui, <Text bold>Your app's settings</Text>, fields) : null;
+}
+
+/** On Lovable's hosting only: where the last click is. */
+function lovableHostingCard(ui: PaneUi, s: ClodableStatus) {
+  const { Text } = ui;
+  if (s.hosting !== "lovable") return null;
+  return card(
+    ui,
+    <Text bold>Your site goes live from Lovable</Text>,
+    <Text dimColor>After Publish here, click Publish, then Publish changes, in Lovable.</Text>,
+  );
+}
+
+/** Every version, newest first: what's not live yet, then what was published. */
+function historySection($: EngineInterface, ui: PaneUi, desktop: boolean, now: number) {
+  const { Box, Text } = ui;
+  const draftRows = (versions?.draft ?? []).slice(0, 10);
+  const publishedRows = (versions?.published ?? []).slice(0, Math.max(3, 12 - draftRows.length));
+  const older =
+    (versions?.draft.length ?? 0) -
+    draftRows.length +
+    (versions?.published.length ?? 0) -
+    publishedRows.length;
+  return (
+    <Box flexDirection="column">
+      {section(ui, "History")}
+      {versions === null ? (
+        <Text dimColor>Loading…</Text>
+      ) : draftRows.length + publishedRows.length === 0 ? (
+        <Text dimColor>No versions yet.</Text>
+      ) : (
+        <Box flexDirection="column">
+          {draftRows.length > 0 ? <Text dimColor>Not live yet</Text> : null}
+          {draftRows.map((v) => versionRow($, ui, v, desktop, now))}
+          {publishedRows.length > 0 ? <Text dimColor>Published</Text> : null}
+          {publishedRows.map((v) => versionRow($, ui, v, desktop, now))}
+          {older > 0 ? <Text dimColor>and {plural(older, "older version")}</Text> : null}
+        </Box>
+      )}
+    </Box>
+  );
+}
+
+/** What `clodable doctor` found worth a look, each with its fix. */
+function warningsSection($: EngineInterface, ui: PaneUi, doctor: ClodableCheck[]) {
+  const { Box, Text, Button } = ui;
+  const warnings = doctor.filter((c) => c.status === "warn" || c.status === "fail");
+  if (warnings.length === 0) return null;
+  return (
+    <Box flexDirection="column">
+      {section(ui, "Worth a look")}
+      {warnings.map((c) => (
+        <Box flexDirection="column">
+          <Text color={c.status === "fail" ? "error" : "warning"}>
+            ! {c.label}
+            {c.detail ? ` · ${c.detail}` : ""}
+          </Text>
+          {c.id === "lovable-ai" && c.status === "warn" ? (
+            // Claude switches it; the key goes in the panel's settings once the code reads it.
+            <Box flexDirection="row" columnGap={2} alignItems="center">
+              <Text dimColor> {c.fix}</Text>
+              {isPiloting() ? null : (
+                <Button
+                  key="worth-lovable-ai"
+                  variant="secondary"
+                  onPress={() =>
+                    background(
+                      pilot(
+                        $,
+                        "Switch my app's AI features off Lovable's AI to an AI provider of my own (OpenRouter, Google Gemini or OpenAI). Keep the provider's address and model in the code, read the key from a setting named AI_API_KEY that I'll paste in the Clodable panel, and tell me where to create the key.",
+                      ),
+                    )
+                  }
+                >
+                  Switch it
+                </Button>
+              )}
+            </Box>
+          ) : c.fix ? (
+            <Text dimColor> {c.fix}</Text>
+          ) : null}
+        </Box>
+      ))}
+    </Box>
   );
 }
 

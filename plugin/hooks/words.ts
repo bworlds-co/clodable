@@ -332,6 +332,16 @@ export function saveMessage(request: string): string {
   return short.charAt(0).toUpperCase() + short.slice(1);
 }
 
+/** What stopped, in two words: a save a secret key held back, or a publish. */
+export const stoppedTitle = (code: string) =>
+  code === "secret-found" ? "Not saved" : "Not published";
+
+/** What a publish or an undo did. On Lovable's hosting, it reached GitHub; Lovable puts it live. */
+export function doneTitle(kind: "published" | "undone", onLovable: boolean): string {
+  if (onLovable) return kind === "published" ? "Published on GitHub" : "Undone on GitHub";
+  return kind === "published" ? "You're live" : "Undone. The previous version is live";
+}
+
 /** Why something stopped, in a few words for the bar. The panel tells the whole story. */
 export function shortReason(error: { code: string; message: string }): string {
   if (error.code === "conflict") return "The live site changed the same text";
