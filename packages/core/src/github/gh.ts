@@ -212,7 +212,7 @@ export class GhCli implements GitHubAdapter {
     if (result.exitCode !== 0) {
       throw ghError(result, {
         code: "unknown",
-        message: `GitHub didn't accept the ${name} secret your site's deploys need.`,
+        message: `GitHub didn't accept the ${name} secret your site needs to publish.`,
         hint: "Check you can change this repository's settings on GitHub, then try again.",
         details: result.stderr.trim().slice(0, 500),
       });

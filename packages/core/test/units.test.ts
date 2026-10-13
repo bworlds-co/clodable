@@ -787,7 +787,7 @@ describe("GitHub through gh", () => {
   it("keeps each call's own words for anything else", async () => {
     await expect(withGh("refused", (gh) => gh.setSecret("X", "y"))).rejects.toMatchObject({
       code: "unknown",
-      message: "GitHub didn't accept the X secret your site's deploys need.",
+      message: "GitHub didn't accept the X secret your site needs to publish.",
     });
     await expect(withGh("refused", (gh) => gh.viewer())).rejects.toMatchObject({
       code: "unknown",
