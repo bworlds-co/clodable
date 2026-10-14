@@ -345,6 +345,32 @@ describe("secret keys", () => {
   });
 });
 
+describe("where the move off Lovable stands", () => {
+  it("says whether the app was made with Lovable, and when a move is under way, then over", async () => {
+    const ws = await sb.ws();
+    let s = await status(ws);
+    expect(s.project.madeWithLovable).toBe(false);
+    expect(s.movingOffLovable).toBeUndefined();
+
+    // A way to move was chosen: the move has started.
+    await sb.write(MOVE_PATH, JSON.stringify({ version: 1, method: "careful" }));
+    s = await status(ws);
+    expect(s.movingOffLovable).toBe(true);
+    expect(s.finishingMove).toBeUndefined();
+
+    const live = { frozenAt: "2026-10-14T09:00:00Z", liveAt: "2026-10-14T09:20:00Z" };
+    await sb.write(MOVE_PATH, JSON.stringify({ version: 1, method: "careful", switch: live }));
+    s = await status(await sb.ws());
+    expect(s).toMatchObject({ movingOffLovable: true, finishingMove: true });
+
+    const over = { ...live, finishedAt: "2026-10-14T10:00:00Z" };
+    await sb.write(MOVE_PATH, JSON.stringify({ version: 1, method: "careful", switch: over }));
+    s = await status(await sb.ws());
+    expect(s.movingOffLovable).toBeUndefined();
+    expect(s.movedAt).toBe("2026-10-14T10:00:00Z");
+  });
+});
+
 describe("apps hosted by Lovable", () => {
   it("publish to GitHub, then say the last click happens in Lovable", async () => {
     const config = JSON.parse(await readFile(join(sb.work, ".clodable/config.json"), "utf8"));
