@@ -587,6 +587,43 @@ describe("after a publish", () => {
   });
 });
 
+describe("undo", () => {
+  test("asks in the bar with Clodable's own buttons, never Desktop's question", async ($, on) => {
+    harness(on, {
+      ...STATUS,
+      lastPublish: { sha: "p9", title: "Menu", at: "2026-10-14T09:00:00Z" },
+    });
+    const asked = answerQuestions(on, "Undo it");
+    const spawned: string[][] = [];
+    on("process.spawn", async function* (_$: unknown, e: { argv: readonly string[] }) {
+      spawned.push(e.argv.slice(2));
+      const data = { sha: "u1", undid: { sha: "p9", title: "Menu" }, deploy: "live" };
+      yield { stream: "stdout", text: `${JSON.stringify({ type: "result", ok: true, data })}\n` };
+      return { value: { code: 0, signal: null } };
+    });
+    await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+    await $.command.run({ command: "undo-publish", args: "" } as never);
+    expect(await bandText($, "desktop", /^Undo “Menu”\?$/)).toBe("Undo “Menu”?");
+    const band = await $.ui.mount({ ...BAND, surface: "desktop" });
+    await band.press({ key: "undo-keep" });
+    await band.unmount();
+    expect(await bandText($, "desktop", /not live yet/)).toBe("2 changes not live yet");
+    expect(spawned).toEqual([]);
+
+    await $.command.run({ command: "undo-publish", args: "" } as never);
+    const again = await $.ui.mount({ ...BAND, surface: "desktop" });
+    for (let i = 0; i < 30 && !(await again.find({ type: "Button", key: "undo-confirm" })); i++) {
+      await again.redraw();
+    }
+    await again.press({ key: "undo-confirm" });
+    await again.unmount();
+    for (let i = 0; i < 30 && spawned.length === 0; i++) await Promise.resolve();
+    expect(spawned[0]?.slice(0, 2)).toEqual(["undo", "--yes"]);
+    expect(await bandText($, "desktop", /Undone/)).toBe("Undone. The previous version is live");
+    expect(asked).toEqual([]);
+  });
+});
+
 describe("a publish that takes a while", () => {
   test("the bar says what the build is doing, and for how long", async ($, on) => {
     harness(on);
@@ -2264,7 +2301,7 @@ describe("every step of the move", () => {
 });
 
 describe("questions about live data", () => {
-  test("Claude's database questions get a plain warning; Clodable's own questions don't", async ($, on) => {
+  test("Claude's database questions get a plain warning", async ($, on) => {
     harness(on);
     await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
     const ask = async (question: string, header: string) => {
@@ -2288,9 +2325,6 @@ describe("questions about live data", () => {
       true,
     );
     expect(await ask("Which color do you prefer for the header?", "Design")).toBe(false);
-    expect(await ask("Undo “Menu”? Changes to your database stay as they are.", "Undo")).toBe(
-      false,
-    );
   });
 });
 
@@ -2416,9 +2450,18 @@ describe("restore", () => {
     }
     expect(await reply.find({ type: "Text", text: "✓ Saved" })).toBeDefined();
     await reply.press({ key: "restore-c4" });
+    // Asked in place, with Clodable's own buttons: Desktop's question would keep its spinner going.
+    let question: any;
+    for (let i = 0; i < 30 && !question; i++) {
+      question = await reply.find({ type: "Text", text: /^Go back to “Make the header blue”\?/ });
+      if (!question) await reply.redraw();
+    }
+    expect(question).toBeDefined();
+    expect(calls.some((c) => c[0] === "restore")).toBe(false);
+    await reply.press({ key: "restore-confirm-c4" });
     for (let i = 0; i < 30 && !calls.some((c) => c[0] === "restore"); i++) await Promise.resolve();
     await reply.unmount();
-    expect(asked[0]).toContain("Make the header blue");
+    expect(asked).toEqual([]);
     expect(calls.find((c) => c[0] === "restore")).toEqual(["restore", "c4", "--json"]);
 
     // A reply that changed nothing gets nothing.
@@ -2468,6 +2511,12 @@ describe("restore", () => {
     expect(await pane.find({ type: "Text", text: "2 changes not live yet" })).toBeDefined();
     expect(await pane.find({ type: "Button", key: "publish" })).toBeDefined();
     await pane.press({ key: "restore-p9" });
+    expect(await pane.find({ type: "Text", text: /^Go back to “Opening hours”\?/ })).toBeDefined();
+    await pane.press({ key: "restore-cancel-p9" });
+    expect(await pane.find({ type: "Text", text: /^Go back to/ })).toBeUndefined();
+    expect(await pane.find({ type: "Button", key: "restore-p9" })).toBeDefined();
+    await pane.press({ key: "restore-p9" });
+    await pane.press({ key: "restore-confirm-p9" });
     for (let i = 0; i < 30 && !calls.some((c) => c[0] === "restore"); i++) await Promise.resolve();
     await pane.unmount();
     expect(calls.find((c) => c[0] === "restore")).toEqual(["restore", "p9", "--json"]);

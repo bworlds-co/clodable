@@ -143,6 +143,14 @@ const LOGO =
 // Module state: lost on hot reload, and that's fine for all of these.
 let cwd = "";
 let showDetails = false;
+/**
+ * Undo or a Restore, waiting for the builder's yes, asked in Clodable's own buttons where they
+ * pressed. Desktop's question (`$.ui.ask`) showed its "working" spinner until the work was done.
+ */
+let confirming:
+  | { kind: "undo"; title: string }
+  | { kind: "restore"; sha: string; name: string }
+  | null = null;
 let repoChoices: Array<{ value: string; label: string }> = [];
 let chosenRepo = "";
 let deviceCode = "";
@@ -448,6 +456,7 @@ async function publishNow($: EngineInterface) {
   const a = await read($, activity);
   if (a.kind === "publishing" || a.kind === "undoing") return;
   showDetails = false;
+  confirming = null;
   const result = await flow($, ["publish"], "publishing");
   if (result.ok) {
     const data = result.data ?? {};
@@ -497,22 +506,35 @@ function sayDoneUntil($: EngineInterface, at: number) {
   });
 }
 
-async function undoNow($: EngineInterface) {
+/** Undo the last publish asks first, in the bar and the panel. */
+async function askUndo($: EngineInterface) {
+  const a = await read($, activity);
+  if (a.kind === "publishing" || a.kind === "undoing") return;
   const s = await read($, status);
   const title = s?.ready && s.lastPublish ? s.lastPublish.title : "your last publish";
-  let answer: string;
-  try {
-    answer = await $.ui.ask(
-      `Undo “${title}”? The previous version goes live again. Changes to your database stay as they are.`,
-      {
-        options: ["Undo it", "Keep it live"],
-        header: "Undo",
-      },
-    );
-  } catch {
+  confirming = { kind: "undo", title };
+  $.ui.invalidate("ui.render");
+}
+
+/** Restore a version asks first, on its line. */
+async function askRestore($: EngineInterface, sha: string, name: string) {
+  if (turnActive) {
+    $.ui.toast("Claude is still working. Restore once it's done.");
     return;
   }
-  if (answer !== "Undo it") return;
+  const a = await read($, activity);
+  if (a.kind === "publishing" || a.kind === "undoing" || a.kind === "saving") return;
+  confirming = { kind: "restore", sha, name };
+  $.ui.invalidate("ui.render");
+}
+
+/** The builder's answer to what was asked: nothing more is asked. */
+function answered($: EngineInterface) {
+  confirming = null;
+  $.ui.invalidate("ui.render");
+}
+
+async function undoNow($: EngineInterface, title: string) {
   const result = await flow($, ["undo", "--yes"], "undoing");
   if (result.ok) {
     const onLovable = result.data?.deploy === "lovable";
@@ -867,23 +889,13 @@ async function refreshVersions($: EngineInterface) {
 }
 
 /** Bring back an earlier version as a new save. Nothing is erased, and nothing goes live. */
-async function restoreVersion($: EngineInterface, sha: string, subject: string) {
+async function restoreNow($: EngineInterface, sha: string) {
   if (turnActive) {
     $.ui.toast("Claude is still working. Restore once it's done.");
     return;
   }
   const a = await read($, activity);
   if (a.kind === "publishing" || a.kind === "undoing" || a.kind === "saving") return;
-  let answer: string;
-  try {
-    answer = await $.ui.ask(
-      `Go back to “${subject}”? Your current version stays in the history, so you can come back to it. Your live site and your data don't change.`,
-      { options: ["Restore", "Cancel"], header: "Restore" },
-    );
-  } catch {
-    return;
-  }
-  if (answer !== "Restore") return;
   await update<ClodableActivity>($, activity, savingNow);
   const result = await cli($, ["restore", sha]);
   await update<ClodableActivity>($, activity, (x) =>
@@ -1131,7 +1143,7 @@ export const register: Register = (on) => {
   });
 
   on("command.run", { command: "undo-publish" }, async ($) => {
-    if (await isApp()) background(undoNow($));
+    if (await isApp()) await askUndo($);
     else await openPane($);
     return {};
   });
@@ -1546,11 +1558,13 @@ export const register: Register = (on) => {
         {engine}
         <Box flexDirection="row" columnGap={2} alignItems="center">
           <Text dimColor>✓ Saved</Text>
-          {current ? null : (
+          {current ? null : confirming?.kind === "restore" && confirming.sha === save.sha ? (
+            restoreQuestion($, { Box, Text, Button }, save.sha, confirming.name)
+          ) : (
             <Button
               key={`restore-${save.sha}`}
               plain
-              onPress={() => background(restoreVersion($, save.sha, save.subject))}
+              onPress={() => background(askRestore($, save.sha, save.subject))}
             >
               ↶ Restore this version
             </Button>
@@ -1572,9 +1586,6 @@ export const register: Register = (on) => {
     if (!(await isApp())) return next(e);
     const questions = (e.props.questions ?? []) as Array<{ header?: string; question?: string }>;
     const engine = await next(e);
-    // Clodable's own questions (Undo) already say what they do.
-    if (questions.some((q) => ["Undo", "Restore", "Clodable"].includes(q.header ?? "")))
-      return engine;
     const text = questions.map((q) => q.question ?? "").join(" ");
     const aboutData = /\b(database|live data|table|column|rows?|row-level|supabase)\b/i.test(text);
     const changing =
@@ -1620,8 +1631,22 @@ function barSides(
     </Button>
   );
   const preview = previewButton($, ui, desktop);
+  const busy = a.kind === "publishing" || a.kind === "undoing";
 
-  if (a.kind === "publishing" || a.kind === "undoing") {
+  if (confirming?.kind === "undo" && !busy) {
+    return {
+      left: [
+        <Box flexShrink={0}>
+          <Text bold>Undo “{confirming.title}”?</Text>
+        </Box>,
+        <Text dimColor wrap="truncate-end">
+          {UNDO_MEANS}
+        </Text>,
+      ],
+      right: undoAnswers($, ui),
+    };
+  }
+  if (busy) {
     const running = [...a.steps].reverse().find((x) => x.state === "running");
     const last = a.steps[a.steps.length - 1];
     return {
@@ -1648,7 +1673,7 @@ function barSides(
     const undo =
       a.kind === "published"
         ? [
-            <Button key="undo" variant="secondary" onPress={() => background(undoNow($))}>
+            <Button key="undo" variant="secondary" onPress={() => background(askUndo($))}>
               Undo
             </Button>,
           ]
@@ -2016,6 +2041,14 @@ function stateCard(
 ): RenderElement {
   const { Box, Text, Button, Link, Code } = ui;
   const steps = <Box flexDirection="column">{a.steps.map((step) => stepLine(ui, step))}</Box>;
+  if (confirming?.kind === "undo" && a.kind !== "publishing" && a.kind !== "undoing") {
+    return card(
+      ui,
+      <Text bold>Undo “{confirming.title}”?</Text>,
+      <Text dimColor>{UNDO_MEANS}</Text>,
+      undoAnswers($, ui),
+    );
+  }
   if (a.kind === "publishing" || a.kind === "undoing") {
     return card(
       ui,
@@ -2076,7 +2109,7 @@ function stateCard(
       ) : null,
       a.kind === "published"
         ? [
-            <Button key="undo" variant="secondary" onPress={() => background(undoNow($))}>
+            <Button key="undo" variant="secondary" onPress={() => background(askUndo($))}>
               Undo
             </Button>,
           ]
@@ -2120,7 +2153,7 @@ function stateCard(
     </Text>,
     s.lastPublish
       ? [
-          <Button key="undo" variant="secondary" onPress={() => background(undoNow($))}>
+          <Button key="undo" variant="secondary" onPress={() => background(askUndo($))}>
             Undo last publish
           </Button>,
         ]
@@ -2366,11 +2399,19 @@ function versionRow($: EngineInterface, ui: PaneUi, v: Version, desktop: boolean
     <Button
       key={`restore-${v.sha}`}
       {...(desktop ? { variant: "secondary" as const } : { plain: true as const })}
-      onPress={() => background(restoreVersion($, v.sha, name))}
+      onPress={() => background(askRestore($, v.sha, name))}
     >
       Restore
     </Button>
   );
+  if (confirming?.kind === "restore" && confirming.sha === v.sha) {
+    return (
+      <Box key={`version-${v.sha}`} flexDirection="column" rowGap={1} paddingX={1}>
+        <Text bold>{name}</Text>
+        {restoreQuestion($, ui, v.sha, name)}
+      </Box>
+    );
+  }
   return (
     <Box
       key={`version-${v.sha}`}
@@ -2401,6 +2442,64 @@ function versionRow($: EngineInterface, ui: PaneUi, v: Version, desktop: boolean
             restore
           )}
         </Box>
+      </Box>
+    </Box>
+  );
+}
+
+/** What Undo does, said before the builder says yes. */
+const UNDO_MEANS =
+  "The previous version goes live again. Changes to your database stay as they are.";
+
+/** Undo's answers, wherever it's asked: keep the version live, or put the previous one back. */
+function undoAnswers($: EngineInterface, ui: Pick<PaneUi, "Button">) {
+  const { Button } = ui;
+  const title = confirming?.kind === "undo" ? confirming.title : "your last publish";
+  return [
+    <Button key="undo-keep" variant="secondary" onPress={() => answered($)}>
+      Keep it live
+    </Button>,
+    <Button
+      key="undo-confirm"
+      variant="primary"
+      onPress={() => {
+        answered($);
+        background(undoNow($, title));
+      }}
+    >
+      Undo it
+    </Button>,
+  ];
+}
+
+/** "Go back to …?", asked where Restore was pressed: on a version's line, or under a reply. */
+function restoreQuestion(
+  $: EngineInterface,
+  ui: Pick<PaneUi, "Box" | "Text" | "Button">,
+  sha: string,
+  name: string,
+) {
+  const { Box, Text, Button } = ui;
+  return (
+    <Box flexDirection="column" rowGap={1}>
+      <Text>
+        Go back to “{name}”? Your current version stays in the history, so you can come back to it.
+        Your live site and your data don't change.
+      </Text>
+      <Box flexDirection="row" columnGap={1} alignItems="center">
+        <Button key={`restore-cancel-${sha}`} variant="secondary" onPress={() => answered($)}>
+          Cancel
+        </Button>
+        <Button
+          key={`restore-confirm-${sha}`}
+          variant="primary"
+          onPress={() => {
+            answered($);
+            background(restoreNow($, sha));
+          }}
+        >
+          Restore
+        </Button>
       </Box>
     </Box>
   );
