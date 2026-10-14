@@ -168,7 +168,8 @@ async function launchPlan(root: string, options: KitOptions): Promise<KitChange>
     before,
     {},
   );
-  const dev = options.devCommand ?? { executable: "npx", args: ["clodable", "dev"] };
+  const dev = options.devCommand ??
+    clodableDev(launch.configurations ?? []) ?? { executable: "npx", args: ["clodable", "dev"] };
   const ours = {
     name: "app",
     runtimeExecutable: dev.executable,
@@ -188,6 +189,24 @@ async function launchPlan(root: string, options: KitOptions): Promise<KitChange>
     before,
     json({ version: launch.version ?? "0.0.1", configurations: [ours, ...others] }),
   );
+}
+
+/**
+ * The preview's command already in launch.json, when it runs Clodable's own: a demo, or a test of
+ * an unreleased Clodable, runs it from a folder rather than from npm, and planning the kit again
+ * (answering a question, say) keeps it.
+ */
+function clodableDev(
+  configurations: Array<Record<string, unknown>>,
+): { executable: string; args: string[] } | undefined {
+  const app = configurations.find((c) => c.name === "app");
+  const executable = app?.runtimeExecutable;
+  const args = app?.runtimeArgs;
+  if (typeof executable !== "string" || !Array.isArray(args)) return undefined;
+  const words = [executable, ...args].map(String);
+  return words.some((w) => w.includes("clodable")) && words.includes("dev")
+    ? { executable, args: args.map(String) }
+    : undefined;
 }
 
 /** .claude/settings.json: the plugin, plus safe permission defaults for any session in this folder. */
