@@ -156,7 +156,12 @@ export async function* publish(ws: Workspace, options: PublishOptions = {}): Flo
     for (const warning of results.filter((r) => r.status === "warning"))
       warnings.push(warning.summary);
     if (failed.length > 0) {
-      yield step("checks", "failed", failed[0]!.summary);
+      // Each failed check said what it found on its own line: this one sums up, never repeats it.
+      yield step(
+        "checks",
+        "failed",
+        failed.length === 1 ? "Checks found a problem" : `Checks found ${failed.length} problems`,
+      );
       throw checksFailed(failed, "Nothing went live. Ask Claude to fix it, then publish again.");
     }
     yield step(
