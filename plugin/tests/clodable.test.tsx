@@ -10,7 +10,7 @@ import {
   safeCommand,
 } from "../hooks/guards.ts";
 import { connectorSetting, sizeOf, stagesOf, typedDomain } from "../hooks/move.ts";
-import { hostOf, saveMessage, versionName } from "../hooks/words.ts";
+import { hostOf, pageName, pointedAt, saveMessage, versionName } from "../hooks/words.ts";
 
 const CWD = "/work/crumb";
 /** Where the plugin is loaded from: Claude's runs of Clodable name its CLI there. */
@@ -130,6 +130,13 @@ function harness(
   return calls;
 }
 
+/** The rows the plugin added for Claude to read (the details of a request), as text. */
+function readBy(session: { appended(): readonly unknown[] }): string[] {
+  return (session.appended() as Array<{ message?: { content?: Array<{ text?: string }> } }>)
+    .flatMap((row) => row.message?.content ?? [])
+    .map((block) => block.text ?? "");
+}
+
 async function bandText($: any, surface: "desktop" | "terminal", pattern: RegExp) {
   const band = await $.ui.mount({ ...BAND, surface });
   for (let i = 0; i < 30; i++) {
@@ -165,6 +172,21 @@ describe("save names", () => {
       ),
     ).toBe("Switch my preview back to my live data");
     expect(saveMessage("make the header blue")).toBe("Make the header blue");
+  });
+
+  test("the toolbar's requests are said and saved in the builder's words", () => {
+    expect(pointedAt('Heading <h1 class="text-5xl"> “Bread”')).toBe("the heading “Bread”");
+    expect(pointedAt('Image <img class="rounded">')).toBe("the image");
+    expect(pointedAt("Element <div>")).toBe("this part of the page");
+    expect(pointedAt(undefined)).toBe("this part of the page");
+    expect(pageName("/")).toBe("the home page");
+    expect(pageName("/menu")).toBe("the /menu page");
+    expect(saveMessage("About the heading “Bread”: make the title warmer")).toBe(
+      "Make the title warmer",
+    );
+    expect(saveMessage("Fix the /menu page: it's broken in the preview.")).toBe(
+      "Fixed a page that broke",
+    );
   });
 
   test("a version is named by what it did; a site by its address", () => {
@@ -1636,6 +1658,7 @@ describe("apps still on Lovable", () => {
       return { value: { content: [{ type: "text", text }], isError: false } };
     });
     const prompts: string[] = [];
+    const session = mock.session(on);
     on("prompt.submit", (_$: unknown, ev: { text: string }) => {
       prompts.push(ev.text);
       return { text: ev.text };
@@ -1653,7 +1676,10 @@ describe("apps still on Lovable", () => {
     for (let i = 0; i < 30 && prompts.length === 0; i++) await pane.redraw();
     await pane.unmount();
     // Desktop opens its Browser pane only for a request in the conversation: Claude opens it.
-    expect(prompts).toEqual(["Open my app's preview here (http://localhost:8080)."]);
+    // The builder's words in their message; the address, for Claude only.
+    expect(prompts).toEqual(["Show me my app's preview."]);
+    await $.turn.start({ text: prompts[0]!, turnId: "turn-preview" } as never);
+    expect(readBy(session)).toEqual(["Open my app's preview here (http://localhost:8080)."]);
   });
 
   test("on its own Supabase with no connection here, the panel offers it, for Claude's database changes", async ($, on) => {
@@ -2263,6 +2289,58 @@ describe("every step of the move", () => {
   });
 });
 
+describe("worth a look", () => {
+  test("a fix that's a command is Claude's to run: the builder gets a button, never the command", async ($, on) => {
+    harness(on, STATUS, true, {
+      doctor: out([
+        {
+          id: "packages",
+          label: "Packages",
+          status: "warn",
+          detail: "not installed",
+          fix: "Run `npm install`",
+        },
+      ]),
+    });
+    const session = mock.session(on);
+    const submitted: string[] = [];
+    on("ui.open", () => ({ value: { isOpen: true } }) as never);
+    on("prompt.submit", (_$: unknown, e: { text: string }) => {
+      submitted.push(e.text);
+      return { text: e.text };
+    });
+    await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+    await $.command.run({ command: "clodable", args: "" } as never);
+    const pane = await $.ui.mount({
+      plugin: "clodable",
+      surface: "desktop",
+      component: "Pane",
+      requestId: "clodable",
+      props: {
+        title: "Clodable",
+        isFocused: true,
+        bodyColumns: 80,
+        placement: "dock",
+        scroll: { offset: 0, bodyRows: 80 },
+        view: {},
+      },
+    });
+    let button: any;
+    for (let i = 0; i < 30 && !button; i++) {
+      button = await pane.find({ type: "Button", key: "worth-fix-packages" });
+      if (!button) await pane.redraw();
+    }
+    expect(button?.text).toBe("Let Claude fix it");
+    expect(await pane.find({ type: "Text", text: /npm install/ })).toBeUndefined();
+    await pane.press({ key: "worth-fix-packages" });
+    for (let i = 0; i < 30 && submitted.length === 0; i++) await pane.redraw();
+    await pane.unmount();
+    expect(submitted).toEqual(["Fix “Packages”, as Clodable's check suggests."]);
+    await $.turn.start({ text: submitted[0]!, turnId: "turn-worth" } as never);
+    expect(readBy(session)[0]).toContain("Run `npm install`");
+  });
+});
+
 describe("questions about live data", () => {
   test("Claude's database questions get a plain warning; Clodable's own questions don't", async ($, on) => {
     harness(on);
@@ -2295,6 +2373,59 @@ describe("questions about live data", () => {
 });
 
 describe("the preview toolbar bridge", () => {
+  test("Point & ask reaches Claude in the builder's words, with what they pointed at beside them", async ($, on) => {
+    const requests = [
+      {
+        kind: "ask",
+        id: "ask-1",
+        page: { path: "/" },
+        source: { file: "src/components/Hero.tsx", line: 15 },
+        request: "Make the title warmer",
+        element: 'Heading <h1 class="text-5xl font-semibold"> “Bread worth waking up for”',
+      },
+    ];
+    let waiting = true;
+    const calls = harness(on, STATUS, true, {
+      inbox: () => {
+        const taken = waiting ? requests : [];
+        waiting = false;
+        return out(taken);
+      },
+    });
+    const clock = (
+      calls as unknown as { clock: { advance(ms: number): Promise<void>; settle(): Promise<void> } }
+    ).clock;
+    const session = mock.session(on);
+    const submitted: string[] = [];
+    on("fs.list", () => ({
+      value: waiting
+        ? requests.map((r) => ({
+            name: `${r.id}.json`,
+            kind: "file",
+            size: 1,
+            mtimeMs: 0,
+            isLink: false,
+          }))
+        : [],
+    }));
+    on("fs.write", () => ({ value: undefined }));
+    on("prompt.submit", (_$: unknown, e: { text: string }) => {
+      submitted.push(e.text);
+      return { text: e.text };
+    });
+    await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+    await clock.advance(1600);
+    for (let i = 0; i < 40 && submitted.length === 0; i++) await clock.settle();
+    // No markup, file or line in the builder's own message.
+    expect(submitted).toEqual([
+      "About the heading “Bread worth waking up for”: Make the title warmer",
+    ]);
+    await $.turn.start({ text: submitted[0]!, turnId: "turn-ask" } as never);
+    expect(readBy(session)).toHaveLength(1);
+    expect(readBy(session)[0]).toContain('<h1 class="text-5xl font-semibold">');
+    expect(readBy(session)[0]).toContain("src/components/Hero.tsx:15");
+  });
+
   test("Try to fix becomes a request to this conversation; a text edit is saved", async ($, on) => {
     const requests = [
       {
@@ -2346,6 +2477,7 @@ describe("the preview toolbar bridge", () => {
       written.push(e);
       return { value: undefined };
     });
+    const session = mock.session(on);
     on("prompt.submit", (_$: unknown, e: { text: string }) => {
       submitted.push(e.text);
       return { text: e.text };
@@ -2360,10 +2492,11 @@ describe("the preview toolbar bridge", () => {
     expect(presence).toBeDefined();
     const id = JSON.parse(presence!.text).id;
     expect(calls.filter((c) => c[0] === "inbox")[0]).toEqual(["inbox", "--claim", id, "--json"]);
-    expect(submitted).toHaveLength(1);
-    expect(submitted[0]).toContain("/menu");
-    expect(submitted[0]).toContain("items is undefined");
-    expect(submitted[0]).toContain("src/pages/Menu.tsx:12");
+    expect(submitted).toEqual(["Fix the /menu page: it's broken in the preview."]);
+    await $.turn.start({ text: submitted[0]!, turnId: "turn-fix" } as never);
+    expect(readBy(session)).toHaveLength(1);
+    expect(readBy(session)[0]).toContain("items is undefined");
+    expect(readBy(session)[0]).toContain("src/pages/Menu.tsx:12");
     expect(calls.find((c) => c[0] === "save")?.[2]).toContain("Since 2014");
   });
 });
@@ -2478,6 +2611,7 @@ describe("the preview", () => {
   test("opens with the session on Desktop, and the bar's Preview asks for it in the conversation", async ($, on) => {
     harness(on);
     const prompts: string[] = [];
+    const session = mock.session(on);
     on("prompt.submit", (_$: unknown, ev: { text: string }) => {
       prompts.push(ev.text);
       return { text: ev.text };
@@ -2510,7 +2644,10 @@ describe("the preview", () => {
     await band.press({ key: "preview" });
     for (let i = 0; i < 30 && prompts.length === 0; i++) await band.redraw();
     await band.unmount();
-    expect(prompts).toEqual(["Open my app's preview here (http://localhost:62235)."]);
+    // The builder's words in their message; the address, for Claude only.
+    expect(prompts).toEqual(["Show me my app's preview."]);
+    await $.turn.start({ text: prompts[0]!, turnId: "turn-preview" } as never);
+    expect(readBy(session)).toEqual(["Open my app's preview here (http://localhost:62235)."]);
   });
 });
 
@@ -2550,6 +2687,7 @@ describe("the preview, when Claude starts it", () => {
       return { value: { content: [{ type: "text", text: '"labelled"' }], isError: false } };
     });
     const prompts: string[] = [];
+    const session = mock.session(on);
     on("prompt.submit", (_$: unknown, ev: { text: string }) => {
       prompts.push(ev.text);
       return { text: ev.text };
@@ -2578,7 +2716,10 @@ describe("the preview, when Claude starts it", () => {
     await band.press({ key: "preview" });
     for (let i = 0; i < 30 && prompts.length === 0; i++) await band.redraw();
     await band.unmount();
-    expect(prompts).toEqual(["Open my app's preview here (http://localhost:7001)."]);
+    // The builder's words in their message; the address, for Claude only.
+    expect(prompts).toEqual(["Show me my app's preview."]);
+    await $.turn.start({ text: prompts[0]!, turnId: "turn-preview" } as never);
+    expect(readBy(session)).toEqual(["Open my app's preview here (http://localhost:7001)."]);
 
     // Labelled inside that call (Desktop refuses a plugin's own call outside one), once per tab.
     const labels = asked.filter((a) => a.tool === "javascript_tool");

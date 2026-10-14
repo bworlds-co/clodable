@@ -82,7 +82,9 @@ import {
   doneTitle,
   fixPrompt,
   hostOf,
+  pageName,
   plural,
+  pointedAt,
   saveMessage,
   shortReason,
   sqlIsDestructive,
@@ -147,6 +149,13 @@ let repoChoices: Array<{ value: string; label: string }> = [];
 let chosenRepo = "";
 let deviceCode = "";
 const requests = new Map<string, string>();
+/**
+ * What Claude also needs about a request Clodable sends in the builder's name (the element and its
+ * code, the error, the preview's address), by the builder's words. When that request's turn
+ * starts, it joins the conversation as a row Claude reads and the builder doesn't see: their
+ * message stays their own.
+ */
+const detailsFor = new Map<string, string>();
 /** True while Claude is answering: a save then would capture half-done work, so the turn's own save covers it. */
 let turnActive = false;
 /**
@@ -921,7 +930,13 @@ async function startPreview($: EngineInterface, attempt = 0): Promise<void> {
 
 function askForPreview($: EngineInterface) {
   markActive($);
-  background($.prompt.submit({ text: previewRequest(previewUrl), asUser: true }));
+  background(askClaude($, "Show me my app's preview.", previewRequest(previewUrl)));
+}
+
+/** A request in the builder's words, with what Claude also needs beside it, out of their sight. */
+async function askClaude($: EngineInterface, text: string, details: string) {
+  detailsFor.set(text, details);
+  background($.prompt.submit({ text, asUser: true }));
 }
 
 /**
@@ -1050,18 +1065,20 @@ function handleRequest($: EngineInterface, item: ClodableRequest) {
         ? `\nRecent console errors:\n${item.console.slice(-4).join("\n")}`
         : "";
     background(
-      $.prompt.submit({
-        text: `From the preview: the page ${item.page?.path ?? ""} is broken${where}.\nError: ${item.error?.message ?? "unknown"}${item.error?.stack ? `\n${String(item.error.stack).slice(0, 1500)}` : ""}${consoleLines}\nPlease fix it, then check the page in the preview.`,
-        asUser: true,
-      }),
+      askClaude(
+        $,
+        `Fix ${pageName(item.page?.path)}: it's broken in the preview.`,
+        `From the preview's Try to fix: the page ${item.page?.path ?? ""} is broken${where}.\nError: ${item.error?.message ?? "unknown"}${item.error?.stack ? `\n${String(item.error.stack).slice(0, 1500)}` : ""}${consoleLines}\nFix it, then check the page in the preview.`,
+      ),
     );
   } else if (item.kind === "ask") {
     const where = item.source ? ` (${item.source.file}:${item.source.line})` : "";
     background(
-      $.prompt.submit({
-        text: `From the preview, about this ${item.element ?? "element"}${where} on ${item.page?.path ?? "the page"}:\n${item.request}`,
-        asUser: true,
-      }),
+      askClaude(
+        $,
+        `About ${pointedAt(item.element)}: ${item.request}`,
+        `From the preview's Point & ask: the builder pointed at ${item.element ?? "an element"}${where} on ${item.page?.path ?? "the page"}. Their request is their message.`,
+      ),
     );
   } else if (item.kind === "edit" && !turnActive) {
     background(
@@ -1139,6 +1156,14 @@ export const register: Register = (on) => {
   // Remember what each turn was asked, so its save gets a meaningful name.
   on("turn.start", async ($, e, next) => {
     requests.set(e.turnId, e.text);
+    // A request Clodable sent in the builder's name: its details, for Claude only.
+    const details = detailsFor.get(e.text);
+    if (details !== undefined) {
+      detailsFor.delete(e.text);
+      await $.session
+        .append({ message: { type: "user", content: [{ type: "text", text: details }] } })
+        .catch(() => {});
+    }
     turnActive = true;
     markActive($);
     // The first reply after a Fix it press is the one working on it.
@@ -2343,6 +2368,25 @@ function warningsSection($: EngineInterface, ui: PaneUi, doctor: ClodableCheck[]
                   Switch it
                 </Button>
               )}
+            </Box>
+          ) : c.fix && /`[^`]+`/.test(c.fix) ? (
+            // A command is Claude's to run: the builder gets the button, Claude gets the command.
+            <Box flexDirection="row">
+              <Button
+                key={`worth-fix-${c.id}`}
+                plain
+                onPress={() =>
+                  background(
+                    askClaude(
+                      $,
+                      `Fix “${c.label}”, as Clodable's check suggests.`,
+                      `Clodable's check “${c.label}” (${c.id}) found: ${c.detail ?? "a problem"}. Its fix: ${c.fix}. Do it if it's safe here; if it needs the builder, say what to do in plain words, with no commands.`,
+                    ),
+                  )
+                }
+              >
+                Let Claude fix it
+              </Button>
             </Box>
           ) : c.fix ? (
             <Text dimColor> {c.fix}</Text>
