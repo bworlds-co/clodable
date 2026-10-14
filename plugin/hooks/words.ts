@@ -339,7 +339,7 @@ export function saveMessage(request: string): string {
   if (/^(Moving off Lovable: |Switch my preview )/.test(request)) {
     const what = request
       .replace(/^Moving off Lovable: /, "")
-      .split(/ with `|\. Run `|\. Start from `|, then | \(/)[0]!
+      .split(/ with `|\. Run `|\. Start from `|, then | \(|\. /)[0]!
       .replace(/^I've /, "")
       .replace(/[.!\s]+$/, "");
     return what.charAt(0).toUpperCase() + what.slice(1);
