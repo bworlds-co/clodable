@@ -654,6 +654,30 @@ describe("repo kit", () => {
         ),
       );
       expect(again.filter((c) => c.action !== "unchanged").map((c) => c.path)).toEqual([]);
+
+      // A preview that runs Clodable from a folder (a demo, a test) keeps doing so when the kit is
+      // planned again, as answering a question does. Anything else in its place is Clodable's again.
+      const local = ["/work/clodable/packages/cli/dist/clodable.mjs", "dev"];
+      const keep = async (runtimeExecutable: string, runtimeArgs: string[]) => {
+        await writeFile(
+          join(root, ".claude/launch.json"),
+          JSON.stringify({ configurations: [{ name: "app", runtimeExecutable, runtimeArgs }] }),
+        );
+        await applyKit(
+          root,
+          await planKit(await detectProject(root), ProjectConfigSchema.parse({})),
+        );
+        return JSON.parse(await readFile(join(root, ".claude/launch.json"), "utf8"))
+          .configurations[0];
+      };
+      expect(await keep("node", local)).toMatchObject({
+        runtimeExecutable: "node",
+        runtimeArgs: local,
+      });
+      expect(await keep("vite", ["--port", "8080"])).toMatchObject({
+        runtimeExecutable: "npx",
+        runtimeArgs: ["clodable", "dev"],
+      });
     } finally {
       await rm(root, { recursive: true, force: true });
     }

@@ -247,16 +247,35 @@ async function liveBase(ws: Workspace): Promise<string | undefined> {
   return (await ws.git.revParse(ws.liveBranch)) ? ws.liveBranch : undefined;
 }
 
+/** The builder's saves not live yet: what the bar counts. */
 export async function countUnpublished(ws: Workspace): Promise<number> {
-  const live = await liveBase(ws);
-  return ws.git.count(live ? `${live}..HEAD` : "HEAD", { noMerges: true });
+  return (await unpublishedSaves(ws, { buildersOnly: true })).length;
 }
 
-async function unpublishedSaves(ws: Workspace): Promise<Commit[]> {
+/**
+ * Saves on the draft that aren't live yet. `buildersOnly` leaves out Clodable's own: its setup,
+ * and saves that only changed its files (the answers to its questions, say). They go live with the
+ * builder's next publish, but they're not a change of the app.
+ */
+async function unpublishedSaves(
+  ws: Workspace,
+  options: { buildersOnly?: boolean } = {},
+): Promise<Commit[]> {
   const live = await liveBase(ws);
-  return live
-    ? ws.git.log(`${live}..HEAD`, { noMerges: true, limit: 200 })
-    : ws.git.log("HEAD", { noMerges: true, limit: 50 });
+  const range = live ? `${live}..HEAD` : "HEAD";
+  const limit = live ? 200 : 50;
+  const saves = await ws.git.log(range, { noMerges: true, limit });
+  if (!options.buildersOnly) return saves;
+  const files = await ws.git.filesBy(range, { noMerges: true, limit });
+  return saves.filter((c) => c.kind !== "setup" && !onlyClodables(files.get(c.sha) ?? []));
+}
+
+/** Changed files that are all Clodable's own. A save that changed nothing isn't counted as one. */
+function onlyClodables(paths: string[]): boolean {
+  return (
+    paths.length > 0 &&
+    paths.every((path) => CLODABLE_FILES.some((own) => path === own || path.startsWith(`${own}/`)))
+  );
 }
 
 /** The draft's page on GitHub: one pull request per draft, opened at the first save. */
@@ -311,7 +330,8 @@ export async function status(ws: Workspace, options: { fetch?: boolean } = {}): 
     ws.state(),
   ]);
   const hasLive = Boolean(await ws.git.revParse(ws.liveRef));
-  const unpublished = branch === ws.liveBranch ? [] : await unpublishedSaves(ws);
+  const unpublished =
+    branch === ws.liveBranch ? [] : await unpublishedSaves(ws, { buildersOnly: true });
   const behindLive = hasLive ? await ws.git.count(`HEAD..${ws.liveRef}`, { noMerges: true }) : 0;
   return {
     project: {
@@ -350,7 +370,7 @@ export interface History {
 export async function history(ws: Workspace, options: { limit?: number } = {}): Promise<History> {
   const live = (await liveBase(ws)) ?? ws.liveBranch;
   const [draft, published] = await Promise.all([
-    unpublishedSaves(ws),
+    unpublishedSaves(ws, { buildersOnly: true }),
     ws.git.log(live, { firstParent: true, limit: options.limit ?? 30 }),
   ]);
   return { draft, published };
