@@ -175,6 +175,14 @@ describe("clodable --json", () => {
     expect(doctor.result.data).toContainEqual(
       expect.objectContaining({ id: "secrets", status: "ok" }),
     );
+    // The fake GitHub (a folder on this computer) is the app's GitHub here: nothing to fix.
+    expect(doctor.result.data).toContainEqual(
+      expect.objectContaining({
+        id: "repo",
+        status: "ok",
+        detail: "a stand-in for GitHub on this computer",
+      }),
+    );
     for (const item of doctor.result.data) {
       expect(item).toMatchObject({
         id: expect.any(String),

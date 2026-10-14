@@ -1,5 +1,5 @@
 import { existsSync, readdirSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { confirm, isCancel, select, spinner } from "@clack/prompts";
 import {
   applyKit,
@@ -49,13 +49,18 @@ export async function doctor(cwd: string): Promise<DoctorItem[]> {
   const isRepo = items.some((i) => i.id === "git" && i.status === "ok") && (await git.isRepo());
   const remote = isRepo ? await git.remoteUrl("origin") : undefined;
   const parsed = remote ? parseGitHubRemote(remote) : undefined;
+  // Demos and tests: a folder on this computer stands in for GitHub (CLODABLE_FAKE_GITHUB).
+  const fake = process.env.CLODABLE_FAKE_GITHUB;
+  const standIn = Boolean(fake && remote && resolve(cwd, remote) === resolve(fake));
   items.push({
     id: "repo",
     label: "Your app on GitHub",
-    status: parsed ? "ok" : "fail",
+    status: parsed || standIn ? "ok" : "fail",
     ...(parsed
       ? { detail: `${parsed.owner}/${parsed.repo}` }
-      : { fix: "Run `clodable setup` in an empty folder to bring your app in from GitHub" }),
+      : standIn
+        ? { detail: "a stand-in for GitHub on this computer" }
+        : { fix: "Run `clodable setup` in an empty folder to bring your app in from GitHub" }),
   });
   if (!isRepo) return items;
   return [...items, ...(await appChecks(git))];
