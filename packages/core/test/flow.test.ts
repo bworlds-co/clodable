@@ -352,6 +352,31 @@ describe("secret keys", () => {
   });
 });
 
+describe("what counts as not live yet", () => {
+  it("the builder's saves, not Clodable's own: its setup, or the answers to its questions", async () => {
+    const ws = await sb.ws();
+    await sb.write("src/app.txt", "Warmer welcome\n");
+    await save(ws, { message: "Warmer welcome" });
+    // The panel's answers: Clodable's config and the files that follow it, nothing of the app.
+    const config = JSON.parse(await readFile(join(sb.work, ".clodable/config.json"), "utf8"));
+    await sb.write(".clodable/config.json", JSON.stringify({ ...config, backend: "supabase" }));
+    await sb.write("AGENTS.md", "Your data is on your own Supabase.\n");
+    await save(ws, { message: "Saved changes before restoring" });
+    await sb.write("AGENTS.md", "How Claude works here.\n");
+    await save(ws, { message: "Set up Clodable", kind: "setup" });
+
+    const s = await status(ws);
+    expect(s.unpublished.map((c) => c.subject)).toEqual(["Warmer welcome"]);
+    expect((await history(ws)).draft.map((c) => c.subject)).toEqual(["Warmer welcome"]);
+    // A save with the app and Clodable's files together is the builder's.
+    await sb.write("src/app.txt", "Warmest welcome\n");
+    await sb.write(".clodable/config.json", JSON.stringify({ ...config, backend: "none" }));
+    const both = await save(ws, { message: "Warmest welcome" });
+    expect(both.unpublished).toBe(2);
+    expect((await status(ws)).unpublished).toHaveLength(2);
+  });
+});
+
 describe("where the move off Lovable stands", () => {
   it("says whether the app was made with Lovable, and when a move is under way, then over", async () => {
     const ws = await sb.ws();

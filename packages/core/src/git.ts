@@ -239,6 +239,29 @@ export class Git {
   }
 
   /** Commits in `range`, newest first. */
+  /** The files each commit in `range` changed, by sha. */
+  async filesBy(
+    range: string,
+    options: { noMerges?: boolean; limit?: number } = {},
+  ): Promise<Map<string, string[]>> {
+    const result = await this.run([
+      "log",
+      "--format=%x00%H",
+      "--name-only",
+      ...(options.noMerges ? ["--no-merges"] : []),
+      ...(options.limit ? [`-n${options.limit}`] : []),
+      range,
+      "--",
+    ]);
+    const files = new Map<string, string[]>();
+    if (result.exitCode !== 0) return files;
+    for (const block of result.stdout.split("\0").filter((b) => b.trim())) {
+      const [sha = "", ...paths] = block.split("\n");
+      files.set(sha.trim(), paths.map((p) => p.trim()).filter(Boolean));
+    }
+    return files;
+  }
+
   async log(
     range: string,
     options: { noMerges?: boolean; firstParent?: boolean; limit?: number } = {},
