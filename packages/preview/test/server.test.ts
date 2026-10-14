@@ -34,7 +34,7 @@ async function call(
   from: string,
   method: "GET" | "POST",
   url: string,
-  options: { token?: string; body?: unknown } = {},
+  options: { token?: string; body?: unknown; headers?: Record<string, string> } = {},
 ): Promise<{ status: number; body: string }> {
   const req = Readable.from(
     options.body === undefined ? [] : [Buffer.from(JSON.stringify(options.body))],
@@ -42,7 +42,10 @@ async function call(
   Object.assign(req, {
     method,
     url,
-    headers: options.token ? { "x-clodable-token": options.token } : {},
+    headers: {
+      ...options.headers,
+      ...(options.token ? { "x-clodable-token": options.token } : {}),
+    },
     socket: { remoteAddress: from },
   });
   return new Promise((resolve, reject) => {
@@ -93,6 +96,25 @@ describe("Clodable's endpoints", () => {
       expect((await call(from, "POST", "/__clodable/text", { token, body: {} })).status).toBe(403);
     }
     expect(inbox()).toEqual([]);
+  });
+
+  it("give the toolbar its token as an argument, and only to a script tag, never to the page's scripts", async () => {
+    const asScript = await call("127.0.0.1", "GET", "/__clodable/toolbar.js", {
+      headers: { "sec-fetch-dest": "script" },
+    });
+    expect(asScript.status).toBe(200);
+    // Handed to the toolbar's code, not put on window, where any script of the page would read it.
+    expect(asScript.body).not.toMatch(/window\.__CLODABLE__\s*=/);
+    expect(asScript.body).toMatch(/^\(function \(__CLODABLE__\) \{\n/);
+    expect(asScript.body).toMatch(/\n\}\)\(\{"token":"[0-9a-f]+","backend":"live"\}\);$/);
+    // A page script's fetch() says so (the browser sets it; the page can't), and is refused.
+    for (const dest of ["empty", "iframe", "worker"]) {
+      const read = await call("127.0.0.1", "GET", "/__clodable/toolbar.js", {
+        headers: { "sec-fetch-dest": dest },
+      });
+      expect(read.status).toBe(403);
+      expect(tokenIn(read.body)).toBeUndefined();
+    }
   });
 
   it("leave the app's own pages to the app, wherever they're asked from", async () => {

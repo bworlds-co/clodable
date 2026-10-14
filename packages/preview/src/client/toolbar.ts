@@ -1,6 +1,6 @@
 import { type IconName, logoSvg } from "@clodable/design";
 import { FRAME_PARAM, parseSourceAttr, ROUTES, SCREENS } from "../shared.js";
-import { api } from "./api.js";
+import { api, config } from "./api.js";
 import { describeForClaude, kindOf, labelOf, SUGGESTIONS, snippet, sourceOf } from "./describe.js";
 import { h, icon } from "./dom.js";
 import { ErrorWatcher } from "./errors.js";
@@ -195,7 +195,7 @@ export class Toolbar {
       this.mark(24),
     );
     // Trying a move off Lovable: say plainly which data this preview shows.
-    const onCopy = window.__CLODABLE__?.backend === "copy";
+    const onCopy = config()?.backend === "copy";
     const dock = h(
       "div",
       { class: "dock", role: "toolbar", "aria-label": "Clodable preview tools" },

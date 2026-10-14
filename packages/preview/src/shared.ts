@@ -19,6 +19,12 @@ export function parseSourceAttr(value: string): SourceLocation | undefined {
   return { file: match[1]!, line: Number(match[2]), column: Number(match[3]) };
 }
 
+/**
+ * The name the toolbar's code gets its config (the token) under. The server wraps the bundle in a
+ * function with this parameter, never on `window`, and client/api.ts refers to it by this name.
+ */
+export const CONFIG_NAME = "__CLODABLE__";
+
 /** The dev server's own addresses. Everything under PREFIX is Clodable's, never the app's. */
 export const PREFIX = "/__clodable/";
 export const ROUTES = {

@@ -3,12 +3,19 @@ import type { TextEditFailure } from "../text-edit.js";
 
 declare global {
   interface Window {
-    __CLODABLE__?: { token: string; backend?: "live" | "copy" };
     __CLODABLE_MOUNTED__?: boolean;
   }
 }
 
-const token = () => window.__CLODABLE__?.token ?? "";
+/**
+ * The toolbar's config, as the server hands it to this bundle: an argument by this name
+ * (CONFIG_NAME in shared.ts), never on `window`, where the page's own scripts would read the token.
+ */
+declare const __CLODABLE__: { token: string; backend?: "live" | "copy" } | undefined;
+
+export const config = () => (typeof __CLODABLE__ === "undefined" ? undefined : __CLODABLE__);
+
+const token = () => config()?.token ?? "";
 
 async function post<T>(path: string, body: unknown): Promise<T> {
   const response = await fetch(path, {
