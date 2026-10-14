@@ -9,7 +9,7 @@ export const savingNow = (a: ClodableActivity): ClodableActivity =>
     : a;
 
 /** How long the bar and the panel say what a publish or an undo did, once it's done. */
-export const DONE_SHOWN_MS = 2 * 60_000;
+export const DONE_SHOWN_MS = 10_000;
 
 /** A publish or an undo that ended a moment ago: still worth saying. */
 export const justDone = (

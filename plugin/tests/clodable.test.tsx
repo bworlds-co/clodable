@@ -580,7 +580,7 @@ describe("after a publish", () => {
     expect(await bandText($, "desktop", /You're live/)).toBe("You're live");
     expect(await history()).toBeUndefined();
 
-    await clock.advance(2 * 60_000);
+    await clock.advance(10_000);
     for (let i = 0; i < 20; i++) await clock.settle();
     expect(await bandText($, "desktop", /not live yet/)).toBe("2 changes not live yet");
     expect(await history()).toBeDefined();
