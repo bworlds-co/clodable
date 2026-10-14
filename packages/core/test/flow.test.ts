@@ -160,9 +160,16 @@ describe("publishing", () => {
     await sb.write("src/app.txt", "BROKEN page\n");
     await save(await sb.ws(), { message: "Oops" });
 
-    const error = await expectError(publishAll(), "checks-failed");
+    const events: ClodableEvent[] = [];
+    const error = await expectError(publishAll(events), "checks-failed");
     expect(error.message).toMatch(/doesn't build/);
     expect(await sb.remoteLog("main")).toEqual(["Initial app"]);
+    // The failing check says what's wrong once; the checks' own line sums up.
+    const failed = events.filter((e) => e.type === "step" && e.state === "failed");
+    expect(failed.map((e) => [(e as { id: string }).id, (e as { title: string }).title])).toEqual([
+      ["check:build", expect.stringMatching(/doesn't build/)],
+      ["checks", "Checks found a problem"],
+    ]);
   });
 
   it("brings in a teammate's publish first, then publishes both", async () => {

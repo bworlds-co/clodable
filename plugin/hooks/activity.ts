@@ -9,7 +9,7 @@ export const savingNow = (a: ClodableActivity): ClodableActivity =>
     : a;
 
 /** How long the bar and the panel say what a publish or an undo did, once it's done. */
-const DONE_SHOWN_MS = 2 * 60_000;
+export const DONE_SHOWN_MS = 10_000;
 
 /** A publish or an undo that ended a moment ago: still worth saying. */
 export const justDone = (
@@ -17,6 +17,14 @@ export const justDone = (
   now: number,
 ): a is ClodableActivity & { kind: "published" | "undone" } =>
   (a.kind === "published" || a.kind === "undone") && Boolean(a.at && now - a.at < DONE_SHOWN_MS);
+
+/** What a publish or an undo did has been said: back to the usual bar, unless something started since. */
+export const doneSaid =
+  (at: number) =>
+  (a: ClodableActivity): ClodableActivity =>
+    (a.kind === "published" || a.kind === "undone") && a.at === at
+      ? { kind: "idle", steps: [] }
+      : a;
 
 /** A publish or an undo stopped: why, with the steps it got through. */
 export const stoppedBy =

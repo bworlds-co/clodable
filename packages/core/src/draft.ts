@@ -351,6 +351,9 @@ export async function history(ws: Workspace, options: { limit?: number } = {}): 
   return { draft, published };
 }
 
+/** The save Clodable makes on its own before a restore, so nothing unsaved is lost. */
+export const BEFORE_RESTORE = "Saved changes before restoring";
+
 /** Bring back the files from an earlier version, as a new save. Nothing is ever erased. */
 export async function restore(ws: Workspace, sha: string): Promise<SaveResult> {
   const target = await ws.git.revParse(sha);
@@ -360,7 +363,7 @@ export async function restore(ws: Workspace, sha: string): Promise<SaveResult> {
   const [commit] = await ws.git.log(`${target}^!`);
   await ensureOnDraft(ws);
   if (await ws.git.hasChanges()) {
-    await save(ws, { message: "Saved changes before restoring" });
+    await save(ws, { message: BEFORE_RESTORE });
   }
   // The app's files go back. Clodable's stay as they are now: an older .clodable/ or AGENTS.md
   // would undo the builder's answers, or take Clodable out of the project altogether.

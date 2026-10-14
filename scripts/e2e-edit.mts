@@ -7,7 +7,7 @@
  */
 
 import { execFileSync } from "node:child_process";
-import { readFileSync, rmSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { chromium, type Page } from "playwright";
 
@@ -24,6 +24,12 @@ const file = execFileSync("grep", ["-rl", "--include=*.tsx", original, join(root
   .trim()
   .split("\n")[0]!;
 const before = readFileSync(file, "utf8");
+// Each edit leaves a request in the app's inbox. Only those go afterwards: an app Clodable set up
+// keeps its .clodable folder, and whatever was waiting in its inbox.
+const clodable = join(root, ".clodable");
+const inbox = join(clodable, "inbox");
+const hadClodable = existsSync(clodable);
+const waiting = new Set(existsSync(inbox) ? readdirSync(inbox) : []);
 
 async function edit(page: Page, from: string, to: string) {
   await page.keyboard.press("Alt+Shift+KeyE");
@@ -62,7 +68,12 @@ await page.getByText(changed, { exact: true }).first().waitFor({ timeout: 8000 }
 await edit(page, changed, original);
 const after = readFileSync(file, "utf8");
 await browser.close();
-rmSync(join(root, ".clodable"), { recursive: true, force: true });
+if (!hadClodable) rmSync(clodable, { recursive: true, force: true });
+else if (existsSync(inbox)) {
+  for (const name of readdirSync(inbox)) {
+    if (!waiting.has(name)) rmSync(join(inbox, name), { force: true });
+  }
+}
 
 console.log(`file: ${file.replace(`${root}/`, "")}`);
 console.log(`edited in source: ${changedOk ? "yes" : "NO"}`);
