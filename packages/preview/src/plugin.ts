@@ -110,6 +110,16 @@ export function describeBuildError(error: unknown, root: string, at = Date.now()
   return { ...buildError(message, stack, file ? { file, line: e.loc?.line ?? 1 } : undefined), at };
 }
 
+/**
+ * A request from this computer: Desktop's preview, or a browser on it. Lovable's template serves
+ * on every network interface (`host: "::"`), so the app answers the whole Wi-Fi. Clodable's
+ * endpoints don't: from elsewhere, the token and the edits would be anyone's.
+ */
+export function fromThisComputer(req: IncomingMessage): boolean {
+  const address = req.socket?.remoteAddress ?? "";
+  return address === "::1" || address.startsWith("127.") || address.startsWith("::ffff:127.");
+}
+
 /** The conversation whose preview pane sent a request, when the pane was labelled with one. */
 const conversationOf = (body: Record<string, unknown>) =>
   typeof body.conversation === "string" && /^[\w-]{1,64}$/.test(body.conversation)
@@ -216,6 +226,8 @@ export function clodablePreview(options: PreviewOptions = {}): Plugin {
     const url = new URL(req.url ?? "/", "http://localhost");
     const path = url.pathname;
     if (!path.startsWith(PREFIX)) return next();
+    // From another computer, nothing of Clodable answers: no toolbar, no token, no edits.
+    if (!fromThisComputer(req)) return send(res, 403, { error: "forbidden" });
 
     if (req.method === "GET") {
       if (path === ROUTES.toolbar) return send(res, 200, await toolbarScript(), "text/javascript");
