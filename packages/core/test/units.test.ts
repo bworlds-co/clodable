@@ -301,6 +301,17 @@ describe("build output", () => {
     expect(excerpt).toContain("Unexpected");
     expect(excerpt).not.toContain("\u001b");
   });
+
+  it("names the file from the project's top, whatever its folder is called", () => {
+    const root = "/Users/ada/my-app";
+    const out = `error during build:\n${root}/src/components/Hero.tsx:17:3: ERROR: Expected ")"`;
+    const { excerpt, location } = summarizeBuildOutput(out, root);
+    expect(location).toEqual({ file: "src/components/Hero.tsx", line: 17 });
+    expect(excerpt).toContain("src/components/Hero.tsx:17:3");
+    expect(excerpt).not.toContain(root);
+    // Without the project's folder, a path that isn't the app's own isn't guessed at.
+    expect(summarizeBuildOutput(out).location).toBeUndefined();
+  });
 });
 
 describe("secrets kept on this computer", () => {

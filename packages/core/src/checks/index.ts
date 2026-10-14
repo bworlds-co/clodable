@@ -1,3 +1,5 @@
+import { realpathSync } from "node:fs";
+import { sep } from "node:path";
 import type { ProjectConfig } from "../config.js";
 import { ClodableError } from "../errors.js";
 import { type Flow, step } from "../events.js";
@@ -20,16 +22,29 @@ export interface CheckResult {
 }
 
 const ERROR_LINE = /(error|failed|cannot|could not|unexpected|is not defined|not found)/i;
+/**
+ * A file of the app's own, from the project's top. Nothing of a path may come before it: in
+ * /Users/ada/my-app/src/App.tsx, "app/src/App.tsx" isn't one.
+ */
 const LOCATION =
-  /((?:src|app|supabase|routes)\/[\w./@-]+\.(?:tsx?|jsx?|css|mdx?|json))(?::|\()(\d+)/;
+  /(?<![\w./@-])((?:src|app|supabase|routes)\/[\w./@-]+\.(?:tsx?|jsx?|css|mdx?|json))(?::|\()(\d+)/;
 
-/** The most useful few lines of a failed build, with ANSI colors stripped. */
-export function summarizeBuildOutput(output: string): {
+/**
+ * The most useful few lines of a failed build, with ANSI colors stripped. With `root`, paths are
+ * relative to the project, as the builder and Claude know them.
+ */
+export function summarizeBuildOutput(
+  output: string,
+  root?: string,
+): {
   excerpt: string;
   location?: { file: string; line: number };
 } {
   // biome-ignore lint/suspicious/noControlCharactersInRegex: stripping ANSI color codes from build output.
-  const clean = output.replace(/\u001b\[[0-9;]*m/g, "");
+  let clean = output.replace(/\u001b\[[0-9;]*m/g, "");
+  for (const prefix of root ? new Set([root, realRoot(root)]) : []) {
+    clean = clean.replaceAll(`${prefix}${sep}`, "");
+  }
   const lines = clean.split("\n").map((l) => l.trimEnd());
   const firstError = lines.findIndex((l) => ERROR_LINE.test(l));
   const start = Math.max(0, firstError >= 0 ? firstError - 1 : lines.length - 12);
@@ -41,6 +56,15 @@ export function summarizeBuildOutput(output: string): {
   return locationMatch
     ? { excerpt, location: { file: locationMatch[1]!, line: Number(locationMatch[2]) } }
     : { excerpt };
+}
+
+/** The project's folder as the build sees it: through a link, tools print the real path. */
+function realRoot(root: string): string {
+  try {
+    return realpathSync(root);
+  } catch {
+    return root;
+  }
 }
 
 async function checkBuild(project: ProjectInfo, config: ProjectConfig): Promise<CheckResult> {
@@ -56,7 +80,7 @@ async function checkBuild(project: ProjectInfo, config: ProjectConfig): Promise<
   });
   if (result.exitCode === 0) return { id: "build", status: "passed", summary: "It builds" };
   const output = `${result.stdout}\n${result.stderr}`;
-  const { excerpt, location } = summarizeBuildOutput(output);
+  const { excerpt, location } = summarizeBuildOutput(output, project.root);
   return {
     id: "build",
     status: "failed",
