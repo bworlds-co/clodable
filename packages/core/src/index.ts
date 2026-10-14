@@ -1,15 +1,18 @@
 export {
-  cacheDir,
   GITLEAKS_VERSION,
   type GitleaksFinding,
   gitleaksBinary,
   ScannerUnavailable,
 } from "./checks/gitleaks.js";
-export { type CheckId, type CheckResult, runChecks, summarizeBuildOutput } from "./checks/index.js";
+export {
+  type CheckId,
+  type CheckResult,
+  checksFailed,
+  runChecks,
+  summarizeBuildOutput,
+} from "./checks/index.js";
 export {
   classify,
-  describeFinding,
-  mask,
   type SecretFinding,
   scanStaged,
   scanUnsent,
@@ -26,22 +29,25 @@ export {
   STATE_PATH,
   saveConfig,
   saveState,
+  supabaseRef,
 } from "./config.js";
 export { applyMigration, checkDatabase, queryDatabase, runOnDatabase } from "./database.js";
 export {
-  countUnpublished,
-  ensureOnDraft,
-  ensurePullRequest,
   type History,
   history,
-  pullRequestBody,
   restore,
   type SaveResult,
   type Status,
   save,
   status,
 } from "./draft.js";
-export { ClodableError, type ErrorCode, type ErrorInfo, toErrorInfo } from "./errors.js";
+export {
+  ClodableError,
+  type ErrorCode,
+  type ErrorInfo,
+  messageOf,
+  toErrorInfo,
+} from "./errors.js";
 export {
   type ClodableEvent,
   type Flow,
@@ -85,6 +91,8 @@ export {
   type Presence,
   readInbox,
   type SourceRef,
+  toolbarPage,
+  toolbarRequest,
   writeInbox,
 } from "./inbox.js";
 export { type AgentsMdInput, agentsMd } from "./kit/agents-md.js";
@@ -95,8 +103,25 @@ export {
   mergeManagedBlock,
   planKit,
 } from "./kit/index.js";
-export { configDir, forgetSecret, readSecret, storeSecret } from "./local-secrets.js";
+export { forgetSecret, readSecret, storeSecret } from "./local-secrets.js";
+export {
+  connectSupabase,
+  costOf,
+  type HomeChoices,
+  homeChoices,
+  type OrganizationChoice,
+  type RunningFreeProject,
+} from "./move/account.js";
 export { assessMove, type MoveAssessment, type MoveItem } from "./move/assess.js";
+export {
+  BACKEND_ENV,
+  type Backend,
+  backendEnv,
+  type PreviewBackend,
+} from "./move/backend.js";
+export { checkCopy, copyData, importExport } from "./move/copy.js";
+export { previewBackend, setPreview } from "./move/copy-preview.js";
+export { diagnoseCopy, type MoveFinding } from "./move/diagnose.js";
 export {
   type DomainOutcome,
   isApex,
@@ -111,6 +136,15 @@ export {
   readExport,
 } from "./move/export.js";
 export {
+  copyUploads,
+  deployBackendFunctions,
+  functionSecretStatus,
+  setFunctionSecret,
+  setVaultValue,
+  skipLeftovers,
+  vaultStatus,
+} from "./move/extras.js";
+export {
   type AppFacts,
   AppFactsSchema,
   type FactsHints,
@@ -122,34 +156,6 @@ export {
 } from "./move/facts.js";
 export type { FilesOutcome } from "./move/files.js";
 export { type NewKeys, repoint } from "./move/fixes.js";
-export {
-  checkCopy,
-  connectSupabase,
-  copyData,
-  copyUploads,
-  costOf,
-  createHome,
-  deployBackendFunctions,
-  describeExport,
-  diagnoseCopy,
-  functionSecretStatus,
-  type HomeChoices,
-  homeChoices,
-  importExport,
-  type MoveFinding,
-  type MoveProgress,
-  type MoveStep,
-  moveProgress,
-  type OrganizationChoice,
-  prepareCopySignIn,
-  previewBackend,
-  type RunningFreeProject,
-  setFunctionSecret,
-  setPreview,
-  setVaultValue,
-  skipLeftovers,
-  vaultStatus,
-} from "./move/flows.js";
 export { type DeployOutcome, localFunctions } from "./move/functions.js";
 export {
   GOOGLE_SETTING,
@@ -158,6 +164,7 @@ export {
   setGoogleSignIn,
   skipGoogle,
 } from "./move/google.js";
+export { createHome } from "./move/home.js";
 export {
   NETLIFY_TOKEN,
   NETLIFY_TOKENS_PAGE,
@@ -167,12 +174,12 @@ export {
 export { type PgTarget, psqlSql, type Sql } from "./move/postgres.js";
 export {
   POSTGRES_BUILD,
-  postgresHome,
   postgresTool,
   ToolUnavailable,
 } from "./move/postgres-tools.js";
+export { type MoveProgress, type MoveStep, moveProgress } from "./move/progress.js";
 export { RESEND_KEY, RESEND_KEYS_PAGE, ResendApi } from "./move/resend-api.js";
-export { copyExport, emptyCopy } from "./move/restore.js";
+export { copyExport } from "./move/restore.js";
 export {
   AI_PROVIDERS,
   type AiProvider,
@@ -185,10 +192,7 @@ export {
   skipServices,
 } from "./move/services.js";
 export {
-  appSettings,
   connectNetlify,
-  netlifyToml,
-  netlifyWorkflow,
   putSiteOnNetlify,
   type SiteOutcome,
   setSiteSetting,
@@ -227,28 +231,23 @@ export {
   detectProject,
   type PackageManager,
   type ProjectInfo,
-  readPackageJson,
-  runScriptCommand,
 } from "./project.js";
 export {
-  changedFunctions,
-  type FunctionsOutcome,
   type PublishOptions,
   type PublishResult,
   publish,
   publishTitle,
-  runsChecksOnPullRequests,
   type UndoResult,
   undoPublish,
-  waitForCi,
-  waitForDeploy,
 } from "./publish.js";
+export type { FunctionsOutcome } from "./publish-functions.js";
 export {
+  appSettings,
   localSettings,
   SETTINGS_PATH,
   type SettingsStatus,
   setSetting,
   settingsStatus,
 } from "./settings.js";
-export { formatAbsolute, formatClock, formatRelative } from "./time.js";
+export { formatRelative } from "./time.js";
 export { draftBranchFor, Workspace, type WorkspaceOptions } from "./workspace.js";

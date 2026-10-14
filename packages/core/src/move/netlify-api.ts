@@ -1,5 +1,6 @@
 import { ClodableError } from "../errors.js";
 import { readSecret } from "../local-secrets.js";
+import { type ApiService, callApi } from "./http.js";
 
 /**
  * Netlify's API, with the builder's own access token: only what moving the website needs. The token
@@ -29,12 +30,32 @@ export interface NetlifySite {
 
 export class NetlifyApi {
   private readonly base: string;
+  private readonly service: ApiService;
 
   constructor(
-    private readonly token: string,
+    token: string,
     base = process.env.CLODABLE_NETLIFY_API ?? "https://api.netlify.com/api/v1",
   ) {
     this.base = base.replace(/\/+$/, "");
+    this.service = {
+      name: "Netlify",
+      token,
+      failed: "netlify-failed",
+      refused: (status, _message, details) =>
+        status === 401
+          ? new ClodableError({
+              code: "netlify-auth",
+              message: "Netlify didn't accept your access token.",
+              hint: "It may have expired or been deleted. Create a new one and connect again.",
+              details,
+            })
+          : new ClodableError({
+              code: "netlify-failed",
+              message: status === 422 ? "Netlify refused that." : "Netlify refused the request.",
+              hint: "Try again in a minute. If it keeps happening, share the details with your developer.",
+              details,
+            }),
+    };
   }
 
   static async onThisComputer(): Promise<NetlifyApi | undefined> {
@@ -54,52 +75,8 @@ export class NetlifyApi {
     return api;
   }
 
-  private async request<T>(method: string, path: string, body?: unknown): Promise<T> {
-    let response: Response;
-    try {
-      response = await fetch(`${this.base}${path}`, {
-        method,
-        headers: {
-          Authorization: `Bearer ${this.token}`,
-          "User-Agent": "clodable",
-          ...(body !== undefined ? { "Content-Type": "application/json" } : {}),
-        },
-        ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
-        signal: AbortSignal.timeout(30_000),
-      });
-    } catch (error) {
-      throw new ClodableError({
-        code: "offline",
-        message: "Couldn't reach Netlify.",
-        hint: "Check your internet connection, then try again.",
-        details: error instanceof Error ? error.message : String(error),
-      });
-    }
-    const text = await response.text();
-    if (!response.ok) {
-      let message = text;
-      try {
-        message = (JSON.parse(text) as { message?: string }).message ?? text;
-      } catch {
-        // plain text
-      }
-      const details = `Netlify answered ${response.status}: ${message.slice(0, 400)}`;
-      if (response.status === 401) {
-        throw new ClodableError({
-          code: "netlify-auth",
-          message: "Netlify didn't accept your access token.",
-          hint: "It may have expired or been deleted. Create a new one and connect again.",
-          details,
-        });
-      }
-      throw new ClodableError({
-        code: "netlify-failed",
-        message: response.status === 422 ? "Netlify refused that." : "Netlify refused the request.",
-        hint: "Try again in a minute. If it keeps happening, share the details with your developer.",
-        details,
-      });
-    }
-    return (text ? JSON.parse(text) : undefined) as T;
+  private request<T>(method: string, path: string, body?: unknown): Promise<T> {
+    return callApi<T>(this.service, method, `${this.base}${path}`, body);
   }
 
   user() {
@@ -114,7 +91,6 @@ export class NetlifyApi {
     return this.request<NetlifySite>("GET", `/sites/${encodeURIComponent(id)}`);
   }
 
-  /** A new site in this team. Netlify names are unique across all of Netlify: a taken one is a 422. */
   /** The site's own domain (yourapp.com): Netlify serves it, with a certificate once DNS points here. */
   setCustomDomain(id: string, domain: string) {
     return this.request<NetlifySite>("PATCH", `/sites/${encodeURIComponent(id)}`, {
@@ -127,6 +103,7 @@ export class NetlifyApi {
     return this.request<unknown>("POST", `/sites/${encodeURIComponent(id)}/ssl`);
   }
 
+  /** A new site in this team. Netlify names are unique across all of Netlify: a taken one is a 422. */
   createSite(account: string, name: string) {
     return this.request<NetlifySite>("POST", `/${encodeURIComponent(account)}/sites`, { name });
   }

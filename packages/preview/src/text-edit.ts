@@ -100,6 +100,25 @@ function candidates(element: Node): { list: Candidate[]; hasDynamic: boolean } {
   return { list, hasDynamic };
 }
 
+/** The one piece of static text that reads `text` in the element at that location, or why not. */
+function locate(
+  code: string,
+  file: string,
+  line: number,
+  column: number,
+  text: string,
+): { ok: true; match: Candidate } | { ok: false; reason: TextEditFailure } {
+  const program = parseModule(code, file);
+  const element = program && findElement(program, line, column, text);
+  if (!element) return { ok: false, reason: "not-found" };
+  const target = normalize(text);
+  const { list, hasDynamic } = candidates(element);
+  const matches = list.filter((c) => c.text === target);
+  if (matches.length === 1) return { ok: true, match: matches[0]! };
+  if (matches.length > 1) return { ok: false, reason: "ambiguous" };
+  return { ok: false, reason: hasDynamic || list.length === 0 ? "dynamic" : "not-found" };
+}
+
 /** Can this text be edited in place? Used to show the right affordance before the builder types. */
 export function probeText(
   code: string,
@@ -108,15 +127,8 @@ export function probeText(
   column: number,
   text: string,
 ): { editable: true } | { editable: false; reason: TextEditFailure } {
-  const program = parseModule(code, file);
-  const element = program && findElement(program, line, column, text);
-  if (!element) return { editable: false, reason: "not-found" };
-  const target = normalize(text);
-  const { list, hasDynamic } = candidates(element);
-  const matches = list.filter((c) => c.text === target);
-  if (matches.length === 1) return { editable: true };
-  if (matches.length > 1) return { editable: false, reason: "ambiguous" };
-  return { editable: false, reason: hasDynamic || list.length === 0 ? "dynamic" : "not-found" };
+  const found = locate(code, file, line, column, text);
+  return found.ok ? { editable: true } : { editable: false, reason: found.reason };
 }
 
 /** JSX text can't contain these characters raw; such text is written as a string expression instead. */
@@ -129,16 +141,9 @@ export function editText(
   before: string,
   after: string,
 ): TextEditResult {
-  const program = parseModule(code, file);
-  const element = program && findElement(program, location.line, location.column, before);
-  if (!element) return { ok: false, reason: "not-found" };
-  const target = normalize(before);
-  const { list, hasDynamic } = candidates(element);
-  const matches = list.filter((c) => c.text === target);
-  if (matches.length === 0)
-    return { ok: false, reason: hasDynamic || list.length === 0 ? "dynamic" : "not-found" };
-  if (matches.length > 1) return { ok: false, reason: "ambiguous" };
-  const match = matches[0]!;
+  const found = locate(code, file, location.line, location.column, before);
+  if (!found.ok) return found;
+  const { match } = found;
   const next = after.replace(/\s+/g, " ").trim();
   let replacement: string;
   let start: number;

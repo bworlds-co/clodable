@@ -1,4 +1,3 @@
-import { isCancel, password } from "@clack/prompts";
 import {
   applyKit,
   assessMove,
@@ -57,8 +56,9 @@ import {
   switchPlan,
   TOKENS_PAGE,
   vaultStatus,
+  type Workspace,
 } from "@clodable/core";
-import { type Context, drive, run } from "../context.js";
+import { type Context, drive, readStdin, run, secretInput } from "../context.js";
 import { ash, celadon, clay, link, ochre } from "../ui.js";
 
 const SETTINGS = {
@@ -114,45 +114,6 @@ const LEVEL: Record<MoveAssessment["level"], string> = {
   "needs-help": "A move where some parts are best done with someone technical.",
 };
 
-export const MOVE_STEPS = [
-  "check",
-  "facts",
-  "status",
-  "connect",
-  "choices",
-  "create",
-  "export",
-  "copy",
-  "verify",
-  "diagnose",
-  "files",
-  "functions",
-  "secrets",
-  "secret",
-  "vault",
-  "vault-secret",
-  "preview",
-  "netlify",
-  "teams",
-  "site",
-  "settings",
-  "setting",
-  "method",
-  "resend",
-  "emails",
-  "services",
-  "ai",
-  "app-emails",
-  "google",
-  "pause",
-  "paused",
-  "golive",
-  "domain",
-  "finished",
-  "forget",
-  "disconnect",
-] as const;
-
 export interface MoveOptions {
   step: string;
   arg?: string;
@@ -180,30 +141,6 @@ export interface MoveOptions {
   signUp?: boolean;
 }
 
-/** Everything piped in, for values that must never be command-line arguments (keys, tokens). */
-async function readStdin(): Promise<string | undefined> {
-  if (process.stdin.isTTY) return undefined;
-  const chunks: Buffer[] = [];
-  for await (const chunk of process.stdin) chunks.push(chunk as Buffer);
-  const text = Buffer.concat(chunks).toString("utf8").trim();
-  return text || undefined;
-}
-
-/** A value from stdin, or typed in a hidden prompt in a terminal. */
-async function secretInput(ctx: Context, message: string): Promise<string> {
-  const piped = await readStdin();
-  if (piped) return piped;
-  if (!ctx.out.json && process.stdin.isTTY) {
-    const typed = await password({ message });
-    if (!isCancel(typed) && typed.trim()) return typed.trim();
-  }
-  throw new ClodableError({
-    code: "invalid-config",
-    message: "Nothing was given.",
-    hint: "Pipe the value in (never as an argument), or run this in a terminal to type it.",
-  });
-}
-
 const MARK = { done: celadon("✓"), next: clay("●"), later: ash("·"), attention: ochre("!") };
 
 function renderProgress(ctx: Context, progress: MoveProgress) {
@@ -217,23 +154,49 @@ function renderProgress(ctx: Context, progress: MoveProgress) {
   }
 }
 
-/** Moving off Lovable, step by step. Every step is safe to run again. */
-export async function moveCommand(ctx: Context, options: MoveOptions) {
-  const step = options.step;
-  if (!(MOVE_STEPS as readonly string[]).includes(step)) {
-    await run(ctx, async () => {
-      throw new ClodableError({
-        code: "not-found",
-        message: `There's no move step called “${step}”.`,
-        hint: `Use one of: ${MOVE_STEPS.join(", ")}.`,
-      });
-    });
-    return;
+/** Names the move wants a value for, each marked set or not. */
+function checklist(ctx: Context, status: { wanted: string[]; set: string[] }) {
+  for (const name of status.wanted) {
+    ctx.out.line(`${status.set.includes(name) ? celadon("✓") : clay("●")} ${name}`);
   }
+}
 
-  switch (step) {
-    case "check":
-      return run(
+/** The step's argument, or what it should have been. */
+function argument(options: MoveOptions, message: string, hint: string): string {
+  if (!options.arg) throw new ClodableError({ code: "invalid-config", message, hint });
+  return options.arg;
+}
+
+/**
+ * Values the move found the app needs (secrets, settings, vault values): which are set, or with
+ * --skip, going on without the ones left.
+ */
+function leftovers<S extends { wanted: string[]; set: string[] }>(
+  kind: "secrets" | "settings" | "vault",
+  status: (ws: Workspace) => Promise<S>,
+  render: (ctx: Context, status: S) => void = checklist,
+): MoveStepCommand["run"] {
+  return (ctx, options) =>
+    options.skip
+      ? run(ctx, async () => skipLeftovers(await ctx.workspace(), kind))
+      : run(
+          ctx,
+          async () => status(await ctx.workspace()),
+          (s) => render(ctx, s),
+        );
+}
+
+interface MoveStepCommand {
+  /** How the help writes the step, when it takes more than its name. */
+  usage?: string;
+  run(ctx: Context, options: MoveOptions): Promise<void>;
+}
+
+/** Moving off Lovable, step by step, in the order they come. Every step is safe to run again. */
+const STEPS = {
+  check: {
+    run: (ctx) =>
+      run(
         ctx,
         async () => {
           const ws = await ctx.workspace();
@@ -250,25 +213,59 @@ export async function moveCommand(ctx: Context, options: MoveOptions) {
             ctx.out.line(ash(`  ${item.detail}`));
           }
         },
-      );
+      ),
+  },
 
-    case "status":
-      return run(
+  facts: {
+    usage: "facts [--set]",
+    run: (ctx, options) =>
+      options.set
+        ? run(
+            ctx,
+            async () => {
+              const json = (await readStdin())?.trim();
+              if (!json) {
+                throw new ClodableError({
+                  code: "invalid-config",
+                  message: "Nothing was given.",
+                  hint: "Pipe the facts in, as one JSON object.",
+                });
+              }
+              return recordFacts(await ctx.workspace(), json);
+            },
+            (facts) => ctx.out.line(`${celadon("✓")} Recorded: ${factsSummary(facts)}`),
+          )
+        : run(
+            ctx,
+            async () => moveFacts(await ctx.workspace()),
+            ({ hints, facts }) => {
+              ctx.out.header("what your app uses");
+              ctx.out.line(facts ? factsSummary(facts) : ash("Not checked yet."));
+              ctx.out.line("");
+              ctx.out.line(ash("Clodable's scan, for Claude to check:"));
+              ctx.out.line(JSON.stringify(hints, null, 2));
+            },
+          ),
+  },
+
+  status: {
+    run: (ctx) =>
+      run(
         ctx,
         async () => moveProgress(await ctx.workspace()),
         (progress) => renderProgress(ctx, progress),
-      );
+      ),
+  },
 
-    case "connect":
-      return run(
+  connect: {
+    run: (ctx) =>
+      run(
         ctx,
         async () => {
           await ctx.workspace();
-          const token = await secretInput(
-            ctx,
-            `Your Supabase access token (create one at ${TOKENS_PAGE})`,
+          return connectSupabase(
+            await secretInput(ctx, `Your Supabase access token (create one at ${TOKENS_PAGE})`),
           );
-          return connectSupabase(token);
         },
         (data) => {
           ctx.out.line(`${celadon("✓")} Supabase is connected on this computer.`);
@@ -276,10 +273,12 @@ export async function moveCommand(ctx: Context, options: MoveOptions) {
             ctx.out.line(ash(`  ${org.name} · ${org.plan} plan`));
           }
         },
-      );
+      ),
+  },
 
-    case "choices":
-      return run(
+  choices: {
+    run: (ctx) =>
+      run(
         ctx,
         async () => {
           await ctx.workspace();
@@ -295,36 +294,40 @@ export async function moveCommand(ctx: Context, options: MoveOptions) {
           }
           if (choices.region) ctx.out.line(ash(`Suggested region: ${choices.region.name}`));
         },
-      );
+      ),
+  },
 
-    case "create":
-      return run(
+  create: {
+    run: (ctx, options) =>
+      run(
         ctx,
-        async () => {
-          const ws = await ctx.workspace();
-          return drive(
+        async () =>
+          drive(
             ctx,
-            createHome(ws, {
+            createHome(await ctx.workspace(), {
               ...(options.org ? { org: options.org } : {}),
               ...(options.region ? { region: options.region } : {}),
               ...(options.name ? { name: options.name } : {}),
             }),
-          );
-        },
+          ),
         (home) => ctx.out.line(ash(`  ${home.name} · ${home.region}`)),
-      );
+      ),
+  },
 
-    case "export":
-      return run(ctx, async () => {
-        const ws = await ctx.workspace();
-        return drive(ctx, importExport(ws, options.file ? { file: options.file } : {}));
-      });
+  export: {
+    run: (ctx, options) =>
+      run(ctx, async () =>
+        drive(ctx, importExport(await ctx.workspace(), options.file ? { file: options.file } : {})),
+      ),
+  },
 
-    case "copy":
-      return run(ctx, async () => drive(ctx, copyData(await ctx.workspace())));
+  copy: {
+    run: (ctx) => run(ctx, async () => drive(ctx, copyData(await ctx.workspace()))),
+  },
 
-    case "verify":
-      return run(
+  verify: {
+    run: (ctx) =>
+      run(
         ctx,
         async () => drive(ctx, checkCopy(await ctx.workspace())),
         (result) => {
@@ -333,16 +336,18 @@ export async function moveCommand(ctx: Context, options: MoveOptions) {
             if (check.detail) ctx.out.line(ash(`  ${check.detail}`));
           }
         },
-      );
+      ),
+  },
 
-    case "diagnose":
-      return run(
+  diagnose: {
+    run: (ctx, options) =>
+      run(
         ctx,
         async () => diagnoseCopy(await ctx.workspace(), { fix: Boolean(options.fix) }),
         (result) => {
           ctx.out.header("your new backend");
           for (const finding of result.findings) {
-            const mark = finding.fixed ? celadon("✓") : finding.ok ? celadon("✓") : ochre("!");
+            const mark = finding.fixed || finding.ok ? celadon("✓") : ochre("!");
             ctx.out.line(
               `${mark} ${finding.label}${finding.fixed ? ash(" · fixed just now") : ""}`,
             );
@@ -350,83 +355,64 @@ export async function moveCommand(ctx: Context, options: MoveOptions) {
             if (finding.fix) ctx.out.line(ash(`  → ${finding.fix}`));
           }
         },
-      );
+      ),
+  },
 
-    case "files":
-      return run(ctx, async () => {
+  files: {
+    run: (ctx, options) =>
+      run(ctx, async () => {
         const ws = await ctx.workspace();
         const sourceKey = options.private
           ? await secretInput(ctx, "Lovable Cloud's service key")
           : undefined;
         return drive(ctx, copyUploads(ws, sourceKey ? { sourceKey } : {}));
-      });
+      }),
+  },
 
-    case "functions":
-      return run(ctx, async () => drive(ctx, deployBackendFunctions(await ctx.workspace())));
+  functions: {
+    run: (ctx) => run(ctx, async () => drive(ctx, deployBackendFunctions(await ctx.workspace()))),
+  },
 
-    case "secrets":
-      if (options.skip)
-        return run(ctx, async () => skipLeftovers(await ctx.workspace(), "secrets"));
-      return run(
-        ctx,
-        async () => functionSecretStatus(await ctx.workspace()),
-        (status) => {
-          for (const name of status.wanted) {
-            ctx.out.line(`${status.set.includes(name) ? celadon("✓") : clay("●")} ${name}`);
-          }
-        },
-      );
+  secrets: { run: leftovers("secrets", functionSecretStatus) },
 
-    case "facts":
-      if (options.set) {
-        return run(
-          ctx,
-          async () => {
-            const json = await readStdin();
-            if (!json) {
-              throw new ClodableError({
-                code: "invalid-config",
-                message: "Nothing was given.",
-                hint: "Pipe the facts in, as one JSON object.",
-              });
-            }
-            return recordFacts(await ctx.workspace(), json);
-          },
-          (facts) => ctx.out.line(`${celadon("✓")} Recorded: ${factsSummary(facts)}`),
-        );
-      }
-      return run(
-        ctx,
-        async () => moveFacts(await ctx.workspace()),
-        ({ hints, facts }) => {
-          ctx.out.header("what your app uses");
-          ctx.out.line(facts ? factsSummary(facts) : ash("Not checked yet."));
-          ctx.out.line("");
-          ctx.out.line(ash("Clodable's scan, for Claude to check:"));
-          ctx.out.line(JSON.stringify(hints, null, 2));
-        },
-      );
-
-    case "secret":
-      return run(
+  secret: {
+    usage: "secret <NAME>",
+    run: (ctx, options) =>
+      run(
         ctx,
         async () => {
           const ws = await ctx.workspace();
-          if (!options.arg) {
-            throw new ClodableError({
-              code: "invalid-config",
-              message: "Which secret?",
-              hint: "clodable move secret RESEND_API_KEY, with the value piped in.",
-            });
-          }
-          const value = await secretInput(ctx, `The value of ${options.arg}`);
-          return setFunctionSecret(ws, options.arg, value);
+          const name = argument(
+            options,
+            "Which secret?",
+            "clodable move secret RESEND_API_KEY, with the value piped in.",
+          );
+          return setFunctionSecret(ws, name, await secretInput(ctx, `The value of ${name}`));
         },
         () => ctx.out.line(`${celadon("✓")} Saved in your new backend.`),
-      );
+      ),
+  },
 
-    case "preview":
-      return run(
+  vault: { run: leftovers("vault", vaultStatus) },
+
+  "vault-secret": {
+    usage: "vault-secret <NAME>",
+    run: (ctx, options) =>
+      run(
+        ctx,
+        async () => {
+          const ws = await ctx.workspace();
+          const value = await secretInput(ctx, `The value of ${options.arg ?? "the secret"}`);
+          return setVaultValue(ws, options.arg, value);
+        },
+        () => ctx.out.line(`${celadon("✓")} Saved in your new backend's vault.`),
+      ),
+  },
+
+  preview: {
+    usage: "preview <copy|live>",
+    run: (ctx, options) =>
+      run(
         ctx,
         async () => {
           const ws = await ctx.workspace();
@@ -447,28 +433,34 @@ export async function moveCommand(ctx: Context, options: MoveOptions) {
               ? `${celadon("✓")} The preview now uses your new backend.`
               : `${celadon("✓")} The preview uses your live backend again.`,
           ),
-      );
+      ),
+  },
 
-    case "netlify":
-      return run(
+  netlify: {
+    run: (ctx) =>
+      run(
         ctx,
         async () => {
           await ctx.workspace();
-          const token = await secretInput(
-            ctx,
-            `Your Netlify access token (create one at ${NETLIFY_TOKENS_PAGE})`,
+          return connectNetlify(
+            await secretInput(
+              ctx,
+              `Your Netlify access token (create one at ${NETLIFY_TOKENS_PAGE})`,
+            ),
           );
-          return connectNetlify(token);
         },
         (data) => {
           ctx.out.line(`${celadon("✓")} Netlify is connected on this computer.`);
-          for (const account of data.accounts)
+          for (const account of data.accounts) {
             ctx.out.line(ash(`  ${account.name} (${account.slug})`));
+          }
         },
-      );
+      ),
+  },
 
-    case "teams":
-      return run(
+  teams: {
+    run: (ctx) =>
+      run(
         ctx,
         async () => {
           await ctx.workspace();
@@ -476,118 +468,98 @@ export async function moveCommand(ctx: Context, options: MoveOptions) {
           return { accounts: (await api.accounts()).map((a) => ({ slug: a.slug, name: a.name })) };
         },
         (data) => {
-          for (const account of data.accounts)
+          for (const account of data.accounts) {
             ctx.out.line(`${account.name} ${ash(`(${account.slug})`)}`);
+          }
         },
-      );
+      ),
+  },
 
-    case "site":
-      return run(
+  site: {
+    run: (ctx, options) =>
+      run(
         ctx,
-        async () => {
-          const ws = await ctx.workspace();
-          return drive(
+        async () =>
+          drive(
             ctx,
-            putSiteOnNetlify(ws, options.account ? { account: options.account } : {}),
-          );
-        },
+            putSiteOnNetlify(
+              await ctx.workspace(),
+              options.account ? { account: options.account } : {},
+            ),
+          ),
         (outcome) => {
           ctx.out.line(ash(`  ${outcome.site.url}`));
           if (outcome.files.length > 0) ctx.out.line(ash(`  Added: ${outcome.files.join(", ")}`));
           const missing = outcome.settings.wanted.filter((n) => !outcome.settings.set.includes(n));
-          if (missing.length > 0)
+          if (missing.length > 0) {
             ctx.out.line(ash(`  Settings your app reads, to fill in: ${missing.join(", ")}`));
+          }
           if (outcome.settings.lovable.length > 0) {
             ctx.out.line(ash(`  Lovable's own, for later: ${outcome.settings.lovable.join(", ")}`));
           }
         },
-      );
+      ),
+  },
 
-    case "settings":
-      if (options.skip) {
-        return run(ctx, async () => skipLeftovers(await ctx.workspace(), "settings"));
-      }
-      return run(
-        ctx,
-        async () => siteSettings(await ctx.workspace()),
-        (status) => {
-          for (const name of status.wanted) {
-            ctx.out.line(`${status.set.includes(name) ? celadon("✓") : clay("●")} ${name}`);
-          }
-          for (const name of status.lovable)
-            ctx.out.line(`${ash("·")} ${name} ${ash("(Lovable's own)")}`);
-        },
-      );
+  settings: {
+    run: leftovers("settings", siteSettings, (ctx, status) => {
+      checklist(ctx, status);
+      for (const name of status.lovable)
+        ctx.out.line(`${ash("·")} ${name} ${ash("(Lovable's own)")}`);
+    }),
+  },
 
-    case "setting":
-      return run(
+  setting: {
+    usage: "setting <NAME>",
+    run: (ctx, options) =>
+      run(
         ctx,
         async () => {
           const ws = await ctx.workspace();
-          if (!options.arg) {
-            throw new ClodableError({
-              code: "invalid-config",
-              message: "Which setting?",
-              hint: "clodable move setting GREETING, with the value piped in.",
-            });
-          }
-          const value = await secretInput(ctx, `The value of ${options.arg}`);
+          const name = argument(
+            options,
+            "Which setting?",
+            "clodable move setting GREETING, with the value piped in.",
+          );
           // For the preview too, not only the site: one paste, both places.
-          await setSetting(ws, options.arg, value);
+          await setSetting(ws, name, await secretInput(ctx, `The value of ${name}`));
           return siteSettings(ws);
         },
         () => ctx.out.line(`${celadon("✓")} Saved on your Netlify site.`),
-      );
+      ),
+  },
 
-    case "method":
-      return run(
+  method: {
+    usage: "method <careful|quick>",
+    run: (ctx, options) =>
+      run(
         ctx,
         async () => setMoveMethod(await ctx.workspace(), options.arg),
         (data) =>
           ctx.out.line(
             `${celadon("✓")} ${data.method === "quick" ? "In one go: no pause, no last export." : "Carefully: a short pause at the end, nothing lost."}`,
           ),
-      );
+      ),
+  },
 
-    case "vault":
-      if (options.skip) return run(ctx, async () => skipLeftovers(await ctx.workspace(), "vault"));
-      return run(
-        ctx,
-        async () => vaultStatus(await ctx.workspace()),
-        (status) => {
-          for (const name of status.wanted) {
-            ctx.out.line(`${status.set.includes(name) ? celadon("✓") : clay("●")} ${name}`);
-          }
-        },
-      );
-
-    case "vault-secret":
-      return run(
-        ctx,
-        async () => {
-          const ws = await ctx.workspace();
-          const value = await secretInput(ctx, `The value of ${options.arg ?? "the secret"}`);
-          return setVaultValue(ws, options.arg, value);
-        },
-        () => ctx.out.line(`${celadon("✓")} Saved in your new backend's vault.`),
-      );
-
-    case "resend":
-      return run(
+  resend: {
+    run: (ctx) =>
+      run(
         ctx,
         async () => {
           await ctx.workspace();
-          const key = await secretInput(
-            ctx,
-            `Your Resend key, with Full access (${RESEND_KEYS_PAGE})`,
+          return connectResend(
+            await secretInput(ctx, `Your Resend key, with Full access (${RESEND_KEYS_PAGE})`),
           );
-          return connectResend(key);
         },
         () => ctx.out.line(`${celadon("✓")} Resend is connected on this computer.`),
-      );
+      ),
+  },
 
-    case "emails":
-      return run(
+  emails: {
+    usage: "emails --domain <domain>|--hook|--skip",
+    run: (ctx, options) =>
+      run(
         ctx,
         async () => {
           const ws = await ctx.workspace();
@@ -626,35 +598,46 @@ export async function moveCommand(ctx: Context, options: MoveOptions) {
             ctx.out.line(`  ${r.type.padEnd(5)} ${r.name.padEnd(22)} ${r.value}${priority}`);
           }
         },
-      );
+      ),
+  },
 
-    case "services":
-      if (options.skip) return run(ctx, async () => skipServices(await ctx.workspace()));
-      return run(
-        ctx,
-        async () => servicesStatus(await ctx.workspace()),
-        (status) => {
-          const line = (on: boolean, done: boolean, text: string) => {
-            if (on) ctx.out.line(`${done ? celadon("✓") : clay("●")} ${text}`);
-          };
-          line(
-            status.ai,
-            status.aiSwitched,
-            "AI: Lovable's AI gateway → your own provider (AI_API_URL, AI_API_KEY)",
-          );
-          line(
-            status.emails,
-            status.emailsSwitched,
-            "Emails: Lovable's email API → Resend (RESEND_API_KEY, EMAIL_FROM)",
-          );
-          line(status.hook, status.hookOn, "Sign-in emails: your own templates (auth-email-hook)");
-          for (const name of status.connectors)
-            ctx.out.line(`${clay("●")} ${name}, through Lovable's connectors`);
-        },
-      );
+  services: {
+    run: (ctx, options) =>
+      options.skip
+        ? run(ctx, async () => skipServices(await ctx.workspace()))
+        : run(
+            ctx,
+            async () => servicesStatus(await ctx.workspace()),
+            (status) => {
+              const line = (on: boolean, done: boolean, text: string) => {
+                if (on) ctx.out.line(`${done ? celadon("✓") : clay("●")} ${text}`);
+              };
+              line(
+                status.ai,
+                status.aiSwitched,
+                "AI: Lovable's AI gateway → your own provider (AI_API_URL, AI_API_KEY)",
+              );
+              line(
+                status.emails,
+                status.emailsSwitched,
+                "Emails: Lovable's email API → Resend (RESEND_API_KEY, EMAIL_FROM)",
+              );
+              line(
+                status.hook,
+                status.hookOn,
+                "Sign-in emails: your own templates (auth-email-hook)",
+              );
+              for (const name of status.connectors) {
+                ctx.out.line(`${clay("●")} ${name}, through Lovable's connectors`);
+              }
+            },
+          ),
+  },
 
-    case "ai":
-      return run(
+  ai: {
+    usage: "ai <openrouter|gemini|openai>",
+    run: (ctx, options) =>
+      run(
         ctx,
         async () => {
           const ws = await ctx.workspace();
@@ -665,10 +648,25 @@ export async function moveCommand(ctx: Context, options: MoveOptions) {
           ctx.out.line(
             `${celadon("✓")} Saved for your preview, your site and your backend functions: ${data.url}`,
           ),
-      );
+      ),
+  },
 
-    case "google":
-      return run(
+  "app-emails": {
+    run: (ctx) =>
+      run(
+        ctx,
+        async () => provisionAppEmails(await ctx.workspace()),
+        (data) =>
+          ctx.out.line(
+            `${celadon("✓")} Your app has its own Resend key (RESEND_API_KEY), sending from ${data.sender}.`,
+          ),
+      ),
+  },
+
+  google: {
+    usage: "google <client id>|--skip",
+    run: (ctx, options) =>
+      run(
         ctx,
         async () => {
           const ws = await ctx.workspace();
@@ -682,20 +680,12 @@ export async function moveCommand(ctx: Context, options: MoveOptions) {
               ? `${celadon("✓")} Google sign-in stays off on your new site.`
               : `${celadon("✓")} Google sign-in is on in your new backend.`,
           ),
-      );
+      ),
+  },
 
-    case "app-emails":
-      return run(
-        ctx,
-        async () => provisionAppEmails(await ctx.workspace()),
-        (data) =>
-          ctx.out.line(
-            `${celadon("✓")} Your app has its own Resend key (RESEND_API_KEY), sending from ${data.sender}.`,
-          ),
-      );
-
-    case "pause":
-      return run(
+  pause: {
+    run: (ctx) =>
+      run(
         ctx,
         async () => switchPlan(await ctx.workspace()),
         (plan) => {
@@ -707,46 +697,51 @@ export async function moveCommand(ctx: Context, options: MoveOptions) {
           ctx.out.line(ash("To undo the pause:"));
           ctx.out.line(ash(plan.undo));
         },
-      );
+      ),
+  },
 
-    case "paused":
-      return run(
+  paused: {
+    run: (ctx) =>
+      run(
         ctx,
         async () => markFrozen(await ctx.workspace()),
         () =>
           ctx.out.line(
             `${celadon("✓")} Paused. Next: export from Lovable once more, then copy it in.`,
           ),
-      );
+      ),
+  },
 
-    case "golive":
-      return run(
+  golive: {
+    run: (ctx, options) =>
+      run(
         ctx,
-        async () => {
-          const ws = await ctx.workspace();
-          return drive(
+        async () =>
+          drive(
             ctx,
-            goLive(ws, {
+            goLive(await ctx.workspace(), {
               ...(options.confirmEmail !== undefined ? { confirmEmail: options.confirmEmail } : {}),
               ...(options.signUp !== undefined ? { signUp: options.signUp } : {}),
             }),
-          );
-        },
+          ),
         (outcome) => {
           if (outcome.files.length > 0) ctx.out.line(ash(`  Updated: ${outcome.files.join(", ")}`));
-          if (outcome.jobs?.created)
+          if (outcome.jobs?.created) {
             ctx.out.line(ash(`  Started ${outcome.jobs.created} scheduled job(s)`));
+          }
           ctx.out.line(`Publish to put it live at ${outcome.url}.`);
         },
-      );
+      ),
+  },
 
-    case "domain":
-      return run(
+  domain: {
+    usage: "domain [name|--skip]",
+    run: (ctx, options) =>
+      run(
         ctx,
         async () => {
           const ws = await ctx.workspace();
-          if (options.skip) return skipDomain(ws);
-          return setDomain(ws, options.arg);
+          return options.skip ? skipDomain(ws) : setDomain(ws, options.arg);
         },
         (outcome) => {
           if ("skipped" in outcome) {
@@ -766,34 +761,39 @@ export async function moveCommand(ctx: Context, options: MoveOptions) {
             ctx.out.line(`  ${r.type.padEnd(5)} ${r.name.padEnd(6)} ${r.value}`);
           }
         },
-      );
+      ),
+  },
 
-    case "finished":
-      return run(
+  finished: {
+    run: (ctx) =>
+      run(
         ctx,
         async () => markFinished(await ctx.workspace()),
         () =>
           ctx.out.line(
             `${celadon("✓")} Your app is off Lovable. Clodable deleted its copy of your export from this computer.`,
           ),
-      );
+      ),
+  },
 
-    case "forget":
-      return run(
+  forget: {
+    run: (ctx) =>
+      run(
         ctx,
         async () => {
-          const ws = await ctx.workspace();
-          await forgetMoveFiles(ws.root);
+          await forgetMoveFiles((await ctx.workspace()).root);
           return { forgotten: true };
         },
         () =>
           ctx.out.line(
             `${celadon("✓")} Removed the export and the move's files from this computer.`,
           ),
-      );
+      ),
+  },
 
-    case "disconnect":
-      return run(
+  disconnect: {
+    run: (ctx) =>
+      run(
         ctx,
         async () => {
           await forgetSecret(SUPABASE_TOKEN);
@@ -803,6 +803,27 @@ export async function moveCommand(ctx: Context, options: MoveOptions) {
           ctx.out.line(
             `${celadon("✓")} Supabase is disconnected here. Delete the token in Supabase too: ${TOKENS_PAGE}`,
           ),
-      );
+      ),
+  },
+} satisfies Record<string, MoveStepCommand>;
+
+type MoveStepName = keyof typeof STEPS;
+const COMMANDS: Record<MoveStepName, MoveStepCommand> = STEPS;
+const MOVE_STEPS = Object.keys(COMMANDS) as MoveStepName[];
+
+/** The move's line in `clodable --help`: every step, in order, with what it takes. */
+export const MOVE_HELP = `Move off Lovable, step by step: ${MOVE_STEPS.map((name) => COMMANDS[name].usage ?? name).join(", ")}`;
+
+/** Moving off Lovable, step by step. Every step is safe to run again. */
+export async function moveCommand(ctx: Context, options: MoveOptions) {
+  if (!Object.hasOwn(COMMANDS, options.step)) {
+    return run(ctx, async () => {
+      throw new ClodableError({
+        code: "not-found",
+        message: `There's no move step called “${options.step}”.`,
+        hint: `Use one of: ${MOVE_STEPS.join(", ")}.`,
+      });
+    });
   }
+  return COMMANDS[options.step as MoveStepName].run(ctx, options);
 }

@@ -4,17 +4,21 @@ import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { runFlow } from "../src/index.js";
-import { copyValue, readExport, splitNames } from "../src/move/export.js";
+import { type LogEvent, runFlow, type StepEvent } from "../src/index.js";
+import { copyValue, readExport, splitNames, tableGrants } from "../src/move/export.js";
+import { copyFiles } from "../src/move/files.js";
 import { repoint } from "../src/move/fixes.js";
+import { NetlifyApi } from "../src/move/netlify-api.js";
 import { psqlSql, type Sql } from "../src/move/postgres.js";
+import { ResendApi } from "../src/move/resend-api.js";
 import { copyExport } from "../src/move/restore.js";
-import { appSettings } from "../src/move/site.js";
 import { MOVE_PERMISSIONS, permissionFor, SupabaseApi } from "../src/move/supabase-api.js";
 import { exportTime, freezeSql, madeAfterPause } from "../src/move/switch.js";
 import { appTriggerIds, parseToc, planRestore } from "../src/move/toc.js";
 import { verifyCopy } from "../src/move/verify.js";
 import { extractEntry, zipEntries } from "../src/move/zip.js";
+import { appSettings } from "../src/settings.js";
+import { startFakeSupabase } from "./fake-supabase.js";
 import {
   DST,
   jwt,
@@ -134,6 +138,24 @@ CREATE TRIGGER update_objects_updated_at BEFORE UPDATE ON storage.objects FOR EA
     expect(splitNames('id, "Full name", email', ",")).toEqual(["id", "Full name", "email"]);
   });
 
+  it("reads the API's grants, whatever the tables are called", () => {
+    const grants = tableGrants(
+      [
+        "GRANT SELECT,INSERT ON TABLE public.posts TO authenticated;",
+        'GRANT ALL ON TABLE public."my table" TO anon;',
+        'GRANT SELECT ON TABLE public."v1.2 notes" TO authenticated;',
+        "GRANT ALL ON TABLE public.posts TO postgres;",
+      ].join("\n"),
+    );
+    expect(grants).toEqual({
+      "public.posts": { authenticated: ["INSERT", "SELECT"] },
+      "public.my table": {
+        anon: ["DELETE", "INSERT", "REFERENCES", "SELECT", "TRIGGER", "TRUNCATE", "UPDATE"],
+      },
+      "public.v1.2 notes": { authenticated: ["SELECT"] },
+    });
+  });
+
   it("takes the backup out of a zip, checked", async () => {
     const dir = await mkdtemp(join(tmpdir(), "clodable-zip-"));
     try {
@@ -231,6 +253,15 @@ describe("the pause", () => {
     );
   });
 
+  it("names a table with a dot in it whole", () => {
+    const { freeze, undo } = freezeSql(
+      { "public.v1.2 notes": { authenticated: ["INSERT"] } },
+      true,
+    );
+    expect(freeze).toContain('revoke insert on "public"."v1.2 notes" from authenticated;');
+    expect(undo).toContain('grant insert on "public"."v1.2 notes" to authenticated;');
+  });
+
   it("tells an export made after the pause from one made before", () => {
     const at = "2026-10-11T09:00:00.000Z";
     const paused = { ...before, "public.posts": { anon: ["SELECT"], authenticated: ["SELECT"] } };
@@ -249,7 +280,7 @@ describe("the pause", () => {
 
 describe("Supabase's free plan", () => {
   it("is said to be too small before copying, when the app is larger than it holds", async () => {
-    const { planLimits } = await import("../src/move/flows.js");
+    const { planLimits } = await import("../src/move/progress.js");
     const summary = (bytes: number, files: number) =>
       ({
         bytes,
@@ -319,6 +350,75 @@ describe("a Supabase token that's too narrow", () => {
       });
     } finally {
       await new Promise((resolve) => server.close(resolve));
+    }
+  });
+});
+
+describe("Netlify and Resend", () => {
+  it("say what went wrong in their own terms, even when the answer isn't JSON", async () => {
+    const answers = [
+      { status: 200, body: "<html>Maintenance</html>" },
+      { status: 401, body: '{"message":"Access Denied"}' },
+      { status: 403, body: '{"message":"This API key is restricted to only send emails"}' },
+    ];
+    const server = createServer((_req, res) => {
+      const answer = answers.shift()!;
+      res.writeHead(answer.status);
+      res.end(answer.body);
+    });
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const base = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
+    try {
+      await expect(new NetlifyApi("nfp_x", base).user()).rejects.toMatchObject({
+        code: "netlify-failed",
+        message: "Netlify answered in a way Clodable didn't expect.",
+        details: "Netlify answered 200: <html>Maintenance</html>",
+      });
+      await expect(new NetlifyApi("nfp_x", base).user()).rejects.toMatchObject({
+        code: "netlify-auth",
+        details: "Netlify answered 401: Access Denied",
+      });
+      await expect(new ResendApi("re_x", base).domains()).rejects.toMatchObject({
+        code: "resend-auth",
+        message: "That Resend key can only send emails.",
+      });
+    } finally {
+      await new Promise((resolve) => server.close(resolve));
+    }
+  });
+});
+
+describe("copying files", () => {
+  it("says why a file didn't come over", async () => {
+    const fake = await startFakeSupabase({ token: "sbp_test", nextRef: DST, sourceKey: "src" });
+    const previous = process.env.CLODABLE_SUPABASE_PROJECT_URL;
+    process.env.CLODABLE_SUPABASE_PROJECT_URL = fake.projectUrl;
+    const dir = await mkdtemp(join(tmpdir(), "clodable-files-"));
+    try {
+      fake.publicBuckets.add(`${SRC}/images`);
+      fake.files.set(`${SRC}/images/here.png`, { body: Buffer.from("png"), type: "image/png" });
+      const listed = (name: string) =>
+        JSON.stringify({ bucket: "images", name, size: 3, owner: null, ownerId: null });
+      await writeFile(join(dir, "files.jsonl"), `${listed("here.png")}\n${listed("gone.png")}\n`);
+      const sql: Sql = { rows: async () => [], run: async () => {} };
+      const events: Array<StepEvent | LogEvent> = [];
+      const outcome = await runFlow(
+        copyFiles({ from: SRC, to: DST, secretKey: `sb_secret_${DST}`, maxBytes: 1024, sql }, dir, [
+          { id: "images", public: true },
+        ]),
+        (event) => events.push(event),
+      );
+      expect(outcome).toMatchObject({ copied: 1, total: 2, failed: 1 });
+      expect(events).toContainEqual({
+        type: "log",
+        level: "warn",
+        message: "images: download answered 404",
+      });
+    } finally {
+      if (previous === undefined) delete process.env.CLODABLE_SUPABASE_PROJECT_URL;
+      else process.env.CLODABLE_SUPABASE_PROJECT_URL = previous;
+      await fake.close();
+      await rm(dir, { recursive: true, force: true });
     }
   });
 });

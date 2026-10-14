@@ -2,17 +2,20 @@ import { existsSync } from "node:fs";
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { type ProjectConfig, saveConfig } from "../config.js";
-import { ClodableError } from "../errors.js";
+import { ClodableError, messageOf } from "../errors.js";
 import { type Flow, step } from "../events.js";
 import { applyKit, planKit } from "../kit/index.js";
 import { detectProject } from "../project.js";
 import type { Workspace } from "../workspace.js";
 import { textFiles } from "./assess.js";
+import { backendEnv, backendOf } from "./backend.js";
 import { type ExportSummary, JOBS_FILE } from "./export.js";
-import { literal, type NewKeys, repoint } from "./fixes.js";
+import { literal, type NewKeys, repoint, tableName } from "./fixes.js";
+import { homeKeys, homeSql } from "./home.js";
 import type { Sql } from "./postgres.js";
+import { liveSignIn } from "./sign-in.js";
 import { forgetMoveFiles, loadMove, type MoveState, moveDir, updateMove } from "./state.js";
-import { projectUrl, SupabaseApi } from "./supabase-api.js";
+import { SupabaseApi } from "./supabase-api.js";
 
 /**
  * The switch: the live app moves from Lovable to the builder's own Supabase and Netlify site.
@@ -25,12 +28,6 @@ import { projectUrl, SupabaseApi } from "./supabase-api.js";
  *    backend and site; the builder's next Publish puts it live.
  * 4. In Lovable, only once everything works: remove Cloud, stop its GitHub sync.
  */
-
-const qualified = (table: string) =>
-  table
-    .split(".")
-    .map((part) => `"${part.replace(/"/g, '""')}"`)
-    .join(".");
 
 /** The writes Supabase's API roles have, per table, from the export taken before the pause. */
 function writeGrants(grants: Record<string, Record<string, string[]>>) {
@@ -54,6 +51,8 @@ export const PAUSE_NAME = "clodable_pause";
 
 /** What stops the live app's scheduled jobs in Lovable (the quick way: going live starts them here). */
 export const STOP_LOVABLE_JOBS = "select cron.alter_job(jobid, active := false) from cron.job;";
+/** And starts them again (undoing the pause). */
+const START_LOVABLE_JOBS = "select cron.alter_job(jobid, active := true) from cron.job;";
 
 const PAUSE_AUTH = `do $pause$ begin
   execute $f$create or replace function public.${PAUSE_NAME}() returns trigger language plpgsql as $b$ begin raise exception 'This app is moving to a new home: try again in a few minutes.'; end $b$$f$;
@@ -94,28 +93,28 @@ export function freezeSql(
     exact.length > 0
       ? exact.map(
           (g) =>
-            `revoke ${g.privileges.join(", ").toLowerCase()} on ${qualified(g.table)} from ${g.role};`,
+            `revoke ${g.privileges.join(", ").toLowerCase()} on ${tableName(g.table)} from ${g.role};`,
         )
       : ["revoke insert, update, delete on all tables in schema public from anon, authenticated;"];
   const resume =
     exact.length > 0
       ? exact.map(
           (g) =>
-            `grant ${g.privileges.join(", ").toLowerCase()} on ${qualified(g.table)} to ${g.role};`,
+            `grant ${g.privileges.join(", ").toLowerCase()} on ${tableName(g.table)} to ${g.role};`,
         )
       : ["grant insert, update, delete on all tables in schema public to anon, authenticated;"];
   return {
     freeze: [
       "-- Clodable: pause changes on the live app while it moves. Reading and signing in keep working.",
       ...pause,
-      ...(hasJobs ? ["select cron.alter_job(jobid, active := false) from cron.job;"] : []),
+      ...(hasJobs ? [STOP_LOVABLE_JOBS] : []),
       PAUSE_AUTH,
       PAUSE_STORAGE,
     ].join("\n"),
     undo: [
       "-- Clodable: undo the pause (only if you're not switching after all).",
       ...resume,
-      ...(hasJobs ? ["select cron.alter_job(jobid, active := true) from cron.job;"] : []),
+      ...(hasJobs ? [START_LOVABLE_JOBS] : []),
       RESUME_AUTH,
       RESUME_STORAGE,
     ].join("\n"),
@@ -251,7 +250,7 @@ export async function giveBackGrants(
     lines
       .map(
         (g) =>
-          `grant ${g.privileges.join(", ").toLowerCase()} on ${qualified(g.table)} to ${g.role};`,
+          `grant ${g.privileges.join(", ").toLowerCase()} on ${tableName(g.table)} to ${g.role};`,
       )
       .join("\n"),
   );
@@ -300,35 +299,6 @@ export async function recreateJobs(
 }
 
 // ── Going live ───────────────────────────────────────────────────────────────
-
-/**
- * Sign-in for real people: links in emails come back to the site (and still to local previews).
- * `confirmEmail` and `signUp` (whether anyone may create an account, or only invited people) are
- * left as they are when not given.
- */
-export async function liveSignIn(
-  api: SupabaseApi,
-  ref: string,
-  url: string,
-  confirmEmail?: boolean,
-  signUp?: boolean,
-): Promise<void> {
-  const auth = await api.authConfig(ref);
-  const allowed = new Set(
-    String(auth.uri_allow_list ?? "")
-      .split(",")
-      .map((u) => u.trim())
-      .filter(Boolean),
-  );
-  allowed.add(`${url}/**`);
-  allowed.add("http://localhost:*/**");
-  await api.updateAuthConfig(ref, {
-    site_url: url,
-    uri_allow_list: [...allowed].join(","),
-    ...(confirmEmail !== undefined ? { mailer_autoconfirm: !confirmEmail } : {}),
-    ...(signUp !== undefined ? { disable_signup: !signUp } : {}),
-  });
-}
 
 export interface GoLiveOutcome {
   url: string;
@@ -388,7 +358,7 @@ export async function* goLive(
     });
   }
   const supabase = await SupabaseApi.required();
-  const { homeKeys, homeSql } = await import("./flows.js");
+
   const keys = await homeKeys(supabase, state.home.ref);
   const url = state.site.url;
   const emails = Boolean(state.emails?.connectedAt);
@@ -412,28 +382,21 @@ export async function* goLive(
     ).catch((error: unknown) => ({
       created: 0,
       check: [],
-      error: error instanceof Error ? error.message : String(error),
+      error: messageOf(error),
     }));
   }
 
   yield step("move:golive", "running", "Switching to your new backend", "Your app's files");
   const files: string[] = [];
   const from = state.source?.ref;
-  const backend = projectUrl(state.home.ref);
-  const anon = keys.legacy.anon ?? keys.publishable;
+  const backend = backendOf(state.home.ref, keys);
+  // Never the service key: these files go to GitHub with the app.
+  const { SUPABASE_SERVICE_ROLE_KEY: _, ...values } = backendEnv(backend);
   for (const name of [".env", ".env.local", ".env.production"]) {
     const path = join(ws.root, name);
     if (!existsSync(path)) continue;
     const before = await readFile(path, "utf8");
-    const after = rewriteEnv(before, {
-      VITE_SUPABASE_URL: backend,
-      VITE_SUPABASE_PUBLISHABLE_KEY: keys.publishable,
-      VITE_SUPABASE_ANON_KEY: anon,
-      VITE_SUPABASE_PROJECT_ID: state.home.ref,
-      SUPABASE_URL: backend,
-      SUPABASE_PUBLISHABLE_KEY: keys.publishable,
-      SUPABASE_ANON_KEY: anon,
-    });
+    const after = rewriteEnv(before, values);
     if (after !== before) {
       await writeFile(path, after);
       files.push(name);
@@ -455,7 +418,7 @@ export async function* goLive(
     // Older Lovable apps write the backend's address and key in their code.
     for (const file of await textFiles(ws.root, ["src"])) {
       if (!file.text.includes(from)) continue;
-      const next = repoint(file.text, from, state.home.ref, { anon, ...keys.legacy });
+      const next = repoint(file.text, from, state.home.ref, { ...keys.legacy, anon: backend.anon });
       if (next.text !== file.text) {
         await writeFile(join(ws.root, file.path), next.text);
         files.push(file.path.replace(/^\//, ""));

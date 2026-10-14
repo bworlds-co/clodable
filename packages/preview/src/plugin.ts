@@ -4,13 +4,14 @@ import { readFile, writeFile } from "node:fs/promises";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { isAbsolute, relative, resolve, sep } from "node:path";
 import { stripVTControlCharacters } from "node:util";
-import { type NewInboxItem, writeInbox } from "@clodable/core";
+import { toolbarPage, toolbarRequest, writeInbox } from "@clodable/core";
 import { cssVariables } from "@clodable/design";
 import { originalPositionFor, TraceMap } from "@jridgewell/trace-mapping";
 import type { Plugin, ViteDevServer } from "vite";
 import { DEVICES, type Device, framePage } from "./frame.js";
 import { htmlInjectionMiddleware, injectToolbar } from "./inject.js";
-import { parseSourceAttr, tagJsx } from "./tagger.js";
+import { buildError, PREFIX, parseSourceAttr, ROUTES } from "./shared.js";
+import { tagJsx } from "./tagger.js";
 import { editText, probeText } from "./text-edit.js";
 import { toolbarSource } from "./toolbar-source.js";
 
@@ -56,12 +57,12 @@ function send(res: ServerResponse, status: number, body: unknown, type = "applic
 }
 
 /** A file Vite couldn't build, in the toolbar's terms, and when. */
-export interface BuildError {
-  message: string;
-  stack: string;
-  kind: "build";
-  source?: { file: string; line: number };
-  at: number;
+export type BuildError = ReturnType<typeof buildError> & { at: number };
+
+/** `path`, relative to `root` and with forward slashes, if it's inside `root`. */
+function inside(root: string, path: string): string | undefined {
+  const rel = relative(root, resolve(root, path));
+  return rel && !rel.startsWith("..") && !isAbsolute(rel) ? rel.split(sep).join("/") : undefined;
 }
 
 /** A few lines of the file around a position, the way code frames usually look. */
@@ -90,15 +91,11 @@ export function describeBuildError(error: unknown, root: string, at = Date.now()
   };
   const message = stripVTControlCharacters(String(e.message ?? "The app couldn't be built"));
   const where = e.loc?.file ?? e.id?.split("?")[0];
-  const inside = (base: string) => {
-    const rel = where ? relative(base, resolve(base, where)) : "";
-    return rel && !rel.startsWith("..") && !isAbsolute(rel) ? rel.split(sep).join("/") : "";
-  };
   // Vite names files by their real path, which differs when the app's folder is reached through a link.
-  let file = inside(root);
+  let file = where ? inside(root, where) : undefined;
   if (!file && where) {
     try {
-      file = inside(realpathSync(root));
+      file = inside(realpathSync(root), where);
     } catch {}
   }
   // Vite's frame shows the file after its own changes, so its line numbers don't match the file.
@@ -109,13 +106,8 @@ export function describeBuildError(error: unknown, root: string, at = Date.now()
         codeFrame(readFileSync(resolve(root, where), "utf8"), e.loc.line, e.loc.column) || frame;
     } catch {}
   }
-  return {
-    message: message.split("\n")[0]!.slice(0, 300),
-    stack: [where, message, frame].filter(Boolean).join("\n").slice(0, 4000),
-    kind: "build",
-    ...(file ? { source: { file, line: e.loc?.line ?? 1 } } : {}),
-    at,
-  };
+  const stack = [where, message, frame].filter(Boolean).join("\n");
+  return { ...buildError(message, stack, file ? { file, line: e.loc?.line ?? 1 } : undefined), at };
 }
 
 /** The conversation whose preview pane sent a request, when the pane was labelled with one. */
@@ -132,12 +124,6 @@ export function clodablePreview(options: PreviewOptions = {}): Plugin {
   let server: ViteDevServer | undefined;
   let lastBuildError: BuildError | undefined;
 
-  const inRoot = (file: string) => {
-    const full = resolve(root, file);
-    const rel = relative(root, full);
-    return rel && !rel.startsWith("..") && !isAbsolute(rel) ? full : undefined;
-  };
-
   const authorized = (req: IncomingMessage) => {
     if (req.headers["x-clodable-token"] !== token) return false;
     const origin = req.headers.origin;
@@ -150,39 +136,92 @@ export function clodablePreview(options: PreviewOptions = {}): Plugin {
     }
   };
 
+  /** The toolbar's script, with what it needs to talk back to this server. */
+  async function toolbarScript() {
+    const config = JSON.stringify({ token, backend: options.backend?.() ?? "live" });
+    return `window.__CLODABLE__=${config};\n${await toolbarSource()}`;
+  }
+
+  /** The app in a phone or tablet frame. */
+  function devicePage(url: URL) {
+    const asked = url.searchParams.get("device") ?? "phone";
+    const html = framePage({
+      device: asked in DEVICES ? (asked as Device["id"]) : "phone",
+      path: url.searchParams.get("path") ?? "/",
+      landscape: url.searchParams.get("landscape") === "1",
+      css: cssVariables(),
+    });
+    return injectToolbar(html) ?? html;
+  }
+
+  /** Whether a text can be edited in place (`probe`), or edit it: the file, then the inbox. */
+  async function textEdit(body: Record<string, unknown>, probe: boolean): Promise<unknown> {
+    const location = parseSourceAttr(String(body.src ?? ""));
+    const rel = location && inside(root, location.file);
+    const full = rel && resolve(root, rel);
+    if (!location || !full || !EDITABLE.test(full) || !tagged.has(full) || !existsSync(full)) {
+      return { ok: false, editable: false, reason: "not-found" };
+    }
+    const code = await readFile(full, "utf8");
+    if (probe) {
+      return probeText(
+        code,
+        location.file,
+        location.line,
+        location.column,
+        String(body.text ?? ""),
+      );
+    }
+    const before = String(body.before ?? "");
+    const after = String(body.after ?? "");
+    if (!after.trim()) return { ok: false, reason: "empty" };
+    const result = editText(code, location.file, location, before, after);
+    if (!result.ok) return result;
+    await writeFile(full, result.code);
+    await writeInbox(root, {
+      kind: "edit",
+      page: toolbarPage(body.page) ?? { url: "", path: "/" },
+      source: { file: location.file, line: result.line },
+      before,
+      after,
+      ...conversationOf(body),
+    }).catch(() => {});
+    return { ok: true, file: location.file, line: result.line };
+  }
+
+  /** Browsers place runtime errors in the code Vite served: the line in the file itself. */
+  async function originalLine(body: Record<string, unknown>) {
+    const file = String(body.file ?? "");
+    const mod = inside(root, file)
+      ? await server?.moduleGraph.getModuleByUrl(`/${file}`)
+      : undefined;
+    const map = mod?.transformResult?.map;
+    if (!map || !("mappings" in map) || !map.mappings) return { line: null };
+    const original = originalPositionFor(new TraceMap(map as never), {
+      line: Number(body.line) || 1,
+      column: Math.max(0, (Number(body.column) || 1) - 1),
+    });
+    return { line: original.line };
+  }
+
+  /** Why the page didn't load, or whether a change built: the last file Vite couldn't build since. */
+  function buildErrorSince(body: Record<string, unknown>) {
+    const since = Number(body.since) || 0;
+    if (!lastBuildError || lastBuildError.at < since) return { error: null };
+    const { at: _at, ...error } = lastBuildError;
+    return { error };
+  }
+
   async function handle(req: IncomingMessage, res: ServerResponse, next: (e?: unknown) => void) {
     const url = new URL(req.url ?? "/", "http://localhost");
     const path = url.pathname;
-    if (!path.startsWith("/__clodable/")) return next();
+    if (!path.startsWith(PREFIX)) return next();
 
-    if (req.method === "GET" && path === "/__clodable/toolbar.js") {
-      const config = JSON.stringify({
-        token,
-        version: "0.1.0",
-        backend: options.backend?.() ?? "live",
-      });
-      return send(
-        res,
-        200,
-        `window.__CLODABLE__=${config};\n${await toolbarSource()}`,
-        "text/javascript",
-      );
+    if (req.method === "GET") {
+      if (path === ROUTES.toolbar) return send(res, 200, await toolbarScript(), "text/javascript");
+      if (path === ROUTES.health) return send(res, 200, { ok: true, tagged: tagged.size });
+      if (path === ROUTES.frame) return send(res, 200, devicePage(url), "text/html");
     }
-    if (req.method === "GET" && path === "/__clodable/health") {
-      return send(res, 200, { ok: true, tagged: tagged.size });
-    }
-    if (req.method === "GET" && path === "/__clodable/frame") {
-      const deviceId = (url.searchParams.get("device") ?? "phone") as Device["id"];
-      const device = deviceId in DEVICES ? deviceId : "phone";
-      const html = framePage({
-        device,
-        path: url.searchParams.get("path") ?? "/",
-        landscape: url.searchParams.get("landscape") === "1",
-        css: cssVariables(),
-      });
-      return send(res, 200, injectToolbar(html) ?? html, "text/html");
-    }
-
     if (req.method !== "POST") return send(res, 405, { error: "method" });
     if (!authorized(req)) return send(res, 403, { error: "forbidden" });
 
@@ -192,75 +231,23 @@ export function clodablePreview(options: PreviewOptions = {}): Plugin {
     } catch {
       return send(res, 400, { error: "bad-request" });
     }
-
-    if (path === "/__clodable/text/probe" || path === "/__clodable/text") {
-      const location = parseSourceAttr(String(body.src ?? ""));
-      const full = location && inRoot(location.file);
-      if (!location || !full || !EDITABLE.test(full) || !tagged.has(full) || !existsSync(full)) {
-        return send(res, 200, { ok: false, editable: false, reason: "not-found" });
+    switch (path) {
+      case ROUTES.probe:
+      case ROUTES.text:
+        return send(res, 200, await textEdit(body, path === ROUTES.probe));
+      case ROUTES.inbox: {
+        const request = toolbarRequest(body);
+        if (!request) return send(res, 400, { error: "bad-request" });
+        const item = await writeInbox(root, { ...request, ...conversationOf(body) });
+        return send(res, 200, { ok: true, id: item.id });
       }
-      const code = await readFile(full, "utf8");
-      if (path === "/__clodable/text/probe") {
-        return send(
-          res,
-          200,
-          probeText(code, location.file, location.line, location.column, String(body.text ?? "")),
-        );
-      }
-      const before = String(body.before ?? "");
-      const after = String(body.after ?? "");
-      if (!after.trim()) return send(res, 200, { ok: false, reason: "empty" });
-      const result = editText(code, location.file, location, before, after);
-      if (!result.ok) return send(res, 200, result);
-      await writeFile(full, result.code);
-      const page = (body.page as { url: string; path: string } | undefined) ?? {
-        url: "",
-        path: "/",
-      };
-      await writeInbox(root, {
-        kind: "edit",
-        page,
-        source: { file: location.file, line: result.line },
-        before,
-        after,
-        ...conversationOf(body),
-      }).catch(() => {});
-      return send(res, 200, { ok: true, file: location.file, line: result.line });
+      case ROUTES.originalLine:
+        return send(res, 200, await originalLine(body));
+      case ROUTES.buildError:
+        return send(res, 200, buildErrorSince(body));
+      default:
+        return send(res, 404, { error: "not-found" });
     }
-
-    if (path === "/__clodable/inbox") {
-      const kind = body.kind;
-      if (kind !== "fix" && kind !== "ask") return send(res, 400, { error: "kind" });
-      const { conversation: _, ...request } = body;
-      const item = await writeInbox(root, {
-        ...(request as unknown as NewInboxItem),
-        ...conversationOf(body),
-      });
-      return send(res, 200, { ok: true, id: item.id });
-    }
-
-    // Browsers place runtime errors in the code Vite served. Map them back to the line in the file.
-    if (path === "/__clodable/original-line") {
-      const file = String(body.file ?? "");
-      const mod = inRoot(file) ? await server?.moduleGraph.getModuleByUrl(`/${file}`) : undefined;
-      const map = mod?.transformResult?.map;
-      if (!map || !("mappings" in map) || !map.mappings) return send(res, 200, { line: null });
-      const original = originalPositionFor(new TraceMap(map as never), {
-        line: Number(body.line) || 1,
-        column: Math.max(0, (Number(body.column) || 1) - 1),
-      });
-      return send(res, 200, { line: original.line });
-    }
-
-    // Why the page didn't load, or whether a change built: the last file Vite couldn't build since then.
-    if (path === "/__clodable/build-error") {
-      const since = Number(body.since) || 0;
-      if (!lastBuildError || lastBuildError.at < since) return send(res, 200, { error: null });
-      const { at: _at, ...error } = lastBuildError;
-      return send(res, 200, { error });
-    }
-
-    return send(res, 404, { error: "not-found" });
   }
 
   return {
@@ -319,8 +306,8 @@ export function clodablePreview(options: PreviewOptions = {}): Plugin {
       ) {
         return undefined;
       }
-      const rel = relative(root, file);
-      if (!rel || rel.startsWith("..") || isAbsolute(rel)) return undefined;
+      const rel = inside(root, file);
+      if (!rel) return undefined;
       // Frameworks such as TanStack Router split route files differently for the server and the
       // browser before we see them. Map every position back to the file on disk, so both sides agree
       // (no hydration mismatch) and text edits land on the right line.
@@ -347,7 +334,7 @@ export function clodablePreview(options: PreviewOptions = {}): Plugin {
       } catch {
         original = undefined;
       }
-      const result = tagJsx(code, rel.split(sep).join("/"), {
+      const result = tagJsx(code, rel, {
         ...(locate ? { locate } : {}),
         ...(original !== undefined ? { original } : {}),
       });

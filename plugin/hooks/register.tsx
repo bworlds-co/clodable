@@ -4,27 +4,92 @@
 // This file is the only Claude-specific part of Clodable. Every real action goes through the
 // vendor-neutral `clodable` CLI, bundled next to this plugin in cli/clodable.mjs, which prints
 // NDJSON events. Any other front end can drive the same commands.
-import type { EngineInterface, Register, RenderElement } from "claude-code";
+import type {
+  Elements,
+  EngineInterface,
+  Register,
+  RenderChildren,
+  RenderElement,
+} from "claude-code";
 import { atom, read, update } from "claude-code";
 import type {
   ClodableActivity,
+  ClodableAssessment,
   ClodableCheck,
-  ClodableError,
+  ClodableDnsRecord,
+  ClodableMove,
+  ClodableMoveChoices,
+  ClodableMoveStep,
   ClodableNotReady,
+  ClodableRequest,
   ClodableStatus,
   ClodableStep,
 } from "../types/index.d.ts";
+import { justDone, savingNow, stoppedBy } from "./activity.ts";
+import {
+  eventReader,
+  lastResult,
+  notReady,
+  problemOf,
+  type Result,
+  type Step,
+  same,
+  toStatus,
+  toVersion,
+  type Version,
+} from "./cli.ts";
+import {
+  dbCommandIn,
+  inPrivateFolder,
+  insideProject,
+  isFactsRecord,
+  isMoveStep,
+  LEAVE_DRAFT,
+  moveCommandLine,
+  OUR_PUBLISH,
+  PRIVATE_FOLDER,
+  PRIVATE_FOLDER_DENY,
+  PUSH_OR_REWRITE,
+  SECRET_STEP,
+  SUPABASE_READS,
+  safeCommand,
+} from "./guards.ts";
+import {
+  AI_PROVIDERS,
+  type AiProvider,
+  connectorSetting,
+  EXPORT_CLICKS,
+  MOVE_LEVELS,
+  MOVE_WHO,
+  type MoveMethod,
+  SERVICE_KEY_QUERY,
+  STEP_MARK,
+  sizeOf,
+  stagesOf,
+  typedDomain,
+} from "./move.ts";
+import {
+  LABEL_SCRIPT,
+  labelScript,
+  previewPortIn,
+  previewRequest,
+  previewTabIn,
+} from "./preview.ts";
 import {
   ago,
   describeGroup,
   describeTool,
+  doneTitle,
   fixPrompt,
+  hostOf,
   plural,
   saveMessage,
   shortReason,
   sqlIsDestructive,
   sqlWrites,
+  stoppedTitle,
   supabaseTool,
+  versionName,
 } from "./words.ts";
 
 const PANE = "clodable";
@@ -94,7 +159,7 @@ let polling = false;
  */
 let fixing: { at: number; turnId?: string } | null = null;
 /** What the move off Lovable involves for this app, read from its code. */
-let assessment: any = null;
+let assessment: ClodableAssessment | { error: string } | null = null;
 let assessing = false;
 /** When the facts the assessment was read with were recorded ("" before Claude looked). */
 let assessedFacts = "";
@@ -103,8 +168,8 @@ let assessedFacts = "";
  * step running now, and its last problem. Keys and tokens typed in the panel go straight to the
  * CLI's stdin: never into this state, the chat or a log.
  */
-let move: any = null;
-let moveChoices: any = null;
+let move: ClodableMove | null = null;
+let moveChoices: ClodableMoveChoices | null = null;
 let moveRun: { title: string; detail?: string } | null = null;
 let moveError: { message: string; hint?: string } | null = null;
 let moveSecrets: { wanted: string[]; set: string[] } | null = null;
@@ -130,11 +195,11 @@ let pausePlan: { freeze: string; undo: string } | null = null;
 /** Google sign-in: the client ID typed first; its secret comes next, to the CLI's stdin. */
 let googleClientId = "";
 /** Switching off Lovable's AI: the provider picked in the panel. */
-let aiChoice: "openrouter" | "gemini" | "openai" = "openrouter";
+let aiChoice: AiProvider = "openrouter";
 /** Going live: who may create an account. "confirm" needs emails. */
 let newPeople: "confirm" | "open" | "invite" = "confirm";
 /** The way chosen a moment ago, shown at once while Clodable records it. */
-let choosingMethod: "careful" | "quick" | null = null;
+let choosingMethod: MoveMethod | null = null;
 let moveOrg = "";
 let moveRegion = "";
 let loadingMove = false;
@@ -168,7 +233,6 @@ let previewUrl: string | null = null;
 /** The preview is started once per session, from whichever comes first: session start or the bar. */
 let previewAsked = false;
 
-type Version = { sha: string; subject: string; date: string; kind: string | null };
 /** The panel's history: saves not live yet, then recent publishes, newest first. Null until loaded. */
 let versions: { draft: Version[]; published: Version[] } | null = null;
 let loadingVersions = false;
@@ -195,8 +259,6 @@ async function folderIsEmpty($: EngineInterface): Promise<boolean> {
   }
 }
 
-type Result = { type: "result"; ok: boolean; data?: any; error?: ClodableError };
-
 /** Recent notes on what Clodable tried, for developers: .clodable/local/clodable.log (never saved). */
 const notes: string[] = [];
 function note($: EngineInterface, line: string) {
@@ -208,63 +270,15 @@ function note($: EngineInterface, line: string) {
   }
 }
 
-/** The preview's address in any text Desktop's preview tools return. */
-function previewPortIn(text: string): string | undefined {
-  return text.match(/\\?"port\\?":\s*(\d+)/)?.[1] ?? text.match(/localhost:(\d+)/)?.[1];
-}
-
-/** The tab Desktop's preview tools opened, in any text they return. */
-function previewTabIn(text: string): string | undefined {
-  return text.match(/\\?"tabId\\?":\s*\\?"([\w-]+)\\?"/)?.[1];
-}
-
-/**
- * The script that labels this conversation's preview pane with its name, so the pane's requests
- * (Try to fix, Point & ask) come back here and not to another conversation open on the app. It
- * only sets one value in the tab's own storage. Permissions allow exactly this text, nothing else.
- */
-const labelScript = (id: string) =>
-  `/* Clodable: label this preview */ location.protocol.startsWith("http") ? (sessionStorage.setItem("clodable:conversation", "${id}"), "labelled") : "not ready"`;
-const LABEL_SCRIPT =
-  /^\/\* Clodable: label this preview \*\/ location\.protocol\.startsWith\("http"\) \? \(sessionStorage\.setItem\("clodable:conversation", "s[a-z0-9]+"\), "labelled"\) : "not ready"$/;
-
 /** Fire-and-forget background work: never an unhandled rejection (a module can unload mid-way). */
 function background(work: Promise<unknown>): void {
   work.catch(() => {});
 }
-type Step = {
-  type: "step";
-  id: string;
-  state: ClodableStep["state"];
-  title: string;
-  detail?: string;
-};
 
 // ── The CLI, from this plugin's own folder ──────────────────────────────────
 
 function argv($: EngineInterface, args: string[]): string[] {
   return ["node", `${$.plugin.root}/cli/clodable.mjs`, ...args, "--json"];
-}
-
-function lastResult(stdout: string, stderr: string): Result {
-  const lines = stdout.split("\n").filter((l) => l.trim().startsWith("{"));
-  for (let i = lines.length - 1; i >= 0; i--) {
-    try {
-      const event = JSON.parse(lines[i]!);
-      if (event.type === "result") return event as Result;
-    } catch {
-      // keep looking
-    }
-  }
-  return {
-    type: "result",
-    ok: false,
-    error: {
-      code: "unknown",
-      message: "Clodable didn't answer.",
-      details: (stderr || stdout).slice(0, 2000),
-    },
-  };
 }
 
 /** The longest the engine lets `$.process.run` take; it refuses to start anything asking for more. */
@@ -299,6 +313,36 @@ async function cli(
   }
 }
 
+/**
+ * Run a long command, handing each step to `onStep` as it streams in. Then its result, if it gave
+ * one, and what stopped it, if something did: each caller says that in its own words.
+ */
+async function streamCli(
+  $: EngineInterface,
+  args: string[],
+  onStep: (step: Step) => unknown,
+  input?: string,
+): Promise<{ result?: Result; failure?: unknown }> {
+  const read = eventReader();
+  let result: Result | undefined;
+  try {
+    for await (const chunk of $.process.spawn({
+      argv: argv($, args),
+      cwd,
+      ...(input !== undefined ? { input } : {}),
+    })) {
+      if (chunk.stream !== "stdout") continue;
+      for (const event of read(chunk.text)) {
+        if (event.type === "step") await onStep(event);
+        else if (event.type === "result") result = event;
+      }
+    }
+  } catch (failure) {
+    return { ...(result ? { result } : {}), failure };
+  }
+  return result ? { result } : {};
+}
+
 /** Run a long command (publish, undo) and stream its steps into the activity state. */
 async function flow(
   $: EngineInterface,
@@ -306,45 +350,28 @@ async function flow(
   kind: "publishing" | "undoing",
 ): Promise<Result> {
   await update<ClodableActivity>($, activity, () => ({ kind, steps: [] }));
-  let buffer = "";
-  let result: Result | undefined;
   const steps: ClodableStep[] = [];
-  try {
-    for await (const chunk of $.process.spawn({ argv: argv($, args), cwd })) {
-      if (chunk.stream !== "stdout") continue;
-      buffer += chunk.text;
-      let nl = buffer.indexOf("\n");
-      while (nl >= 0) {
-        const line = buffer.slice(0, nl).trim();
-        buffer = buffer.slice(nl + 1);
-        nl = buffer.indexOf("\n");
-        if (!line.startsWith("{")) continue;
-        try {
-          const event = JSON.parse(line) as Step | Result;
-          if (event.type === "step") {
-            const index = steps.findIndex((s) => s.id === event.id);
-            const next: ClodableStep = {
-              id: event.id,
-              state: event.state,
-              title: event.title,
-              ...(event.detail ? { detail: event.detail } : {}),
-            };
-            if (index >= 0) steps[index] = next;
-            else steps.push(next);
-            await update<ClodableActivity>($, activity, (a) => ({ ...a, steps: [...steps] }));
-          } else if (event.type === "result") {
-            result = event;
-          }
-        } catch {
-          // not an event
-        }
-      }
-    }
-  } catch (error) {
-    result = {
+  const { result, failure } = await streamCli($, args, async (event) => {
+    const index = steps.findIndex((s) => s.id === event.id);
+    const next: ClodableStep = {
+      id: event.id,
+      state: event.state,
+      title: event.title,
+      ...(event.detail ? { detail: event.detail } : {}),
+    };
+    if (index >= 0) steps[index] = next;
+    else steps.push(next);
+    await update<ClodableActivity>($, activity, (a) => ({ ...a, steps: [...steps] }));
+  });
+  if (failure !== undefined) {
+    return {
       type: "result",
       ok: false,
-      error: { code: "unknown", message: "Clodable stopped unexpectedly.", details: String(error) },
+      error: {
+        code: "unknown",
+        message: "Clodable stopped unexpectedly.",
+        details: String(failure),
+      },
     };
   }
   return (
@@ -357,47 +384,6 @@ async function flow(
 }
 
 // ── State refresh ───────────────────────────────────────────────────────────
-
-function toStatus(data: any): ClodableStatus {
-  return {
-    ready: true,
-    project: String(data?.project?.name ?? "your app"),
-    branch: data?.branch ?? null,
-    unsaved: Number(data?.unsaved ?? 0),
-    unpublished: (data?.unpublished ?? []).map((c: any) => ({
-      sha: c.sha,
-      subject: c.subject,
-      date: c.date,
-      kind: c.kind ?? null,
-    })),
-    behindLive: Number(data?.behindLive ?? 0),
-    merging: Boolean(data?.merging),
-    conflicts: data?.conflicts ?? [],
-    liveUrl: data?.project?.liveUrl ?? data?.lastPublish?.url ?? null,
-    lastPublish: data?.lastPublish
-      ? {
-          sha: data.lastPublish.sha,
-          title: data.lastPublish.title,
-          at: data.lastPublish.at,
-          url: data.lastPublish.url ?? null,
-        }
-      : null,
-    pullRequest: data?.pullRequest ?? null,
-    backend: data?.project?.backend ?? "unknown",
-    hosting: data?.project?.hosting ?? "unknown",
-    lovableUrl: data?.project?.lovableUrl ?? null,
-    finishingMove: Boolean(data?.finishingMove),
-    movedAt: data?.movedAt ?? null,
-    databaseConnected:
-      typeof data?.database?.connected === "boolean" ? data.database.connected : null,
-  };
-}
-
-/**
- * Values are written only when they changed. Every redraw hands Clodable's buttons new handles,
- * and Desktop drops a press that names an old one: a redraw for nothing costs the next click.
- */
-const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
 async function refreshStatus($: EngineInterface) {
   const result = await cli($, ["status"], 30_000);
@@ -414,19 +400,7 @@ async function refreshStatus($: EngineInterface) {
   if (versions && inApp === true) background(refreshVersions($));
   const next: ClodableStatus | ClodableNotReady = result.ok
     ? ({ ...toStatus(result.data), ...savingWhere } as ClodableStatus)
-    : {
-        ready: false,
-        reason:
-          code === "not-a-repo"
-            ? "not-a-repo"
-            : code === "not-set-up"
-              ? "no-kit"
-              : code === "gh-auth"
-                ? "no-github"
-                : "unknown",
-        message: result.error?.message ?? "Clodable isn't ready here.",
-        ...(result.error?.hint ? { fix: result.error.hint } : {}),
-      };
+    : notReady(result.error);
   if (!same(await read($, status), next)) {
     await update<ClodableStatus | ClodableNotReady | null>($, status, () => next);
   }
@@ -445,11 +419,7 @@ async function refreshChecks($: EngineInterface) {
 async function saveNow($: EngineInterface, message: string): Promise<string | undefined> {
   const a = await read($, activity);
   if (a.kind === "publishing" || a.kind === "undoing") return undefined;
-  await update<ClodableActivity>($, activity, (x) =>
-    x.kind === "idle" || x.kind === "published" || x.kind === "undone" || x.kind === "failed"
-      ? { kind: "saving", steps: [] }
-      : x,
-  );
+  await update<ClodableActivity>($, activity, savingNow);
   const result = await cli($, ["save", "-m", message]);
   await update<ClodableActivity>($, activity, (x) =>
     x.kind !== "saving"
@@ -503,11 +473,7 @@ async function publishNow($: EngineInterface) {
       );
     }
   } else {
-    await update<ClodableActivity>($, activity, (x) => ({
-      kind: "failed",
-      steps: x.steps,
-      ...(result.error ? { error: result.error } : {}),
-    }));
+    await update<ClodableActivity>($, activity, stoppedBy(result.error));
   }
   await refreshStatus($);
   // Moving off Lovable: a Publish moves the move on (the site is live there now).
@@ -555,11 +521,7 @@ async function undoNow($: EngineInterface) {
       );
     }
   } else {
-    await update<ClodableActivity>($, activity, (x) => ({
-      kind: "failed",
-      steps: x.steps,
-      ...(result.error ? { error: result.error } : {}),
-    }));
+    await update<ClodableActivity>($, activity, stoppedBy(result.error));
   }
   await refreshStatus($);
 }
@@ -625,23 +587,25 @@ async function loadMove($: EngineInterface) {
 async function readMove($: EngineInterface) {
   const result = await cli($, ["move", "status"]);
   if (!result.ok) {
-    moveError = { message: result.error?.message ?? "Couldn't read the move." };
+    moveError = problemOf(result.error, "Couldn't read the move.");
     return;
   }
-  move = result.data;
+  const progress: ClodableMove = result.data;
+  move = progress;
   // What Claude found in the app changes what the move involves: read the assessment again.
-  const factsAt: string = move.facts?.at ?? "";
+  const factsAt = progress.facts?.at ?? "";
   if (factsAt !== assessedFacts) {
     assessedFacts = factsAt;
     background(loadAssessment($));
   }
-  const next = (move.steps ?? []).find((x: any) => x.state === "next" || x.state === "attention");
+  const next = (progress.steps ?? []).find((x) => x.state === "next" || x.state === "attention");
   // Read fresh each time: projects get paused or deleted in Supabase between two looks.
   if (next?.id === "create") {
     const choices = await cli($, ["move", "choices"]);
     if (choices.ok) {
-      moveChoices = choices.data;
-      const orgs: any[] = moveChoices.organizations ?? [];
+      const offered: ClodableMoveChoices = choices.data;
+      moveChoices = offered;
+      const orgs = offered.organizations ?? [];
       // Free first, never a paid organization unless the builder picks it: it costs money.
       if (!orgs.some((o) => o.slug === moveOrg)) {
         moveOrg =
@@ -651,12 +615,9 @@ async function readMove($: EngineInterface) {
             orgs[0]
           )?.slug ?? "";
       }
-      moveRegion ||= moveChoices.region?.code ?? moveChoices.regions?.[0]?.code ?? "";
+      moveRegion ||= offered.region?.code ?? offered.regions?.[0]?.code ?? "";
     } else {
-      moveError = {
-        message: choices.error?.message ?? "Couldn't read your Supabase account.",
-        ...(choices.error?.hint ? { hint: choices.error.hint } : {}),
-      };
+      moveError = problemOf(choices.error, "Couldn't read your Supabase account.");
     }
   }
   if (next?.id === "site") {
@@ -668,56 +629,41 @@ async function readMove($: EngineInterface) {
   }
   await loadSettings($);
   // What keeps a step open: read only while it does.
-  if ((move.vaultLeft ?? []).length > 0) {
+  if ((progress.vaultLeft ?? []).length > 0) {
     const vault = await cli($, ["move", "vault"]);
     moveVault = vault.ok ? vault.data : null;
   } else moveVault = null;
-  if (["freeze", "final-export", "final-copy"].includes(next?.id)) {
+  if (next && ["freeze", "final-export", "final-copy"].includes(next.id)) {
     const plan = await cli($, ["move", "pause"]);
     pausePlan = plan.ok ? plan.data : null;
   }
-  if ((move.secretsLeft ?? []).length > 0) {
+  if ((progress.secretsLeft ?? []).length > 0) {
     const secrets = await cli($, ["move", "secrets"]);
     moveSecrets = secrets.ok ? secrets.data : null;
   } else moveSecrets = null;
 }
 
+/** The move starts working on something: it says what, and the last problem goes. */
+function startWork($: EngineInterface, title: string) {
+  moveRun = { title };
+  moveError = null;
+  $.ui.invalidate("ui.render");
+}
+
 /** Run one step of the move, its progress drawn in the panel as it goes. */
 async function moveStep($: EngineInterface, args: string[], input?: string): Promise<Result> {
   if (moveRun) return { type: "result", ok: false };
-  moveRun = { title: "Starting" };
-  moveError = null;
-  $.ui.invalidate("ui.render");
-  let buffer = "";
-  let result: Result | undefined;
-  try {
-    for await (const chunk of $.process.spawn({
-      argv: argv($, ["move", ...args]),
-      cwd,
-      ...(input !== undefined ? { input } : {}),
-    })) {
-      if (chunk.stream !== "stdout") continue;
-      buffer += chunk.text;
-      let nl = buffer.indexOf("\n");
-      while (nl >= 0) {
-        const line = buffer.slice(0, nl).trim();
-        buffer = buffer.slice(nl + 1);
-        nl = buffer.indexOf("\n");
-        if (!line.startsWith("{")) continue;
-        try {
-          const event = JSON.parse(line) as Step | Result;
-          if (event.type === "step") {
-            moveRun = { title: event.title, ...(event.detail ? { detail: event.detail } : {}) };
-            $.ui.invalidate("ui.render");
-          } else if (event.type === "result") result = event;
-        } catch {
-          // not an event
-        }
-      }
-    }
-  } catch (error) {
-    note($, `move ${args[0]}: ${String(error)}`);
-  }
+  startWork($, "Starting");
+  const { result, failure } = await streamCli(
+    $,
+    ["move", ...args],
+    (event) => {
+      moveRun = { title: event.title, ...(event.detail ? { detail: event.detail } : {}) };
+      $.ui.invalidate("ui.render");
+    },
+    input,
+  );
+  if (failure !== undefined) note($, `move ${args[0]}: ${String(failure)}`);
   moveRun = null;
   const done = result ?? {
     type: "result" as const,
@@ -725,10 +671,7 @@ async function moveStep($: EngineInterface, args: string[], input?: string): Pro
     error: { code: "unknown", message: "Clodable stopped before finishing that step." },
   };
   if (!done.ok) {
-    moveError = {
-      message: done.error?.message ?? "That step didn't finish.",
-      ...(done.error?.hint ? { hint: done.error.hint } : {}),
-    };
+    moveError = problemOf(done.error, "That step didn't finish.");
     note($, `move ${args[0]}: ${done.error?.code} ${done.error?.details ?? ""}`.slice(0, 400));
   }
   await loadMove($);
@@ -737,18 +680,18 @@ async function moveStep($: EngineInterface, args: string[], input?: string): Pro
 
 /** How Claude runs a move step: Clodable's own command line, next to this plugin. */
 function moveCommand($: EngineInterface, args: string[]): string {
-  return `node "${$.plugin.root}/cli/clodable.mjs" move ${args.join(" ")}`;
+  return moveCommandLine($.plugin.root, args);
 }
 
 /** The request that creates the new backend, in the builder's words, with the choices made. */
 function createRequest(
   $: EngineInterface,
-  org: any,
-  choices: any,
+  org: { name: string } | undefined,
+  choices: ClodableMoveChoices,
   slug: string,
   region: string,
 ): string {
-  const where = (choices?.regions ?? []).find((r: any) => r.code === region)?.name;
+  const where = (choices.regions ?? []).find((r) => r.code === region)?.name;
   return `Moving off Lovable: create my new backend${org ? ` in my Supabase organization “${org.name}”` : ""}${where ? `, in ${where}` : ""}. Run \`${moveCommand($, ["create", ...(slug ? ["--org", slug] : []), ...(region ? ["--region", region] : [])])}\`, then tell me how it went.`;
 }
 
@@ -762,17 +705,14 @@ async function pilot($: EngineInterface, text: string) {
 }
 
 /** Careful or in one go: the builder's choice, recorded directly (nothing for Claude to do). */
-async function chooseMethod($: EngineInterface, method: "careful" | "quick") {
+async function chooseMethod($: EngineInterface, method: MoveMethod) {
   if (choosingMethod) return;
   choosingMethod = method;
   moveError = null;
   $.ui.invalidate("ui.render");
   const result = await cli($, ["move", "method", method]);
   if (!result.ok) {
-    moveError = {
-      message: result.error?.message ?? "That didn't work.",
-      ...(result.error?.hint ? { hint: result.error.hint } : {}),
-    };
+    moveError = problemOf(result.error, "That didn't work.");
   }
   await loadMove($);
   choosingMethod = null;
@@ -790,9 +730,7 @@ async function connectDatabase($: EngineInterface, token: string) {
 
 /** The builder says they signed in on the new site: look again, and say so if nothing is seen. */
 async function checkSignIn($: EngineInterface) {
-  moveRun = { title: "Looking for your sign-in" };
-  moveError = null;
-  $.ui.invalidate("ui.render");
+  startWork($, "Looking for your sign-in");
   await readMove($).catch(() => {});
   moveRun = null;
   if (move?.signIn?.needed && !move.signIn.at) {
@@ -813,26 +751,15 @@ async function moveWith($: EngineInterface, args: string[], value: string) {
       args[0]!,
     )
   ) {
-    moveError = null;
-    moveRun = {
-      title:
-        args[0] === "connect"
-          ? "Connecting to Supabase"
-          : args[0] === "netlify"
-            ? "Connecting to Netlify"
-            : args[0] === "resend"
-              ? "Connecting to Resend"
-              : "Saving it",
+    const connecting: Record<string, string> = {
+      connect: "Connecting to Supabase",
+      netlify: "Connecting to Netlify",
+      resend: "Connecting to Resend",
     };
-    $.ui.invalidate("ui.render");
+    startWork($, connecting[args[0]!] ?? "Saving it");
     const result = await cli($, ["move", ...args], 60_000, text);
     moveRun = null;
-    if (!result.ok) {
-      moveError = {
-        message: result.error?.message ?? "That didn't work.",
-        ...(result.error?.hint ? { hint: result.error.hint } : {}),
-      };
-    }
+    if (!result.ok) moveError = problemOf(result.error, "That didn't work.");
     await loadMove($);
     return;
   }
@@ -862,11 +789,7 @@ async function saveSetting($: EngineInterface, name: string, value: string) {
   // During the move, a setting can be what keeps its step open: say it's saving, then read where
   // the move stands, so the next step opens.
   const moving = move !== null;
-  if (moving) {
-    moveError = null;
-    moveRun = { title: "Saving it" };
-    $.ui.invalidate("ui.render");
-  }
+  if (moving) startWork($, "Saving it");
   const result = await cli($, ["setting", name], 60_000, value);
   if (moving) moveRun = null;
   if (!result.ok) $.ui.toast(result.error?.message ?? `Couldn't save ${name}.`);
@@ -910,15 +833,9 @@ async function refreshVersions($: EngineInterface) {
   try {
     const result = await cli($, ["history"], 30_000);
     if (!result.ok) return;
-    const pick = (c: any): Version => ({
-      sha: String(c.sha),
-      subject: String(c.subject ?? ""),
-      date: String(c.date ?? ""),
-      kind: c.kind ?? null,
-    });
     const next = {
-      draft: (result.data?.draft ?? []).map(pick),
-      published: (result.data?.published ?? []).map(pick),
+      draft: (result.data?.draft ?? []).map(toVersion),
+      published: (result.data?.published ?? []).map(toVersion),
     };
     if (same(versions, next)) return;
     versions = next;
@@ -946,11 +863,7 @@ async function restoreVersion($: EngineInterface, sha: string, subject: string) 
     return;
   }
   if (answer !== "Restore") return;
-  await update<ClodableActivity>($, activity, (x) =>
-    x.kind === "idle" || x.kind === "published" || x.kind === "undone" || x.kind === "failed"
-      ? { kind: "saving", steps: [] }
-      : x,
-  );
+  await update<ClodableActivity>($, activity, savingNow);
   const result = await cli($, ["restore", sha]);
   await update<ClodableActivity>($, activity, (x) =>
     x.kind === "saving" ? { kind: "idle", steps: [] } : x,
@@ -985,20 +898,9 @@ async function startPreview($: EngineInterface, attempt = 0): Promise<void> {
   }
 }
 
-/**
- * The app's preview in Desktop's own Browser pane. A link would open another window, and Desktop
- * opens its pane only for a request in this conversation: Auto mode refuses Clodable's own call,
- * even for a press. So the press becomes the builder's request, and Claude opens it.
- */
-function previewRequest(): string {
-  return previewUrl
-    ? `Open my app's preview here (${previewUrl}).`
-    : "Start my app's preview and open it here.";
-}
-
 function askForPreview($: EngineInterface) {
   markActive($);
-  background($.prompt.submit({ text: previewRequest(), asUser: true }));
+  background($.prompt.submit({ text: previewRequest(previewUrl), asUser: true }));
 }
 
 /**
@@ -1012,7 +914,7 @@ async function finishMove($: EngineInterface) {
   background(
     pilot(
       $,
-      `Moving off Lovable: I've finished in Lovable. ${previewRequest()} Then tell me in a few lines how I change my app from now on.`,
+      `Moving off Lovable: I've finished in Lovable. ${previewRequest(previewUrl)} Then tell me in a few lines how I change my app from now on.`,
     ),
   );
 }
@@ -1082,6 +984,17 @@ async function registerCommands($: EngineInterface) {
   }
 }
 
+/** Before Claude changes the live database: what it means, beside the request to allow it. */
+function liveDataNotice($: EngineInterface, toolUseId: string | undefined, sql: string) {
+  if (!toolUseId) return;
+  $.ui.notice(
+    toolUseId,
+    sqlIsDestructive(sql)
+      ? "This changes your live database and can't be undone."
+      : "This changes your live database right away. Your site keeps working.",
+  );
+}
+
 /** Requests from the preview toolbar: Try to fix, Point & ask, and text edits to save. */
 async function pollInbox($: EngineInterface) {
   if (!cwd || inApp !== true || polling) return;
@@ -1097,7 +1010,7 @@ async function pollInbox($: EngineInterface) {
     if (!entries.some((e) => e.kind === "file" && e.name.endsWith(".json"))) return;
     // Every open conversation sees the request; only the one its person used last takes it.
     const claimed = await cli($, ["inbox", "--claim", me], 15_000);
-    const items: any[] = claimed.ok && Array.isArray(claimed.data) ? claimed.data : [];
+    const items: ClodableRequest[] = claimed.ok && Array.isArray(claimed.data) ? claimed.data : [];
     for (const item of items) handleRequest($, item);
   } finally {
     polling = false;
@@ -1105,7 +1018,7 @@ async function pollInbox($: EngineInterface) {
 }
 
 /** One request from the preview, now this conversation's to handle. */
-function handleRequest($: EngineInterface, item: any) {
+function handleRequest($: EngineInterface, item: ClodableRequest) {
   if (item.kind === "fix") {
     const where = item.error?.source
       ? ` (around ${item.error.source.file}:${item.error.source.line})`
@@ -1136,106 +1049,6 @@ function handleRequest($: EngineInterface, item: any) {
       ),
     );
   }
-}
-
-// ── Safety ──────────────────────────────────────────────────────────────────
-
-const PUSH_OR_REWRITE =
-  /\bgit\s+(push|reset\s+--hard|rebase|filter-branch|filter-repo|update-ref)\b|\bgh\s+pr\s+merge\b/;
-const OUR_PUBLISH = /\bclodable\s+(publish|undo)\b/;
-const LEAVE_DRAFT = /\bgit\s+(checkout|switch)\s+(-[-\w]+\s+)*(main|master)\b/;
-/**
- * Clodable's private folder on this computer: the Supabase token, database passwords, and the
- * export with people's emails and password hashes. It never goes into a conversation.
- */
-const PRIVATE_FOLDER =
-  /Library\/Application Support\/clodable|\.config\/clodable|AppData[\\/]Roaming[\\/]clodable|clodable[\\/]secrets\.json/i;
-const PRIVATE_FOLDER_DENY =
-  "That folder holds Clodable's keys and the people's data from the Lovable export, so it stays out of the conversation. Use `clodable move status` or `clodable move diagnose` instead: they report what's safe to see.";
-/** Move steps that take a secret: the builder types those in the Clodable panel, never in the chat. */
-const SECRET_STEP =
-  /clodable(?:\.mjs"?)?\s+move\s+(connect|secret|vault-secret|disconnect|forget|netlify|setting|resend|ai|google)\b|clodable(?:\.mjs"?)?\s+move\s+files\b.*--private/;
-
-/**
- * Clodable's database commands (`npx clodable db query|run|apply …`, or the plugin's own CLI), with
- * what they act on. `single`: one command and one quoted argument, nothing else for the shell.
- */
-function dbCommandIn(
-  command: string,
-): { action: "query" | "run" | "apply" | "check"; arg: string; single: boolean } | undefined {
-  const m = command.match(
-    /^(?:npx\s+clodable|node\s+"[^"]*clodable\.mjs")\s+db\s+(query|run|apply|check)(?:\s+([\s\S]*))?$/,
-  );
-  if (!m) return undefined;
-  const rest = (m[2] ?? "").trim();
-  const quoted = rest.match(/^"([^"`$\\]*)"$|^'([^']*)'$/);
-  const bare = /^[\w./-]+$/.test(rest) ? rest : undefined;
-  const arg = quoted ? (quoted[1] ?? quoted[2] ?? "") : (bare ?? rest);
-  return {
-    action: m[1] as "query" | "run" | "apply" | "check",
-    arg,
-    single: Boolean(quoted || bare),
-  };
-}
-
-/** Claude's own runs of the move's steps, exactly as the panel's requests spell them. */
-function isMoveStep($: EngineInterface, command: string): boolean {
-  const root = $.plugin.root.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return new RegExp(
-    `^node "${root}/cli/clodable\\.mjs" move (status|check|facts|choices|create|export|copy|verify|diagnose|files|functions|secrets|preview|teams|site|settings|emails|pause|golive|domain|services|app-emails)( --?[\\w-]+| [\\w.:@-]+)*$`,
-  ).test(command);
-}
-
-/**
- * Claude records what it found in the app with a quoted heredoc: inert JSON, nothing in it runs. A
- * line equal to the delimiter would end it early and run the rest, so none is allowed.
- */
-function isFactsRecord($: EngineInterface, command: string): boolean {
-  const root = $.plugin.root.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const m = command.match(
-    new RegExp(
-      `^node "${root}/cli/clodable\\.mjs" move facts --set <<'(\\w+)'\n([\\s\\S]*)\n(\\w+)$`,
-    ),
-  );
-  if (!m || m[1] !== m[3]) return false;
-  return !m[2]!.split("\n").some((line) => line === m[1]);
-}
-
-const SAFE_BASH = [
-  /^(npm|pnpm|yarn|bun)\s+(install|i|ci|add)\b/,
-  /^(npm|pnpm|yarn|bun)\s+run\s+(build|lint|test|typecheck|check)\b/,
-  /^(npm|pnpm|yarn|bun)\s+(test|lint)\b/,
-  /^npx\s+(tsc|eslint|prettier|vitest|clodable\s+(status|check|history|doctor))\b/,
-  /^git\s+(status|diff|log|show|blame)\b/,
-  /^(ls|pwd|cat|head|tail|wc|grep|rg)\b/,
-];
-const SUPABASE_READS = new Set([
-  "list_tables",
-  "list_extensions",
-  "list_migrations",
-  "get_advisors",
-  "get_logs",
-  "search_docs",
-  "get_project_url",
-  "get_publishable_keys",
-  "get_anon_key",
-  "list_edge_functions",
-  "get_edge_function",
-  "generate_typescript_types",
-  "list_storage_buckets",
-  "get_storage_config",
-]);
-
-function insideProject(path: unknown): boolean {
-  // Windows paths use backslashes and drive letters; compare with forward slashes everywhere.
-  const slash = (value: string) => value.replace(/\\/g, "/");
-  const p = slash(String(path ?? ""));
-  const root = slash(cwd).replace(/\/$/, "");
-  if (!p || !root) return false;
-  const absolute = /^([a-zA-Z]:)?\//.test(p) ? p : `${root}/${p}`;
-  if (!absolute.toLowerCase().startsWith(`${root.toLowerCase()}/`) || absolute.includes("/../"))
-    return false;
-  return !/\/\.git\/|\/\.env(\.|$)|\/node_modules\//.test(absolute);
 }
 
 // ── Hooks ───────────────────────────────────────────────────────────────────
@@ -1397,20 +1210,14 @@ export const register: Register = (on) => {
   );
 
   // Clodable's private folder stays out of every conversation, whatever tool asks.
-  const keepOut = (e: unknown) => {
-    const input = e as Record<string, unknown>;
-    return [input.file_path, input.path, input.notebook_path].some((v) =>
-      PRIVATE_FOLDER.test(String(v ?? "")),
-    );
-  };
   on("tool.call", { tool: "Read" }, async (_$, e, next) =>
-    keepOut(e) ? { deny: PRIVATE_FOLDER_DENY } : next(e),
+    inPrivateFolder(e) ? { deny: PRIVATE_FOLDER_DENY } : next(e),
   );
   on("tool.call", { tool: "Edit" }, async (_$, e, next) =>
-    keepOut(e) ? { deny: PRIVATE_FOLDER_DENY } : next(e),
+    inPrivateFolder(e) ? { deny: PRIVATE_FOLDER_DENY } : next(e),
   );
   on("tool.call", { tool: "Write" }, async (_$, e, next) =>
-    keepOut(e) ? { deny: PRIVATE_FOLDER_DENY } : next(e),
+    inPrivateFolder(e) ? { deny: PRIVATE_FOLDER_DENY } : next(e),
   );
 
   // Any Supabase server: Clodable's own, or the claude.ai Supabase connector.
@@ -1504,8 +1311,8 @@ export const register: Register = (on) => {
       return { ...verdict, decision: "allow" };
     if (
       e.tool === "Bash" &&
-      (isMoveStep($, String(input.command ?? "").trim()) ||
-        isFactsRecord($, String(input.command ?? "").trim()))
+      (isMoveStep($.plugin.root, String(input.command ?? "").trim()) ||
+        isFactsRecord($.plugin.root, String(input.command ?? "").trim()))
     )
       return { ...verdict, decision: "allow" };
     // The app's database through Clodable: reading is quiet, every change is the builder's to allow.
@@ -1514,14 +1321,7 @@ export const register: Register = (on) => {
       return { ...verdict, decision: "allow" };
     if (db && db.action !== "query") {
       const sql = db.action === "apply" ? await $.fs.read(db.arg).catch(() => "") : db.arg;
-      if (e.tool_use_id) {
-        $.ui.notice(
-          e.tool_use_id,
-          sqlIsDestructive(sql)
-            ? "This changes your live database and can't be undone."
-            : "This changes your live database right away. Your site keeps working.",
-        );
-      }
+      liveDataNotice($, e.tool_use_id, sql);
       return { ...verdict, decision: "ask" };
     }
     const tool = supabaseTool(e.tool);
@@ -1531,14 +1331,7 @@ export const register: Register = (on) => {
         (tool === "execute_sql" && sqlWrites(String(input.query ?? input.sql ?? "")))
       ) {
         const sql = String(input.query ?? input.sql ?? "");
-        if (e.tool_use_id) {
-          $.ui.notice(
-            e.tool_use_id,
-            sqlIsDestructive(sql)
-              ? "This changes your live database and can't be undone."
-              : "This changes your live database right away. Your site keeps working.",
-          );
-        }
+        liveDataNotice($, e.tool_use_id, sql);
         return { ...verdict, decision: "ask" };
       }
       if (SUPABASE_READS.has(tool) || tool === "execute_sql")
@@ -1546,226 +1339,50 @@ export const register: Register = (on) => {
       return verdict;
     }
     if (verdict.decision !== "ask") return verdict;
-    if (["Edit", "Write", "MultiEdit"].includes(e.tool) && insideProject(input.file_path))
+    if (["Edit", "Write", "MultiEdit"].includes(e.tool) && insideProject(input.file_path, cwd))
       return { ...verdict, decision: "allow" };
     if (["Read", "Glob", "Grep", "LS", "TodoWrite"].includes(e.tool))
       return { ...verdict, decision: "allow" };
-    if (e.tool === "Bash") {
-      const command = String(input.command ?? "").trim();
-      if (!/[;&|`$<>]/.test(command) && SAFE_BASH.some((r) => r.test(command)))
-        return { ...verdict, decision: "allow" };
-    }
+    if (e.tool === "Bash" && safeCommand(String(input.command ?? "").trim()))
+      return { ...verdict, decision: "allow" };
     return verdict;
   }).catch(() => ({ decision: "ask" as const }));
 
   // ── The bar above the prompt ─────────────────────────────────────────────
   on("ui.render", { component: "AbovePrompt" }, async ($, e, next) => {
     if (e.props.hasSurvey) return next(e);
-    const here = await read($, status);
-    const invite = here !== null && !here.ready && here.reason === "not-a-repo" && emptyFolder;
-    if (inApp !== true && !invite) return next(e);
-    if (e.surface === "desktop" && inApp === true && !previewAsked) background(startPreview($));
-    const { Box, Text, Button: drawButton, Link } = $.ui.resolve(e);
-    const Button = heldButton(drawButton);
     const s = await read($, status);
+    const invite = s !== null && !s.ready && s.reason === "not-a-repo" && emptyFolder;
+    if (inApp !== true && !invite) return next(e);
+    const desktop = e.surface === "desktop";
+    if (desktop && inApp === true && !previewAsked) background(startPreview($));
+    const { Box, Text, Button, Link } = $.ui.resolve(e);
+    const ui: BarUi = { Box, Text, Button: heldButton(Button), Link };
     const a = await read($, activity);
     const now = Date.now();
     // The logo on Desktop. In the terminal the status dot alone says enough.
-    const mark =
-      e.surface === "desktop"
-        ? $.ui.resolve(e).Svg({ source: LOGO, alt: "Clodable", width: 16, height: 16 })
-        : null;
+    const mark = desktop
+      ? $.ui.resolve(e).Svg({ source: LOGO, alt: "Clodable", width: 16, height: 16 })
+      : null;
     const theirs = await next(e);
-    const desktop = e.surface === "desktop";
-    // What's true now on the left; what you can do on the right, the main action last.
-    const bar = (left: unknown[], right: unknown[] = []) => (
-      <Box
-        flexDirection="row"
-        justifyContent="space-between"
-        alignItems="center"
-        columnGap={2}
-        width="100%"
-      >
-        <Box flexDirection="row" columnGap={1} alignItems="center" flexShrink={1} minWidth={0}>
-          {mark}
-          {left as never}
-        </Box>
-        <Box flexDirection="row" columnGap={1} alignItems="center" flexShrink={0}>
-          {right as never}
-        </Box>
-      </Box>
-    );
-    // In the terminal, where there's no logo, a colored dot carries the state.
-    const dot = (color: string) => (desktop ? null : <Text color={color}>●</Text>);
-    const history = (
-      <Button key="history" variant="secondary" onPress={() => background(openPane($))}>
-        History
-      </Button>
-    );
-    // On Desktop, in its own Browser pane; a link would open another window.
-    const preview = !previewUrl ? null : desktop ? (
-      <Button key="preview" variant="secondary" onPress={() => askForPreview($)}>
-        Preview
-      </Button>
-    ) : (
-      <Link key="preview" href={previewUrl} label="Preview ↗" />
-    );
-    // A button that can't be used isn't drawn (Desktop's buttons can't be disabled). While Claude
-    // works on a fix, a quiet note takes its place, so nothing is asked twice.
-    const fixButton = (key: string, conflict: boolean) =>
-      isFixing() ? (
-        <Text dimColor>{conflict ? "Claude is combining…" : "Claude is fixing…"}</Text>
-      ) : (
-        <Button key={key} variant="primary" onPress={() => background(fixIt($))}>
-          {conflict ? "Let Claude combine them" : "Fix it"}
-        </Button>
-      );
-    const site = (url: string) => (
-      <Link href={url} label={`${url.replace(/^https?:\/\//, "")} ↗`} />
-    );
-
-    let ours: RenderElement;
-    if (a.kind === "publishing" || a.kind === "undoing") {
-      const running = [...a.steps].reverse().find((x) => x.state === "running");
-      const last = a.steps[a.steps.length - 1];
-      ours = bar(
-        [
-          <Text bold>{a.kind === "publishing" ? "Publishing" : "Undoing"}</Text>,
-          <Text dimColor wrap="truncate-end">
-            {running
-              ? running.detail
-                ? `${running.title} · ${running.detail}`
-                : `${running.title}…`
-              : last
-                ? last.title
-                : "Starting…"}
-          </Text>,
-        ],
-        [
-          <Button key="progress" variant="secondary" onPress={() => background(openPane($))}>
-            See progress
-          </Button>,
-        ],
-      );
-    } else if ((a.kind === "published" || a.kind === "undone") && a.at && now - a.at < 120_000) {
-      ours = bar(
-        a.onLovable
-          ? [
-              dot("success"),
-              <Text color="success" bold>
-                {a.kind === "published" ? "Published on GitHub" : "Undone on GitHub"}
-              </Text>,
-              ...(a.site
-                ? [
-                    a.site.state === "failed" ? (
-                      <Link
-                        href={a.site.logUrl ?? a.site.url}
-                        label="Netlify site didn't update ↗"
-                      />
-                    ) : (
-                      <Link href={a.site.url} label="Netlify site ↗" />
-                    ),
-                  ]
-                : []),
-              <Link
-                href={a.lovableUrl ?? "https://lovable.dev/projects"}
-                label="Put it live in Lovable ↗"
-              />,
-            ]
-          : [
-              dot("success"),
-              <Text color="success" bold>
-                {a.kind === "published" ? "You're live" : "Undone. The previous version is live"}
-              </Text>,
-              a.url ? site(a.url) : null,
-            ],
-        a.kind === "published"
-          ? [
-              <Button key="undo" variant="secondary" onPress={() => background(undoNow($))}>
-                Undo
-              </Button>,
-            ]
-          : [],
-      );
-    } else if (a.kind === "failed" && a.error) {
-      ours = bar(
-        [
-          <Box flexShrink={0}>
-            <Text color={a.error.code === "conflict" ? "warning" : "error"} bold>
-              {a.error.code === "secret-found" ? "Not saved" : "Not published"}
-            </Text>
-          </Box>,
-          <Text wrap="truncate-end">{shortReason(a.error)}</Text>,
-        ],
-        [
-          <Button key="why" variant="secondary" onPress={() => background(openPane($))}>
-            See why
-          </Button>,
-          fixButton("fix", a.error.code === "conflict"),
-        ],
-      );
-    } else if (a.kind === "saving") {
-      ours = bar([<Text dimColor>Saving…</Text>], [history, preview]);
-    } else if (!s) {
-      ours = bar([<Text dimColor>Clodable is getting ready…</Text>]);
-    } else if (!s.ready) {
-      ours = bar(
-        [
-          <Text>
-            {s.reason === "not-a-repo"
-              ? "Bring your app into this folder to save and publish"
-              : s.message}
-          </Text>,
-        ],
-        [
-          <Button key="setup" variant="primary" onPress={() => background(openPane($))}>
-            Set up
-          </Button>,
-        ],
-      );
-    } else if (s.merging || s.conflicts.length > 0) {
-      ours = bar(
-        [
-          <Box flexShrink={0}>
-            <Text color="warning" bold>
-              Not published
-            </Text>
-          </Box>,
-          <Text wrap="truncate-end">{shortReason({ code: "conflict", message: "" })}</Text>,
-        ],
-        [fixButton("combine", true)],
-      );
-    } else if (s.unpublished.length > 0) {
-      ours = bar(
-        [
-          dot("warning"),
-          <Text>
-            <Text bold>{plural(s.unpublished.length, "change")}</Text> not live yet
-          </Text>,
-        ],
-        [
-          history,
-          preview,
-          <Button key="publish" variant="primary" onPress={() => background(publishNow($))}>
-            Publish
-          </Button>,
-        ],
-      );
-    } else {
-      const url = s.lastPublish?.url ?? s.liveUrl;
-      ours = bar(
-        [
-          dot("success"),
-          // Lovable's hosting only shows what was last published in Lovable: say what's certain.
-          <Text>{s.hosting === "lovable" ? "Everything is published" : "Everything is live"}</Text>,
-          url ? site(url) : null,
-        ],
-        [history, preview],
-      );
-    }
+    const { left, right = [] } = barSides($, ui, s, a, now, desktop);
     return (
       <Box flexDirection="column">
-        {ours}
+        <Box
+          flexDirection="row"
+          justifyContent="space-between"
+          alignItems="center"
+          columnGap={2}
+          width="100%"
+        >
+          <Box flexDirection="row" columnGap={1} alignItems="center" flexShrink={1} minWidth={0}>
+            {mark}
+            {left}
+          </Box>
+          <Box flexDirection="row" columnGap={1} alignItems="center" flexShrink={0}>
+            {right}
+          </Box>
+        </Box>
         {theirs}
       </Box>
     );
@@ -1774,16 +1391,21 @@ export const register: Register = (on) => {
   // ── The Clodable panel ──────────────────────────────────────────────────
   on("ui.render", { component: "Pane" }, async ($, e, next) => {
     if (e.requestId !== PANE) return next(e);
-    const { Box, Text, Button: drawButton, Link, Code } = $.ui.resolve(e);
-    const Button = heldButton(drawButton);
     const table = $.ui.resolve(e);
-    const Select = "Select" in table ? table.Select : undefined;
-    const Input = "Input" in table ? table.Input : undefined;
+    const ui: PaneUi = {
+      Box: table.Box,
+      Text: table.Text,
+      Button: heldButton(table.Button),
+      Link: table.Link,
+      Code: table.Code,
+      ...("Select" in table ? { Select: table.Select } : {}),
+      ...("Input" in table ? { Input: table.Input } : {}),
+    };
+    const { Box, Text, Link } = ui;
     const s = await read($, status);
     const a = await read($, activity);
     const doctor = await read($, checks);
     const now = Date.now();
-    const section = (title: string) => <Text bold>{title}</Text>;
     const header = (
       <Box flexDirection="row" columnGap={1} alignItems="center">
         {e.surface === "desktop" ? (
@@ -1797,2165 +1419,40 @@ export const register: Register = (on) => {
 
     // Not set up yet: a guided, self-serve setup.
     if (!s?.ready) {
-      const tools = doctor.filter((c) => ["node", "git", "gh", "github"].includes(c.id));
-      const blocking = tools.filter((c) => c.status === "fail");
-      const github = doctor.find((c) => c.id === "github");
-      return (
-        <Box flexDirection="column" rowGap={1} paddingX={1}>
-          {header}
-          <Text>Let's bring your app home. It takes a minute, once.</Text>
-          {section("1 · Tools")}
-          {tools.length === 0 ? <Text dimColor>Checking…</Text> : null}
-          {tools.map((c) => (
-            <Box flexDirection="column">
-              <Text color={c.status === "ok" ? "success" : "error"}>
-                {c.status === "ok" ? "✓" : "✕"} {c.label} {c.detail ? `· ${c.detail}` : ""}
-              </Text>
-              {c.status !== "ok" && c.fix ? <Text dimColor> {c.fix}</Text> : null}
-            </Box>
-          ))}
-          {github && github.status !== "ok" ? (
-            <Box flexDirection="column" rowGap={1}>
-              <Button
-                key="connect-github"
-                variant="primary"
-                onPress={() => background(connectGitHub($))}
-              >
-                Connect GitHub
-              </Button>
-              {deviceCode ? (
-                <Box flexDirection="column">
-                  <Text>
-                    Your one-time code: <Text bold>{deviceCode}</Text>
-                  </Text>
-                  <Link
-                    href="https://github.com/login/device"
-                    label="Open github.com/login/device"
-                  />
-                  <Button key="copy-code" plain onPress={() => $.ui.copy({ text: deviceCode })}>
-                    Copy the code
-                  </Button>
-                </Box>
-              ) : null}
-            </Box>
-          ) : null}
-          {section("2 · Your app")}
-          {blocking.length > 0 ? (
-            <Text dimColor>Once the tools above are ready, pick your app here.</Text>
-          ) : s?.reason === "no-kit" ? (
-            <Box flexDirection="column" rowGap={1}>
-              <Text>This folder already holds an app. Clodable can set itself up right here.</Text>
-              {settingUp ? (
-                <Text dimColor>Setting up Clodable… it takes about a minute.</Text>
-              ) : (
-                <Button
-                  key="set-up-here"
-                  variant="primary"
-                  onPress={() => background(setUpHere($))}
-                >
-                  Set up Clodable here
-                </Button>
-              )}
-            </Box>
-          ) : repoChoices.length > 0 && Select ? (
-            <Box flexDirection="column" rowGap={1}>
-              <Select
-                key="repo"
-                label="Your app on GitHub"
-                options={repoChoices}
-                value={chosenRepo || repoChoices[0]!.value}
-                onSelect={(value) => {
-                  chosenRepo = value;
-                  $.ui.invalidate("ui.render");
-                }}
-              />
-              {settingUp ? (
-                <Text dimColor>Bringing in your app… a minute or two.</Text>
-              ) : (
-                <Button key="bring-in" variant="primary" onPress={() => background(bringIn($))}>
-                  Bring it in
-                </Button>
-              )}
-            </Box>
-          ) : Input ? (
-            <Box flexDirection="column" rowGap={1}>
-              <Input
-                key="repo-name"
-                label="Your app's GitHub repository"
-                placeholder="owner/name"
-                value={chosenRepo}
-                submitLabel="bring it in"
-                onSubmit={(value) => {
-                  chosenRepo = value.trim();
-                  background(bringIn($));
-                }}
-              />
-              <Button key="list-repos" plain onPress={() => background(loadRepos($))}>
-                Show my repositories
-              </Button>
-            </Box>
-          ) : (
-            <Text dimColor>Open Clodable in Claude Desktop or the terminal to pick your app.</Text>
-          )}
-          <Text dimColor>
-            {s?.reason === "no-kit"
-              ? "Clodable adds a few plain files and saves them, with any changes in progress, to your draft on GitHub. Nothing goes live."
-              : "Clodable copies your app from GitHub into this folder and adds a few plain files. Nothing goes live."}
-          </Text>
-        </Box>
-      );
+      return setupPane($, ui, header, s, doctor);
     }
 
-    const steps = a.steps.length > 0 ? a.steps : [];
     if (versions === null) background(refreshVersions($));
     const desktop = e.surface === "desktop";
-    const stepLine = (step: ClodableStep) => {
-      const mark =
-        step.state === "done"
-          ? "✓"
-          : step.state === "failed"
-            ? "✕"
-            : step.state === "warning"
-              ? "!"
-              : step.state === "running"
-                ? "◐"
-                : "·";
-      const color =
-        step.state === "done"
-          ? "success"
-          : step.state === "failed"
-            ? "error"
-            : step.state === "warning"
-              ? "warning"
-              : undefined;
-      return (
-        <Text
-          {...(color ? { color } : {})}
-          dimColor={step.state === "skipped" || step.state === "pending"}
-        >
-          {mark} {step.title}
-          {step.state === "running" ? "…" : ""}
-          {step.detail ? `  · ${step.detail}` : ""}
-        </Text>
-      );
-    };
-    const busy = a.kind === "publishing" || a.kind === "undoing";
-    const url = s.lastPublish?.url ?? s.liveUrl;
-    const warnings = doctor.filter((c) => c.status === "warn" || c.status === "fail");
-    const host = (link: string) => link.replace(/^https?:\/\//, "").replace(/\/$/, "");
-
-    // The app's state in one card: what's true now, and the next thing to do.
-    const card = (
-      title: unknown,
-      subtitle: unknown,
-      actions: unknown[] = [],
-      below: unknown = null,
-    ) => (
-      <Box
-        flexDirection="column"
-        rowGap={1}
-        borderStyle="round"
-        borderColor="promptBorder"
-        paddingX={2}
-        paddingY={1}
-      >
-        <Box flexDirection="row" justifyContent="space-between" alignItems="center" columnGap={2}>
-          <Box flexDirection="column" flexShrink={1}>
-            {title as never}
-            {subtitle as never}
-          </Box>
-          <Box flexDirection="row" columnGap={1} alignItems="center" flexShrink={0}>
-            {actions as never}
-          </Box>
-        </Box>
-        {below as never}
-      </Box>
-    );
-
-    let state: RenderElement;
-    if (busy) {
-      state = card(
-        <Text bold>{a.kind === "publishing" ? "Publishing…" : "Undoing…"}</Text>,
-        <Text dimColor>Your live site keeps working meanwhile.</Text>,
-        [],
-        <Box flexDirection="column">{steps.map(stepLine)}</Box>,
-      );
-    } else if (a.kind === "failed" && a.error) {
-      state = card(
-        <Text color="error" bold>
-          {a.error.code === "secret-found" ? "Not saved" : "Not published"}
-        </Text>,
-        <Text>{a.error.message}</Text>,
-        [
-          a.error.details ? (
-            <Button
-              key="toggle-details"
-              variant="secondary"
-              onPress={() => {
-                showDetails = !showDetails;
-                $.ui.invalidate("ui.render");
-              }}
-            >
-              {showDetails ? "Hide details" : "Details"}
-            </Button>
-          ) : null,
-          isFixing() ? (
-            <Text dimColor>
-              {a.error.code === "conflict" ? "Claude is combining…" : "Claude is fixing…"}
-            </Text>
-          ) : (
-            <Button key="fix" variant="primary" onPress={() => background(fixIt($))}>
-              {a.error.code === "conflict" ? "Let Claude combine them" : "Fix it"}
-            </Button>
-          ),
-        ],
-        <Box flexDirection="column" rowGap={1}>
-          {a.error.hint ? <Text dimColor>{a.error.hint}</Text> : null}
-          {steps.length > 0 ? <Box flexDirection="column">{steps.map(stepLine)}</Box> : null}
-          {showDetails && a.error.details ? (
-            <Code source={a.error.details.slice(0, 6000)} wrap="wrap" />
-          ) : null}
-        </Box>,
-      );
-    } else if ((a.kind === "published" || a.kind === "undone") && a.at && now - a.at < 120_000) {
-      state = card(
-        <Text color="success" bold>
-          {a.onLovable
-            ? a.kind === "published"
-              ? "Published on GitHub"
-              : "Undone on GitHub"
-            : a.kind === "published"
-              ? "You're live"
-              : "Undone. The previous version is live"}
-        </Text>,
-        a.onLovable ? (
-          <Box flexDirection="column">
-            <Text dimColor>
-              Lovable hosts your site: in Lovable, click Publish, then Publish changes, to put it
-              live.
-            </Text>
-            <Link href={a.lovableUrl ?? "https://lovable.dev/projects"} label="Open Lovable ↗" />
-          </Box>
-        ) : a.url ? (
-          <Link href={a.url} label={`${host(a.url)} ↗`} />
-        ) : null,
-        a.kind === "published"
-          ? [
-              <Button key="undo" variant="secondary" onPress={() => background(undoNow($))}>
-                Undo
-              </Button>,
-            ]
-          : [],
-      );
-    } else if (s.merging || s.conflicts.length > 0) {
-      state = card(
-        <Text color="warning" bold>
-          Your draft and the live site changed the same thing
-        </Text>,
-        <Text dimColor>Claude can combine them and keep both changes.</Text>,
-        [
-          isFixing() ? (
-            <Text dimColor>Claude is combining…</Text>
-          ) : (
-            <Button key="combine" variant="primary" onPress={() => background(fixIt($))}>
-              Let Claude combine them
-            </Button>
-          ),
-        ],
-      );
-    } else if (s.unpublished.length > 0) {
-      state = card(
-        <Text bold>{plural(s.unpublished.length, "change")} not live yet</Text>,
-        <Text dimColor>
-          {s.lastPublish
-            ? `Visitors still see the version you published ${ago(s.lastPublish.at, now)}.`
-            : "Visitors see them once you publish."}
-        </Text>,
-        [
-          !previewUrl ? null : e.surface === "desktop" ? (
-            <Button key="preview" variant="secondary" onPress={() => askForPreview($)}>
-              Preview
-            </Button>
-          ) : (
-            <Link key="preview" href={previewUrl} label="Preview ↗" />
-          ),
-          <Button key="publish" variant="primary" onPress={() => background(publishNow($))}>
-            Publish
-          </Button>,
-        ],
-      );
-    } else {
-      state = card(
-        <Text bold>Everything is live</Text>,
-        <Text dimColor>
-          {s.lastPublish
-            ? `Published ${ago(s.lastPublish.at, now)}: “${s.lastPublish.title}”`
-            : "Ask Claude for a change. It's saved here automatically."}
-        </Text>,
-        s.lastPublish
-          ? [
-              <Button key="undo" variant="secondary" onPress={() => background(undoNow($))}>
-                Undo last publish
-              </Button>,
-            ]
-          : [],
-      );
-    }
-
-    // History: one line per version, newest first. The first is what the files hold now; the
-    // newest publish is what visitors see. Restore shows on the line under the pointer.
-    const pretty = (v: Version) => {
-      const back = v.subject.match(/^Restored the version from (.+?)(?:: (.+))?$/);
-      if (!back) return v.subject;
-      return back[2] ? `Went back to “${back[2]}”` : `Went back to the version from ${back[1]}`;
-    };
-    const currentSha = versions?.draft[0]?.sha ?? versions?.published[0]?.sha;
-    const liveSha = versions?.published[0]?.sha;
-    const versionRow = (v: Version) => {
-      const current = v.sha === currentSha;
-      const live = v.sha === liveSha;
-      const restore = (
-        <Button
-          key={`restore-${v.sha}`}
-          {...(desktop ? { variant: "secondary" as const } : { plain: true as const })}
-          onPress={() => background(restoreVersion($, v.sha, pretty(v)))}
-        >
-          Restore
-        </Button>
-      );
-      return (
-        <Box
-          key={`version-${v.sha}`}
-          flexDirection="row"
-          justifyContent="space-between"
-          alignItems="center"
-          columnGap={2}
-          paddingX={1}
-          {...(desktop ? { hover: { backgroundColor: "#8080801f" } } : {})}
-        >
-          <Box flexDirection="row" columnGap={1} alignItems="center" flexShrink={1}>
-            <Text wrap="truncate-end">{pretty(v)}</Text>
-            {live ? (
-              <Text color="success" bold>
-                Live
-              </Text>
-            ) : null}
-            {current ? <Text dimColor>Current</Text> : null}
-          </Box>
-          <Box flexDirection="row" columnGap={2} alignItems="center" flexShrink={0}>
-            <Text dimColor>{ago(v.date, now)}</Text>
-            <Box width={11} justifyContent="flex-end">
-              {current ? null : desktop ? (
-                <Box display="none" hover={{ display: "flex" }}>
-                  {restore}
-                </Box>
-              ) : (
-                restore
-              )}
-            </Box>
-          </Box>
-        </Box>
-      );
-    };
-    // Two questions, once: where the data and the live site are decide what Clodable can do.
-    const choice = (key: "backend" | "hosting", value: string, label: string) => (
-      <Button
-        key={`${key}-${value}`}
-        variant="secondary"
-        onPress={() => background(setWhere($, key, value))}
-      >
-        {label}
-      </Button>
-    );
-    const question = (
-      key: "backend" | "hosting",
-      title: string,
-      choices: Array<[string, string]>,
-      hint: string,
-    ) => (
-      <Box key={`question-${key}`} flexDirection="column" rowGap={1}>
-        <Text>{title}</Text>
-        <Box flexDirection="row" columnGap={1} rowGap={1} flexWrap="wrap">
-          {choices.map(([value, label]) => choice(key, value, label))}
-        </Box>
-        <Text dimColor>{hint}</Text>
-      </Box>
-    );
-    const questions = [
-      s.backend === "unknown"
-        ? question(
-            "backend",
-            "Where does your app's data live?",
-            [
-              ["lovable-cloud", "On Lovable Cloud"],
-              ["supabase", "In my own Supabase"],
-              ["none", "No database"],
-            ],
-            "Not sure? If your project in Lovable has Cloud (Database, Users…), it's Lovable Cloud.",
-          )
-        : null,
-      s.hosting === "unknown"
-        ? question(
-            "hosting",
-            "Where is your site live?",
-            [
-              ["lovable", "On Lovable"],
-              ["github", "Elsewhere (Netlify, Vercel…)"],
-            ],
-            "If you click Publish in Lovable to update your site, it's on Lovable.",
-          )
-        : null,
-    ].filter(Boolean);
-
-    // The move itself, one step at a time: every step listed, only the next one with its controls.
-    const MOVE_MARK: Record<string, string> = { done: "✓", next: "●", later: "·", attention: "!" };
-    const method: "careful" | "quick" | undefined = choosingMethod ?? move?.method;
-    // Getting ready happens beside the live app; going live is the one moment it changes.
-    const MOVE_STAGES = [
-      {
-        id: "backend",
-        title: "Get ready: your new backend",
-        about:
-          "A working copy of your data, people and backend, on your own Supabase. Your live app stays on Lovable.",
-        steps: ["connect", "create", "export", "copy", "files", "functions", "try"],
-      },
-      {
-        id: "website",
-        title: (move?.steps ?? []).some((x: any) => x.id === "services")
-          ? "Get ready: your website, emails and services"
-          : "Get ready: your website and emails",
-        about:
-          "Your site on your own Netlify, using the working copy. Your live app stays on Lovable.",
-        steps: ["netlify", "site", "emails", "services", "google"],
-      },
-      {
-        id: "golive",
-        title: "Go live",
-        about:
-          method === "quick"
-            ? "Your app moves over in one go, with your data as of your export."
-            : "Your live app moves over. It pauses for a few minutes, so nothing people write is lost.",
-        steps: ["freeze", "final-export", "final-copy", "golive", "domain", "lovable"],
-      },
-    ];
-    const moveSteps: any[] = move?.steps ?? [];
-    const nextStep = moveSteps.find((x) => x.state === "next" || x.state === "attention");
-    const started = moveSteps.some((x) => x.id === "connect" && x.state === "done");
-    // First, Claude reads the app's code: until it has, nothing else is decided.
-    const factsNeeded = moveSteps.some((x) => x.id === "facts" && x.state !== "done");
-    const orgs: any[] = moveChoices?.organizations ?? [];
-    const org = orgs.find((o) => o.slug === moveOrg) ?? orgs[0];
-    const VAULT_QUERY =
-      "select decrypted_secret from vault.decrypted_secrets where name = 'email_queue_service_role_key';";
-    const field = (key: string, placeholder: string, submit: string, use: (v: string) => void) =>
-      Input ? (
-        <Input
-          key={key}
-          placeholder={placeholder}
-          submitLabel={submit}
-          value=""
-          onSubmit={(value: string) => use(value)}
-        />
-      ) : (
-        <Text dimColor>Open this panel in Claude Desktop to paste it.</Text>
-      );
-    // The settings the app's server code reads, still to paste: for the preview, and the site.
-    const settingsFields = (prefix: string, fromLovable: boolean) => {
-      const st = appSettingsStatus;
-      const missing = (st?.wanted ?? []).filter(
-        (n) => !st?.local.includes(n) || (st.site !== undefined && !st.site.includes(n)),
-      );
-      if (missing.length === 0) return null;
-      return (
-        <Box flexDirection="column" rowGap={1}>
-          <Text>
-            Your app's server code reads {plural(missing.length, "setting")} (environment
-            variables).
-            {fromLovable ? " On Lovable they're listed in More → Cloud → Secrets." : ""} Paste each
-            one here: it goes to your preview
-            {st?.site ? " and to your site on Netlify" : ", and stays on this computer"}.
-          </Text>
-          {missing.map((name) => (
-            <Box key={`${prefix}-row-${name}`} flexDirection="column">
-              <Text bold>{name}</Text>
-              {st?.site?.includes(name) ? (
-                <Text dimColor>
-                  Already on your site. Paste it again for your preview: Netlify keeps it secret.
-                </Text>
-              ) : null}
-              {field(`${prefix}-${name}`, "Paste the value", "Save", (v) =>
-                background(saveSetting($, name, v)),
-              )}
-            </Box>
-          ))}
-        </Box>
-      );
-    };
-    const missingSecrets = ((move?.secretsLeft ?? []) as string[]).filter(
-      (name) => !(moveSecrets?.set ?? []).includes(name),
-    );
-    const secretsBlock =
-      missingSecrets.length > 0 ? (
-        <Box flexDirection="column" rowGap={1}>
-          <Text>
-            Your functions use {plural(missingSecrets.length, "secret key")}. Paste each value from
-            the service it belongs to (Lovable doesn't show them). They go straight to Supabase.
-          </Text>
-          {missingSecrets.map((name) => (
-            <Box key={`secret-${name}`} flexDirection="column">
-              <Text bold>{name}</Text>
-              {field(`move-secret-${name}`, "Paste the value", "Save", (v) =>
-                background(moveWith($, ["secret", name], v)),
-              )}
-            </Box>
-          ))}
-        </Box>
-      ) : null;
-    // Going on without what's left of a step: a short question, then the way out.
-    const goOnWithout = (key: string, what: "settings" | "secrets" | "vault", count: number) => (
-      <Box flexDirection="row" columnGap={2} alignItems="center">
-        <Text dimColor>{count === 1 ? "Don't have it yet?" : "Don't have them yet?"}</Text>
-        <Button
-          key={key}
-          variant="secondary"
-          onPress={() => background(moveStep($, [what, "--skip"]))}
-        >
-          {count === 1 ? "Go on without it" : "Go on without them"}
-        </Button>
-      </Box>
-    );
-    const tryBlock =
-      move?.preview === "copy" ? (
-        <Box flexDirection="column" rowGap={1}>
-          <Text>
-            The preview shows your copy: sign in, click around, change things. Your live app is
-            untouched.
-          </Text>
-          <Box flexDirection="row" columnGap={2} alignItems="center">
-            <Button
-              key="move-live"
-              variant="secondary"
-              onPress={() =>
-                background(
-                  pilot(
-                    $,
-                    `Switch my preview back to my live data with \`${moveCommand($, ["preview", "live"])}\`.`,
-                  ),
-                )
-              }
-            >
-              Back to live data
-            </Button>
-            {move?.home ? <Link href={move.home.dashboard} label="Open it in Supabase ↗" /> : null}
-          </Box>
-        </Box>
-      ) : (
-        <Box flexDirection="column" rowGap={1}>
-          <Text dimColor>
-            The preview restarts on your new backend. Your live app is untouched.
-          </Text>
-          <Button
-            key="move-try"
-            variant="primary"
-            onPress={() =>
-              background(
-                pilot(
-                  $,
-                  `Moving off Lovable: switch my preview to the copy with \`${moveCommand($, ["preview", "copy"])}\`. ${previewRequest()} Then check my app works on it.`,
-                ),
-              )
-            }
-          >
-            Try my app on the copy
-          </Button>
-        </Box>
-      );
-    const copyable = (key: string, label: string, text: string) => (
-      <Box key={key} flexDirection="row" columnGap={1} alignItems="center">
-        <Text dimColor>{label}</Text>
-        <Text>{text.length > 60 ? `${text.slice(0, 56)}…` : text}</Text>
-        <Button key={`${key}-copy`} plain onPress={() => $.ui.copy({ text })}>
-          Copy
-        </Button>
-      </Box>
-    );
-    const sqlBlock = (key: string, sql: string) => (
-      <Box flexDirection="row" columnGap={1} alignItems="center">
-        <Code source={sql} language="sql" />
-        <Button key={`${key}-copy`} plain onPress={() => $.ui.copy({ text: sql })}>
-          Copy
-        </Button>
-      </Box>
-    );
-    const undoBlock = pausePlan ? (
-      <Box flexDirection="column" rowGap={1}>
-        <Text dimColor>Changed your mind? Run this in Lovable to undo the pause:</Text>
-        {sqlBlock("move-undo", pausePlan.undo)}
-      </Box>
-    ) : null;
-    const noEmails = (question: string) => (
-      <Box flexDirection="column" rowGap={1} marginTop={1}>
-        <Box flexDirection="row" columnGap={2} alignItems="center">
-          <Text>{question}</Text>
-          <Button
-            key="move-no-emails"
-            variant="secondary"
-            onPress={() => background(moveStep($, ["emails", "--skip"]))}
-          >
-            Continue without emails
-          </Button>
-        </Box>
-        <Text dimColor>
-          New people then sign in without confirming their email, and nobody can reset a forgotten
-          password. You can add emails later.
-        </Text>
-      </Box>
-    );
-    const publishedSinceLive = Boolean(
-      move?.site?.liveAt && move.site.liveAt > (move.switch?.liveAt ?? ""),
-    );
-    const liveAddress: string =
-      (s.liveUrl && !/lovable\.app/.test(s.liveUrl) ? s.liveUrl : undefined) ??
-      move?.site?.url ??
-      "your new address";
-    // Larger than Supabase's free plan holds: said before copying, while upgrading is easy.
-    const sizeOf = (bytes: number) =>
-      bytes >= 1024 ** 3
-        ? `${(bytes / 1024 ** 3).toFixed(1)} GB`
-        : `${Math.max(1, Math.round(bytes / 1024 ** 2))} MB`;
-    const planNote = (kind: "data" | "files") => {
-      const plan = move?.plan as
-        | { data: number; dataLimit: number; files: number; filesLimit: number }
-        | undefined;
-      if (!plan || plan[kind] <= plan[kind === "data" ? "dataLimit" : "filesLimit"]) return null;
-      const limit = kind === "data" ? plan.dataLimit : plan.filesLimit;
-      return (
-        <Box flexDirection="column">
-          <Text color="warning">
-            Your {kind === "data" ? "data takes about" : "files take"} {sizeOf(plan[kind])}:
-            Supabase's free plan holds {sizeOf(limit)}.
-          </Text>
-          <Text dimColor>
-            Move your organization to Pro first (about $25 a month, in Supabase: Organization
-            settings → Billing), or the copy stops when it's full.
-          </Text>
-        </Box>
-      );
-    };
-    let moveControls: unknown = null;
-    if (isPiloting()) {
-      moveControls = <Text dimColor>Claude is on it, in the conversation.</Text>;
-    } else if (moveRun) {
-      moveControls = (
-        <Text>
-          ◐ {moveRun.title}…{moveRun.detail ? `  · ${moveRun.detail}` : ""}
-        </Text>
-      );
-    } else if (nextStep?.id === "connect") {
-      moveControls = (
-        <Box flexDirection="column" rowGap={1}>
-          <Text>
-            Your data goes to Supabase, under your own account (free to start). Clodable needs an
-            access token that can create your new backend and copy your data into it.
-          </Text>
-          <Box flexDirection="column">
-            <Text>1. Open Supabase's token page.</Text>
-            <Text>2. Click “Create legacy token”: the full-access kind.</Text>
-            <Text>
-              3. Name it Clodable, choose the longest expiry it offers, and generate it. Clodable
-              uses it after the move too, for changes to your database.
-            </Text>
-            <Text>4. Paste it here. It stays on this computer.</Text>
-          </Box>
-          <Link
-            href="https://supabase.com/dashboard/account/tokens"
-            label="Open Supabase's token page ↗"
-          />
-          {field("move-token", "sbp_…", "Connect", (v) => background(moveWith($, ["connect"], v)))}
-          {showPermissions ? (
-            <Box flexDirection="column">
-              <Text dimColor>
-                A narrower token works too: choose Organization access, your organization, and these
-                permissions.
-              </Text>
-              {((move?.tokenPermissions ?? []) as string[]).map((permission) => (
-                <Text dimColor>· {permission}</Text>
-              ))}
-            </Box>
-          ) : (
-            <Button
-              key="move-narrower"
-              plain
-              onPress={() => {
-                showPermissions = true;
-                $.ui.invalidate("ui.render");
-              }}
-            >
-              Prefer a narrower token?
-            </Button>
-          )}
-          <Text dimColor>Once the move is done, delete the token in Supabase.</Text>
-        </Box>
-      );
-    } else if (nextStep?.id === "create") {
-      moveControls =
-        moveChoices === null ? (
-          <Text dimColor>Looking at your Supabase account…</Text>
-        ) : (
-          <Box flexDirection="column" rowGap={1}>
-            {orgs.length > 1 && Select ? (
-              <Select
-                key="move-org"
-                label="Organization"
-                options={orgs.map((o) => ({ value: o.slug, label: `${o.name} · ${o.cost}` }))}
-                value={moveOrg}
-                onSelect={(v: string) => {
-                  moveOrg = v;
-                  $.ui.invalidate("ui.render");
-                }}
-              />
-            ) : null}
-            {Select && (moveChoices.regions ?? []).length > 1 ? (
-              <Box flexDirection="column">
-                <Select
-                  key="move-region"
-                  label="Where it runs"
-                  options={moveChoices.regions.map((r: any) => ({ value: r.code, label: r.name }))}
-                  value={moveRegion}
-                  onSelect={(v: string) => {
-                    moveRegion = v;
-                    $.ui.invalidate("ui.render");
-                  }}
-                />
-                <Text dimColor>
-                  Picked from where this computer is. Choose where most of your app's users are:
-                  it's faster for them.
-                </Text>
-              </Box>
-            ) : null}
-            {org?.plan === "free" && org?.freeLeft === 0 ? (
-              <Box flexDirection="column" rowGap={1}>
-                <Text color="warning">
-                  Supabase runs 2 free projects per person, counted across all your organizations,
-                  and you already run{" "}
-                  {((moveChoices.freeProjects ?? []) as any[])
-                    .map((p) => `${p.name} (${p.organization})`)
-                    .join(" and ") || "2"}
-                  .
-                </Text>
-                <Text dimColor>
-                  Pause one in Supabase (Project settings → Pause project), then check again. Or
-                  pick an organization on a paid plan.
-                </Text>
-                {loadingMove ? (
-                  <Text dimColor>Checking your Supabase account…</Text>
-                ) : (
-                  <Box flexDirection="row" columnGap={2} alignItems="center">
-                    <Button
-                      key="move-recheck"
-                      variant="secondary"
-                      onPress={() => background(loadMove($))}
-                    >
-                      Check again
-                    </Button>
-                    <Button
-                      key="move-create-anyway"
-                      plain
-                      onPress={() =>
-                        background(
-                          pilot($, createRequest($, org, moveChoices, moveOrg, moveRegion)),
-                        )
-                      }
-                    >
-                      Try anyway
-                    </Button>
-                  </Box>
-                )}
-              </Box>
-            ) : (
-              <Box flexDirection="row" columnGap={2} alignItems="center">
-                <Button
-                  key="move-create"
-                  variant="primary"
-                  onPress={() =>
-                    background(pilot($, createRequest($, org, moveChoices, moveOrg, moveRegion)))
-                  }
-                >
-                  Create it
-                </Button>
-                <Text dimColor>{org?.cost ?? ""}</Text>
-              </Box>
-            )}
-          </Box>
-        );
-    } else if (nextStep?.id === "export") {
-      moveControls = (
-        <Box flexDirection="column" rowGap={1}>
-          <Box flexDirection="column">
-            <Text>1. In Lovable: More → Cloud → Overview → Advanced settings.</Text>
-            <Text>
-              2. Under Export project data, click Export data, then Export on the Database card,
-              then Start export.
-            </Text>
-            <Text>
-              3. Lovable emails you a download link (it's also in Cloud → Storage). Download the
-              zip.
-            </Text>
-          </Box>
-          <Box flexDirection="row" columnGap={2} alignItems="center">
-            <Button
-              key="move-export"
-              variant="primary"
-              onPress={() =>
-                background(
-                  pilot(
-                    $,
-                    `Moving off Lovable: I've downloaded my Lovable export. Read it with \`${moveCommand($, ["export"])}\` and tell me what's in it.`,
-                  ),
-                )
-              }
-            >
-              I've downloaded it
-            </Button>
-            {s.lovableUrl ? <Link href={s.lovableUrl} label="Open Lovable ↗" /> : null}
-          </Box>
-          <Text dimColor>
-            Clodable finds it in your Downloads. Lovable allows one export a day, while your backend
-            is running.
-          </Text>
-        </Box>
-      );
-    } else if (
-      nextStep?.id === "copy" &&
-      nextStep.state !== "attention" &&
-      (move?.vaultLeft ?? []).length > 0
-    ) {
-      // Copied: the database's encrypted secrets are the step's last part.
-      const missing = ((move?.vaultLeft ?? []) as string[]).filter(
-        (n) => !(moveVault?.set ?? []).includes(n),
-      );
-      moveControls = (
-        <Box flexDirection="column" rowGap={1}>
-          <Text>
-            Your database keeps {plural(missing.length, "secret")} Lovable can't hand over (they're
-            encrypted). In Lovable, open More → Cloud → SQL editor, run this, then paste each value
-            here. It goes straight into your new backend.
-          </Text>
-          {moveVault?.query ? (
-            sqlBlock("move-vault-query", moveVault.query)
-          ) : (
-            <Text dimColor>…</Text>
-          )}
-          {missing.map((name) => (
-            <Box key={`vault-${name}`} flexDirection="column">
-              <Text bold>{name}</Text>
-              {field(`move-vault-${name}`, "Paste the value", "Save", (v) =>
-                background(moveWith($, ["vault-secret", name], v)),
-              )}
-            </Box>
-          ))}
-          {goOnWithout("move-vault-skip", "vault", missing.length)}
-        </Box>
-      );
-    } else if (nextStep?.id === "copy") {
-      moveControls = (
-        <Box flexDirection="column" rowGap={1}>
-          {planNote("data")}
-          {nextStep.state === "attention" ? (
-            <Box flexDirection="column">
-              {(move?.checks ?? []).map((c: any) => (
-                <Text key={`check-${c.id}`} {...(c.ok ? {} : { color: "warning" })}>
-                  {c.ok ? "✓" : "!"} {c.label}
-                  {c.detail && !c.ok ? `  · ${c.detail}` : ""}
-                </Text>
-              ))}
-            </Box>
-          ) : (
-            <Text dimColor>
-              Your people, tables and settings go into your new backend. Your live app keeps running
-              on Lovable meanwhile.
-            </Text>
-          )}
-          <Button
-            key="move-copy"
-            variant="primary"
-            onPress={() =>
-              background(
-                pilot(
-                  $,
-                  `Moving off Lovable: copy my data into my new backend with \`${moveCommand($, ["copy"])}\`, then make sure my app works on it.`,
-                ),
-              )
-            }
-          >
-            {nextStep.state === "attention" ? "Copy again" : "Copy my data"}
-          </Button>
-        </Box>
-      );
-    } else if (nextStep?.id === "files") {
-      const waiting: string[] = move?.files?.waiting ?? [];
-      moveControls =
-        waiting.length === 0 ? (
-          <Box flexDirection="column" rowGap={1}>
-            <Text dimColor>The images and documents people uploaded, copied as they are.</Text>
-            {planNote("files")}
-            {(move?.files?.tooBig ?? 0) > 0 ? (
-              <Text color="warning">
-                {plural(move.files.tooBig, "file")} are larger than your Supabase plan accepts.
-              </Text>
-            ) : null}
-            <Button
-              key="move-files"
-              variant="primary"
-              onPress={() =>
-                background(
-                  pilot(
-                    $,
-                    `Moving off Lovable: copy my uploaded files to my new backend with \`${moveCommand($, ["files"])}\`.`,
-                  ),
-                )
-              }
-            >
-              {move?.files ? "Copy the rest" : "Copy my files"}
-            </Button>
-          </Box>
-        ) : move?.vaultKey ? (
-          <Box flexDirection="column" rowGap={1}>
-            <Text>
-              Your private folders ({waiting.join(", ")}) need Lovable Cloud's service key, to read
-              them once.
-            </Text>
-            <Text dimColor>
-              In Lovable, run this query (or ask Lovable's chat to run it), then paste the result
-              here. It's used for this copy only and never saved.
-            </Text>
-            <Box flexDirection="row" columnGap={1} alignItems="center">
-              <Code source={VAULT_QUERY} language="sql" />
-              <Button key="copy-vault-query" plain onPress={() => $.ui.copy({ text: VAULT_QUERY })}>
-                Copy
-              </Button>
-            </Box>
-            {field("move-source-key", "eyJ…", "Copy them", (v) =>
-              background(moveWith($, ["files", "--private"], v)),
-            )}
-          </Box>
-        ) : (
-          <Text>
-            Your private folders ({waiting.join(", ")}) can't be copied on their own yet: download
-            those files in Lovable (More → Cloud → Storage) and upload them in Supabase, or ask a
-            developer.
-          </Text>
-        );
-    } else if (
-      nextStep?.id === "functions" &&
-      nextStep.state !== "attention" &&
-      (move?.secretsLeft ?? []).length > 0
-    ) {
-      // Deployed: the secrets they read are the step's last part.
-      moveControls = (
-        <Box flexDirection="column" rowGap={1}>
-          {secretsBlock}
-          {goOnWithout("move-secrets-skip", "secrets", missingSecrets.length)}
-        </Box>
-      );
-    } else if (nextStep?.id === "functions") {
-      moveControls = (
-        <Box flexDirection="column" rowGap={1}>
-          <Text dimColor>
-            Your {plural(move?.functions ?? 0, "backend function")} go to your new backend, all
-            together.
-          </Text>
-          <Button
-            key="move-functions"
-            variant="primary"
-            onPress={() =>
-              background(
-                pilot(
-                  $,
-                  `Moving off Lovable: deploy my backend functions to my new backend with \`${moveCommand($, ["functions"])}\`.`,
-                ),
-              )
-            }
-          >
-            {nextStep.state === "attention" ? "Deploy them again" : "Deploy my functions"}
-          </Button>
-        </Box>
-      );
-    } else if (nextStep?.id === "try") {
-      moveControls = (
-        <Box flexDirection="column" rowGap={1}>
-          {settingsFields("move-setting", true)}
-          {tryBlock}
-        </Box>
-      );
-    } else if (nextStep?.id === "netlify") {
-      moveControls = (
-        <Box flexDirection="column" rowGap={1}>
-          <Text>
-            Your website moves to Netlify, under your own account (free to start). Each Publish will
-            put it live there; your live app stays on Lovable until the switch.
-          </Text>
-          <Box flexDirection="column">
-            <Text>1. Open Netlify's token page.</Text>
-            <Text>2. Create a personal access token named Clodable.</Text>
-            <Text>3. Paste it here. It stays on this computer.</Text>
-          </Box>
-          <Link
-            href="https://app.netlify.com/user/applications#personal-access-tokens"
-            label="Open Netlify's token page ↗"
-          />
-          {field("move-netlify-token", "Netlify token", "Connect", (v) =>
-            background(moveWith($, ["netlify"], v)),
-          )}
-        </Box>
-      );
-    } else if (nextStep?.id === "site" && (move?.settingsLeft ?? []).length > 0) {
-      // The site is there: the settings its server code reads are the step's last part.
-      moveControls = (
-        <Box flexDirection="column" rowGap={1}>
-          {settingsFields("move-setting", true)}
-          {goOnWithout("move-settings-skip", "settings", (move?.settingsLeft ?? []).length)}
-        </Box>
-      );
-    } else if (nextStep?.id === "site") {
-      const teams = moveTeams ?? [];
-      moveControls = (
-        <Box flexDirection="column" rowGap={1}>
-          <Text dimColor>
-            Clodable creates the site, points it at your new backend, and sets up Publish to put it
-            live on Netlify through GitHub.
-          </Text>
-          {teams.length > 1 && Select ? (
-            <Select
-              key="move-team"
-              label="Netlify team"
-              options={teams.map((t) => ({ value: t.slug, label: t.name }))}
-              value={moveTeam}
-              onSelect={(v: string) => {
-                moveTeam = v;
-                $.ui.invalidate("ui.render");
-              }}
-            />
-          ) : null}
-          <Button
-            key="move-site"
-            variant="primary"
-            onPress={() =>
-              background(
-                pilot(
-                  $,
-                  `Moving off Lovable: put my site on Netlify with \`${moveCommand($, ["site", ...(moveTeam ? ["--account", moveTeam] : [])])}\`, then tell me what's left before I can see it there.`,
-                ),
-              )
-            }
-          >
-            Put my site on Netlify
-          </Button>
-        </Box>
-      );
-    } else if (nextStep?.id === "emails" && !move?.resend) {
-      moveControls = (
-        <Box flexDirection="column" rowGap={1}>
-          <Text>
-            Clodable sends your users' sign-up confirmations and password resets from your own
-            domain (like yourapp.com), through your Resend account.
-          </Text>
-          <Box flexDirection="column">
-            <Text>1. Sign in to Resend, or sign up (it's free to start).</Text>
-            <Text>2. API Keys → Create API Key, with Full access.</Text>
-            <Text>3. Paste the key here. It stays on this computer.</Text>
-          </Box>
-          <Link href="https://resend.com/api-keys" label="Open Resend's keys page ↗" />
-          {field("move-resend-key", "re_…", "Connect", (v) =>
-            background(moveWith($, ["resend"], v)),
-          )}
-          {noEmails("No domain of your own yet?")}
-        </Box>
-      );
-    } else if (nextStep?.id === "emails" && !move?.emails) {
-      moveControls = (
-        <Box flexDirection="column" rowGap={1}>
-          <Text>
-            Which domain should your emails come from? One you own, like example.com: they'll come
-            from no-reply@ that domain.
-          </Text>
-          {field("move-email-domain", "example.com", "Set it up", (v) => {
-            const domain = v
-              .trim()
-              .toLowerCase()
-              .replace(/^https?:\/\//, "")
-              .replace(/^www\./, "")
-              .replace(/\/.*$/, "");
-            if (!/^([a-z0-9-]+\.)+[a-z]{2,}$/.test(domain)) {
-              moveError = {
-                message: `“${v.trim()}” isn't a domain name.`,
-                hint: "Just the domain, like example.com.",
-              };
-              $.ui.invalidate("ui.render");
-              return;
-            }
-            background(
-              pilot(
-                $,
-                `Moving off Lovable: set up emails for my users from ${domain} with \`${moveCommand($, ["emails", "--domain", domain])}\`, then tell me what to do at my domain's provider.`,
-              ),
-            );
-          })}
-          {noEmails("No domain of your own yet?")}
-        </Box>
-      );
-    } else if (nextStep?.id === "emails") {
-      const records: any[] = move?.emails?.records ?? [];
-      moveControls = (
-        <Box flexDirection="column" rowGap={1}>
-          <Text>
-            Add {records.length === 1 ? "this record" : `these ${records.length} records`} where you
-            manage {move.emails.domain} (where you bought it: Namecheap, GoDaddy, Cloudflare…). They
-            can take a few minutes to show, sometimes a few hours.
-          </Text>
-          {records.map((r, i) => (
-            <Box key={`record-${i}`} flexDirection="column">
-              <Text bold>
-                {r.type}
-                {r.priority !== undefined ? `  · priority ${r.priority}` : ""}
-              </Text>
-              {copyable(`record-${i}-name`, "Name ", r.name)}
-              {copyable(`record-${i}-value`, "Value", r.value)}
-            </Box>
-          ))}
-          <Box flexDirection="row" columnGap={2} alignItems="center">
-            <Button
-              key="move-emails-check"
-              variant="primary"
-              onPress={() =>
-                background(
-                  pilot(
-                    $,
-                    `Moving off Lovable: check whether ${move.emails.domain}'s email records are in place with \`${moveCommand($, ["emails"])}\`, and finish setting up my emails if they are.`,
-                  ),
-                )
-              }
-            >
-              Check again
-            </Button>
-          </Box>
-          {noEmails("Rather do this later?")}
-        </Box>
-      );
-    } else if (nextStep?.id === "services") {
-      const sv = move?.services as any;
-      const emailsOn = Boolean(move?.emails?.connected);
-      const providers = {
-        openrouter: {
-          label: "OpenRouter (the same models Lovable uses)",
-          name: "OpenRouter",
-          keys: "https://openrouter.ai/settings/keys",
-        },
-        gemini: {
-          label: "Google Gemini",
-          name: "Google Gemini",
-          keys: "https://aistudio.google.com/apikey",
-        },
-        openai: { label: "OpenAI", name: "OpenAI", keys: "https://platform.openai.com/api-keys" },
-      } as const;
-      const chosen = providers[aiChoice];
-      const fallback =
-        "Keep Lovable's as the fallback when that key isn't set, so my app keeps working on Lovable until the switch.";
-      let part: unknown = null;
-      if (sv?.ai && !sv.aiSwitched && !sv.aiProvider) {
-        part = (
-          <Box flexDirection="column" rowGap={1}>
-            <Text>
-              Your app's AI features run on Lovable's AI, which stops when it leaves. Clodable moves
-              them to an AI provider of your own.
-            </Text>
-            {Select ? (
-              <Select
-                key="move-ai-provider"
-                label="Provider"
-                options={Object.entries(providers).map(([value, p]) => ({ value, label: p.label }))}
-                value={aiChoice}
-                onSelect={(v: string) => {
-                  aiChoice = v in providers ? (v as typeof aiChoice) : "openrouter";
-                  $.ui.invalidate("ui.render");
-                }}
-              />
-            ) : null}
-            <Box flexDirection="column">
-              <Text>1. Create a key on {chosen.name}.</Text>
-              <Text>2. Paste it here. It goes to your preview, your site and your backend.</Text>
-            </Box>
-            <Link href={chosen.keys} label={`Open ${chosen.name}'s keys page ↗`} />
-            {field("move-ai-key", "Paste the key", "Save", (v) =>
-              background(moveWith($, ["ai", aiChoice], v)),
-            )}
-          </Box>
-        );
-      } else if (sv?.ai && !sv.aiSwitched) {
-        const name = providers[sv.aiProvider as keyof typeof providers]?.name ?? sv.aiProvider;
-        part = (
-          <Box flexDirection="column" rowGap={1}>
-            <Text>Your {name} key is saved. Claude now points your app's AI features at it.</Text>
-            <Button
-              key="move-ai-switch"
-              variant="primary"
-              onPress={() =>
-                background(
-                  pilot(
-                    $,
-                    `Moving off Lovable: switch my app's AI features from Lovable's AI to ${name}. Clodable saved AI_API_URL and AI_API_KEY for my preview, my site and my backend functions: make the code call \`\${AI_API_URL}/chat/completions\` with AI_API_KEY (the same OpenAI-style API). ${fallback} Deploy my backend functions with \`${moveCommand($, ["functions"])}\` if you changed any, then check it works in the preview.`,
-                  ),
-                )
-              }
-            >
-              Switch my AI features
-            </Button>
-          </Box>
-        );
-      } else if (sv?.emails && !sv.emailsSwitched && emailsOn) {
-        part = (
-          <Box flexDirection="column" rowGap={1}>
-            <Text>
-              Your app sends its own emails through Lovable. Clodable gives it a Resend key of its
-              own, sending from {move?.emails?.sender}, and Claude switches the sending.
-            </Text>
-            <Button
-              key="move-app-emails"
-              variant="primary"
-              onPress={() =>
-                background(
-                  pilot(
-                    $,
-                    `Moving off Lovable: switch my app's own emails from Lovable to Resend. Run \`${moveCommand($, ["app-emails"])}\`: it gives my app RESEND_API_KEY and EMAIL_FROM. Then make the code send through Resend's API with them. ${fallback} Deploy my backend functions with \`${moveCommand($, ["functions"])}\`${sv.hook ? `, then turn on my own sign-in emails with \`${moveCommand($, ["emails", "--hook"])}\`` : ""}.`,
-                  ),
-                )
-              }
-            >
-              Switch my emails
-            </Button>
-          </Box>
-        );
-      } else if (sv?.emails && !sv.emailsSwitched) {
-        part = (
-          <Text>
-            Your app also sends its own emails through Lovable: they move with your emails, in the
-            step above.
-          </Text>
-        );
-      } else if (sv?.hook && emailsOn && !sv.hookOn) {
-        part = (
-          <Box flexDirection="column" rowGap={1}>
-            <Text>
-              Your app has its own sign-in emails (from Lovable). Clodable turns them on, so
-              confirmations and password resets look like your app.
-            </Text>
-            <Button
-              key="move-email-hook"
-              variant="primary"
-              onPress={() =>
-                background(
-                  pilot(
-                    $,
-                    `Moving off Lovable: turn on my app's own sign-in emails with \`${moveCommand($, ["emails", "--hook"])}\` (deploy my backend functions with \`${moveCommand($, ["functions"])}\` first if it asks).`,
-                  ),
-                )
-              }
-            >
-              Turn on my sign-in emails
-            </Button>
-          </Box>
-        );
-      } else if ((sv?.connectors ?? []).length > 0) {
-        const names: string[] = sv.connectors;
-        part = (
-          <Box flexDirection="column" rowGap={1}>
-            <Text>
-              Your app reaches {names.join(", ")} through Lovable's connectors, which stop when it
-              leaves. Paste your own key for each: it goes to your preview and your site.
-            </Text>
-            {names.map((name) => {
-              const setting = `${name.toUpperCase().replace(/[^A-Z0-9]+/g, "_")}_API_KEY`;
-              return (
-                <Box key={`connector-${name}`} flexDirection="column">
-                  <Text bold>{name}</Text>
-                  {field(`move-connector-${name}`, `Your ${name} key`, "Save", (v) =>
-                    background(saveSetting($, setting, v)),
-                  )}
-                </Box>
-              );
-            })}
-            <Button
-              key="move-connectors"
-              variant="primary"
-              onPress={() =>
-                background(
-                  pilot(
-                    $,
-                    `Moving off Lovable: my app reaches ${names.join(", ")} through Lovable's connectors (connector-gateway.lovable.dev). Switch each to that service's own API, reading its key from ${names.map((n) => `${n.toUpperCase().replace(/[^A-Z0-9]+/g, "_")}_API_KEY`).join(", ")} (process.env on the server; tell me where to paste any that's missing). Check it works in the preview.`,
-                  ),
-                )
-              }
-            >
-              Switch them
-            </Button>
-          </Box>
-        );
-      }
-      const left: string[] = sv?.left ?? [];
-      moveControls = (
-        <Box flexDirection="column" rowGap={1}>
-          {part as never}
-          {left.length > 0 ? (
-            <Box flexDirection="column" rowGap={1} marginTop={1}>
-              <Box flexDirection="row" columnGap={2} alignItems="center">
-                <Text>Rather not switch now?</Text>
-                <Button
-                  key="move-services-skip"
-                  variant="secondary"
-                  onPress={() => background(moveStep($, ["services", "--skip"]))}
-                >
-                  Go on without them
-                </Button>
-              </Box>
-              <Text dimColor>
-                Then {left.join(", ")} stop working when Lovable goes. Claude can switch them later.
-              </Text>
-            </Box>
-          ) : null}
-        </Box>
-      );
-    } else if (nextStep?.id === "google" && move?.google?.configured) {
-      moveControls = (
-        <Box flexDirection="column" rowGap={1}>
-          <Text>
-            Google sign-in is on in your new backend. Claude now switches your app's Google button
-            to it.
-          </Text>
-          <Button
-            key="move-google-switch"
-            variant="primary"
-            onPress={() =>
-              background(
-                pilot(
-                  $,
-                  "Moving off Lovable: my app signs in with Google through Lovable's broker (@lovable.dev/cloud-auth-js), which only works on Lovable. Clodable turned Google on in my new backend and set VITE_GOOGLE_SIGN_IN=supabase for my preview and my site. Make the Google button call supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin } }) when import.meta.env.VITE_GOOGLE_SIGN_IN is 'supabase', and keep Lovable's broker otherwise, so my app keeps working on Lovable until the switch. Check it in the preview.",
-                ),
-              )
-            }
-          >
-            Switch my Google sign-in
-          </Button>
-        </Box>
-      );
-    } else if (nextStep?.id === "google") {
-      const redirect = move?.google?.redirect as string | undefined;
-      moveControls = (
-        <Box flexDirection="column" rowGap={1}>
-          <Text>
-            People sign in to your app with Google. On your new backend that needs a Google client
-            of your own: Clodable turns it on with it.
-          </Text>
-          <Box flexDirection="column">
-            <Text>
-              1. In Google Cloud: APIs & Services → Credentials → Create credentials → OAuth client
-              ID → Web application.
-            </Text>
-            <Text>2. Under Authorized redirect URIs, add this address:</Text>
-          </Box>
-          {redirect ? copyable("move-google-redirect", "", redirect) : null}
-          <Text>3. Paste the client ID, then its secret, here. The secret stays off the chat.</Text>
-          <Link
-            href="https://console.cloud.google.com/apis/credentials"
-            label="Open Google Cloud's credentials ↗"
-          />
-          {googleClientId
-            ? field("move-google-secret", "Client secret", "Turn it on", (v) =>
-                background(moveWith($, ["google", googleClientId], v)),
-              )
-            : field("move-google-id", "…apps.googleusercontent.com", "Next", (v) => {
-                const id = v.trim();
-                if (!/^[\w-]+\.apps\.googleusercontent\.com$/.test(id)) {
-                  moveError = {
-                    message: "That doesn't look like a Google client ID.",
-                    hint: "It ends with .apps.googleusercontent.com.",
-                  };
-                } else {
-                  googleClientId = id;
-                  moveError = null;
-                }
-                $.ui.invalidate("ui.render");
-              })}
-          <Box flexDirection="row" columnGap={2} alignItems="center" marginTop={1}>
-            <Text>Rather not now?</Text>
-            <Button
-              key="move-google-skip"
-              variant="secondary"
-              onPress={() => background(moveStep($, ["google", "--skip"]))}
-            >
-              Leave Google sign-in off
-            </Button>
-          </Box>
-        </Box>
-      );
-    } else if (nextStep?.id === "freeze") {
-      const last = move?.lastExport ? new Date(move.lastExport).getTime() : 0;
-      const nextExport = last + 24 * 60 * 60_000;
-      moveControls = (
-        <Box flexDirection="column" rowGap={1}>
-          <Text>
-            Now your live app moves over. It pauses for the few minutes this takes: people still see
-            everything and can sign in; changes, new sign-ups and uploads wait until it runs on your
-            new backend.
-          </Text>
-          {nextExport > now ? (
-            <Text color="warning">
-              Lovable allows one export a day: your next one is possible{" "}
-              {new Date(nextExport).toDateString() === new Date(now).toDateString()
-                ? "after"
-                : "tomorrow after"}{" "}
-              {new Date(nextExport).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}.
-              Pause after that, so the pause stays short.
-            </Text>
-          ) : null}
-          <Text>
-            1. In Lovable, open More → Cloud → SQL editor, paste this and run it. It also stops your
-            app's scheduled jobs there:
-          </Text>
-          {pausePlan ? sqlBlock("move-freeze", pausePlan.freeze) : <Text dimColor>…</Text>}
-          <Text>2. Then tell Clodable.</Text>
-          <Box flexDirection="row" columnGap={2} alignItems="center">
-            <Button
-              key="move-paused"
-              variant="primary"
-              onPress={() => background(moveStep($, ["paused"]))}
-            >
-              I've paused it
-            </Button>
-            {s.lovableUrl ? <Link href={s.lovableUrl} label="Open Lovable ↗" /> : null}
-          </Box>
-        </Box>
-      );
-    } else if (nextStep?.id === "final-export") {
-      moveControls = (
-        <Box flexDirection="column" rowGap={1}>
-          <Text>
-            Your live app is paused. Export your data once more: this export has everything people
-            wrote until the pause.
-          </Text>
-          <Box flexDirection="column">
-            <Text>1. In Lovable: More → Cloud → Overview → Advanced settings.</Text>
-            <Text>
-              2. Under Export project data, click Export data, then Export on the Database card,
-              then Start export.
-            </Text>
-            <Text>3. Download the zip from the email Lovable sends.</Text>
-          </Box>
-          <Box flexDirection="row" columnGap={2} alignItems="center">
-            <Button
-              key="move-final-export"
-              variant="primary"
-              onPress={() =>
-                background(
-                  pilot(
-                    $,
-                    `Moving off Lovable: I've downloaded my final Lovable export, made after the pause. Read it with \`${moveCommand($, ["export"])}\` and tell me what's in it.`,
-                  ),
-                )
-              }
-            >
-              I've downloaded it
-            </Button>
-            {s.lovableUrl ? <Link href={s.lovableUrl} label="Open Lovable ↗" /> : null}
-          </Box>
-          {undoBlock}
-        </Box>
-      );
-    } else if (nextStep?.id === "final-copy") {
-      const hasFiles = moveSteps.some((x) => x.id === "files");
-      moveControls = (
-        <Box flexDirection="column" rowGap={1}>
-          {nextStep.state === "attention" ? (
-            <Box flexDirection="column">
-              {(move?.checks ?? []).map((c: any) => (
-                <Text key={`check-${c.id}`} {...(c.ok ? {} : { color: "warning" })}>
-                  {c.ok ? "✓" : "!"} {c.label}
-                  {c.detail && !c.ok ? `  · ${c.detail}` : ""}
-                </Text>
-              ))}
-            </Box>
-          ) : (
-            <Text dimColor>
-              Your data as of the pause replaces the copy (what you tried on it goes), with your
-              app's scheduled jobs. Your new backend then takes changes again.
-            </Text>
-          )}
-          <Button
-            key="move-final-copy"
-            variant="primary"
-            onPress={() =>
-              background(
-                pilot(
-                  $,
-                  `Moving off Lovable: copy my final export into my new backend for good with \`${moveCommand($, ["copy"])}\`${hasFiles ? `, then copy the files uploaded since with \`${moveCommand($, ["files"])}\`` : ""}, and make sure everything is there.`,
-                ),
-              )
-            }
-          >
-            {nextStep.state === "attention" ? "Copy again" : "Copy it in for good"}
-          </Button>
-          {undoBlock}
-        </Box>
-      );
-    } else if (nextStep?.id === "golive") {
-      const emailsOn = Boolean(move?.emails?.connected);
-      // Without emails, nobody can confirm one: that choice isn't offered.
-      const people = !emailsOn && newPeople === "confirm" ? "open" : newPeople;
-      const jobs = move?.lovableJobs as { count: number; stop: string } | undefined;
-      moveControls = (
-        <Box flexDirection="column" rowGap={1}>
-          <Text dimColor>
-            Clodable points your app's files and its sign-in at your new backend and at{" "}
-            {move?.site?.url ?? "your site"}. Then Publish puts it live.
-          </Text>
-          {Select ? (
-            <Select
-              key="move-new-people"
-              label="New people"
-              options={[
-                ...(emailsOn
-                  ? [{ value: "confirm", label: "Sign up, confirming their email" }]
-                  : []),
-                { value: "open", label: "Sign up straight away" },
-                { value: "invite", label: "Only people you invite" },
-              ]}
-              value={people}
-              onSelect={(v: string) => {
-                newPeople = v === "invite" ? "invite" : v === "open" ? "open" : "confirm";
-                $.ui.invalidate("ui.render");
-              }}
-            />
-          ) : null}
-          {(move?.stripeWebhooks ?? []).length > 0 ? (
-            <Box flexDirection="column" rowGap={1}>
-              <Text>
-                Your payments: in Stripe → Developers → Webhooks, change your endpoint's address to
-                your new backend when you go live (its signing secret stays the same):
-              </Text>
-              {(move.stripeWebhooks as Array<{ name: string; url: string }>).map((w, i) =>
-                copyable(`move-stripe-${i}`, "", w.url),
-              )}
-            </Box>
-          ) : null}
-          {jobs ? (
-            <Box flexDirection="column" rowGap={1}>
-              <Text>
-                Your app has {plural(jobs.count, "scheduled job")}: going live starts them here.
-                First stop them in Lovable (More → Cloud → SQL editor), so they don't run twice:
-              </Text>
-              {sqlBlock("move-stop-jobs", jobs.stop)}
-            </Box>
-          ) : null}
-          {move?.cronKey ? (
-            <Text>
-              Your scheduled jobs call your app with a key Lovable keeps. Once live, ask Claude to
-              give them one of your own.
-            </Text>
-          ) : null}
-          {method === "quick" ? (
-            <Text dimColor>
-              Your data is as of your export
-              {move?.lastExport
-                ? ` (${new Date(move.lastExport).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })})`
-                : ""}
-              . Anything written in your Lovable app since stays there.
-            </Text>
-          ) : null}
-
-          <Button
-            key="move-golive"
-            variant="primary"
-            onPress={() =>
-              background(
-                pilot(
-                  $,
-                  `Moving off Lovable: switch my app to its new backend and site with \`${moveCommand($, ["golive", "--sign-up", people === "invite" ? "no" : "yes", ...(emailsOn ? ["--confirm-email", people === "confirm" ? "yes" : "no"] : [])])}\`, then tell me what changed and how to put it live.`,
-                ),
-              )
-            }
-          >
-            Go live
-          </Button>
-        </Box>
-      );
-    } else if (nextStep?.id === "domain" && !publishedSinceLive) {
-      // Right after going live, one thing only: Publish puts it there.
-      moveControls = (
-        <Text>
-          First, Publish (in the Clodable bar): it puts your app live at{" "}
-          {move?.site?.url ?? "its new address"}.
-        </Text>
-      );
-    } else if (nextStep?.id === "domain" && move?.domain) {
-      const records: any[] = move.domain.records ?? [];
-      moveControls = (
-        <Box flexDirection="column" rowGap={1}>
-          <Text>
-            Where you manage {move.domain.name} (where you bought it), replace the records that
-            point to Lovable with {records.length === 1 ? "this one" : "these"}. They can take a few
-            minutes to show, sometimes a few hours.
-          </Text>
-          {records.map((r, i) => (
-            <Box key={`domain-record-${i}`} flexDirection="column">
-              <Text bold>{r.type}</Text>
-              {copyable(`domain-record-${i}-name`, "Name ", r.name)}
-              {copyable(`domain-record-${i}-value`, "Value", r.value)}
-            </Box>
-          ))}
-          <Box flexDirection="row" columnGap={2} alignItems="center">
-            <Button
-              key="move-domain-check"
-              variant="primary"
-              onPress={() =>
-                background(
-                  pilot(
-                    $,
-                    `Moving off Lovable: check whether ${move.domain.name} points to my new site with \`${moveCommand($, ["domain"])}\`, and tell me what's left if it doesn't.`,
-                  ),
-                )
-              }
-            >
-              Check again
-            </Button>
-          </Box>
-        </Box>
-      );
-    } else if (nextStep?.id === "domain") {
-      moveControls = (
-        <Box flexDirection="column" rowGap={1}>
-          <Text>
-            Your app is live at {move?.site ? new URL(move.site.url).host : "its new address"}. Does
-            it have its own domain, like yourapp.com? Clodable moves it to your new site before
-            Lovable goes.
-          </Text>
-          {field("move-domain", "yourapp.com", "Move it", (v) => {
-            const domain = v
-              .trim()
-              .toLowerCase()
-              .replace(/^https?:\/\//, "")
-              .replace(/\/.*$/, "");
-            if (!/^([a-z0-9-]+\.)+[a-z]{2,}$/.test(domain)) {
-              moveError = {
-                message: `“${v.trim()}” isn't a domain name.`,
-                hint: "Just the domain, like yourapp.com.",
-              };
-              $.ui.invalidate("ui.render");
-              return;
-            }
-            background(
-              pilot(
-                $,
-                `Moving off Lovable: move my domain ${domain} to my new site with \`${moveCommand($, ["domain", domain])}\`, then tell me what to change at my domain's provider.`,
-              ),
-            );
-          })}
-          <Box flexDirection="row" columnGap={2} alignItems="center" marginTop={1}>
-            <Text>No domain of its own?</Text>
-            <Button
-              key="move-domain-skip"
-              variant="secondary"
-              onPress={() => background(moveStep($, ["domain", "--skip"]))}
-            >
-              Keep this address
-            </Button>
-          </Box>
-        </Box>
-      );
-    } else if (nextStep?.id === "lovable" && move?.signIn?.needed && !move.signIn.at) {
-      // Proof first: the app works on its new home before its old one goes.
-      moveControls = (
-        <Box flexDirection="column" rowGap={1}>
-          <Text>
-            Sign in on your new site with your own account and change something. Lovable's last
-            steps show once Clodable sees you signed in there.
-          </Text>
-          <Box flexDirection="row" columnGap={2} alignItems="center">
-            <Link href={liveAddress} label="Open your site ↗" />
-            <Button
-              key="move-signed-in"
-              variant="secondary"
-              onPress={() => background(checkSignIn($))}
-            >
-              I've signed in
-            </Button>
-          </Box>
-        </Box>
-      );
-    } else if (nextStep?.id === "lovable") {
-      const signedIn = move?.signIn?.at as string | undefined;
-      const message = move?.signIn?.needed
-        ? `We've moved ${s.project} to ${liveAddress}. Sign in with your usual email and password: nothing else changes.`
-        : `We've moved ${s.project} to ${liveAddress}.`;
-      moveControls = (
-        <Box flexDirection="column" rowGap={1}>
-          {signedIn ? (
-            <Text color="success">✓ You signed in on your new site, {ago(signedIn, now)}.</Text>
-          ) : null}
-          <Text>Now finish in Lovable, in this order:</Text>
-          <Box flexDirection="column">
-            <Text>
-              1. Unpublish your app (More → Settings → General → Unpublish project), so nobody keeps
-              using its Lovable address.
-            </Text>
-            <Text>
-              2. More → Settings → Git → GitHub → Disconnect, so Lovable stops changing your code.
-            </Text>
-            <Text>
-              3. More → Cloud → Overview → Advanced settings → Remove Lovable Cloud. Tick both boxes
-              and type your project's name. This deletes Lovable's copy of your data, for good.
-            </Text>
-          </Box>
-          <Box flexDirection="row" columnGap={2} alignItems="center">
-            <Button key="move-finished" variant="primary" onPress={() => background(finishMove($))}>
-              I've done it
-            </Button>
-            {s.lovableUrl ? <Link href={s.lovableUrl} label="Open Lovable ↗" /> : null}
-          </Box>
-          <Box flexDirection="column" rowGap={1} marginTop={1}>
-            <Text dimColor>A message for your users, if you'd like one:</Text>
-            <Box flexDirection="row" columnGap={1} alignItems="center">
-              <Text>{message}</Text>
-              <Button
-                key="move-users-message-copy"
-                plain
-                onPress={() => $.ui.copy({ text: message })}
-              >
-                Copy
-              </Button>
-            </Box>
-          </Box>
-        </Box>
-      );
-    } else if (move && moveSteps.length > 0) {
-      moveControls = (
-        <Text>
-          Your app is off Lovable: it runs on your own Supabase and Netlify, and each Publish
-          updates it.
-        </Text>
-      );
-    }
-    const moveErrorBlock = moveError ? (
-      <Box flexDirection="column">
-        <Text color="error">{moveError.message}</Text>
-        {moveError.hint ? <Text dimColor>{moveError.hint}</Text> : null}
-      </Box>
-    ) : null;
-    // What's left under a step once it's done: belongs there, not under the next step.
-    // Steps after the one the builder is on read as later ones, done or not: they come next.
-    const nextIndex = nextStep ? moveSteps.indexOf(nextStep) : moveSteps.length;
-    const stepRow = (step: any) => {
-      const ahead = moveSteps.indexOf(step) > nextIndex;
-      const state = ahead ? "later" : step.state;
-      return (
-        <Box key={`step-${step.id}`} flexDirection="column" rowGap={1}>
-          <Text
-            {...(state === "attention"
-              ? { color: "warning" }
-              : state === "done"
-                ? { color: "success" }
-                : {})}
-            dimColor={state === "later"}
-            bold={step === nextStep}
-          >
-            {MOVE_MARK[state] ?? "·"} {step.title}
-            {step.detail && state !== "later" ? `  · ${step.detail}` : ""}
-          </Text>
-          {step === nextStep ? (
-            <Box flexDirection="column" rowGap={1} paddingLeft={2}>
-              {moveErrorBlock}
-              {moveControls as never}
-            </Box>
-          ) : null}
-        </Box>
-      );
-    };
-    const stages: Array<{ id: string; title: string; about: string; steps: any[] }> = [];
-    for (const step of moveSteps) {
-      if (step.id === "facts") continue;
-      const stage = MOVE_STAGES.find((x) => x.steps.includes(step.id));
-      const current = stages.at(-1);
-      if (stage && current?.id !== stage.id) {
-        stages.push({ id: stage.id, title: stage.title, about: stage.about, steps: [step] });
-      } else if (current) current.steps.push(step);
-      else stages.push({ id: "move", title: "", about: "", steps: [step] });
-    }
-    // The stage the builder is in; with nothing left, the last (all of them fold).
-    const currentStage = nextStep
-      ? stages.findIndex((x) => x.steps.includes(nextStep))
-      : stages.length - 1;
-    // The other way to move, offered where it changes something: before Go live starts.
-    const switchStarted = Boolean(move?.switch?.frozenAt || move?.switch?.liveAt);
-    const otherWay =
-      method && !switchStarted && !isPiloting() && !moveRun ? (
-        <Box flexDirection="row" columnGap={2} alignItems="center">
-          <Text dimColor>{method === "quick" ? "People use your app?" : "Just a prototype?"}</Text>
-          <Button
-            key="move-other-way"
-            variant="secondary"
-            onPress={() => background(chooseMethod($, method === "quick" ? "careful" : "quick"))}
-          >
-            {method === "quick" ? "Move it carefully instead" : "Move it in one go instead"}
-          </Button>
-        </Box>
-      ) : null;
-    // Asked before the steps: it decides how the live app moves at the end.
-    const methodQuestion = (
-      <Box flexDirection="column" rowGap={2}>
-        <Text bold>How should your app move?</Text>
-        <Box flexDirection="column" rowGap={1}>
-          <Button
-            key="move-method-careful"
-            variant="secondary"
-            onPress={() => background(chooseMethod($, "careful"))}
-          >
-            Carefully
-          </Button>
-          <Text dimColor>
-            For an app people use. You try a working copy first; at the end your live app pauses for
-            a few minutes while the latest data comes over, so nothing is lost.
-          </Text>
-        </Box>
-        <Box flexDirection="column" rowGap={1}>
-          <Button
-            key="move-method-quick"
-            variant="secondary"
-            onPress={() => background(chooseMethod($, "quick"))}
-          >
-            In one go
-          </Button>
-          <Text dimColor>
-            For a prototype. One export, then your app goes live on your own accounts. Anything
-            written in Lovable after your export stays there.
-          </Text>
-        </Box>
-      </Box>
-    );
-    const stageDetail: Record<string, string | undefined> = {
-      backend: move?.home?.name,
-      website: move?.site?.url,
-    };
-    const factsBlock = (
-      <Box flexDirection="column" rowGap={1}>
-        <Text bold>First, Claude looks at your app</Text>
-        <Text dimColor>
-          It reads your app's code to see what it uses (AI, sign-in, emails, payments…), so each
-          step fits your app. Nothing changes.
-        </Text>
-        {isPiloting() ? (
-          <Text dimColor>Claude is looking at your app…</Text>
-        ) : (
-          <Box flexDirection="row">
-            <Button
-              key="move-facts"
-              variant="primary"
-              onPress={() =>
-                background(
-                  pilot(
-                    $,
-                    `Moving off Lovable: look at my app's code to see what it uses (AI, sign-in, emails, connected services, payments, scheduled jobs, uploads). Start from \`${moveCommand($, ["facts"])}\`, check each thing in the code, record what you found as the move skill says, then tell me in a few plain lines.`,
-                  ),
-                )
-              }
-            >
-              Look at my app
-            </Button>
-          </Box>
-        )}
-      </Box>
-    );
-    const moveSection =
-      move && factsNeeded ? (
-        <Box flexDirection="column" rowGap={1}>
-          {moveErrorBlock}
-          {factsBlock}
-        </Box>
-      ) : move && !method ? (
-        <Box flexDirection="column" rowGap={1}>
-          {moveErrorBlock}
-          {methodQuestion}
-        </Box>
-      ) : moveSteps.length > 0 ? (
-        <Box flexDirection="column" rowGap={2}>
-          {stages.map((stage, index) =>
-            index > currentStage ? (
-              // A stage still ahead: its name only, its steps folded until it comes.
-              <Text key={`stage-${stage.id}`} dimColor>
-                {stage.title}
-              </Text>
-            ) : stage.steps.every((x) => x.state === "done") ? (
-              // A stage that's done: one line.
-              <Text key={`stage-${stage.id}`} color="success">
-                ✓ {stage.title}
-                {stageDetail[stage.id] ? `  · ${stageDetail[stage.id]}` : ""}
-              </Text>
-            ) : (
-              <Box key={`stage-${stage.id}`} flexDirection="column" rowGap={1}>
-                {stage.title ? (
-                  <Box flexDirection="column">
-                    <Text bold>{stage.title}</Text>
-                    <Text dimColor>{stage.about}</Text>
-                  </Box>
-                ) : null}
-                {stage.id === "golive" ? otherWay : null}
-                {stage.steps.map(stepRow)}
-              </Box>
-            ),
-          )}
-          {nextStep ? null : (
-            <Box flexDirection="column" rowGap={1}>
-              {moveErrorBlock}
-              {moveControls as never}
-            </Box>
-          )}
-        </Box>
-      ) : (
-        (moveErrorBlock ?? <Text dimColor>Looking at your app…</Text>)
-      );
 
     // Still on Lovable Cloud, or not known yet: the panel is the move and its questions, nothing else.
-    const who = { clodable: "Clodable", you: "You", help: "Help" } as const;
-    const levels: Record<string, string> = {
-      simple: "A simple move: Clodable does nearly everything, and you click a few buttons.",
-      "some-steps": "A move with a few steps for you, each one guided.",
-      "needs-help": "A move where some parts are best done with someone technical.",
-    };
-    const moveStage =
+    if (
       s.backend === "unknown" ||
       s.hosting === "unknown" ||
       s.backend === "lovable-cloud" ||
-      s.finishingMove;
-    if (moveStage) {
-      // Live on the new backend already, until the builder is done in Lovable: still the move.
-      const moving = s.backend === "lovable-cloud" || s.finishingMove;
-      const onCloud = moving || s.backend === "unknown";
-      if (s.backend === "lovable-cloud" && !assessment && !assessing) {
-        background(loadAssessment($));
-      }
-      if (moving && !move && !loadingMove && !moveError) background(loadMove($));
-      return (
-        <Box flexDirection="column" rowGap={2} paddingX={2} paddingY={1}>
-          {header}
-          {onCloud ? (
-            <Box flexDirection="column" rowGap={1}>
-              <Text bold>Move off Lovable</Text>
-              <Text dimColor>
-                Your data, your people and your backend come to your own Supabase, step by step.
-                Your live app keeps running on Lovable until you switch.
-              </Text>
-            </Box>
-          ) : null}
-          {questions.length > 0 ? (
-            <Box flexDirection="column" rowGap={2}>
-              <Text bold>
-                {questions.length === 2 ? "First, two quick questions" : "One quick question"}
-              </Text>
-              {questions as never}
-            </Box>
-          ) : null}
-          {moving ? (
-            <Box flexDirection="column" rowGap={2}>
-              {assessment?.error ? (
-                <Text color="error">Couldn't look at your app: {assessment.error}</Text>
-              ) : assessment?.checked ? (
-                <Text>{levels[assessment.level] ?? ""}</Text>
-              ) : null}
-              {assessment?.checked && !started && (assessment?.items ?? []).length > 0 ? (
-                <Box flexDirection="column" rowGap={1}>
-                  <Text bold>What moves</Text>
-                  {(assessment.items as any[]).map((item) => (
-                    <Box key={`moves-${item.id}`} flexDirection="column">
-                      <Text>
-                        <Text bold {...(item.by === "help" ? { color: "warning" } : {})}>
-                          {item.label}
-                        </Text>
-                        <Text dimColor> · {who[item.by as keyof typeof who] ?? ""}</Text>
-                      </Text>
-                      <Text dimColor>{item.detail}</Text>
-                    </Box>
-                  ))}
-                  {(assessment.notes ?? []).length > 0 ? (
-                    <Box flexDirection="column">
-                      <Text bold>Worth knowing</Text>
-                      {(assessment.notes as string[]).map((note, i) => (
-                        <Text key={`moves-note-${i}`} dimColor>
-                          {note}
-                        </Text>
-                      ))}
-                    </Box>
-                  ) : null}
-                  <Text dimColor>Something's not right? Tell Claude in the conversation.</Text>
-                </Box>
-              ) : null}
-              {moveSection as never}
-            </Box>
-          ) : null}
-        </Box>
-      );
+      s.finishingMove
+    ) {
+      return movePane($, ui, header, s, now);
     }
 
-    // Just moved off Lovable: from here, the app is changed in this conversation. Until the next
-    // Publish, say so, with the preview one press away.
-    const movedOff =
-      s.movedAt && !(s.lastPublish && s.lastPublish.at > s.movedAt)
-        ? card(
-            <Text bold>Your app is off Lovable</Text>,
-            <Box flexDirection="column" rowGap={1}>
-              <Text dimColor>
-                You change it here now: describe a change in the conversation and watch it in the
-                preview. Publish puts it live{url ? ` at ${host(url)}` : ""}.
-              </Text>
-              <Text dimColor>
-                Backups: Supabase's Pro plan keeps a copy of your data for each of the last 7 days;
-                the free plan doesn't.
-              </Text>
-            </Box>,
-            e.surface === "desktop" && previewUrl
-              ? [
-                  <Button key="moved-preview" variant="secondary" onPress={() => askForPreview($)}>
-                    Show the preview
-                  </Button>,
-                ]
-              : [],
-          )
-        : null;
-
-    // On its own Supabase, with no connection here yet: Claude can't change the database.
-    const databaseCard =
-      s.backend === "supabase" && s.databaseConnected === false
-        ? card(
-            <Text bold>Let Claude change your database</Text>,
-            <Box flexDirection="column" rowGap={1}>
-              <Text dimColor>
-                Connect your Supabase account once: Claude can then add tables and change data, as
-                on Lovable, asking you before each change. The token stays on this computer.
-              </Text>
-              <Link
-                href="https://supabase.com/dashboard/account/tokens"
-                label="Create a token in Supabase ↗"
-              />
-              {Input ? (
-                <Input
-                  key="database-token"
-                  placeholder="sbp_…"
-                  submitLabel="Connect"
-                  value=""
-                  onSubmit={(value: string) => background(connectDatabase($, value))}
-                />
-              ) : null}
-            </Box>,
-          )
-        : null;
-
-    // The settings the app's server code reads, missing on this computer or on the site.
-    const settingsBox = settingsFields("app-setting", s.backend === "lovable-cloud");
-    const settingsCard = settingsBox
-      ? card(<Text bold>Your app's settings</Text>, settingsBox as never)
-      : null;
     if (appSettingsStatus === null && !settingsAsked) {
       settingsAsked = true;
       background(loadSettings($));
     }
-
-    // On Lovable's hosting only: where the last click is.
-    const lovableHosting =
-      s.hosting === "lovable"
-        ? card(
-            <Text bold>Your site goes live from Lovable</Text>,
-            <Text dimColor>
-              After Publish here, click Publish, then Publish changes, in Lovable.
-            </Text>,
-          )
-        : null;
-
-    const draftRows = (versions?.draft ?? []).slice(0, 10);
-    const publishedRows = (versions?.published ?? []).slice(0, Math.max(3, 12 - draftRows.length));
-    const older =
-      (versions?.draft.length ?? 0) -
-      draftRows.length +
-      (versions?.published.length ?? 0) -
-      publishedRows.length;
-
+    const url = s.lastPublish?.url ?? s.liveUrl;
     return (
       <Box flexDirection="column" rowGap={2} paddingX={2} paddingY={1}>
         <Box flexDirection="row" justifyContent="space-between" alignItems="center">
           {header}
-          {url ? <Link href={url} label={`${host(url)} ↗`} /> : null}
+          {url ? siteLink(ui, url) : null}
         </Box>
-
-        {movedOff}
-
-        {databaseCard}
-
-        {settingsCard}
-
-        {state}
-
-        {lovableHosting}
-
-        <Box flexDirection="column">
-          {section("History")}
-          {versions === null ? (
-            <Text dimColor>Loading…</Text>
-          ) : draftRows.length + publishedRows.length === 0 ? (
-            <Text dimColor>No versions yet.</Text>
-          ) : (
-            <Box flexDirection="column">
-              {draftRows.length > 0 ? <Text dimColor>Not live yet</Text> : null}
-              {draftRows.map(versionRow)}
-              {publishedRows.length > 0 ? <Text dimColor>Published</Text> : null}
-              {publishedRows.map(versionRow)}
-              {older > 0 ? <Text dimColor>and {plural(older, "older version")}</Text> : null}
-            </Box>
-          )}
-        </Box>
-
-        {warnings.length > 0 ? (
-          <Box flexDirection="column">
-            {section("Worth a look")}
-            {warnings.map((c) => (
-              <Box flexDirection="column">
-                <Text color={c.status === "fail" ? "error" : "warning"}>
-                  ! {c.label}
-                  {c.detail ? ` · ${c.detail}` : ""}
-                </Text>
-                {c.id === "lovable-ai" && c.status === "warn" ? (
-                  // Claude switches it; the key goes in the panel's settings once the code reads it.
-                  <Box flexDirection="row" columnGap={2} alignItems="center">
-                    <Text dimColor> {c.fix}</Text>
-                    {isPiloting() ? null : (
-                      <Button
-                        key="worth-lovable-ai"
-                        variant="secondary"
-                        onPress={() =>
-                          background(
-                            pilot(
-                              $,
-                              "Switch my app's AI features off Lovable's AI to an AI provider of my own (OpenRouter, Google Gemini or OpenAI). Keep the provider's address and model in the code, read the key from a setting named AI_API_KEY that I'll paste in the Clodable panel, and tell me where to create the key.",
-                            ),
-                          )
-                        }
-                      >
-                        Switch it
-                      </Button>
-                    )}
-                  </Box>
-                ) : c.fix ? (
-                  <Text dimColor> {c.fix}</Text>
-                ) : null}
-              </Box>
-            ))}
-          </Box>
-        ) : null}
-
+        {movedOffCard($, ui, s, desktop)}
+        {databaseCard($, ui, s)}
+        {settingsCard($, ui)}
+        {stateCard($, ui, s, a, now, desktop)}
+        {lovableHostingCard(ui, s)}
+        {historySection($, ui, desktop, now)}
+        {warningsSection($, ui, doctor)}
         <Box flexDirection="row" columnGap={1} alignItems="center">
           <Text dimColor>
             Saved to GitHub after every reply. Only Publish changes your live site.
@@ -4075,6 +1572,2418 @@ export const register: Register = (on) => {
   });
 };
 
+// ── The bar's pieces (top level, so they can use $) ─────────────────────────
+
+/** What the bar draws with: the surface's own pieces, its buttons held across redraws. */
+type BarUi = Pick<PaneUi, "Box" | "Text" | "Button" | "Link">;
+
+/** The bar's two sides: what's true now on the left; what you can do on the right, the main action last. */
+type BarSides = { left: RenderChildren[]; right?: RenderChildren[] };
+
+/** What the bar says now, from the activity first (it's what just happened), then the status. */
+function barSides(
+  $: EngineInterface,
+  ui: BarUi,
+  s: ClodableStatus | ClodableNotReady | null,
+  a: ClodableActivity,
+  now: number,
+  desktop: boolean,
+): BarSides {
+  const { Box, Text, Button, Link } = ui;
+  // In the terminal, where there's no logo, a colored dot carries the state.
+  const dot = (color: string) => (desktop ? null : <Text color={color}>●</Text>);
+  const history = (
+    <Button key="history" variant="secondary" onPress={() => background(openPane($))}>
+      History
+    </Button>
+  );
+  const preview = previewButton($, ui, desktop);
+
+  if (a.kind === "publishing" || a.kind === "undoing") {
+    const running = [...a.steps].reverse().find((x) => x.state === "running");
+    const last = a.steps[a.steps.length - 1];
+    return {
+      left: [
+        <Text bold>{a.kind === "publishing" ? "Publishing" : "Undoing"}</Text>,
+        <Text dimColor wrap="truncate-end">
+          {running
+            ? running.detail
+              ? `${running.title} · ${running.detail}`
+              : `${running.title}…`
+            : last
+              ? last.title
+              : "Starting…"}
+        </Text>,
+      ],
+      right: [
+        <Button key="progress" variant="secondary" onPress={() => background(openPane($))}>
+          See progress
+        </Button>,
+      ],
+    };
+  }
+  if (justDone(a, now)) {
+    const undo =
+      a.kind === "published"
+        ? [
+            <Button key="undo" variant="secondary" onPress={() => background(undoNow($))}>
+              Undo
+            </Button>,
+          ]
+        : [];
+    if (!a.onLovable) {
+      return {
+        left: [
+          dot("success"),
+          <Text color="success" bold>
+            {doneTitle(a.kind, false)}
+          </Text>,
+          a.url ? siteLink(ui, a.url) : null,
+        ],
+        right: undo,
+      };
+    }
+    return {
+      left: [
+        dot("success"),
+        <Text color="success" bold>
+          {doneTitle(a.kind, true)}
+        </Text>,
+        a.site ? (
+          a.site.state === "failed" ? (
+            <Link href={a.site.logUrl ?? a.site.url} label="Netlify site didn't update ↗" />
+          ) : (
+            <Link href={a.site.url} label="Netlify site ↗" />
+          )
+        ) : null,
+        <Link
+          href={a.lovableUrl ?? "https://lovable.dev/projects"}
+          label="Put it live in Lovable ↗"
+        />,
+      ],
+      right: undo,
+    };
+  }
+  if (a.kind === "failed" && a.error) {
+    return {
+      left: [
+        <Box flexShrink={0}>
+          <Text color={a.error.code === "conflict" ? "warning" : "error"} bold>
+            {stoppedTitle(a.error.code)}
+          </Text>
+        </Box>,
+        <Text wrap="truncate-end">{shortReason(a.error)}</Text>,
+      ],
+      right: [
+        <Button key="why" variant="secondary" onPress={() => background(openPane($))}>
+          See why
+        </Button>,
+        fixButton($, ui, "fix", a.error.code === "conflict"),
+      ],
+    };
+  }
+  if (a.kind === "saving")
+    return { left: [<Text dimColor>Saving…</Text>], right: [history, preview] };
+  if (!s) return { left: [<Text dimColor>Clodable is getting ready…</Text>] };
+  if (!s.ready) {
+    return {
+      left: [
+        <Text>
+          {s.reason === "not-a-repo"
+            ? "Bring your app into this folder to save and publish"
+            : s.message}
+        </Text>,
+      ],
+      right: [
+        <Button key="setup" variant="primary" onPress={() => background(openPane($))}>
+          Set up
+        </Button>,
+      ],
+    };
+  }
+  if (s.merging || s.conflicts.length > 0) {
+    return {
+      left: [
+        <Box flexShrink={0}>
+          <Text color="warning" bold>
+            Not published
+          </Text>
+        </Box>,
+        <Text wrap="truncate-end">{shortReason({ code: "conflict", message: "" })}</Text>,
+      ],
+      right: [fixButton($, ui, "combine", true)],
+    };
+  }
+  if (s.unpublished.length > 0) {
+    return {
+      left: [
+        dot("warning"),
+        <Text>
+          <Text bold>{plural(s.unpublished.length, "change")}</Text> not live yet
+        </Text>,
+      ],
+      right: [
+        history,
+        preview,
+        <Button key="publish" variant="primary" onPress={() => background(publishNow($))}>
+          Publish
+        </Button>,
+      ],
+    };
+  }
+  const url = s.lastPublish?.url ?? s.liveUrl;
+  return {
+    left: [
+      dot("success"),
+      // Lovable's hosting only shows what was last published in Lovable: say what's certain.
+      <Text>{s.hosting === "lovable" ? "Everything is published" : "Everything is live"}</Text>,
+      url ? siteLink(ui, url) : null,
+    ],
+    right: [history, preview],
+  };
+}
+
+// ── The panel's pieces (top level, so they can use $) ──────────────────────────
+
+/**
+ * What the panel draws with: every surface's Box, Text, Button (held, see heldButton), Link and
+ * Code, with Input and Select where the surface has them.
+ */
+type PaneUi = Pick<Elements["terminal"], "Box" | "Text" | "Button" | "Link" | "Code"> &
+  Partial<Pick<Elements["terminal"], "Input" | "Select">>;
+
+/** A section's title in the panel. */
+function section(ui: PaneUi, title: string) {
+  const { Text } = ui;
+  return <Text bold>{title}</Text>;
+}
+
+/** The app's state in one card: what's true now, and the next thing to do. */
+function card(
+  ui: PaneUi,
+  title: RenderChildren,
+  subtitle: RenderChildren,
+  actions: RenderChildren[] = [],
+  below: RenderChildren = null,
+) {
+  const { Box } = ui;
+  return (
+    <Box
+      flexDirection="column"
+      rowGap={1}
+      borderStyle="round"
+      borderColor="promptBorder"
+      paddingX={2}
+      paddingY={1}
+    >
+      <Box flexDirection="row" justifyContent="space-between" alignItems="center" columnGap={2}>
+        <Box flexDirection="column" flexShrink={1}>
+          {title}
+          {subtitle}
+        </Box>
+        <Box flexDirection="row" columnGap={1} alignItems="center" flexShrink={0}>
+          {actions}
+        </Box>
+      </Box>
+      {below}
+    </Box>
+  );
+}
+
+/** One step of a publish or an undo, as it went. */
+function stepLine(ui: PaneUi, step: ClodableStep) {
+  const { Text } = ui;
+  const mark =
+    step.state === "done"
+      ? "✓"
+      : step.state === "failed"
+        ? "✕"
+        : step.state === "warning"
+          ? "!"
+          : step.state === "running"
+            ? "◐"
+            : "·";
+  const color =
+    step.state === "done"
+      ? "success"
+      : step.state === "failed"
+        ? "error"
+        : step.state === "warning"
+          ? "warning"
+          : undefined;
+  return (
+    <Text
+      {...(color ? { color } : {})}
+      dimColor={step.state === "skipped" || step.state === "pending"}
+    >
+      {mark} {step.title}
+      {step.state === "running" ? "…" : ""}
+      {step.detail ? `  · ${step.detail}` : ""}
+    </Text>
+  );
+}
+
+/** Somewhere to paste a value (a token, a key, a setting): it goes to `use`, never the chat. */
+function field(
+  ui: PaneUi,
+  key: string,
+  placeholder: string,
+  submit: string,
+  use: (v: string) => void,
+) {
+  const { Text, Input } = ui;
+  return Input ? (
+    <Input
+      key={key}
+      placeholder={placeholder}
+      submitLabel={submit}
+      value=""
+      onSubmit={(value: string) => use(value)}
+    />
+  ) : (
+    <Text dimColor>Open this panel in Claude Desktop to paste it.</Text>
+  );
+}
+
+/** A value to copy elsewhere (a DNS record, an address), shortened when it's long. */
+function copyable($: EngineInterface, ui: PaneUi, key: string, label: string, text: string) {
+  const { Box, Text, Button } = ui;
+  return (
+    <Box key={key} flexDirection="row" columnGap={1} alignItems="center">
+      <Text dimColor>{label}</Text>
+      <Text>{text.length > 60 ? `${text.slice(0, 56)}…` : text}</Text>
+      <Button key={`${key}-copy`} plain onPress={() => $.ui.copy({ text })}>
+        Copy
+      </Button>
+    </Box>
+  );
+}
+
+/** SQL for the builder to run in Lovable, with its Copy button. */
+function sqlBlock($: EngineInterface, ui: PaneUi, key: string, sql: string) {
+  const { Box, Button, Code } = ui;
+  return (
+    <Box flexDirection="row" columnGap={1} alignItems="center">
+      <Code source={sql} language="sql" />
+      <Button key={`${key}-copy`} plain onPress={() => $.ui.copy({ text: sql })}>
+        Copy
+      </Button>
+    </Box>
+  );
+}
+
+/** Not set up yet: a guided, self-serve setup, tools first, then the app. */
+function setupPane(
+  $: EngineInterface,
+  ui: PaneUi,
+  header: RenderElement,
+  s: ClodableNotReady | null,
+  doctor: ClodableCheck[],
+) {
+  const { Box, Text, Button, Link, Select, Input } = ui;
+  const tools = doctor.filter((c) => ["node", "git", "gh", "github"].includes(c.id));
+  const blocking = tools.filter((c) => c.status === "fail");
+  const github = doctor.find((c) => c.id === "github");
+  return (
+    <Box flexDirection="column" rowGap={1} paddingX={1}>
+      {header}
+      <Text>Let's bring your app home. It takes a minute, once.</Text>
+      {section(ui, "1 · Tools")}
+      {tools.length === 0 ? <Text dimColor>Checking…</Text> : null}
+      {tools.map((c) => (
+        <Box flexDirection="column">
+          <Text color={c.status === "ok" ? "success" : "error"}>
+            {c.status === "ok" ? "✓" : "✕"} {c.label} {c.detail ? `· ${c.detail}` : ""}
+          </Text>
+          {c.status !== "ok" && c.fix ? <Text dimColor> {c.fix}</Text> : null}
+        </Box>
+      ))}
+      {github && github.status !== "ok" ? (
+        <Box flexDirection="column" rowGap={1}>
+          <Button
+            key="connect-github"
+            variant="primary"
+            onPress={() => background(connectGitHub($))}
+          >
+            Connect GitHub
+          </Button>
+          {deviceCode ? (
+            <Box flexDirection="column">
+              <Text>
+                Your one-time code: <Text bold>{deviceCode}</Text>
+              </Text>
+              <Link href="https://github.com/login/device" label="Open github.com/login/device" />
+              <Button key="copy-code" plain onPress={() => $.ui.copy({ text: deviceCode })}>
+                Copy the code
+              </Button>
+            </Box>
+          ) : null}
+        </Box>
+      ) : null}
+      {section(ui, "2 · Your app")}
+      {blocking.length > 0 ? (
+        <Text dimColor>Once the tools above are ready, pick your app here.</Text>
+      ) : s?.reason === "no-kit" ? (
+        <Box flexDirection="column" rowGap={1}>
+          <Text>This folder already holds an app. Clodable can set itself up right here.</Text>
+          {settingUp ? (
+            <Text dimColor>Setting up Clodable… it takes about a minute.</Text>
+          ) : (
+            <Button key="set-up-here" variant="primary" onPress={() => background(setUpHere($))}>
+              Set up Clodable here
+            </Button>
+          )}
+        </Box>
+      ) : repoChoices.length > 0 && Select ? (
+        <Box flexDirection="column" rowGap={1}>
+          <Select
+            key="repo"
+            label="Your app on GitHub"
+            options={repoChoices}
+            value={chosenRepo || repoChoices[0]!.value}
+            onSelect={(value) => {
+              chosenRepo = value;
+              $.ui.invalidate("ui.render");
+            }}
+          />
+          {settingUp ? (
+            <Text dimColor>Bringing in your app… a minute or two.</Text>
+          ) : (
+            <Button key="bring-in" variant="primary" onPress={() => background(bringIn($))}>
+              Bring it in
+            </Button>
+          )}
+        </Box>
+      ) : Input ? (
+        <Box flexDirection="column" rowGap={1}>
+          <Input
+            key="repo-name"
+            label="Your app's GitHub repository"
+            placeholder="owner/name"
+            value={chosenRepo}
+            submitLabel="bring it in"
+            onSubmit={(value) => {
+              chosenRepo = value.trim();
+              background(bringIn($));
+            }}
+          />
+          <Button key="list-repos" plain onPress={() => background(loadRepos($))}>
+            Show my repositories
+          </Button>
+        </Box>
+      ) : (
+        <Text dimColor>Open Clodable in Claude Desktop or the terminal to pick your app.</Text>
+      )}
+      <Text dimColor>
+        {s?.reason === "no-kit"
+          ? "Clodable adds a few plain files and saves them, with any changes in progress, to your draft on GitHub. Nothing goes live."
+          : "Clodable copies your app from GitHub into this folder and adds a few plain files. Nothing goes live."}
+      </Text>
+    </Box>
+  );
+}
+
+/** The app's state in one card: what's true now, and the next thing to do. */
+function stateCard(
+  $: EngineInterface,
+  ui: PaneUi,
+  s: ClodableStatus,
+  a: ClodableActivity,
+  now: number,
+  desktop: boolean,
+): RenderElement {
+  const { Box, Text, Button, Link, Code } = ui;
+  const steps = <Box flexDirection="column">{a.steps.map((step) => stepLine(ui, step))}</Box>;
+  if (a.kind === "publishing" || a.kind === "undoing") {
+    return card(
+      ui,
+      <Text bold>{a.kind === "publishing" ? "Publishing…" : "Undoing…"}</Text>,
+      <Text dimColor>Your live site keeps working meanwhile.</Text>,
+      [],
+      steps,
+    );
+  }
+  if (a.kind === "failed" && a.error) {
+    const error = a.error;
+    return card(
+      ui,
+      <Text color="error" bold>
+        {stoppedTitle(error.code)}
+      </Text>,
+      <Text>{error.message}</Text>,
+      [
+        error.details ? (
+          <Button
+            key="toggle-details"
+            variant="secondary"
+            onPress={() => {
+              showDetails = !showDetails;
+              $.ui.invalidate("ui.render");
+            }}
+          >
+            {showDetails ? "Hide details" : "Details"}
+          </Button>
+        ) : null,
+        fixButton($, ui, "fix", error.code === "conflict"),
+      ],
+      <Box flexDirection="column" rowGap={1}>
+        {error.hint ? <Text dimColor>{error.hint}</Text> : null}
+        {a.steps.length > 0 ? steps : null}
+        {showDetails && error.details ? (
+          <Code source={error.details.slice(0, 6000)} wrap="wrap" />
+        ) : null}
+      </Box>,
+    );
+  }
+  if (justDone(a, now)) {
+    return card(
+      ui,
+      <Text color="success" bold>
+        {doneTitle(a.kind, Boolean(a.onLovable))}
+      </Text>,
+      a.onLovable ? (
+        <Box flexDirection="column">
+          <Text dimColor>
+            Lovable hosts your site: in Lovable, click Publish, then Publish changes, to put it
+            live.
+          </Text>
+          <Link href={a.lovableUrl ?? "https://lovable.dev/projects"} label="Open Lovable ↗" />
+        </Box>
+      ) : a.url ? (
+        siteLink(ui, a.url)
+      ) : null,
+      a.kind === "published"
+        ? [
+            <Button key="undo" variant="secondary" onPress={() => background(undoNow($))}>
+              Undo
+            </Button>,
+          ]
+        : [],
+    );
+  }
+  if (s.merging || s.conflicts.length > 0) {
+    return card(
+      ui,
+      <Text color="warning" bold>
+        Your draft and the live site changed the same thing
+      </Text>,
+      <Text dimColor>Claude can combine them and keep both changes.</Text>,
+      [fixButton($, ui, "combine", true)],
+    );
+  }
+  if (s.unpublished.length > 0) {
+    return card(
+      ui,
+      <Text bold>{plural(s.unpublished.length, "change")} not live yet</Text>,
+      <Text dimColor>
+        {s.lastPublish
+          ? `Visitors still see the version you published ${ago(s.lastPublish.at, now)}.`
+          : "Visitors see them once you publish."}
+      </Text>,
+      [
+        previewButton($, ui, desktop),
+        <Button key="publish" variant="primary" onPress={() => background(publishNow($))}>
+          Publish
+        </Button>,
+      ],
+    );
+  }
+  return card(
+    ui,
+    <Text bold>Everything is live</Text>,
+    <Text dimColor>
+      {s.lastPublish
+        ? `Published ${ago(s.lastPublish.at, now)}: “${s.lastPublish.title}”`
+        : "Ask Claude for a change. It's saved here automatically."}
+    </Text>,
+    s.lastPublish
+      ? [
+          <Button key="undo" variant="secondary" onPress={() => background(undoNow($))}>
+            Undo last publish
+          </Button>,
+        ]
+      : [],
+  );
+}
+
+/** "Fix it", or while Claude works on it, a quiet note in its place, so nothing is asked twice. */
+function fixButton(
+  $: EngineInterface,
+  ui: Pick<PaneUi, "Text" | "Button">,
+  key: string,
+  conflict: boolean,
+) {
+  const { Text, Button } = ui;
+  // A button that can't be used isn't drawn: Desktop's buttons can't be disabled.
+  if (isFixing()) {
+    return <Text dimColor>{conflict ? "Claude is combining…" : "Claude is fixing…"}</Text>;
+  }
+  return (
+    <Button key={key} variant="primary" onPress={() => background(fixIt($))}>
+      {conflict ? "Let Claude combine them" : "Fix it"}
+    </Button>
+  );
+}
+
+/** The preview, once there is one. On Desktop, in its own Browser pane: a link opens a window. */
+function previewButton($: EngineInterface, ui: Pick<PaneUi, "Button" | "Link">, desktop: boolean) {
+  const { Button, Link } = ui;
+  if (!previewUrl) return null;
+  return desktop ? (
+    <Button key="preview" variant="secondary" onPress={() => askForPreview($)}>
+      Preview
+    </Button>
+  ) : (
+    <Link key="preview" href={previewUrl} label="Preview ↗" />
+  );
+}
+
+/** The live site, by its address. */
+function siteLink(ui: Pick<PaneUi, "Link">, url: string) {
+  const { Link } = ui;
+  return <Link href={url} label={`${hostOf(url)} ↗`} />;
+}
+
+/** Just moved off Lovable: from here, the app changes in this conversation. Until the next Publish. */
+function movedOffCard($: EngineInterface, ui: PaneUi, s: ClodableStatus, desktop: boolean) {
+  const { Box, Text, Button } = ui;
+  if (!s.movedAt || (s.lastPublish && s.lastPublish.at > s.movedAt)) return null;
+  const url = s.lastPublish?.url ?? s.liveUrl;
+  return card(
+    ui,
+    <Text bold>Your app is off Lovable</Text>,
+    <Box flexDirection="column" rowGap={1}>
+      <Text dimColor>
+        You change it here now: describe a change in the conversation and watch it in the preview.
+        Publish puts it live{url ? ` at ${hostOf(url)}` : ""}.
+      </Text>
+      <Text dimColor>
+        Backups: Supabase's Pro plan keeps a copy of your data for each of the last 7 days; the free
+        plan doesn't.
+      </Text>
+    </Box>,
+    desktop && previewUrl
+      ? [
+          <Button key="moved-preview" variant="secondary" onPress={() => askForPreview($)}>
+            Show the preview
+          </Button>,
+        ]
+      : [],
+  );
+}
+
+/** On its own Supabase, with no connection here yet: Claude can't change the database. */
+function databaseCard($: EngineInterface, ui: PaneUi, s: ClodableStatus) {
+  const { Box, Text, Link, Input } = ui;
+  if (s.backend !== "supabase" || s.databaseConnected !== false) return null;
+  return card(
+    ui,
+    <Text bold>Let Claude change your database</Text>,
+    <Box flexDirection="column" rowGap={1}>
+      <Text dimColor>
+        Connect your Supabase account once: Claude can then add tables and change data, as on
+        Lovable, asking you before each change. The token stays on this computer.
+      </Text>
+      <Link
+        href="https://supabase.com/dashboard/account/tokens"
+        label="Create a token in Supabase ↗"
+      />
+      {Input ? (
+        <Input
+          key="database-token"
+          placeholder="sbp_…"
+          submitLabel="Connect"
+          value=""
+          onSubmit={(value: string) => background(connectDatabase($, value))}
+        />
+      ) : null}
+    </Box>,
+  );
+}
+
+/**
+ * The settings the app's server code reads, missing on this computer or on the site. Off Lovable
+ * Cloud by now, so not where Lovable lists them.
+ */
+function settingsCard($: EngineInterface, ui: PaneUi) {
+  const { Text } = ui;
+  const fields = settingsFields($, ui, "app-setting", false);
+  return fields ? card(ui, <Text bold>Your app's settings</Text>, fields) : null;
+}
+
+/** On Lovable's hosting only: where the last click is. */
+function lovableHostingCard(ui: PaneUi, s: ClodableStatus) {
+  const { Text } = ui;
+  if (s.hosting !== "lovable") return null;
+  return card(
+    ui,
+    <Text bold>Your site goes live from Lovable</Text>,
+    <Text dimColor>After Publish here, click Publish, then Publish changes, in Lovable.</Text>,
+  );
+}
+
+/** Every version, newest first: what's not live yet, then what was published. */
+function historySection($: EngineInterface, ui: PaneUi, desktop: boolean, now: number) {
+  const { Box, Text } = ui;
+  const draftRows = (versions?.draft ?? []).slice(0, 10);
+  const publishedRows = (versions?.published ?? []).slice(0, Math.max(3, 12 - draftRows.length));
+  const older =
+    (versions?.draft.length ?? 0) -
+    draftRows.length +
+    (versions?.published.length ?? 0) -
+    publishedRows.length;
+  return (
+    <Box flexDirection="column">
+      {section(ui, "History")}
+      {versions === null ? (
+        <Text dimColor>Loading…</Text>
+      ) : draftRows.length + publishedRows.length === 0 ? (
+        <Text dimColor>No versions yet.</Text>
+      ) : (
+        <Box flexDirection="column">
+          {draftRows.length > 0 ? <Text dimColor>Not live yet</Text> : null}
+          {draftRows.map((v) => versionRow($, ui, v, desktop, now))}
+          {publishedRows.length > 0 ? <Text dimColor>Published</Text> : null}
+          {publishedRows.map((v) => versionRow($, ui, v, desktop, now))}
+          {older > 0 ? <Text dimColor>and {plural(older, "older version")}</Text> : null}
+        </Box>
+      )}
+    </Box>
+  );
+}
+
+/** What `clodable doctor` found worth a look, each with its fix. */
+function warningsSection($: EngineInterface, ui: PaneUi, doctor: ClodableCheck[]) {
+  const { Box, Text, Button } = ui;
+  const warnings = doctor.filter((c) => c.status === "warn" || c.status === "fail");
+  if (warnings.length === 0) return null;
+  return (
+    <Box flexDirection="column">
+      {section(ui, "Worth a look")}
+      {warnings.map((c) => (
+        <Box flexDirection="column">
+          <Text color={c.status === "fail" ? "error" : "warning"}>
+            ! {c.label}
+            {c.detail ? ` · ${c.detail}` : ""}
+          </Text>
+          {c.id === "lovable-ai" && c.status === "warn" ? (
+            // Claude switches it; the key goes in the panel's settings once the code reads it.
+            <Box flexDirection="row" columnGap={2} alignItems="center">
+              <Text dimColor> {c.fix}</Text>
+              {isPiloting() ? null : (
+                <Button
+                  key="worth-lovable-ai"
+                  variant="secondary"
+                  onPress={() =>
+                    background(
+                      pilot(
+                        $,
+                        "Switch my app's AI features off Lovable's AI to an AI provider of my own (OpenRouter, Google Gemini or OpenAI). Keep the provider's address and model in the code, read the key from a setting named AI_API_KEY that I'll paste in the Clodable panel, and tell me where to create the key.",
+                      ),
+                    )
+                  }
+                >
+                  Switch it
+                </Button>
+              )}
+            </Box>
+          ) : c.fix ? (
+            <Text dimColor> {c.fix}</Text>
+          ) : null}
+        </Box>
+      ))}
+    </Box>
+  );
+}
+
+/**
+ * One line of history. The newest saved version is what the files hold now ("Current"); the
+ * newest publish is what visitors see ("Live"). Restore shows on the line under the pointer.
+ */
+function versionRow($: EngineInterface, ui: PaneUi, v: Version, desktop: boolean, now: number) {
+  const { Box, Text, Button } = ui;
+  const current = v.sha === (versions?.draft[0]?.sha ?? versions?.published[0]?.sha);
+  const live = v.sha === versions?.published[0]?.sha;
+  const name = versionName(v.subject);
+  const restore = (
+    <Button
+      key={`restore-${v.sha}`}
+      {...(desktop ? { variant: "secondary" as const } : { plain: true as const })}
+      onPress={() => background(restoreVersion($, v.sha, name))}
+    >
+      Restore
+    </Button>
+  );
+  return (
+    <Box
+      key={`version-${v.sha}`}
+      flexDirection="row"
+      justifyContent="space-between"
+      alignItems="center"
+      columnGap={2}
+      paddingX={1}
+      {...(desktop ? { hover: { backgroundColor: "#8080801f" } } : {})}
+    >
+      <Box flexDirection="row" columnGap={1} alignItems="center" flexShrink={1}>
+        <Text wrap="truncate-end">{name}</Text>
+        {live ? (
+          <Text color="success" bold>
+            Live
+          </Text>
+        ) : null}
+        {current ? <Text dimColor>Current</Text> : null}
+      </Box>
+      <Box flexDirection="row" columnGap={2} alignItems="center" flexShrink={0}>
+        <Text dimColor>{ago(v.date, now)}</Text>
+        <Box width={11} justifyContent="flex-end">
+          {current ? null : desktop ? (
+            <Box display="none" hover={{ display: "flex" }}>
+              {restore}
+            </Box>
+          ) : (
+            restore
+          )}
+        </Box>
+      </Box>
+    </Box>
+  );
+}
+
+/** Two questions, asked once: where the data and the live site are decide what Clodable can do. */
+function whereQuestions($: EngineInterface, ui: PaneUi, s: ClodableStatus): RenderElement[] {
+  const questions: RenderElement[] = [];
+  if (s.backend === "unknown") {
+    questions.push(
+      whereQuestion(
+        $,
+        ui,
+        "backend",
+        "Where does your app's data live?",
+        [
+          ["lovable-cloud", "On Lovable Cloud"],
+          ["supabase", "In my own Supabase"],
+          ["none", "No database"],
+        ],
+        "Not sure? If your project in Lovable has Cloud (Database, Users…), it's Lovable Cloud.",
+      ),
+    );
+  }
+  if (s.hosting === "unknown") {
+    questions.push(
+      whereQuestion(
+        $,
+        ui,
+        "hosting",
+        "Where is your site live?",
+        [
+          ["lovable", "On Lovable"],
+          ["github", "Elsewhere (Netlify, Vercel…)"],
+        ],
+        "If you click Publish in Lovable to update your site, it's on Lovable.",
+      ),
+    );
+  }
+  return questions;
+}
+
+function whereQuestion(
+  $: EngineInterface,
+  ui: PaneUi,
+  key: "backend" | "hosting",
+  title: string,
+  choices: Array<[value: string, label: string]>,
+  hint: string,
+) {
+  const { Box, Text, Button } = ui;
+  return (
+    <Box key={`question-${key}`} flexDirection="column" rowGap={1}>
+      <Text>{title}</Text>
+      <Box flexDirection="row" columnGap={1} rowGap={1} flexWrap="wrap">
+        {choices.map(([value, label]) => (
+          <Button
+            key={`${key}-${value}`}
+            variant="secondary"
+            onPress={() => background(setWhere($, key, value))}
+          >
+            {label}
+          </Button>
+        ))}
+      </Box>
+      <Text dimColor>{hint}</Text>
+    </Box>
+  );
+}
+
+// ── The move off Lovable (top level, so they can use $) ─────────────────────
+
+/** Still on Lovable Cloud, or not known yet: the panel is the move and its questions, nothing else. */
+function movePane(
+  $: EngineInterface,
+  ui: PaneUi,
+  header: RenderElement,
+  s: ClodableStatus,
+  now: number,
+) {
+  const { Box, Text } = ui;
+  // Live on the new backend already, until the builder is done in Lovable: still the move.
+  const moving = s.backend === "lovable-cloud" || s.finishingMove;
+  const onCloud = moving || s.backend === "unknown";
+  if (s.backend === "lovable-cloud" && !assessment && !assessing) background(loadAssessment($));
+  if (moving && !move && !loadingMove && !moveError) background(loadMove($));
+  const questions = whereQuestions($, ui, s);
+  return (
+    <Box flexDirection="column" rowGap={2} paddingX={2} paddingY={1}>
+      {header}
+      {onCloud ? (
+        <Box flexDirection="column" rowGap={1}>
+          <Text bold>Move off Lovable</Text>
+          <Text dimColor>
+            Your data, your people and your backend come to your own Supabase, step by step. Your
+            live app keeps running on Lovable until you switch.
+          </Text>
+        </Box>
+      ) : null}
+      {questions.length > 0 ? (
+        <Box flexDirection="column" rowGap={2}>
+          <Text bold>
+            {questions.length === 2 ? "First, two quick questions" : "One quick question"}
+          </Text>
+          {questions}
+        </Box>
+      ) : null}
+      {moving ? (
+        <Box flexDirection="column" rowGap={2}>
+          {whatMoves(ui)}
+          {moveSection($, ui, s, now)}
+        </Box>
+      ) : null}
+    </Box>
+  );
+}
+
+/** What the move involves for this app, as Clodable's look at it found: until it starts. */
+function whatMoves(ui: PaneUi) {
+  const { Box, Text } = ui;
+  if (assessment && "error" in assessment) {
+    return <Text color="error">Couldn't look at your app: {assessment.error}</Text>;
+  }
+  if (!assessment?.checked) return null;
+  const started = (move?.steps ?? []).some((x) => x.id === "connect" && x.state === "done");
+  const items = assessment.items ?? [];
+  const notes: string[] = assessment.notes ?? [];
+  return (
+    <Box flexDirection="column" rowGap={2}>
+      <Text>{MOVE_LEVELS[assessment.level] ?? ""}</Text>
+      {!started && items.length > 0 ? (
+        <Box flexDirection="column" rowGap={1}>
+          <Text bold>What moves</Text>
+          {items.map((item) => (
+            <Box key={`moves-${item.id}`} flexDirection="column">
+              <Text>
+                <Text bold {...(item.by === "help" ? { color: "warning" } : {})}>
+                  {item.label}
+                </Text>
+                <Text dimColor> · {MOVE_WHO[item.by] ?? ""}</Text>
+              </Text>
+              <Text dimColor>{item.detail}</Text>
+            </Box>
+          ))}
+          {notes.length > 0 ? (
+            <Box flexDirection="column">
+              <Text bold>Worth knowing</Text>
+              {notes.map((note, i) => (
+                <Text key={`moves-note-${i}`} dimColor>
+                  {note}
+                </Text>
+              ))}
+            </Box>
+          ) : null}
+          <Text dimColor>Something's not right? Tell Claude in the conversation.</Text>
+        </Box>
+      ) : null}
+    </Box>
+  );
+}
+
+/** The move itself, one step at a time: every step listed, only the current one with its controls. */
+function moveSection($: EngineInterface, ui: PaneUi, s: ClodableStatus, now: number) {
+  const { Box, Text } = ui;
+  const steps = move?.steps ?? [];
+  const method = moveMethod();
+  const problem = moveProblem(ui);
+  // First, Claude reads the app's code: until it has, nothing else is decided.
+  if (move && steps.some((x) => x.id === "facts" && x.state !== "done")) {
+    return (
+      <Box flexDirection="column" rowGap={1}>
+        {problem}
+        {firstLook($, ui)}
+      </Box>
+    );
+  }
+  // Asked before the steps: it decides how the live app moves at the end.
+  if (move && !method) {
+    return (
+      <Box flexDirection="column" rowGap={1}>
+        {problem}
+        {methodQuestion($, ui)}
+      </Box>
+    );
+  }
+  if (steps.length === 0) return problem ?? <Text dimColor>Looking at your app…</Text>;
+
+  const current = steps.find((x) => x.state === "next" || x.state === "attention");
+  const here = (
+    <Box flexDirection="column" rowGap={1} {...(current ? { paddingLeft: 2 } : {})}>
+      {problem}
+      {moveControlsFor($, { ui, s, now }, current)}
+    </Box>
+  );
+  const stages = stagesOf(steps, method);
+  // The stage the builder is in; with nothing left, the last (all of them fold).
+  const at = current ? stages.findIndex((x) => x.steps.includes(current)) : stages.length - 1;
+  // Steps after the one the builder is on read as later ones, done or not: they come next.
+  const currentIndex = current ? steps.indexOf(current) : steps.length;
+  const detail: Record<string, string | undefined> = {
+    backend: move?.home?.name,
+    website: move?.site?.url,
+  };
+  return (
+    <Box flexDirection="column" rowGap={2}>
+      {stages.map((stage, index) =>
+        index > at ? (
+          // A stage still ahead: its name only, its steps folded until it comes.
+          <Text key={`stage-${stage.id}`} dimColor>
+            {stage.title}
+          </Text>
+        ) : stage.steps.every((x) => x.state === "done") ? (
+          // A stage that's done: one line.
+          <Text key={`stage-${stage.id}`} color="success">
+            ✓ {stage.title}
+            {detail[stage.id] ? `  · ${detail[stage.id]}` : ""}
+          </Text>
+        ) : (
+          <Box key={`stage-${stage.id}`} flexDirection="column" rowGap={1}>
+            {stage.title ? (
+              <Box flexDirection="column">
+                <Text bold>{stage.title}</Text>
+                <Text dimColor>{stage.about}</Text>
+              </Box>
+            ) : null}
+            {stage.id === "golive" ? otherWay($, ui, method) : null}
+            {stage.steps.map((step) =>
+              stepRow(
+                ui,
+                step,
+                steps.indexOf(step) > currentIndex ? "later" : step.state,
+                step === current ? here : null,
+              ),
+            )}
+          </Box>
+        ),
+      )}
+      {current ? null : here}
+    </Box>
+  );
+}
+
+/** One step of the move: its mark and title, and under the current one, what to do now. */
+function stepRow(ui: PaneUi, step: ClodableMoveStep, state: string, under: RenderElement | null) {
+  const { Box, Text } = ui;
+  return (
+    <Box key={`step-${step.id}`} flexDirection="column" rowGap={1}>
+      <Text
+        {...(state === "attention"
+          ? { color: "warning" }
+          : state === "done"
+            ? { color: "success" }
+            : {})}
+        dimColor={state === "later"}
+        bold={under !== null}
+      >
+        {STEP_MARK[state] ?? "·"} {step.title}
+        {step.detail && state !== "later" ? `  · ${step.detail}` : ""}
+      </Text>
+      {under}
+    </Box>
+  );
+}
+
+/** What went wrong in the move, and what to do about it. */
+function moveProblem(ui: PaneUi) {
+  const { Box, Text } = ui;
+  if (!moveError) return null;
+  return (
+    <Box flexDirection="column">
+      <Text color="error">{moveError.message}</Text>
+      {moveError.hint ? <Text dimColor>{moveError.hint}</Text> : null}
+    </Box>
+  );
+}
+
+/** Before anything else: Claude reads the app's code, so each step fits the app. */
+function firstLook($: EngineInterface, ui: PaneUi) {
+  const { Box, Text } = ui;
+  return (
+    <Box flexDirection="column" rowGap={1}>
+      <Text bold>First, Claude looks at your app</Text>
+      <Text dimColor>
+        It reads your app's code to see what it uses (AI, sign-in, emails, payments…), so each step
+        fits your app. Nothing changes.
+      </Text>
+      {isPiloting() ? (
+        <Text dimColor>Claude is looking at your app…</Text>
+      ) : (
+        <Box flexDirection="row">
+          {pilotButton(
+            $,
+            ui,
+            "move-facts",
+            "Look at my app",
+            `Moving off Lovable: look at my app's code to see what it uses (AI, sign-in, emails, connected services, payments, scheduled jobs, uploads). Start from \`${moveCommand($, ["facts"])}\`, check each thing in the code, record what you found as the move skill says, then tell me in a few plain lines.`,
+          )}
+        </Box>
+      )}
+    </Box>
+  );
+}
+
+/** How the app moves, asked before the steps: it decides how the live app moves at the end. */
+function methodQuestion($: EngineInterface, ui: PaneUi) {
+  const { Box, Text, Button } = ui;
+  return (
+    <Box flexDirection="column" rowGap={2}>
+      <Text bold>How should your app move?</Text>
+      <Box flexDirection="column" rowGap={1}>
+        <Button
+          key="move-method-careful"
+          variant="secondary"
+          onPress={() => background(chooseMethod($, "careful"))}
+        >
+          Carefully
+        </Button>
+        <Text dimColor>
+          For an app people use. You try a working copy first; at the end your live app pauses for a
+          few minutes while the latest data comes over, so nothing is lost.
+        </Text>
+      </Box>
+      <Box flexDirection="column" rowGap={1}>
+        <Button
+          key="move-method-quick"
+          variant="secondary"
+          onPress={() => background(chooseMethod($, "quick"))}
+        >
+          In one go
+        </Button>
+        <Text dimColor>
+          For a prototype. One export, then your app goes live on your own accounts. Anything
+          written in Lovable after your export stays there.
+        </Text>
+      </Box>
+    </Box>
+  );
+}
+
+/** The other way to move, offered where it changes something: before going live starts. */
+function otherWay($: EngineInterface, ui: PaneUi, method: MoveMethod | undefined) {
+  const { Box, Text, Button } = ui;
+  const switchStarted = Boolean(move?.switch?.frozenAt || move?.switch?.liveAt);
+  if (!method || switchStarted || isPiloting() || moveRun) return null;
+  return (
+    <Box flexDirection="row" columnGap={2} alignItems="center">
+      <Text dimColor>{method === "quick" ? "People use your app?" : "Just a prototype?"}</Text>
+      <Button
+        key="move-other-way"
+        variant="secondary"
+        onPress={() => background(chooseMethod($, method === "quick" ? "careful" : "quick"))}
+      >
+        {method === "quick" ? "Move it carefully instead" : "Move it in one go instead"}
+      </Button>
+    </Box>
+  );
+}
+
+// ── The move off Lovable, one function per step (top level, so they can use $) ──
+
+/** What the move's steps draw with, besides the module's own state. */
+type MoveView = { ui: PaneUi; s: ClodableStatus; now: number };
+/** …and the step they draw. */
+type StepView = MoveView & { step: ClodableMoveStep };
+
+/** How the app moves: as chosen in the panel a moment ago, or as the move recorded it. */
+function moveMethod(): MoveMethod | undefined {
+  return choosingMethod ?? move?.method;
+}
+
+/** The controls under the move's current step; with no step left, where the move ended. */
+function moveControlsFor(
+  $: EngineInterface,
+  view: MoveView,
+  step: ClodableMoveStep | undefined,
+): RenderElement | null {
+  const { Text } = view.ui;
+  if (isPiloting()) return <Text dimColor>Claude is on it, in the conversation.</Text>;
+  if (moveRun) {
+    return (
+      <Text>
+        ◐ {moveRun.title}…{moveRun.detail ? `  · ${moveRun.detail}` : ""}
+      </Text>
+    );
+  }
+  if (!step) {
+    return (move?.steps ?? []).length > 0 ? (
+      <Text>
+        Your app is off Lovable: it runs on your own Supabase and Netlify, and each Publish updates
+        it.
+      </Text>
+    ) : null;
+  }
+  const here: StepView = { ...view, step };
+  switch (step.id) {
+    case "connect":
+      return connectStep($, here);
+    case "create":
+      return createStep($, here);
+    case "export":
+      return exportStep($, here);
+    case "copy":
+      return copyStep($, here);
+    case "files":
+      return filesStep($, here);
+    case "functions":
+      return functionsStep($, here);
+    case "try":
+      return tryStep($, here);
+    case "netlify":
+      return netlifyStep($, here);
+    case "site":
+      return siteStep($, here);
+    case "emails":
+      return emailsStep($, here);
+    case "services":
+      return servicesStep($, here);
+    case "google":
+      return googleStep($, here);
+    case "freeze":
+      return freezeStep($, here);
+    case "final-export":
+      return finalExportStep($, here);
+    case "final-copy":
+      return finalCopyStep($, here);
+    case "golive":
+      return goLiveStep($, here);
+    case "domain":
+      return domainStep($, here);
+    case "lovable":
+      return lovableStep($, here);
+    default:
+      return null;
+  }
+}
+
+/** Supabase: an access token that can create the new backend and copy the data into it. */
+function connectStep($: EngineInterface, { ui }: StepView) {
+  const { Box, Text, Button, Link } = ui;
+  return (
+    <Box flexDirection="column" rowGap={1}>
+      <Text>
+        Your data goes to Supabase, under your own account (free to start). Clodable needs an access
+        token that can create your new backend and copy your data into it.
+      </Text>
+      {numbered(ui, [
+        "Open Supabase's token page.",
+        "Click “Create legacy token”: the full-access kind.",
+        "Name it Clodable, choose the longest expiry it offers, and generate it. Clodable uses it after the move too, for changes to your database.",
+        "Paste it here. It stays on this computer.",
+      ])}
+      <Link
+        href="https://supabase.com/dashboard/account/tokens"
+        label="Open Supabase's token page ↗"
+      />
+      {field(ui, "move-token", "sbp_…", "Connect", (value) =>
+        background(moveWith($, ["connect"], value)),
+      )}
+      {showPermissions ? (
+        <Box flexDirection="column">
+          <Text dimColor>
+            A narrower token works too: choose Organization access, your organization, and these
+            permissions.
+          </Text>
+          {((move?.tokenPermissions ?? []) as string[]).map((permission) => (
+            <Text dimColor>· {permission}</Text>
+          ))}
+        </Box>
+      ) : (
+        <Button
+          key="move-narrower"
+          plain
+          onPress={() => {
+            showPermissions = true;
+            $.ui.invalidate("ui.render");
+          }}
+        >
+          Prefer a narrower token?
+        </Button>
+      )}
+      <Text dimColor>Once the move is done, delete the token in Supabase.</Text>
+    </Box>
+  );
+}
+
+/** Supabase: where the new backend goes (organization, region), then Claude creates it. */
+function createStep($: EngineInterface, { ui }: StepView) {
+  const { Box, Text, Button, Select } = ui;
+  if (moveChoices === null) return <Text dimColor>Looking at your Supabase account…</Text>;
+  const orgs = moveChoices.organizations ?? [];
+  const org = orgs.find((o) => o.slug === moveOrg) ?? orgs[0];
+  const request = createRequest($, org, moveChoices, moveOrg, moveRegion);
+  return (
+    <Box flexDirection="column" rowGap={1}>
+      {orgs.length > 1 && Select ? (
+        <Select
+          key="move-org"
+          label="Organization"
+          options={orgs.map((o) => ({ value: o.slug, label: `${o.name} · ${o.cost}` }))}
+          value={moveOrg}
+          onSelect={(value: string) => {
+            moveOrg = value;
+            $.ui.invalidate("ui.render");
+          }}
+        />
+      ) : null}
+      {Select && (moveChoices.regions ?? []).length > 1 ? (
+        <Box flexDirection="column">
+          <Select
+            key="move-region"
+            label="Where it runs"
+            options={moveChoices.regions.map((r) => ({ value: r.code, label: r.name }))}
+            value={moveRegion}
+            onSelect={(value: string) => {
+              moveRegion = value;
+              $.ui.invalidate("ui.render");
+            }}
+          />
+          <Text dimColor>
+            Picked from where this computer is. Choose where most of your app's users are: it's
+            faster for them.
+          </Text>
+        </Box>
+      ) : null}
+      {org?.plan === "free" && org?.freeLeft === 0 ? (
+        <Box flexDirection="column" rowGap={1}>
+          <Text color="warning">
+            Supabase runs 2 free projects per person, counted across all your organizations, and you
+            already run{" "}
+            {(moveChoices.freeProjects ?? [])
+              .map((p) => `${p.name} (${p.organization})`)
+              .join(" and ") || "2"}
+            .
+          </Text>
+          <Text dimColor>
+            Pause one in Supabase (Project settings → Pause project), then check again. Or pick an
+            organization on a paid plan.
+          </Text>
+          {loadingMove ? (
+            <Text dimColor>Checking your Supabase account…</Text>
+          ) : (
+            <Box flexDirection="row" columnGap={2} alignItems="center">
+              <Button
+                key="move-recheck"
+                variant="secondary"
+                onPress={() => background(loadMove($))}
+              >
+                Check again
+              </Button>
+              <Button key="move-create-anyway" plain onPress={() => background(pilot($, request))}>
+                Try anyway
+              </Button>
+            </Box>
+          )}
+        </Box>
+      ) : (
+        <Box flexDirection="row" columnGap={2} alignItems="center">
+          {pilotButton($, ui, "move-create", "Create it", request)}
+          <Text dimColor>{org?.cost ?? ""}</Text>
+        </Box>
+      )}
+    </Box>
+  );
+}
+
+/** Lovable: the data export, which Claude reads once the builder has downloaded it. */
+function exportStep($: EngineInterface, { ui, s }: StepView) {
+  const { Box, Text } = ui;
+  return (
+    <Box flexDirection="column" rowGap={1}>
+      {numbered(ui, [
+        ...EXPORT_CLICKS,
+        "Lovable emails you a download link (it's also in Cloud → Storage). Download the zip.",
+      ])}
+      <Box flexDirection="row" columnGap={2} alignItems="center">
+        {pilotButton(
+          $,
+          ui,
+          "move-export",
+          "I've downloaded it",
+          `Moving off Lovable: I've downloaded my Lovable export. Read it with \`${moveCommand($, ["export"])}\` and tell me what's in it.`,
+        )}
+        {openLovable(ui, s)}
+      </Box>
+      <Text dimColor>
+        Clodable finds it in your Downloads. Lovable allows one export a day, while your backend is
+        running.
+      </Text>
+    </Box>
+  );
+}
+
+/** The data copy. Once it's in, the database's encrypted secrets are the step's last part. */
+function copyStep($: EngineInterface, { ui, step }: StepView) {
+  const { Box, Text } = ui;
+  const again = step.state === "attention";
+  if (!again && (move?.vaultLeft ?? []).length > 0) return vaultSecrets($, ui);
+  return (
+    <Box flexDirection="column" rowGap={1}>
+      {planNote(ui, "data")}
+      {again ? (
+        copyChecks(ui)
+      ) : (
+        <Text dimColor>
+          Your people, tables and settings go into your new backend. Your live app keeps running on
+          Lovable meanwhile.
+        </Text>
+      )}
+      {pilotButton(
+        $,
+        ui,
+        "move-copy",
+        again ? "Copy again" : "Copy my data",
+        `Moving off Lovable: copy my data into my new backend with \`${moveCommand($, ["copy"])}\`, then make sure my app works on it.`,
+      )}
+    </Box>
+  );
+}
+
+/** The database's encrypted secrets, which Lovable can't hand over: pasted one by one. */
+function vaultSecrets($: EngineInterface, ui: PaneUi) {
+  const { Box, Text } = ui;
+  const missing = ((move?.vaultLeft ?? []) as string[]).filter(
+    (name) => !(moveVault?.set ?? []).includes(name),
+  );
+  return (
+    <Box flexDirection="column" rowGap={1}>
+      <Text>
+        Your database keeps {plural(missing.length, "secret")} Lovable can't hand over (they're
+        encrypted). In Lovable, open More → Cloud → SQL editor, run this, then paste each value
+        here. It goes straight into your new backend.
+      </Text>
+      {moveVault?.query ? (
+        sqlBlock($, ui, "move-vault-query", moveVault.query)
+      ) : (
+        <Text dimColor>…</Text>
+      )}
+      {missing.map((name) =>
+        pasteField(ui, `move-vault-${name}`, name, (value) =>
+          background(moveWith($, ["vault-secret", name], value)),
+        ),
+      )}
+      {goOnWithout($, ui, "move-vault-skip", "vault", missing.length)}
+    </Box>
+  );
+}
+
+/** The uploaded files, copied as they are; private folders need Lovable Cloud's key once. */
+function filesStep($: EngineInterface, { ui }: StepView) {
+  const { Box, Text } = ui;
+  const waiting = move?.files?.waiting ?? [];
+  const tooBig = move?.files?.tooBig ?? 0;
+  if (waiting.length === 0) {
+    return (
+      <Box flexDirection="column" rowGap={1}>
+        <Text dimColor>The images and documents people uploaded, copied as they are.</Text>
+        {planNote(ui, "files")}
+        {tooBig > 0 ? (
+          <Text color="warning">
+            {plural(tooBig, "file")} {tooBig === 1 ? "is" : "are"} larger than your Supabase plan
+            accepts.
+          </Text>
+        ) : null}
+        {pilotButton(
+          $,
+          ui,
+          "move-files",
+          move?.files ? "Copy the rest" : "Copy my files",
+          `Moving off Lovable: copy my uploaded files to my new backend with \`${moveCommand($, ["files"])}\`.`,
+        )}
+      </Box>
+    );
+  }
+  if (!move?.vaultKey) {
+    return (
+      <Text>
+        Your private folders ({waiting.join(", ")}) can't be copied on their own yet: download those
+        files in Lovable (More → Cloud → Storage) and upload them in Supabase, or ask a developer.
+      </Text>
+    );
+  }
+  return (
+    <Box flexDirection="column" rowGap={1}>
+      <Text>
+        Your private folders ({waiting.join(", ")}) need Lovable Cloud's service key, to read them
+        once.
+      </Text>
+      <Text dimColor>
+        In Lovable, run this query (or ask Lovable's chat to run it), then paste the result here.
+        It's used for this copy only and never saved.
+      </Text>
+      {sqlBlock($, ui, "move-service-key-query", SERVICE_KEY_QUERY)}
+      {field(ui, "move-source-key", "eyJ…", "Copy them", (value) =>
+        background(moveWith($, ["files", "--private"], value)),
+      )}
+    </Box>
+  );
+}
+
+/** The backend functions, deployed together. Then the secret keys they read. */
+function functionsStep($: EngineInterface, { ui, step }: StepView) {
+  const { Box, Text } = ui;
+  const again = step.state === "attention";
+  if (!again && (move?.secretsLeft ?? []).length > 0) {
+    const missing = ((move?.secretsLeft ?? []) as string[]).filter(
+      (name) => !(moveSecrets?.set ?? []).includes(name),
+    );
+    return (
+      <Box flexDirection="column" rowGap={1}>
+        {missing.length > 0 ? (
+          <Text>
+            Your functions use {plural(missing.length, "secret key")}. Paste each value from the
+            service it belongs to (Lovable doesn't show them). They go straight to Supabase.
+          </Text>
+        ) : null}
+        {missing.map((name) =>
+          pasteField(ui, `move-secret-${name}`, name, (value) =>
+            background(moveWith($, ["secret", name], value)),
+          ),
+        )}
+        {goOnWithout($, ui, "move-secrets-skip", "secrets", missing.length)}
+      </Box>
+    );
+  }
+  return (
+    <Box flexDirection="column" rowGap={1}>
+      <Text dimColor>
+        Your {plural(move?.functions ?? 0, "backend function")} go to your new backend, all
+        together.
+      </Text>
+      {pilotButton(
+        $,
+        ui,
+        "move-functions",
+        again ? "Deploy them again" : "Deploy my functions",
+        `Moving off Lovable: deploy my backend functions to my new backend with \`${moveCommand($, ["functions"])}\`.`,
+      )}
+    </Box>
+  );
+}
+
+/** The preview on the copy: the builder tries the app on its new backend. */
+function tryStep($: EngineInterface, { ui }: StepView) {
+  const { Box, Text, Link } = ui;
+  const onCopy =
+    move?.preview === "copy" ? (
+      <Box flexDirection="column" rowGap={1}>
+        <Text>
+          The preview shows your copy: sign in, click around, change things. Your live app is
+          untouched.
+        </Text>
+        <Box flexDirection="row" columnGap={2} alignItems="center">
+          {pilotButton(
+            $,
+            ui,
+            "move-live",
+            "Back to live data",
+            `Switch my preview back to my live data with \`${moveCommand($, ["preview", "live"])}\`.`,
+            "secondary",
+          )}
+          {move?.home ? <Link href={move.home.dashboard} label="Open it in Supabase ↗" /> : null}
+        </Box>
+      </Box>
+    ) : (
+      <Box flexDirection="column" rowGap={1}>
+        <Text dimColor>The preview restarts on your new backend. Your live app is untouched.</Text>
+        {pilotButton(
+          $,
+          ui,
+          "move-try",
+          "Try my app on the copy",
+          `Moving off Lovable: switch my preview to the copy with \`${moveCommand($, ["preview", "copy"])}\`. ${previewRequest(previewUrl)} Then check my app works on it.`,
+        )}
+      </Box>
+    );
+  return (
+    <Box flexDirection="column" rowGap={1}>
+      {settingsFields($, ui, "move-setting", true)}
+      {onCopy}
+    </Box>
+  );
+}
+
+/** Netlify: a token, so each Publish puts the site live there. */
+function netlifyStep($: EngineInterface, { ui }: StepView) {
+  const { Box, Text, Link } = ui;
+  return (
+    <Box flexDirection="column" rowGap={1}>
+      <Text>
+        Your website moves to Netlify, under your own account (free to start). Each Publish will put
+        it live there; your live app stays on Lovable until the switch.
+      </Text>
+      {numbered(ui, [
+        "Open Netlify's token page.",
+        "Create a personal access token named Clodable.",
+        "Paste it here. It stays on this computer.",
+      ])}
+      <Link
+        href="https://app.netlify.com/user/applications#personal-access-tokens"
+        label="Open Netlify's token page ↗"
+      />
+      {field(ui, "move-netlify-token", "Netlify token", "Connect", (value) =>
+        background(moveWith($, ["netlify"], value)),
+      )}
+    </Box>
+  );
+}
+
+/** The site on Netlify. Once it's there, the settings its server code reads are the last part. */
+function siteStep($: EngineInterface, { ui }: StepView) {
+  const { Box, Text, Select } = ui;
+  const settingsLeft: string[] = move?.settingsLeft ?? [];
+  if (settingsLeft.length > 0) {
+    return (
+      <Box flexDirection="column" rowGap={1}>
+        {settingsFields($, ui, "move-setting", true)}
+        {goOnWithout($, ui, "move-settings-skip", "settings", settingsLeft.length)}
+      </Box>
+    );
+  }
+  const teams = moveTeams ?? [];
+  return (
+    <Box flexDirection="column" rowGap={1}>
+      <Text dimColor>
+        Clodable creates the site, points it at your new backend, and sets up Publish to put it live
+        on Netlify through GitHub.
+      </Text>
+      {teams.length > 1 && Select ? (
+        <Select
+          key="move-team"
+          label="Netlify team"
+          options={teams.map((t) => ({ value: t.slug, label: t.name }))}
+          value={moveTeam}
+          onSelect={(value: string) => {
+            moveTeam = value;
+            $.ui.invalidate("ui.render");
+          }}
+        />
+      ) : null}
+      {pilotButton(
+        $,
+        ui,
+        "move-site",
+        "Put my site on Netlify",
+        `Moving off Lovable: put my site on Netlify with \`${moveCommand($, ["site", ...(moveTeam ? ["--account", moveTeam] : [])])}\`, then tell me what's left before I can see it there.`,
+      )}
+    </Box>
+  );
+}
+
+/** Sign-up and password emails from the builder's own domain: a Resend key, a domain, records. */
+function emailsStep($: EngineInterface, { ui }: StepView) {
+  const { Box, Text, Link } = ui;
+  if (!move?.resend) {
+    return (
+      <Box flexDirection="column" rowGap={1}>
+        <Text>
+          Clodable sends your users' sign-up confirmations and password resets from your own domain
+          (like yourapp.com), through your Resend account.
+        </Text>
+        {numbered(ui, [
+          "Sign in to Resend, or sign up (it's free to start).",
+          "API Keys → Create API Key, with Full access.",
+          "Paste the key here. It stays on this computer.",
+        ])}
+        <Link href="https://resend.com/api-keys" label="Open Resend's keys page ↗" />
+        {field(ui, "move-resend-key", "re_…", "Connect", (value) =>
+          background(moveWith($, ["resend"], value)),
+        )}
+        {noEmails($, ui, "No domain of your own yet?")}
+      </Box>
+    );
+  }
+  if (!move.emails) {
+    return (
+      <Box flexDirection="column" rowGap={1}>
+        <Text>
+          Which domain should your emails come from? One you own, like example.com: they'll come
+          from no-reply@ that domain.
+        </Text>
+        {domainField($, ui, "move-email-domain", "example.com", "Set it up", true, (domain) =>
+          background(
+            pilot(
+              $,
+              `Moving off Lovable: set up emails for my users from ${domain} with \`${moveCommand($, ["emails", "--domain", domain])}\`, then tell me what to do at my domain's provider.`,
+            ),
+          ),
+        )}
+        {noEmails($, ui, "No domain of your own yet?")}
+      </Box>
+    );
+  }
+  const records = move.emails.records ?? [];
+  return (
+    <Box flexDirection="column" rowGap={1}>
+      <Text>
+        Add {records.length === 1 ? "this record" : `these ${records.length} records`} where you
+        manage {move.emails.domain} (where you bought it: Namecheap, GoDaddy, Cloudflare…). They can
+        take a few minutes to show, sometimes a few hours.
+      </Text>
+      {dnsRecords($, ui, "record", records)}
+      <Box flexDirection="row" columnGap={2} alignItems="center">
+        {pilotButton(
+          $,
+          ui,
+          "move-emails-check",
+          "Check again",
+          `Moving off Lovable: check whether ${move.emails.domain}'s email records are in place with \`${moveCommand($, ["emails"])}\`, and finish setting up my emails if they are.`,
+        )}
+      </Box>
+      {noEmails($, ui, "Rather do this later?")}
+    </Box>
+  );
+}
+
+/** Said in each request that switches a service: the app keeps working on Lovable until the end. */
+const KEEP_LOVABLE_WORKING =
+  "Keep Lovable's as the fallback when that key isn't set, so my app keeps working on Lovable until the switch.";
+
+/** The services the app reaches through Lovable (AI, its own emails, connectors), one at a time. */
+function servicesStep($: EngineInterface, { ui }: StepView) {
+  const { Box } = ui;
+  const left: string[] = move?.services?.left ?? [];
+  return (
+    <Box flexDirection="column" rowGap={1}>
+      {serviceToSwitch($, ui)}
+      {left.length > 0
+        ? skipRow($, ui, {
+            key: "move-services-skip",
+            part: "services",
+            question: "Rather not switch now?",
+            label: "Go on without them",
+            cost: `Then ${left.join(", ")} stop working when Lovable goes. Claude can switch them later.`,
+          })
+        : null}
+    </Box>
+  );
+}
+
+/** The next service to switch off Lovable, with what the builder does for it. */
+function serviceToSwitch($: EngineInterface, ui: PaneUi): RenderElement | null {
+  const { Box, Text, Link, Select } = ui;
+  const sv = move?.services;
+  const emailsOn = Boolean(move?.emails?.connected);
+  if (sv?.ai && !sv.aiSwitched && !sv.aiProvider) {
+    const chosen = AI_PROVIDERS[aiChoice];
+    return (
+      <Box flexDirection="column" rowGap={1}>
+        <Text>
+          Your app's AI features run on Lovable's AI, which stops when it leaves. Clodable moves
+          them to an AI provider of your own.
+        </Text>
+        {Select ? (
+          <Select
+            key="move-ai-provider"
+            label="Provider"
+            options={Object.entries(AI_PROVIDERS).map(([value, p]) => ({ value, label: p.label }))}
+            value={aiChoice}
+            onSelect={(value: string) => {
+              aiChoice = value in AI_PROVIDERS ? (value as AiProvider) : "openrouter";
+              $.ui.invalidate("ui.render");
+            }}
+          />
+        ) : null}
+        {numbered(ui, [
+          `Create a key on ${chosen.name}.`,
+          "Paste it here. It goes to your preview, your site and your backend.",
+        ])}
+        <Link href={chosen.keys} label={`Open ${chosen.name}'s keys page ↗`} />
+        {field(ui, "move-ai-key", "Paste the key", "Save", (value) =>
+          background(moveWith($, ["ai", aiChoice], value)),
+        )}
+      </Box>
+    );
+  }
+  if (sv?.ai && !sv.aiSwitched) {
+    const name = AI_PROVIDERS[sv.aiProvider as AiProvider]?.name ?? sv.aiProvider;
+    return (
+      <Box flexDirection="column" rowGap={1}>
+        <Text>Your {name} key is saved. Claude now points your app's AI features at it.</Text>
+        {pilotButton(
+          $,
+          ui,
+          "move-ai-switch",
+          "Switch my AI features",
+          `Moving off Lovable: switch my app's AI features from Lovable's AI to ${name}. Clodable saved AI_API_URL and AI_API_KEY for my preview, my site and my backend functions: make the code call \`\${AI_API_URL}/chat/completions\` with AI_API_KEY (the same OpenAI-style API). ${KEEP_LOVABLE_WORKING} Deploy my backend functions with \`${moveCommand($, ["functions"])}\` if you changed any, then check it works in the preview.`,
+        )}
+      </Box>
+    );
+  }
+  if (sv?.emails && !sv.emailsSwitched && emailsOn) {
+    return (
+      <Box flexDirection="column" rowGap={1}>
+        <Text>
+          Your app sends its own emails through Lovable. Clodable gives it a Resend key of its own,
+          sending from {move?.emails?.sender}, and Claude switches the sending.
+        </Text>
+        {pilotButton(
+          $,
+          ui,
+          "move-app-emails",
+          "Switch my emails",
+          `Moving off Lovable: switch my app's own emails from Lovable to Resend. Run \`${moveCommand($, ["app-emails"])}\`: it gives my app RESEND_API_KEY and EMAIL_FROM. Then make the code send through Resend's API with them. ${KEEP_LOVABLE_WORKING} Deploy my backend functions with \`${moveCommand($, ["functions"])}\`${sv.hook ? `, then turn on my own sign-in emails with \`${moveCommand($, ["emails", "--hook"])}\`` : ""}.`,
+        )}
+      </Box>
+    );
+  }
+  if (sv?.emails && !sv.emailsSwitched) {
+    return (
+      <Text>
+        Your app also sends its own emails through Lovable: they move with your emails, in the step
+        above.
+      </Text>
+    );
+  }
+  if (sv?.hook && emailsOn && !sv.hookOn) {
+    return (
+      <Box flexDirection="column" rowGap={1}>
+        <Text>
+          Your app has its own sign-in emails (from Lovable). Clodable turns them on, so
+          confirmations and password resets look like your app.
+        </Text>
+        {pilotButton(
+          $,
+          ui,
+          "move-email-hook",
+          "Turn on my sign-in emails",
+          `Moving off Lovable: turn on my app's own sign-in emails with \`${moveCommand($, ["emails", "--hook"])}\` (deploy my backend functions with \`${moveCommand($, ["functions"])}\` first if it asks).`,
+        )}
+      </Box>
+    );
+  }
+  const names: string[] = sv?.connectors ?? [];
+  if (names.length === 0) return null;
+  return (
+    <Box flexDirection="column" rowGap={1}>
+      <Text>
+        Your app reaches {names.join(", ")} through Lovable's connectors, which stop when it leaves.
+        Paste your own key for each: it goes to your preview and your site.
+      </Text>
+      {names.map((name) =>
+        pasteField(
+          ui,
+          `move-connector-${name}`,
+          name,
+          (value) => background(saveSetting($, connectorSetting(name), value)),
+          { placeholder: `Your ${name} key` },
+        ),
+      )}
+      {pilotButton(
+        $,
+        ui,
+        "move-connectors",
+        "Switch them",
+        `Moving off Lovable: my app reaches ${names.join(", ")} through Lovable's connectors (connector-gateway.lovable.dev). Switch each to that service's own API, reading its key from ${names.map(connectorSetting).join(", ")} (process.env on the server; tell me where to paste any that's missing). Check it works in the preview.`,
+      )}
+    </Box>
+  );
+}
+
+/** Google sign-in: a Google client of the builder's own, then Claude switches the button. */
+function googleStep($: EngineInterface, { ui }: StepView) {
+  const { Box, Text, Link } = ui;
+  if (move?.google?.configured) {
+    return (
+      <Box flexDirection="column" rowGap={1}>
+        <Text>
+          Google sign-in is on in your new backend. Claude now switches your app's Google button to
+          it.
+        </Text>
+        {pilotButton(
+          $,
+          ui,
+          "move-google-switch",
+          "Switch my Google sign-in",
+          "Moving off Lovable: my app signs in with Google through Lovable's broker (@lovable.dev/cloud-auth-js), which only works on Lovable. Clodable turned Google on in my new backend and set VITE_GOOGLE_SIGN_IN=supabase for my preview and my site. Make the Google button call supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin } }) when import.meta.env.VITE_GOOGLE_SIGN_IN is 'supabase', and keep Lovable's broker otherwise, so my app keeps working on Lovable until the switch. Check it in the preview.",
+        )}
+      </Box>
+    );
+  }
+  const redirect = move?.google?.redirect as string | undefined;
+  return (
+    <Box flexDirection="column" rowGap={1}>
+      <Text>
+        People sign in to your app with Google. On your new backend that needs a Google client of
+        your own: Clodable turns it on with it.
+      </Text>
+      {numbered(ui, [
+        "In Google Cloud: APIs & Services → Credentials → Create credentials → OAuth client ID → Web application.",
+        "Under Authorized redirect URIs, add this address:",
+      ])}
+      {redirect ? copyable($, ui, "move-google-redirect", "", redirect) : null}
+      <Text>3. Paste the client ID, then its secret, here. The secret stays off the chat.</Text>
+      <Link
+        href="https://console.cloud.google.com/apis/credentials"
+        label="Open Google Cloud's credentials ↗"
+      />
+      {googleClientId
+        ? field(ui, "move-google-secret", "Client secret", "Turn it on", (value) =>
+            background(moveWith($, ["google", googleClientId], value)),
+          )
+        : field(ui, "move-google-id", "…apps.googleusercontent.com", "Next", (value) => {
+            const id = value.trim();
+            if (!/^[\w-]+\.apps\.googleusercontent\.com$/.test(id)) {
+              moveError = {
+                message: "That doesn't look like a Google client ID.",
+                hint: "It ends with .apps.googleusercontent.com.",
+              };
+            } else {
+              googleClientId = id;
+              moveError = null;
+            }
+            $.ui.invalidate("ui.render");
+          })}
+      {skipRow($, ui, {
+        key: "move-google-skip",
+        part: "google",
+        question: "Rather not now?",
+        label: "Leave Google sign-in off",
+      })}
+    </Box>
+  );
+}
+
+/** Going live, part one: the live app pauses, by SQL the builder runs in Lovable. */
+function freezeStep($: EngineInterface, { ui, s, now }: StepView) {
+  const { Box, Text, Button } = ui;
+  const last = move?.lastExport ? new Date(move.lastExport).getTime() : 0;
+  const nextExport = last + 24 * 60 * 60_000;
+  return (
+    <Box flexDirection="column" rowGap={1}>
+      <Text>
+        Now your live app moves over. It pauses for the few minutes this takes: people still see
+        everything and can sign in; changes, new sign-ups and uploads wait until it runs on your new
+        backend.
+      </Text>
+      {nextExport > now ? (
+        <Text color="warning">
+          Lovable allows one export a day: your next one is possible{" "}
+          {new Date(nextExport).toDateString() === new Date(now).toDateString()
+            ? "after"
+            : "tomorrow after"}{" "}
+          {new Date(nextExport).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}.
+          Pause after that, so the pause stays short.
+        </Text>
+      ) : null}
+      <Text>
+        1. In Lovable, open More → Cloud → SQL editor, paste this and run it. It also stops your
+        app's scheduled jobs there:
+      </Text>
+      {pausePlan ? sqlBlock($, ui, "move-freeze", pausePlan.freeze) : <Text dimColor>…</Text>}
+      <Text>2. Then tell Clodable.</Text>
+      <Box flexDirection="row" columnGap={2} alignItems="center">
+        <Button
+          key="move-paused"
+          variant="primary"
+          onPress={() => background(moveStep($, ["paused"]))}
+        >
+          I've paused it
+        </Button>
+        {openLovable(ui, s)}
+      </Box>
+    </Box>
+  );
+}
+
+/** Going live, part two: the last export, with everything written until the pause. */
+function finalExportStep($: EngineInterface, { ui, s }: StepView) {
+  const { Box, Text } = ui;
+  return (
+    <Box flexDirection="column" rowGap={1}>
+      <Text>
+        Your live app is paused. Export your data once more: this export has everything people wrote
+        until the pause.
+      </Text>
+      {numbered(ui, [...EXPORT_CLICKS, "Download the zip from the email Lovable sends."])}
+      <Box flexDirection="row" columnGap={2} alignItems="center">
+        {pilotButton(
+          $,
+          ui,
+          "move-final-export",
+          "I've downloaded it",
+          `Moving off Lovable: I've downloaded my final Lovable export, made after the pause. Read it with \`${moveCommand($, ["export"])}\` and tell me what's in it.`,
+        )}
+        {openLovable(ui, s)}
+      </Box>
+      {undoPause($, ui)}
+    </Box>
+  );
+}
+
+/** Going live, part three: the last export replaces the copy, for good. */
+function finalCopyStep($: EngineInterface, { ui, step }: StepView) {
+  const { Box, Text } = ui;
+  const again = step.state === "attention";
+  const hasFiles = (move?.steps ?? []).some((x) => x.id === "files");
+  return (
+    <Box flexDirection="column" rowGap={1}>
+      {again ? (
+        copyChecks(ui)
+      ) : (
+        <Text dimColor>
+          Your data as of the pause replaces the copy (what you tried on it goes), with your app's
+          scheduled jobs. Your new backend then takes changes again.
+        </Text>
+      )}
+      {pilotButton(
+        $,
+        ui,
+        "move-final-copy",
+        again ? "Copy again" : "Copy it in for good",
+        `Moving off Lovable: copy my final export into my new backend for good with \`${moveCommand($, ["copy"])}\`${hasFiles ? `, then copy the files uploaded since with \`${moveCommand($, ["files"])}\`` : ""}, and make sure everything is there.`,
+      )}
+      {undoPause($, ui)}
+    </Box>
+  );
+}
+
+/** Going live: who may sign up, what to change elsewhere (payments, scheduled jobs), then go. */
+function goLiveStep($: EngineInterface, { ui }: StepView) {
+  const { Box, Text, Select } = ui;
+  const emailsOn = Boolean(move?.emails?.connected);
+  // Without emails, nobody can confirm one: that choice isn't offered.
+  const people = !emailsOn && newPeople === "confirm" ? "open" : newPeople;
+  const jobs = move?.lovableJobs as { count: number; stop: string } | undefined;
+  const webhooks: Array<{ name: string; url: string }> = move?.stripeWebhooks ?? [];
+  return (
+    <Box flexDirection="column" rowGap={1}>
+      <Text dimColor>
+        Clodable points your app's files and its sign-in at your new backend and at{" "}
+        {move?.site?.url ?? "your site"}. Then Publish puts it live.
+      </Text>
+      {Select ? (
+        <Select
+          key="move-new-people"
+          label="New people"
+          options={[
+            ...(emailsOn ? [{ value: "confirm", label: "Sign up, confirming their email" }] : []),
+            { value: "open", label: "Sign up straight away" },
+            { value: "invite", label: "Only people you invite" },
+          ]}
+          value={people}
+          onSelect={(value: string) => {
+            newPeople = value === "invite" ? "invite" : value === "open" ? "open" : "confirm";
+            $.ui.invalidate("ui.render");
+          }}
+        />
+      ) : null}
+      {webhooks.length > 0 ? (
+        <Box flexDirection="column" rowGap={1}>
+          <Text>
+            Your payments: in Stripe → Developers → Webhooks, change your endpoint's address to your
+            new backend when you go live (its signing secret stays the same):
+          </Text>
+          {webhooks.map((w, i) => copyable($, ui, `move-stripe-${i}`, "", w.url))}
+        </Box>
+      ) : null}
+      {jobs ? (
+        <Box flexDirection="column" rowGap={1}>
+          <Text>
+            Your app has {plural(jobs.count, "scheduled job")}: going live starts them here. First
+            stop them in Lovable (More → Cloud → SQL editor), so they don't run twice:
+          </Text>
+          {sqlBlock($, ui, "move-stop-jobs", jobs.stop)}
+        </Box>
+      ) : null}
+      {move?.cronKey ? (
+        <Text>
+          Your scheduled jobs call your app with a key Lovable keeps. Once live, ask Claude to give
+          them one of your own.
+        </Text>
+      ) : null}
+      {moveMethod() === "quick" ? (
+        <Text dimColor>
+          Your data is as of your export
+          {move?.lastExport
+            ? ` (${new Date(move.lastExport).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })})`
+            : ""}
+          . Anything written in your Lovable app since stays there.
+        </Text>
+      ) : null}
+      {pilotButton(
+        $,
+        ui,
+        "move-golive",
+        "Go live",
+        `Moving off Lovable: switch my app to its new backend and site with \`${moveCommand($, ["golive", "--sign-up", people === "invite" ? "no" : "yes", ...(emailsOn ? ["--confirm-email", people === "confirm" ? "yes" : "no"] : [])])}\`, then tell me what changed and how to put it live.`,
+      )}
+    </Box>
+  );
+}
+
+/** The app's own domain, moved to the new site once a Publish has put it there. */
+function domainStep($: EngineInterface, { ui }: StepView) {
+  const { Box, Text } = ui;
+  const publishedSinceLive = Boolean(
+    move?.site?.liveAt && move.site.liveAt > (move.switch?.liveAt ?? ""),
+  );
+  if (!publishedSinceLive) {
+    // Right after going live, one thing only: Publish puts it there.
+    return (
+      <Text>
+        First, Publish (in the Clodable bar): it puts your app live at{" "}
+        {move?.site?.url ?? "its new address"}.
+      </Text>
+    );
+  }
+  if (move?.domain) {
+    const records = move.domain.records ?? [];
+    return (
+      <Box flexDirection="column" rowGap={1}>
+        <Text>
+          Where you manage {move.domain.name} (where you bought it), replace the records that point
+          to Lovable with {records.length === 1 ? "this one" : "these"}. They can take a few minutes
+          to show, sometimes a few hours.
+        </Text>
+        {dnsRecords($, ui, "domain-record", records)}
+        <Box flexDirection="row" columnGap={2} alignItems="center">
+          {pilotButton(
+            $,
+            ui,
+            "move-domain-check",
+            "Check again",
+            `Moving off Lovable: check whether ${move.domain.name} points to my new site with \`${moveCommand($, ["domain"])}\`, and tell me what's left if it doesn't.`,
+          )}
+        </Box>
+      </Box>
+    );
+  }
+  return (
+    <Box flexDirection="column" rowGap={1}>
+      <Text>
+        Your app is live at {move?.site ? new URL(move.site.url).host : "its new address"}. Does it
+        have its own domain, like yourapp.com? Clodable moves it to your new site before Lovable
+        goes.
+      </Text>
+      {domainField($, ui, "move-domain", "yourapp.com", "Move it", false, (domain) =>
+        background(
+          pilot(
+            $,
+            `Moving off Lovable: move my domain ${domain} to my new site with \`${moveCommand($, ["domain", domain])}\`, then tell me what to change at my domain's provider.`,
+          ),
+        ),
+      )}
+      {skipRow($, ui, {
+        key: "move-domain-skip",
+        part: "domain",
+        question: "No domain of its own?",
+        label: "Keep this address",
+      })}
+    </Box>
+  );
+}
+
+/** The last clicks in Lovable, once the builder has signed in on the new site. */
+function lovableStep($: EngineInterface, { ui, s, now }: StepView) {
+  const { Box, Text, Button, Link } = ui;
+  const liveAddress: string =
+    (s.liveUrl && !/lovable\.app/.test(s.liveUrl) ? s.liveUrl : undefined) ??
+    move?.site?.url ??
+    "your new address";
+  if (move?.signIn?.needed && !move.signIn.at) {
+    // Proof first: the app works on its new home before its old one goes.
+    return (
+      <Box flexDirection="column" rowGap={1}>
+        <Text>
+          Sign in on your new site with your own account and change something. Lovable's last steps
+          show once Clodable sees you signed in there.
+        </Text>
+        <Box flexDirection="row" columnGap={2} alignItems="center">
+          <Link href={liveAddress} label="Open your site ↗" />
+          <Button
+            key="move-signed-in"
+            variant="secondary"
+            onPress={() => background(checkSignIn($))}
+          >
+            I've signed in
+          </Button>
+        </Box>
+      </Box>
+    );
+  }
+  const signedIn = move?.signIn?.at as string | undefined;
+  const message = move?.signIn?.needed
+    ? `We've moved ${s.project} to ${liveAddress}. Sign in with your usual email and password: nothing else changes.`
+    : `We've moved ${s.project} to ${liveAddress}.`;
+  return (
+    <Box flexDirection="column" rowGap={1}>
+      {signedIn ? (
+        <Text color="success">✓ You signed in on your new site, {ago(signedIn, now)}.</Text>
+      ) : null}
+      <Text>Now finish in Lovable, in this order:</Text>
+      {numbered(ui, [
+        "Unpublish your app (More → Settings → General → Unpublish project), so nobody keeps using its Lovable address.",
+        "More → Settings → Git → GitHub → Disconnect, so Lovable stops changing your code.",
+        "More → Cloud → Overview → Advanced settings → Remove Lovable Cloud. Tick both boxes and type your project's name. This deletes Lovable's copy of your data, for good.",
+      ])}
+      <Box flexDirection="row" columnGap={2} alignItems="center">
+        <Button key="move-finished" variant="primary" onPress={() => background(finishMove($))}>
+          I've done it
+        </Button>
+        {openLovable(ui, s)}
+      </Box>
+      <Box flexDirection="column" rowGap={1} marginTop={1}>
+        <Text dimColor>A message for your users, if you'd like one:</Text>
+        <Box flexDirection="row" columnGap={1} alignItems="center">
+          <Text>{message}</Text>
+          <Button key="move-users-message-copy" plain onPress={() => $.ui.copy({ text: message })}>
+            Copy
+          </Button>
+        </Box>
+      </Box>
+    </Box>
+  );
+}
+
+// The move's shared pieces.
+
+/** A button that hands a part of the move to Claude, as the builder's request. */
+function pilotButton(
+  $: EngineInterface,
+  ui: PaneUi,
+  key: string,
+  label: string,
+  request: string,
+  variant: "primary" | "secondary" = "primary",
+) {
+  const { Button } = ui;
+  return (
+    <Button key={key} variant={variant} onPress={() => background(pilot($, request))}>
+      {label}
+    </Button>
+  );
+}
+
+/** Clicks for the builder to make elsewhere, numbered. */
+function numbered(ui: PaneUi, lines: string[]) {
+  const { Box, Text } = ui;
+  return (
+    <Box flexDirection="column">
+      {lines.map((line, i) => (
+        <Text>{`${i + 1}. ${line}`}</Text>
+      ))}
+    </Box>
+  );
+}
+
+/** The project in Lovable, when its address is known. */
+function openLovable(ui: PaneUi, s: ClodableStatus) {
+  const { Link } = ui;
+  return s.lovableUrl ? <Link href={s.lovableUrl} label="Open Lovable ↗" /> : null;
+}
+
+/** A value only the builder has (a secret key, a setting), pasted under its name. */
+function pasteField(
+  ui: PaneUi,
+  key: string,
+  name: string,
+  save: (value: string) => void,
+  { placeholder = "Paste the value", note }: { placeholder?: string; note?: string } = {},
+) {
+  const { Box, Text } = ui;
+  return (
+    <Box key={`${key}-row`} flexDirection="column">
+      <Text bold>{name}</Text>
+      {note ? <Text dimColor>{note}</Text> : null}
+      {field(ui, key, placeholder, "Save", save)}
+    </Box>
+  );
+}
+
+/** A field for a domain the builder owns. Anything else typed says so, in place. */
+function domainField(
+  $: EngineInterface,
+  ui: PaneUi,
+  key: string,
+  example: string,
+  submit: string,
+  bare: boolean,
+  use: (domain: string) => void,
+) {
+  return field(ui, key, example, submit, (value) => {
+    const domain = typedDomain(value, { bare });
+    if (domain) {
+      use(domain);
+      return;
+    }
+    moveError = {
+      message: `“${value.trim()}” isn't a domain name.`,
+      hint: `Just the domain, like ${example}.`,
+    };
+    $.ui.invalidate("ui.render");
+  });
+}
+
+/** DNS records to add at the domain's provider, each part with its Copy button. */
+function dnsRecords($: EngineInterface, ui: PaneUi, key: string, records: ClodableDnsRecord[]) {
+  const { Box, Text } = ui;
+  return records.map((r, i) => (
+    <Box key={`${key}-${i}`} flexDirection="column">
+      <Text bold>
+        {r.type}
+        {r.priority !== undefined ? `  · priority ${r.priority}` : ""}
+      </Text>
+      {copyable($, ui, `${key}-${i}-name`, "Name ", r.name)}
+      {copyable($, ui, `${key}-${i}-value`, "Value", r.value)}
+    </Box>
+  ));
+}
+
+/** The way past a part of the move the builder can't or won't do now, and what it costs. */
+function skipRow(
+  $: EngineInterface,
+  ui: PaneUi,
+  way: { key: string; part: string; question: string; label: string; cost?: string },
+) {
+  const { Box, Text, Button } = ui;
+  return (
+    <Box flexDirection="column" rowGap={1} marginTop={1}>
+      <Box flexDirection="row" columnGap={2} alignItems="center">
+        <Text>{way.question}</Text>
+        <Button
+          key={way.key}
+          variant="secondary"
+          onPress={() => background(moveStep($, [way.part, "--skip"]))}
+        >
+          {way.label}
+        </Button>
+      </Box>
+      {way.cost ? <Text dimColor>{way.cost}</Text> : null}
+    </Box>
+  );
+}
+
+/** Going on without what's left of a step: the values the builder doesn't have yet. */
+function goOnWithout(
+  $: EngineInterface,
+  ui: PaneUi,
+  key: string,
+  part: "settings" | "secrets" | "vault",
+  count: number,
+) {
+  return skipRow($, ui, {
+    key,
+    part,
+    question: count === 1 ? "Don't have it yet?" : "Don't have them yet?",
+    label: count === 1 ? "Go on without it" : "Go on without them",
+  });
+}
+
+/** Going on without emails of the app's own, and what that costs its users. */
+function noEmails($: EngineInterface, ui: PaneUi, question: string) {
+  return skipRow($, ui, {
+    key: "move-no-emails",
+    part: "emails",
+    question,
+    label: "Continue without emails",
+    cost: "New people then sign in without confirming their email, and nobody can reset a forgotten password. You can add emails later.",
+  });
+}
+
+/** What the copy's checks found, one line each. */
+function copyChecks(ui: PaneUi) {
+  const { Box, Text } = ui;
+  return (
+    <Box flexDirection="column">
+      {(move?.checks ?? []).map((c) => (
+        <Text key={`check-${c.id}`} {...(c.ok ? {} : { color: "warning" })}>
+          {c.ok ? "✓" : "!"} {c.label}
+          {c.detail && !c.ok ? `  · ${c.detail}` : ""}
+        </Text>
+      ))}
+    </Box>
+  );
+}
+
+/** Larger than Supabase's free plan holds: said before copying, while upgrading is easy. */
+function planNote(ui: PaneUi, kind: "data" | "files") {
+  const { Box, Text } = ui;
+  const plan = move?.plan as
+    | { data: number; dataLimit: number; files: number; filesLimit: number }
+    | undefined;
+  if (!plan) return null;
+  const limit = kind === "data" ? plan.dataLimit : plan.filesLimit;
+  if (plan[kind] <= limit) return null;
+  return (
+    <Box flexDirection="column">
+      <Text color="warning">
+        Your {kind === "data" ? "data takes about" : "files take"} {sizeOf(plan[kind])}: Supabase's
+        free plan holds {sizeOf(limit)}.
+      </Text>
+      <Text dimColor>
+        Move your organization to Pro first (about $25 a month, in Supabase: Organization settings →
+        Billing), or the copy stops when it's full.
+      </Text>
+    </Box>
+  );
+}
+
+/** While the live app is paused: the SQL that undoes the pause, should the builder change their mind. */
+function undoPause($: EngineInterface, ui: PaneUi) {
+  const { Box, Text } = ui;
+  if (!pausePlan) return null;
+  return (
+    <Box flexDirection="column" rowGap={1}>
+      <Text dimColor>Changed your mind? Run this in Lovable to undo the pause:</Text>
+      {sqlBlock($, ui, "move-undo", pausePlan.undo)}
+    </Box>
+  );
+}
+
+/** The settings the app's server code reads, still to paste: for the preview, and the site. */
+function settingsFields($: EngineInterface, ui: PaneUi, key: string, fromLovable: boolean) {
+  const { Box, Text } = ui;
+  const st = appSettingsStatus;
+  const missing = (st?.wanted ?? []).filter(
+    (name) => !st?.local.includes(name) || (st.site !== undefined && !st.site.includes(name)),
+  );
+  if (missing.length === 0) return null;
+  return (
+    <Box flexDirection="column" rowGap={1}>
+      <Text>
+        Your app's server code reads {plural(missing.length, "setting")} (environment variables).
+        {fromLovable ? " On Lovable they're listed in More → Cloud → Secrets." : ""} Paste each one
+        here: it goes to your preview
+        {st?.site ? " and to your site on Netlify" : ", and stays on this computer"}.
+      </Text>
+      {missing.map((name) =>
+        pasteField(ui, `${key}-${name}`, name, (value) => background(saveSetting($, name, value)), {
+          ...(st?.site?.includes(name)
+            ? {
+                note: "Already on your site. Paste it again for your preview: Netlify keeps it secret.",
+              }
+            : {}),
+        }),
+      )}
+    </Box>
+  );
+}
+
 // ── Setup helpers (top level, so they can use $) ─────────────────────────────
 
 async function loadRepos($: EngineInterface) {
@@ -4092,26 +4001,36 @@ async function loadRepos($: EngineInterface) {
   $.ui.invalidate("ui.render");
 }
 
-async function bringIn($: EngineInterface) {
-  const repo = chosenRepo || repoChoices[0]?.value;
-  if (!repo || !/^[\w.-]+\/[\w.-]+$/.test(repo)) {
-    $.ui.toast("Type your repository as owner/name, for example acme/website.");
-    return;
-  }
-  if (settingUp) return;
+/**
+ * `clodable setup` from the panel: its button gives way to a note meanwhile, and a setup that
+ * didn't finish says why. Its result when it did.
+ */
+async function runSetup($: EngineInterface, args: string[]): Promise<Result | undefined> {
+  if (settingUp) return undefined;
   settingUp = true;
   $.ui.invalidate("ui.render");
   let result: Result;
   try {
-    result = await cli($, ["setup", "--repo", repo, "--yes"], MAX_RUN_MS);
+    result = await cli($, ["setup", ...args, "--yes"], MAX_RUN_MS);
   } finally {
     settingUp = false;
     $.ui.invalidate("ui.render");
   }
   if (!result.ok) {
     $.ui.toast(result.error?.message ?? "Setup didn't finish.");
+    return undefined;
+  }
+  return result;
+}
+
+async function bringIn($: EngineInterface) {
+  const repo = chosenRepo || repoChoices[0]?.value;
+  if (!repo || !/^[\w.-]+\/[\w.-]+$/.test(repo)) {
+    $.ui.toast("Type your repository as owner/name, for example acme/website.");
     return;
   }
+  const result = await runSetup($, ["--repo", repo]);
+  if (!result) return;
   const root = String(result.data?.root ?? "");
   if (root && root !== cwd) {
     await $.ui
@@ -4128,20 +4047,7 @@ async function bringIn($: EngineInterface) {
 }
 
 async function setUpHere($: EngineInterface) {
-  if (settingUp) return;
-  settingUp = true;
-  $.ui.invalidate("ui.render");
-  let result: Result;
-  try {
-    result = await cli($, ["setup", "--yes"], MAX_RUN_MS);
-  } finally {
-    settingUp = false;
-    $.ui.invalidate("ui.render");
-  }
-  if (!result.ok) {
-    $.ui.toast(result.error?.message ?? "Setup didn't finish.");
-    return;
-  }
+  if (!(await runSetup($, []))) return;
   $.ui.toast("Your app is ready. Ask Claude for any change.");
   await refreshStatus($);
   await refreshChecks($);

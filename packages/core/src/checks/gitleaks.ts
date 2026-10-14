@@ -1,9 +1,10 @@
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { chmod, mkdir, mkdtemp, rename, rm, writeFile } from "node:fs/promises";
-import { homedir } from "node:os";
 import { join } from "node:path";
+import { messageOf } from "../errors.js";
 import { exec, hasCommand } from "../exec.js";
+import { cacheDir } from "../places.js";
 
 /**
  * gitleaks (https://github.com/gitleaks/gitleaks, MIT) finds the secrets, with about 220 rules its
@@ -48,16 +49,6 @@ export class ScannerUnavailable extends Error {
   }
 }
 
-/** Where Clodable keeps its tools: the usual cache folder of each system. */
-export function cacheDir(): string {
-  if (process.env.CLODABLE_CACHE_DIR) return process.env.CLODABLE_CACHE_DIR;
-  if (process.platform === "darwin") return join(homedir(), "Library", "Caches", "clodable");
-  if (process.platform === "win32") {
-    return join(process.env.LOCALAPPDATA ?? join(homedir(), "AppData", "Local"), "clodable");
-  }
-  return join(process.env.XDG_CACHE_HOME ?? join(homedir(), ".cache"), "clodable");
-}
-
 const executable = process.platform === "win32" ? "gitleaks.exe" : "gitleaks";
 let resolved: Promise<string> | undefined;
 
@@ -85,7 +76,7 @@ async function locate(): Promise<string> {
       await download(release, dir, path);
       return path;
     } catch (error) {
-      reason = `Couldn't download gitleaks ${GITLEAKS_VERSION}: ${error instanceof Error ? error.message : String(error)}`;
+      reason = `Couldn't download gitleaks ${GITLEAKS_VERSION}: ${messageOf(error)}`;
     }
   }
   if (await hasCommand("gitleaks")) return "gitleaks";

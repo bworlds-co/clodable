@@ -1,7 +1,9 @@
 import { randomBytes } from "node:crypto";
 import { existsSync } from "node:fs";
-import { mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { readdir, readFile, rename, rm } from "node:fs/promises";
 import { join } from "node:path";
+import { z } from "zod";
+import { writeJsonFile } from "./places.js";
 
 /**
  * The inbox: how the preview toolbar (which must stay vendor-neutral) hands work to whatever
@@ -71,37 +73,88 @@ export type NewInboxItem = InboxItem extends infer T
     : never
   : never;
 
+const Page = z.object({ url: z.string(), path: z.string(), title: z.string().optional() });
+const Source = z.object({
+  file: z.string(),
+  line: z.number().int(),
+  column: z.number().int().optional(),
+  element: z.string().optional(),
+});
+const ToolbarRequest = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal("fix"),
+    page: Page,
+    error: z.object({
+      message: z.string(),
+      stack: z.string().optional(),
+      source: Source.optional(),
+      kind: z.enum(["runtime", "build", "promise"]),
+    }),
+    console: z.array(z.string()).optional(),
+  }),
+  z.object({
+    kind: z.literal("ask"),
+    page: Page,
+    source: Source.optional(),
+    request: z.string().min(1),
+    element: z.string().optional(),
+  }),
+]);
+
+/**
+ * What the preview toolbar posts (Try to fix, Point & ask), checked: the toolbar runs inside the
+ * app's page, so the front end only ever reads the fields it expects. Anything else is undefined.
+ */
+export function toolbarRequest(body: unknown): NewInboxItem | undefined {
+  const parsed = ToolbarRequest.safeParse(body);
+  return parsed.success ? parsed.data : undefined;
+}
+
+/** The page a toolbar request came from, checked. */
+export function toolbarPage(value: unknown): PageRef | undefined {
+  const parsed = Page.safeParse(value);
+  return parsed.success ? parsed.data : undefined;
+}
+
 export async function writeInbox(root: string, item: NewInboxItem): Promise<InboxItem> {
-  const dir = join(root, INBOX_DIR);
-  await mkdir(dir, { recursive: true });
   const createdAt = new Date().toISOString();
   const id = `${item.kind}-${createdAt.replace(/[-:.TZ]/g, "")}-${randomBytes(3).toString("hex")}`;
   const full = { ...item, id, createdAt } as InboxItem;
-  // Write to a temp name and rename, so readers never see half a file.
-  const tmp = join(dir, `.${id}.tmp`);
-  await writeFile(tmp, JSON.stringify(full, null, 2));
-  await rename(tmp, join(dir, `${id}.json`));
+  // Readers take only `.json` files, so they never see one being written.
+  await writeJsonFile(join(root, INBOX_DIR, `${id}.json`), full);
   return full;
 }
 
-export async function readInbox(root: string): Promise<InboxItem[]> {
+/** The requests waiting, oldest first, with their files. A malformed one can't be anyone's: dropped. */
+async function waiting(root: string): Promise<Array<{ name: string; item: InboxItem }>> {
   const dir = join(root, INBOX_DIR);
   if (!existsSync(dir)) return [];
-  const names = (await readdir(dir)).filter((n) => n.endsWith(".json")).sort();
-  const items: InboxItem[] = [];
-  for (const name of names) {
+  const found: Array<{ name: string; item: InboxItem }> = [];
+  for (const name of (await readdir(dir)).filter((n) => n.endsWith(".json")).sort()) {
+    let text: string;
     try {
-      items.push(JSON.parse(await readFile(join(dir, name), "utf8")) as InboxItem);
+      text = await readFile(join(dir, name), "utf8");
     } catch {
-      // A malformed item is dropped so it can't block the queue.
+      continue; // Another conversation took it meanwhile.
+    }
+    try {
+      found.push({ name, item: JSON.parse(text) as InboxItem });
+    } catch {
       await rm(join(dir, name), { force: true });
     }
   }
-  return items;
+  return found;
 }
 
+export async function readInbox(root: string): Promise<InboxItem[]> {
+  return (await waiting(root)).map((w) => w.item);
+}
+
+/** Ids and conversation ids name files: letters, digits, `_` and `-` only. */
+const SAFE_ID = /^[\w-]+$/;
+
 export async function ackInbox(root: string, id: string): Promise<void> {
-  if (!/^[\w-]+$/.test(id)) return;
+  if (!SAFE_ID.test(id)) return;
   await rm(join(root, INBOX_DIR, `${id}.json`), { force: true });
 }
 
@@ -166,27 +219,14 @@ export async function inboxOwner(root: string, now = Date.now()): Promise<string
  * exactly one taker: claiming renames the file, and only one rename can win.
  */
 export async function claimInbox(root: string, session: string): Promise<InboxItem[]> {
-  if (!/^[\w-]+$/.test(session)) return [];
-  const dir = join(root, INBOX_DIR);
-  if (!existsSync(dir)) return [];
+  if (!SAFE_ID.test(session)) return [];
+  const found = await waiting(root);
+  if (found.length === 0) return [];
   const live = await livePresences(root, Date.now());
   const owner = usedLast(live);
+  const dir = join(root, INBOX_DIR);
   const items: InboxItem[] = [];
-  for (const name of (await readdir(dir)).filter((n) => n.endsWith(".json")).sort()) {
-    const path = join(dir, name);
-    let text: string;
-    try {
-      text = await readFile(path, "utf8");
-    } catch {
-      continue; // Another conversation took it meanwhile.
-    }
-    let item: InboxItem;
-    try {
-      item = JSON.parse(text) as InboxItem;
-    } catch {
-      await rm(path, { force: true }); // A malformed request can't be anyone's: drop it.
-      continue;
-    }
+  for (const { name, item } of found) {
     const mine =
       item.conversation && live.has(item.conversation)
         ? item.conversation === session
@@ -194,9 +234,9 @@ export async function claimInbox(root: string, session: string): Promise<InboxIt
     if (!mine) continue;
     const claimed = join(dir, `.${name}.${session}.claimed`);
     try {
-      await rename(path, claimed);
+      await rename(join(dir, name), claimed);
     } catch {
-      continue;
+      continue; // Another conversation took it first.
     }
     items.push(item);
     await rm(claimed, { force: true });

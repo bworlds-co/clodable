@@ -2,7 +2,8 @@ import { createWriteStream, existsSync } from "node:fs";
 import { copyFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, extname, join } from "node:path";
-import { ClodableError } from "../errors.js";
+import { ClodableError, messageOf } from "../errors.js";
+import { writeJsonFile } from "../places.js";
 import { archiveLines, archiveSql, listArchive } from "./postgres.js";
 import {
   appTriggerIds,
@@ -123,7 +124,7 @@ const unreadable = (error: unknown) =>
     code: "export-unreadable",
     message: "Couldn't open that export.",
     hint: "Download it again (from Lovable's email, or More → Cloud → Storage), then try again.",
-    details: error instanceof Error ? error.message : String(error),
+    details: messageOf(error),
   });
 
 /** Read the export: table of contents, triggers, then one streamed pass over the rows. */
@@ -205,9 +206,7 @@ export async function readExport(
       (e.schema === "vault" && e.tag === "secrets"));
   await scanRows(backup, toc.entries.filter(wanted), dir, summary, sourceRefs);
   summary.sourceRefs = [...sourceRefs].sort();
-  await writeFile(join(dir, "export.json"), `${JSON.stringify(summary, null, 2)}\n`, {
-    mode: 0o600,
-  });
+  await writeJsonFile(join(dir, "export.json"), summary, { private: true });
   return { summary, toc };
 }
 
@@ -222,10 +221,13 @@ const ALL_PRIVILEGES = [
   "TRIGGER",
 ];
 
-/** `GRANT SELECT,INSERT ON TABLE public.posts TO authenticated;` lines, for the API's roles. */
+/**
+ * `GRANT SELECT,INSERT ON TABLE public.posts TO authenticated;` lines, for the API's roles. A
+ * quoted table name can hold spaces and dots: `public."my table"`.
+ */
 export function tableGrants(sql: string): Record<string, Record<string, string[]>> {
   const grants: Record<string, Record<string, string[]>> = {};
-  for (const match of sql.matchAll(/^GRANT (.+?) ON TABLE (\S+) TO (\S+);$/gm)) {
+  for (const match of sql.matchAll(/^GRANT (.+?) ON TABLE (.+?) TO (\S+);$/gm)) {
     const role = match[3]!.replace(/"/g, "");
     if (!API_ROLES.has(role)) continue;
     const table = splitNames(match[2]!, ".").join(".");
@@ -385,5 +387,5 @@ async function scanRows(
   summary.buckets = [...buckets.values()].sort((a, b) => a.id.localeCompare(b.id));
   summary.scheduledJobs.sort();
   summary.vaultSecrets.sort();
-  await writeFile(join(dir, JOBS_FILE), `${JSON.stringify(jobs, null, 2)}\n`, { mode: 0o600 });
+  await writeJsonFile(join(dir, JOBS_FILE), jobs, { private: true });
 }

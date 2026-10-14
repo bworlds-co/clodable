@@ -1,8 +1,8 @@
 import { createHash } from "node:crypto";
 import { existsSync, realpathSync } from "node:fs";
-import { chmod, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
-import { basename, dirname, join } from "node:path";
-import { configDir } from "../local-secrets.js";
+import { chmod, mkdir, readFile, rm } from "node:fs/promises";
+import { basename, join } from "node:path";
+import { configDir, writeJsonFile } from "../places.js";
 import type { ExportSummary } from "./export.js";
 import type { RecordedFacts } from "./facts.js";
 
@@ -159,12 +159,13 @@ export async function loadMove(root: string): Promise<MoveState> {
   }
 }
 
-export async function saveMove(root: string, state: MoveState): Promise<void> {
-  const path = join(root, MOVE_PATH);
-  await mkdir(dirname(path), { recursive: true });
-  const tmp = `${path}.${process.pid}.tmp`;
-  await writeFile(tmp, `${JSON.stringify(state, null, 2)}\n`);
-  await rename(tmp, path);
+/** Names the move has recorded (settings, secrets…), with more added: each once, sorted. */
+export function withNames(recorded: string[] | undefined, more: string[]): string[] {
+  return [...new Set([...(recorded ?? []), ...more])].sort();
+}
+
+export function saveMove(root: string, state: MoveState): Promise<void> {
+  return writeJsonFile(join(root, MOVE_PATH), state);
 }
 
 /** Change the move's state in place and save it. */

@@ -1,25 +1,6 @@
-import { isCancel, password } from "@clack/prompts";
-import { ClodableError, setSetting, settingsStatus } from "@clodable/core";
-import { type Context, run } from "../context.js";
+import { setSetting, settingsStatus } from "@clodable/core";
+import { type Context, run, secretInput } from "../context.js";
 import { ash, celadon, clay } from "../ui.js";
-
-/** A setting's value, piped in (never an argument), or typed in a hidden prompt in a terminal. */
-async function valueInput(ctx: Context, name: string): Promise<string> {
-  if (!process.stdin.isTTY) {
-    const chunks: Buffer[] = [];
-    for await (const chunk of process.stdin) chunks.push(chunk as Buffer);
-    const piped = Buffer.concat(chunks).toString("utf8");
-    if (piped.trim()) return piped;
-  } else if (!ctx.out.json) {
-    const typed = await password({ message: `The value of ${name}` });
-    if (!isCancel(typed) && typed.trim()) return typed;
-  }
-  throw new ClodableError({
-    code: "invalid-config",
-    message: "Nothing was given.",
-    hint: "Pipe the value in (never as an argument), or run this in a terminal to type it.",
-  });
-}
 
 /**
  * The settings the app's server code reads (`process.env.X`): which have a value on this computer
@@ -32,7 +13,11 @@ export async function settingsCommand(ctx: Context, options: { name?: string }) 
       ctx,
       async () => {
         const ws = await ctx.workspace();
-        return setSetting(ws, name, await valueInput(ctx, name));
+        return setSetting(
+          ws,
+          name,
+          await secretInput(ctx, `The value of ${name}`, { exact: true }),
+        );
       },
       () => ctx.out.line(`${celadon("✓")} Saved ${name}. The preview restarts with it.`),
     );

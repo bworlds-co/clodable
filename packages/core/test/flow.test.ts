@@ -1,4 +1,4 @@
-import { readFile, rm } from "node:fs/promises";
+import { chmod, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
@@ -6,6 +6,8 @@ import {
   type ClodableEvent,
   Git,
   history,
+  loadMove,
+  MOVE_PATH,
   publish,
   restore,
   runFlow,
@@ -361,6 +363,49 @@ describe("apps hosted by Lovable", () => {
     ]);
     expect((await sb.remoteLog("main"))[0]).toBe("Menu");
   });
+
+  it("while moving, follow the new site on Netlify: up to date, didn't update, still updating", async () => {
+    const config = JSON.parse(await readFile(join(sb.work, ".clodable/config.json"), "utf8"));
+    await sb.write(".clodable/config.json", JSON.stringify({ ...config, hosting: "lovable" }));
+    const site = {
+      id: "s1",
+      name: "crumb",
+      url: "https://crumb.netlify.app",
+      admin: "https://app.netlify.com/sites/crumb",
+      account: "acme",
+    };
+    await sb.write(MOVE_PATH, JSON.stringify({ version: 1, site }));
+    const publishChange = async (text: string) => {
+      await sb.write("src/menu.txt", `${text}\n`);
+      await save(await sb.ws(), { message: text });
+      const events: ClodableEvent[] = [];
+      const result = await publishAll(events);
+      const steps = events.filter((e) => e.type === "step" && e.id === "move:site");
+      return { result, last: steps.at(-1) };
+    };
+
+    const live = await publishChange("Croissants");
+    expect(live.result.site).toEqual({ url: "https://crumb-and-co.example", state: "live" });
+    expect(live.last).toMatchObject({ state: "done", title: "Your site on Netlify is up to date" });
+    expect((await loadMove(sb.work)).site?.liveAt).toEqual(live.result.at);
+
+    const log = "https://app.netlify.com/sites/crumb/deploys/1";
+    sb.github.deploymentFor = () => [
+      { id: 2, environment: "Production", isProduction: true, state: "failure", logUrl: log },
+    ];
+    const failed = await publishChange("Baguettes");
+    expect(failed.result.site).toEqual({ url: site.url, state: "failed", logUrl: log });
+    expect(failed.last).toMatchObject({
+      state: "warning",
+      title: "Your site on Netlify didn't update",
+    });
+
+    sb.github.deploymentFor = () => [];
+    const quiet = await publishChange("Brioche");
+    expect(quiet.result.site).toEqual({ url: site.url, state: "pending" });
+    expect(quiet.last).toMatchObject({ title: "Your site on Netlify is still updating" });
+    expect(quiet.result.deploy).toBe("lovable");
+  });
 });
 
 describe("apps on their own Supabase", () => {
@@ -417,6 +462,61 @@ describe("apps on their own Supabase", () => {
       if (before.api === undefined) delete process.env.CLODABLE_SUPABASE_API;
       if (before.config === undefined) delete process.env.CLODABLE_CONFIG_DIR;
       await fake.close();
+    }
+  });
+
+  it("put them live with the Supabase CLI when Supabase isn't connected on this computer", async () => {
+    // A stand-in `supabase`: `functions deploy <name>` works, asks to sign in, or fails, by name.
+    const bin = join(sb.dir, "bin");
+    await sb.write(
+      "supabase",
+      [
+        "#!/bin/sh",
+        'case "$3" in',
+        "  later) echo 'Access token not provided. Supply an access token by running supabase login' >&2; exit 1 ;;",
+        "  broken) printf 'Bundling broken\\nError: failed to bundle\\n' >&2; exit 1 ;;",
+        "esac",
+        "",
+      ].join("\n"),
+      bin,
+    );
+    await chmod(join(bin, "supabase"), 0o755);
+    const before = { path: process.env.PATH, config: process.env.CLODABLE_CONFIG_DIR };
+    process.env.PATH = `${bin}:${process.env.PATH}`;
+    process.env.CLODABLE_CONFIG_DIR = join(sb.dir, "no-secrets");
+    try {
+      const config = JSON.parse(await readFile(join(sb.work, ".clodable/config.json"), "utf8"));
+      await sb.write(
+        ".clodable/config.json",
+        JSON.stringify({
+          ...config,
+          backend: "supabase",
+          supabase: { projectRef: "ownownownownownownow" },
+        }),
+      );
+      for (const name of ["hello", "later", "broken"]) {
+        await sb.write(
+          `supabase/functions/${name}/index.ts`,
+          "Deno.serve(() => new Response());\n",
+        );
+      }
+      await save(await sb.ws(), { message: "Three functions" });
+      const events: ClodableEvent[] = [];
+      const result = await publishAll(events);
+      expect(result.functions).toEqual({
+        deployed: ["hello"],
+        pending: ["later"],
+        failed: ["broken"],
+      });
+      expect(events).toContainEqual({
+        type: "log",
+        level: "warn",
+        message: "Function broken: Error: failed to bundle",
+      });
+    } finally {
+      process.env.PATH = before.path;
+      if (before.config === undefined) delete process.env.CLODABLE_CONFIG_DIR;
+      else process.env.CLODABLE_CONFIG_DIR = before.config;
     }
   });
 });

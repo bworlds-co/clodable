@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
-import { repoint } from "@clodable/core";
+import { BACKEND_ENV, backendEnv, messageOf, type PreviewBackend, repoint } from "@clodable/core";
 import type { Plugin } from "vite";
 import { clodablePreview } from "./plugin.js";
 
@@ -24,41 +24,12 @@ export interface DevServerOptions {
   settings?: { current(): Promise<Record<string, string>>; watch?: string };
 }
 
-export interface PreviewBackend {
-  /** The project the code names today (Lovable Cloud's). */
-  from?: string;
-  ref: string;
-  url: string;
-  publishable: string;
-  /** For code that carries an anon key: the legacy one if the project has it, else publishable. */
-  anon: string;
-  /** For server code: the legacy service key if the project has it, else the secret key. */
-  serviceRole: string;
-}
-
-/** The variables Lovable's templates read, browser side (VITE_) and server side. */
-function backendEnv(b: PreviewBackend): Record<string, string> {
-  return {
-    VITE_SUPABASE_URL: b.url,
-    VITE_SUPABASE_PUBLISHABLE_KEY: b.publishable,
-    VITE_SUPABASE_ANON_KEY: b.anon,
-    VITE_SUPABASE_PROJECT_ID: b.ref,
-    SUPABASE_URL: b.url,
-    SUPABASE_PUBLISHABLE_KEY: b.publishable,
-    SUPABASE_ANON_KEY: b.anon,
-    SUPABASE_SERVICE_ROLE_KEY: b.serviceRole,
-  };
-}
-
 const ORIGINAL_ENV = new Map<string, string | undefined>();
 
 /** Point this process's environment at the backend, or back at what it was. */
 function applyBackendEnv(b: PreviewBackend | undefined) {
-  const wanted = b ? backendEnv(b) : {};
-  const keys = Object.keys(
-    backendEnv({ ref: "", url: "", publishable: "", anon: "", serviceRole: "" }),
-  );
-  for (const key of keys) {
+  const wanted: Partial<Record<string, string>> = b ? backendEnv(b) : {};
+  for (const key of BACKEND_ENV) {
     if (!ORIGINAL_ENV.has(key)) ORIGINAL_ENV.set(key, process.env[key]);
     const value = wanted[key] ?? ORIGINAL_ENV.get(key);
     if (value === undefined) delete process.env[key];
@@ -168,46 +139,55 @@ export async function startDevServer(options: DevServerOptions): Promise<Running
     },
   });
   await server.listen();
-  // Switching backends: read again, and restart so every module and the server side pick it up.
-  let switching = Promise.resolve();
+  // When a watched file changes: read it again and, if what it says is new, use it and restart, so
+  // every module and the server side pick it up. One change at a time.
+  let restarting = Promise.resolve();
+  const whenChanged = <T>(
+    marker: ReturnType<typeof markerWatch>,
+    read: () => Promise<T>,
+    now: () => T,
+    use: (next: T) => string,
+  ) =>
+    marker.start(() => {
+      restarting = restarting.then(async () => {
+        const next = await read();
+        if (JSON.stringify(next) === JSON.stringify(now())) return;
+        server.config.logger.info(use(next));
+        await server.restart();
+      });
+    });
   if (backendMarker && options.backend) {
     const source = options.backend;
-    backendMarker.start(() => {
-      switching = switching.then(async () => {
-        let next: PreviewBackend | undefined;
-        try {
-          next = await source.current();
-        } catch (error) {
-          server.config.logger.warn(
-            `  clodable · couldn't switch backends: ${error instanceof Error ? error.message : String(error)}`,
-          );
-          return;
-        }
-        if (JSON.stringify(next) === JSON.stringify(backend)) return;
+    whenChanged(
+      backendMarker,
+      () =>
+        source.current().catch((error: unknown) => {
+          server.config.logger.warn(`  clodable · couldn't switch backends: ${messageOf(error)}`);
+          return backend;
+        }),
+      () => backend,
+      (next) => {
         backend = next;
         applyBackendEnv(backend);
-        server.config.logger.info(
-          backend
-            ? "  clodable · the preview now uses your new backend (a copy of your data)"
-            : "  clodable · the preview uses your live backend again",
-        );
-        await server.restart();
-      });
-    });
+        return backend
+          ? "  clodable · the preview now uses your new backend (a copy of your data)"
+          : "  clodable · the preview uses your live backend again";
+      },
+    );
   }
-  // A setting pasted in Clodable: read them again, and restart so the server side has it.
+  // A setting pasted in Clodable.
   if (settingsMarker && options.settings) {
     const source = options.settings;
-    settingsMarker.start(() => {
-      switching = switching.then(async () => {
-        const next = await source.current().catch(() => settings);
-        if (JSON.stringify(next) === JSON.stringify(settings)) return;
+    whenChanged(
+      settingsMarker,
+      () => source.current().catch(() => settings),
+      () => settings,
+      (next) => {
         settings = next;
         applySettingsEnv(settings);
-        server.config.logger.info("  clodable · your app's settings changed: restarting");
-        await server.restart();
-      });
-    });
+        return "  clodable · your app's settings changed: restarting";
+      },
+    );
   }
   const urls = [...(server.resolvedUrls?.local ?? []), ...(server.resolvedUrls?.network ?? [])];
   return {

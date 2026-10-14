@@ -18,7 +18,16 @@ export {
   describeBuildError,
   type PreviewOptions,
 } from "./plugin.js";
-export { parseSourceAttr, SOURCE_ATTR, type SourceLocation, tagJsx } from "./tagger.js";
+export {
+  buildError,
+  type PageError,
+  parseSourceAttr,
+  ROUTES,
+  SCREENS,
+  SOURCE_ATTR,
+  type SourceLocation,
+} from "./shared.js";
+export { tagJsx } from "./tagger.js";
 export {
   editText,
   normalize,

@@ -5,16 +5,13 @@ import {
   queryDatabase,
   runOnDatabase,
 } from "@clodable/core";
-import { type Context, run } from "../context.js";
+import { type Context, readStdin, run } from "../context.js";
 import { ash, celadon } from "../ui.js";
 
 /** SQL from the argument, or piped in (long statements, quotes that a shell would mangle). */
 async function sqlInput(arg: string | undefined): Promise<string | undefined> {
   if (arg) return arg;
-  if (process.stdin.isTTY) return undefined;
-  const chunks: Buffer[] = [];
-  for await (const chunk of process.stdin) chunks.push(chunk as Buffer);
-  return Buffer.concat(chunks).toString("utf8").trim() || undefined;
+  return (await readStdin())?.trim() || undefined;
 }
 
 /**

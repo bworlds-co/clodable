@@ -9,6 +9,17 @@ import { MANAGED_SCHEMAS } from "./toc.js";
 
 export const literal = (value: string) => `'${value.replace(/'/g, "''")}'`;
 
+/** A name, quoted for SQL: `my "odd" table` → `"my ""odd"" table"`. */
+export const ident = (name: string) => `"${name.replace(/"/g, '""')}"`;
+
+/** "public.my table" → `"public"."my table"`: the schema ends at the first dot, the rest is the table. */
+export function tableName(qualified: string): string {
+  const dot = qualified.indexOf(".");
+  return dot < 0
+    ? ident(qualified)
+    : `${ident(qualified.slice(0, dot))}.${ident(qualified.slice(dot + 1))}`;
+}
+
 const managedList = [...MANAGED_SCHEMAS].map(literal).join(", ");
 const APP_SCHEMA = `n.nspname not in (${managedList}) and n.nspname not like 'pg\\_%' and n.nspname <> 'information_schema'`;
 
@@ -164,9 +175,7 @@ export async function repointTriggers(
     const next = repoint(row.def, from, to, keys);
     if (next.leftover) leftover.push(row.name);
     if (next.text === row.def) continue;
-    await sql.run(
-      `begin;\ndrop trigger "${row.name.replace(/"/g, '""')}" on ${row.tbl};\n${next.text};\ncommit;`,
-    );
+    await sql.run(`begin;\ndrop trigger ${ident(row.name)} on ${row.tbl};\n${next.text};\ncommit;`);
     fixed++;
   }
   return { fixed, leftover };
@@ -235,6 +244,12 @@ export async function repairMigrationHistory(sql: Sql, versions: string[]): Prom
   );
   return Number(after[0]?.n ?? 0) - Number(before[0]?.n ?? 0);
 }
+
+/**
+ * The vault secret Lovable's email queue calls its functions with: the project's own service key,
+ * so Clodable sets it on the copy itself, and it tells that Lovable Cloud's key is in the export.
+ */
+export const EMAIL_QUEUE_KEY = "email_queue_service_role_key";
 
 /** A secret the app keeps in the database's vault, set by name (its value never logged). */
 export async function setVaultSecret(sql: Sql, name: string, value: string): Promise<void> {

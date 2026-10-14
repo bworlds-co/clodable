@@ -46,10 +46,13 @@ export class Highlight {
     if (!this.frame) this.loop();
   }
 
-  flash(variant: string) {
-    if (!this.target) return;
-    this.box.className = `hl ${variant}`;
-    this.chip.style.opacity = "0";
+  /**
+   * Show the target in `variant`, whose stylesheet animation fades it, and stop following it when
+   * the fade ends. Shown again in another way meanwhile, the fade stops and nothing is hidden.
+   */
+  fadeOut(target: Element, variant: string) {
+    this.show(target, variant);
+    this.box.addEventListener("animationend", () => this.hide(), { once: true });
   }
 
   hide() {
@@ -60,10 +63,6 @@ export class Highlight {
     this.lines = [];
     cancelAnimationFrame(this.frame);
     this.frame = 0;
-  }
-
-  rect(): DOMRect | undefined {
-    return this.target?.getBoundingClientRect();
   }
 
   private loop = () => {
@@ -109,12 +108,6 @@ export class Highlight {
       top: `${chipTop}px`,
       left: `${Math.max(6, Math.min(r.left - 3, innerWidth - 200))}px`,
     });
-  }
-
-  destroy() {
-    this.hide();
-    this.box.remove();
-    this.chip.remove();
   }
 }
 

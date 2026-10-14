@@ -5,13 +5,13 @@ import { ClodableError } from "../errors.js";
 import { type Flow, step } from "../events.js";
 import { readSecret, storeSecret } from "../local-secrets.js";
 import { type PackageManager, type ProjectInfo, runScriptCommand } from "../project.js";
-import { localSettings } from "../settings.js";
+import { appSettings, localSettings } from "../settings.js";
 import type { Workspace } from "../workspace.js";
-import { textFiles } from "./assess.js";
-import { homeKeys } from "./flows.js";
+import { backendEnv, backendOf } from "./backend.js";
+import { homeKeys } from "./home.js";
 import { NETLIFY_TOKEN, type NetlifyAccount, NetlifyApi } from "./netlify-api.js";
-import { loadMove, updateMove } from "./state.js";
-import { projectUrl, SupabaseApi } from "./supabase-api.js";
+import { loadMove, updateMove, withNames } from "./state.js";
+import { SupabaseApi } from "./supabase-api.js";
 
 /**
  * The website's new home: a Netlify site, deployed by a GitHub Actions workflow on each Publish.
@@ -184,42 +184,6 @@ export function netlifyWorkflow(project: ProjectInfo, liveBranch: string, siteUr
   ].join("\n");
 }
 
-// ── The app's own settings ───────────────────────────────────────────────────
-
-/** Settings the host provides on its own, or that Clodable sets from the new backend. */
-const PROVIDED =
-  /^(NODE_ENV|PORT|CI|HOST|NETLIFY.*|CONTEXT|URL|DEPLOY_URL|VERCEL.*|SUPABASE_[A-Z_]+|VITE_[A-Z_]+)$/;
-
-/**
- * The settings the app's server code reads (`process.env.X`): on Lovable's hosting, Lovable keeps
- * them; now the builder gives them to the site. Lovable's own (LOVABLE_*) are listed apart: they
- * only work on Lovable, and their features need switching to the builder's own service.
- */
-export async function appSettings(root: string): Promise<{ wanted: string[]; lovable: string[] }> {
-  const files = await textFiles(root, ["src", "server", "app"]);
-  const names = new Set<string>();
-  for (const file of files) {
-    for (const match of file.text.matchAll(
-      /process\.env(?:\.([A-Z][A-Z0-9_]*)|\[\s*["'`]([A-Z][A-Z0-9_]*)["'`]\s*\])/g,
-    )) {
-      const name = (match[1] ?? match[2])!;
-      if (!PROVIDED.test(name)) names.add(name);
-    }
-    // `const { STRIPE_KEY, RESEND_KEY: resend } = process.env`
-    for (const match of file.text.matchAll(/\{([^{}]+)\}\s*=\s*process\.env\b/g)) {
-      for (const part of match[1]!.split(",")) {
-        const name = part.split(":")[0]!.split("=")[0]!.trim();
-        if (/^[A-Z][A-Z0-9_]*$/.test(name) && !PROVIDED.test(name)) names.add(name);
-      }
-    }
-  }
-  const all = [...names].sort();
-  return {
-    wanted: all.filter((n) => !n.startsWith("LOVABLE_")),
-    lovable: all.filter((n) => n.startsWith("LOVABLE_")),
-  };
-}
-
 // ── Creating the site ────────────────────────────────────────────────────────
 
 const siteName = (name: string) =>
@@ -298,22 +262,13 @@ export async function* putSiteOnNetlify(
     "Putting your site on Netlify",
     "Pointing it at your new backend",
   );
-  const keys = await homeKeys(supabase, state.home.ref);
-  const backend = projectUrl(state.home.ref);
+  const backend = backendOf(state.home.ref, await homeKeys(supabase, state.home.ref));
   const existing = await netlify.envKeys(site.account_slug, site.id);
-  const anon = keys.legacy.anon ?? keys.publishable;
-  const values: Array<[string, string, boolean]> = [
-    ["VITE_SUPABASE_URL", backend, false],
-    ["VITE_SUPABASE_PUBLISHABLE_KEY", keys.publishable, false],
-    ["VITE_SUPABASE_ANON_KEY", anon, false],
-    ["VITE_SUPABASE_PROJECT_ID", state.home.ref, false],
-    ["SUPABASE_URL", backend, false],
-    ["SUPABASE_PUBLISHABLE_KEY", keys.publishable, false],
-    ["SUPABASE_ANON_KEY", anon, false],
-    ["SUPABASE_SERVICE_ROLE_KEY", keys.legacy.serviceRole ?? keys.secret, true],
-  ];
-  for (const [key, value, secret] of values) {
-    await netlify.setEnv(site.account_slug, site.id, key, value, { secret, existing });
+  for (const [key, value] of Object.entries(backendEnv(backend))) {
+    await netlify.setEnv(site.account_slug, site.id, key, value, {
+      secret: key === "SUPABASE_SERVICE_ROLE_KEY",
+      existing,
+    });
   }
   // Settings already pasted on this computer (for the preview) go to the site too. VITE_ ones are
   // built into the page on purpose: kept as secrets, Netlify's scan for leaked secrets would stop
@@ -329,7 +284,7 @@ export async function* putSiteOnNetlify(
   }
   if (carried.length > 0) {
     await updateMove(ws.root, (s) => {
-      s.siteSettings = [...new Set([...(s.siteSettings ?? []), ...carried])].sort();
+      s.siteSettings = withNames(s.siteSettings, carried);
     });
   }
 
@@ -399,7 +354,7 @@ export async function setSiteSetting(ws: Workspace, name: string, value: string)
     secret: true,
   });
   await updateMove(ws.root, (s) => {
-    s.siteSettings = [...new Set([...(s.siteSettings ?? []), name])].sort();
+    s.siteSettings = withNames(s.siteSettings, [name]);
   });
   return siteSettings(ws);
 }

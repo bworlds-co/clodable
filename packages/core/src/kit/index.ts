@@ -1,7 +1,13 @@
 import { existsSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { CONFIG_PATH, type ProjectConfig, ProjectConfigSchema } from "../config.js";
+import {
+  CONFIG_PATH,
+  configFile,
+  type ProjectConfig,
+  ProjectConfigSchema,
+  supabaseRef,
+} from "../config.js";
 import type { ProjectInfo } from "../project.js";
 import { agentsMd } from "./agents-md.js";
 
@@ -62,54 +68,83 @@ export function mergeManagedBlock(existing: string | undefined, generated: strin
   return `${existing.trimEnd()}\n\n## Working with Clodable\n\n${block}\n`;
 }
 
+/** The kit for this project, file by file: what each change is for, and its new content. */
 export async function planKit(
   project: ProjectInfo,
   config: ProjectConfig,
   options: KitOptions = {},
 ): Promise<KitChange[]> {
   const root = project.root;
-  const changes: KitChange[] = [];
-  const add = (path: string, purpose: string, before: string | undefined, content: string) => {
-    changes.push({
-      path,
-      purpose,
-      content,
-      action: before === undefined ? "create" : before === content ? "unchanged" : "update",
-    });
-  };
+  const ref = supabaseRef(config, project);
+  const planned = [
+    await agentsPlan(root, project, config, ref),
+    await claudePlan(root),
+    await launchPlan(root, options),
+    await settingsPlan(root, options),
+    await mcpPlan(root, config, ref),
+    await configPlan(root, project, config, ref, options),
+    await gitignorePlan(root),
+  ];
+  return planned.filter((file) => file !== undefined);
+}
 
-  // AGENTS.md: the shared working agreement for any coding agent.
-  const agentsBefore = await read(root, "AGENTS.md");
-  add(
+/** A file's change: created, updated, or left as it is. */
+function change(
+  path: string,
+  purpose: string,
+  before: string | undefined,
+  content: string,
+): KitChange {
+  return {
+    path,
+    purpose,
+    content,
+    action: before === undefined ? "create" : before === content ? "unchanged" : "update",
+  };
+}
+
+/** AGENTS.md: the shared working agreement for any coding agent. */
+async function agentsPlan(
+  root: string,
+  project: ProjectInfo,
+  config: ProjectConfig,
+  ref: string | undefined,
+): Promise<KitChange> {
+  const before = await read(root, "AGENTS.md");
+  return change(
     "AGENTS.md",
     "How Claude should work with you: plain words, careful with live data",
-    agentsBefore,
+    before,
     mergeManagedBlock(
-      agentsBefore,
+      before,
       agentsMd({
         appName: project.name,
         appType: project.appType,
         liveBranch: config.liveBranch,
-        supabaseRef: config.supabase.projectRef ?? project.supabase.projectRef,
+        supabaseRef: ref,
         backend: config.backend,
         hosting: config.hosting,
       }),
     ),
   );
+}
 
-  // CLAUDE.md just points Claude at AGENTS.md, so every agent reads the same rules.
-  const claudeBefore = await read(root, "CLAUDE.md");
-  const claudeAfter = !claudeBefore
+/** CLAUDE.md just points Claude at AGENTS.md, so every agent reads the same rules. */
+async function claudePlan(root: string): Promise<KitChange> {
+  const before = await read(root, "CLAUDE.md");
+  const after = !before
     ? "@AGENTS.md\n"
-    : claudeBefore.includes("@AGENTS.md")
-      ? claudeBefore
-      : `${claudeBefore.trimEnd()}\n\n@AGENTS.md\n`;
-  add("CLAUDE.md", "Points Claude to AGENTS.md", claudeBefore, claudeAfter);
+    : before.includes("@AGENTS.md")
+      ? before
+      : `${before.trimEnd()}\n\n@AGENTS.md\n`;
+  return change("CLAUDE.md", "Points Claude to AGENTS.md", before, after);
+}
 
-  // .claude/launch.json: how Desktop starts the preview.
-  const launchBefore = await read(root, ".claude/launch.json");
+/** .claude/launch.json: how Desktop starts the preview. */
+async function launchPlan(root: string, options: KitOptions): Promise<KitChange> {
+  const before = await read(root, ".claude/launch.json");
   const launch = parseJson<{ version?: string; configurations?: Array<Record<string, unknown>> }>(
-    launchBefore,
+    before,
     {},
   );
   const dev = options.devCommand ?? { executable: "npx", args: ["clodable", "dev"] };
@@ -126,23 +161,25 @@ export async function planKit(
       !(Array.isArray(c.runtimeArgs) && (c.runtimeArgs as string[]).includes("clodable")) &&
       c.name !== "app",
   );
-  add(
+  return change(
     ".claude/launch.json",
     "Starts your app in the preview, with the Clodable toolbar",
-    launchBefore,
+    before,
     json({ version: launch.version ?? "0.0.1", configurations: [ours, ...others] }),
   );
+}
 
-  // .claude/settings.json: the plugin, plus safe permission defaults for any session in this folder.
-  const settingsBefore = await read(root, ".claude/settings.json");
+/** .claude/settings.json: the plugin, plus safe permission defaults for any session in this folder. */
+async function settingsPlan(root: string, options: KitOptions): Promise<KitChange> {
+  const before = await read(root, ".claude/settings.json");
   // biome-ignore lint/suspicious/noExplicitAny: the person's own settings file, in whatever shape it has
-  const settings = parseJson<Record<string, any>>(settingsBefore, {});
+  const settings = parseJson<Record<string, any>>(before, {});
   const marketplace = options.marketplaceRepo ?? "bworlds-co/clodable";
   const permissions = settings.permissions ?? {};
-  add(
+  return change(
     ".claude/settings.json",
     "Turns on Clodable for this project and keeps the live site safe",
-    settingsBefore,
+    before,
     json({
       ...settings,
       enabledPlugins: { ...settings.enabledPlugins, "clodable@clodable": true },
@@ -177,77 +214,91 @@ export async function planKit(
       },
     }),
   );
+}
 
-  // .mcp.json: the official Supabase connection, scoped to this app's project only. Not on Lovable
-  // Cloud: Lovable owns that project, so the builder's Supabase login can't reach it.
-  const ref = config.supabase.projectRef ?? project.supabase.projectRef;
+/**
+ * .mcp.json: the official Supabase connection, scoped to this app's project only. Not on Lovable
+ * Cloud: Lovable owns that project, so the builder's Supabase login can't reach it.
+ */
+async function mcpPlan(
+  root: string,
+  config: ProjectConfig,
+  ref: string | undefined,
+): Promise<KitChange | undefined> {
   if (config.backend === "lovable-cloud") {
-    const mcpBefore = await read(root, ".mcp.json");
-    const mcp = parseJson<{ mcpServers?: Record<string, { url?: string }> }>(mcpBefore, {});
+    const before = await read(root, ".mcp.json");
+    const mcp = parseJson<{ mcpServers?: Record<string, { url?: string }> }>(before, {});
     const ours = mcp.mcpServers?.supabase?.url?.startsWith("https://mcp.supabase.com/");
-    if (mcpBefore !== undefined && ours) {
-      const { supabase: _, ...others } = mcp.mcpServers ?? {};
-      add(
-        ".mcp.json",
-        "No Supabase connection while your database is on Lovable Cloud",
-        mcpBefore,
-        json({ ...mcp, mcpServers: others }),
-      );
-    }
-  } else if (ref) {
-    const mcpBefore = await read(root, ".mcp.json");
-    const mcp = parseJson<{ mcpServers?: Record<string, unknown> }>(mcpBefore, {});
-    const features = ["database", "docs", "debugging", "development", "functions", "storage"].join(
-      ",",
-    );
-    add(
+    if (before === undefined || !ours) return undefined;
+    const { supabase: _, ...others } = mcp.mcpServers ?? {};
+    return change(
       ".mcp.json",
-      "Connects Claude to your Supabase database, for this app only",
-      mcpBefore,
-      json({
-        ...mcp,
-        mcpServers: {
-          ...mcp.mcpServers,
-          supabase: {
-            type: "http",
-            url: `https://mcp.supabase.com/mcp?project_ref=${ref}&features=${encodeURIComponent(features)}`,
-          },
-        },
-      }),
+      "No Supabase connection while your database is on Lovable Cloud",
+      before,
+      json({ ...mcp, mcpServers: others }),
     );
   }
+  if (!ref) return undefined;
+  const before = await read(root, ".mcp.json");
+  const mcp = parseJson<{ mcpServers?: Record<string, unknown> }>(before, {});
+  const features = ["database", "docs", "debugging", "development", "functions", "storage"].join(
+    ",",
+  );
+  return change(
+    ".mcp.json",
+    "Connects Claude to your Supabase database, for this app only",
+    before,
+    json({
+      ...mcp,
+      mcpServers: {
+        ...mcp.mcpServers,
+        supabase: {
+          type: "http",
+          url: `https://mcp.supabase.com/mcp?project_ref=${ref}&features=${encodeURIComponent(features)}`,
+        },
+      },
+    }),
+  );
+}
 
-  // .clodable/config.json: project settings shared by everyone.
-  const configBefore = await read(root, CONFIG_PATH);
-  const nextConfig = ProjectConfigSchema.parse({
+/** .clodable/config.json: project settings shared by everyone. */
+async function configPlan(
+  root: string,
+  project: ProjectInfo,
+  config: ProjectConfig,
+  ref: string | undefined,
+  options: KitOptions,
+): Promise<KitChange> {
+  const before = await read(root, CONFIG_PATH);
+  const next = ProjectConfigSchema.parse({
     ...config,
     app: { ...config.app, type: project.appType },
     supabase: { ...config.supabase, ...(ref ? { projectRef: ref } : {}) },
     ...(options.liveUrl ? { liveUrl: options.liveUrl } : {}),
   });
-  add(
+  return change(
     CONFIG_PATH,
     "Clodable's settings for this project",
-    configBefore,
-    json({ $schema: "https://clodable.dev/schema/config.json", ...nextConfig }),
+    before,
+    json(configFile(next)),
   );
+}
 
-  // .gitignore: keep this computer's state and the inbox out of git.
-  const ignoreBefore = await read(root, ".gitignore");
+/** .gitignore: keep this computer's state and the inbox out of git. */
+async function gitignorePlan(root: string): Promise<KitChange> {
+  const before = await read(root, ".gitignore");
   const wanted = [".clodable/local/", ".clodable/inbox/"];
   const missing = wanted.filter(
-    (line) => !(ignoreBefore ?? "").split("\n").some((l) => l.trim() === line),
+    (line) => !(before ?? "").split("\n").some((l) => l.trim() === line),
   );
-  add(
+  return change(
     ".gitignore",
     "Keeps Clodable's local files out of your project history",
-    ignoreBefore,
+    before,
     missing.length === 0
-      ? (ignoreBefore ?? "")
-      : `${(ignoreBefore ?? "").trimEnd()}${ignoreBefore ? "\n\n" : ""}# Clodable (this computer only)\n${missing.join("\n")}\n`,
+      ? (before ?? "")
+      : `${(before ?? "").trimEnd()}${before ? "\n\n" : ""}# Clodable (this computer only)\n${missing.join("\n")}\n`,
   );
-
-  return changes;
 }
 
 export async function applyKit(root: string, changes: KitChange[]): Promise<KitChange[]> {

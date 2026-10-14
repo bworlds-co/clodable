@@ -3,12 +3,14 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { exec } from "../src/exec.js";
 import type { Commit } from "../src/index.js";
 import {
   ackInbox,
   agentsMd,
   applyKit,
   assessMove,
+  checksFailed,
   claimInbox,
   classify,
   cleanSubject,
@@ -16,6 +18,7 @@ import {
   draftBranchFor,
   forgetSecret,
   formatRelative,
+  GhCli,
   Git,
   inboxOwner,
   lovableAiLeft,
@@ -32,7 +35,7 @@ import {
   summarizeBuildOutput,
   writeInbox,
 } from "../src/index.js";
-import { buildLine } from "../src/publish.js";
+import { buildLine } from "../src/waits.js";
 
 const commit = (subject: string, kind: Commit["kind"] = "save"): Commit => ({
   sha: subject,
@@ -680,5 +683,134 @@ describe("the line Publish shows while the host builds", () => {
     );
     // A host that builds outside GitHub: only how long so far.
     expect(buildLine(undefined, 130_000)).toBe("Your host is building it · 2 min so far");
+  });
+});
+
+describe("settings", () => {
+  it("fill in every default, a section at a time", () => {
+    expect(ProjectConfigSchema.parse({})).toEqual({
+      version: 1,
+      liveBranch: "main",
+      app: { type: "unknown", buildScript: "build" },
+      supabase: {},
+      backend: "unknown",
+      hosting: "unknown",
+      checks: { build: true, packages: true, secrets: true },
+      publish: { waitForCi: true, ciTimeoutMinutes: 20, deployTimeoutMinutes: 10 },
+    });
+    expect(ProjectConfigSchema.parse({ checks: { build: false } }).checks).toEqual({
+      build: false,
+      packages: true,
+      secrets: true,
+    });
+  });
+});
+
+describe("failed checks", () => {
+  it("say what failed first, keep everything for developers, and name the files", () => {
+    const error = checksFailed(
+      [
+        {
+          id: "build",
+          status: "failed",
+          summary: "Your app doesn't build",
+          details: "src/App.tsx:4 error: Cannot find name 'Hero'",
+          locations: [{ file: "src/App.tsx", line: 4 }],
+        },
+        {
+          id: "secrets",
+          status: "failed",
+          summary: "A secret key is in your code",
+          locations: [{ file: "src/lib/stripe.ts" }],
+        },
+      ],
+      "Ask Claude to fix it.",
+    );
+    expect(error.toJSON()).toEqual({
+      code: "checks-failed",
+      message: "Your app doesn't build",
+      hint: "Ask Claude to fix it.",
+      details:
+        "Your app doesn't build\nsrc/App.tsx:4 error: Cannot find name 'Hero'\n\nA secret key is in your code",
+      files: ["src/App.tsx:4", "src/lib/stripe.ts"],
+    });
+  });
+});
+
+describe("running a program", () => {
+  it("gives its exit code when it stops before reading its input", async () => {
+    // More than a pipe holds, so the write fails once the program is gone (EPIPE).
+    const result = await exec("sh", ["-c", "exit 3"], {
+      cwd: tmpdir(),
+      input: "x".repeat(4 * 1024 * 1024),
+    });
+    expect(result.exitCode).toBe(3);
+  });
+});
+
+describe("GitHub through gh", () => {
+  // A stand-in `gh` on the PATH: it answers `repo view`, and fails everything else the way
+  // FAKE_GH says, in gh's own words (as gh 2.87 prints them).
+  const script = [
+    "#!/bin/sh",
+    'if [ "$1 $2" = "repo view" ]; then',
+    `  echo '{"name":"app","owner":{"login":"ada"},"url":"u","isPrivate":true,"defaultBranchRef":{"name":"main"}}'`,
+    "  exit 0",
+    "fi",
+    'case "$FAKE_GH" in',
+    '  signed-out) echo "To get started with GitHub CLI, please run:  gh auth login" >&2; exit 4 ;;',
+    "  offline) printf 'error connecting to api.github.com\\ncheck your internet connection\\n' >&2; exit 1 ;;",
+    '  refused) echo "HTTP 403: Resource not accessible by integration" >&2; exit 1 ;;',
+    `  missing) echo "GraphQL: Could not resolve to a Repository with the name 'ada/network-app'. (repository)" >&2; exit 1 ;;`,
+    `  no-host) echo "fatal: unable to access 'https://github.com/ada/app.git/': Could not resolve host: github.com" >&2; exit 128 ;;`,
+    "esac",
+    "",
+  ].join("\n");
+  const withGh = async (mode: string, run: (gh: GhCli) => Promise<unknown>) => {
+    const dir = await mkdtemp(join(tmpdir(), "clodable-gh-"));
+    await writeFile(join(dir, "gh"), script, { mode: 0o755 });
+    const before = { path: process.env.PATH, mode: process.env.FAKE_GH };
+    process.env.PATH = `${dir}:${process.env.PATH}`;
+    process.env.FAKE_GH = mode;
+    try {
+      return await run(new GhCli(dir));
+    } finally {
+      process.env.PATH = before.path;
+      if (before.mode === undefined) delete process.env.FAKE_GH;
+      else process.env.FAKE_GH = before.mode;
+      await rm(dir, { recursive: true, force: true });
+    }
+  };
+
+  it("says when GitHub isn't connected, or can't be reached, whatever the call", async () => {
+    for (const call of [
+      (gh: GhCli) => gh.viewer(),
+      (gh: GhCli) => gh.checks(7),
+      (gh: GhCli) => gh.setSecret("NETLIFY_AUTH_TOKEN", "nfp_x"),
+    ]) {
+      await expect(withGh("signed-out", call)).rejects.toMatchObject({ code: "gh-auth" });
+      await expect(withGh("offline", call)).rejects.toMatchObject({
+        code: "offline",
+        message: "GitHub can't be reached right now.",
+      });
+    }
+  });
+
+  it("keeps each call's own words for anything else", async () => {
+    await expect(withGh("refused", (gh) => gh.setSecret("X", "y"))).rejects.toMatchObject({
+      code: "unknown",
+      message: "GitHub didn't accept the X secret your site needs to publish.",
+    });
+    await expect(withGh("refused", (gh) => gh.viewer())).rejects.toMatchObject({
+      code: "unknown",
+      message: "GitHub didn't accept a request.",
+    });
+  });
+
+  it("tells a repository GitHub doesn't have from a network that's down", async () => {
+    const clone = (gh: GhCli) => gh.clone("ada/network-app", join(tmpdir(), "clodable-none"));
+    await expect(withGh("missing", clone)).rejects.toMatchObject({ code: "unknown" });
+    await expect(withGh("no-host", clone)).rejects.toMatchObject({ code: "offline" });
+    await expect(withGh("offline", clone)).rejects.toMatchObject({ code: "offline" });
   });
 });

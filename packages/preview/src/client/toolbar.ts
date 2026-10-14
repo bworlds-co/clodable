@@ -1,14 +1,7 @@
 import { type IconName, logoSvg } from "@clodable/design";
+import { FRAME_PARAM, parseSourceAttr, ROUTES, SCREENS } from "../shared.js";
 import { api } from "./api.js";
-import {
-  describeForClaude,
-  kindOf,
-  labelOf,
-  parseSrc,
-  SUGGESTIONS,
-  snippet,
-  sourceOf,
-} from "./describe.js";
+import { describeForClaude, kindOf, labelOf, SUGGESTIONS, snippet, sourceOf } from "./describe.js";
 import { h, icon } from "./dom.js";
 import { ErrorWatcher } from "./errors.js";
 import { anchor, Highlight, Toasts } from "./overlay.js";
@@ -20,6 +13,8 @@ type Device = "desktop" | "tablet" | "phone";
 export type Surface = "app" | "outer" | "inner";
 
 const STORE = "clodable:toolbar";
+/** The mark the device frame adds to the app's address, left out of the routes it reports. */
+const FRAME_MARK = new RegExp(`[?&]${FRAME_PARAM}=1`);
 const MESSAGES = {
   dynamic:
     "This text is filled in automatically, from your data or a list in your code, so it can't be typed over here.",
@@ -105,62 +100,81 @@ export class Toolbar {
 
   // ── Rendering ────────────────────────────────────────────────────────────
 
+  /** Redraw, keeping keyboard focus on the control pressed, or on the one that took its place. */
   private render() {
-    if (this.surface === "outer") {
-      this.dockSlot.replaceChildren();
-      const params = new URLSearchParams(location.search);
-      const [w, hgt] = this.device === "tablet" ? [820, 1180] : [390, 844];
-      const size = params.get("landscape") === "1" ? `${hgt} × ${w}` : `${w} × ${hgt}`;
-      this.layer.replaceChildren(
-        this.hover.box,
-        this.hover.chip,
-        this.active.box,
-        this.active.chip,
-        h(
-          "div",
-          { class: "devicebar" },
-          h(
-            "div",
-            { class: "dock", role: "toolbar", "aria-label": "Device preview" },
-            this.deviceSwitch(),
-            h("span", { class: "size", "aria-label": `Screen size ${size}` }, size),
-            h("span", { class: "sep", "aria-hidden": "true" }),
-            h(
-              "button",
-              {
-                class: "icon-btn",
-                "aria-label": "Rotate",
-                title: "Rotate",
-                onclick: () => this.rotate(),
-              },
-              icon("refresh"),
-            ),
-          ),
-        ),
-      );
-      return;
-    }
-    if (this.minimized) {
-      this.hintSlot.replaceChildren();
-      this.dockSlot.replaceChildren(
-        h(
-          "button",
-          {
-            class: "pebble",
-            "aria-label": "Show Clodable tools",
-            title: "Show Clodable tools (⌥⇧H)",
-            onclick: () => this.setMinimized(false),
-          },
-          this.mark(24),
-        ),
-      );
-      return;
-    }
+    const focused = (this.shadow.activeElement as HTMLElement | null)?.dataset.key;
+    this.draw();
+    if (!focused) return;
+    const find = (key: string) => this.shadow.querySelector<HTMLElement>(`[data-key="${key}"]`);
+    // Hiding swaps the dock for the pebble, and showing swaps it back: focus follows.
+    (find(focused) ?? find("pebble") ?? find("hide"))?.focus();
+  }
+
+  private draw() {
+    if (this.surface === "outer") this.drawDeviceBar();
+    else if (this.minimized) this.drawPebble();
+    else this.drawDock();
+  }
+
+  /** Around the device frame: the size switch, the screen's size, and Rotate. */
+  private drawDeviceBar() {
+    this.dockSlot.replaceChildren();
+    const params = new URLSearchParams(location.search);
+    const { width, height } = SCREENS[this.device === "tablet" ? "tablet" : "phone"];
+    const size = params.get("landscape") === "1" ? `${height} × ${width}` : `${width} × ${height}`;
+    const dock = h(
+      "div",
+      { class: "dock", role: "toolbar", "aria-label": "Device preview" },
+      this.deviceSwitch(),
+      h("span", { class: "size", "aria-label": `Screen size ${size}` }, size),
+      h("span", { class: "sep", "aria-hidden": "true" }),
+      h(
+        "button",
+        {
+          class: "icon-btn",
+          "aria-label": "Rotate",
+          title: "Rotate",
+          onclick: () => this.rotate(),
+        },
+        icon("refresh"),
+      ),
+    );
+    oneTabStop(dock, this.shadow);
+    this.layer.replaceChildren(
+      this.hover.box,
+      this.hover.chip,
+      this.active.box,
+      this.active.chip,
+      h("div", { class: "devicebar" }, dock),
+    );
+  }
+
+  /** The tools, hidden: one clod in the corner that brings them back. */
+  private drawPebble() {
+    this.hintSlot.replaceChildren();
+    this.dockSlot.replaceChildren(
+      h(
+        "button",
+        {
+          class: "pebble",
+          "data-key": "pebble",
+          "aria-label": "Show Clodable tools",
+          title: "Show Clodable tools (⌥⇧H)",
+          onclick: () => this.setMinimized(false),
+        },
+        this.mark(24),
+      ),
+    );
+  }
+
+  /** The dock: the menu, the two tools, the size switch (on the app itself), and Hide. */
+  private drawDock() {
     const tool = (mode: Mode, iconName: IconName, label: string, key: string) =>
       h(
         "button",
         {
           class: "tool",
+          "data-key": mode,
           "aria-pressed": String(this.mode === mode),
           title: `${label} (${key})`,
           onclick: () => this.setMode(this.mode === mode ? "idle" : mode),
@@ -172,6 +186,7 @@ export class Toolbar {
       "button",
       {
         class: "brand",
+        "data-key": "menu",
         "aria-label": "Clodable menu",
         "aria-haspopup": "menu",
         "aria-expanded": "false",
@@ -209,6 +224,7 @@ export class Toolbar {
         "button",
         {
           class: "icon-btn",
+          "data-key": "hide",
           "aria-label": "Hide Clodable tools",
           title: "Hide (⌥⇧H)",
           onclick: () => this.setMinimized(true),
@@ -216,34 +232,7 @@ export class Toolbar {
         icon("minimize"),
       ),
     );
-    // A toolbar is one tab stop; arrow keys move between its buttons (WAI-ARIA toolbar pattern).
-    dock.addEventListener("keydown", (e) => {
-      const buttons = Array.from(dock.querySelectorAll<HTMLButtonElement>("button"));
-      const index = buttons.indexOf(this.shadow.activeElement as HTMLButtonElement);
-      if (index < 0) return;
-      const next =
-        e.key === "ArrowRight"
-          ? index + 1
-          : e.key === "ArrowLeft"
-            ? index - 1
-            : e.key === "Home"
-              ? 0
-              : e.key === "End"
-                ? buttons.length - 1
-                : -2;
-      if (next === -2) return;
-      e.preventDefault();
-      buttons[(next + buttons.length) % buttons.length]?.focus();
-    });
-    for (const [i, button] of Array.from(
-      dock.querySelectorAll<HTMLButtonElement>("button"),
-    ).entries()) {
-      button.tabIndex = i === 0 ? 0 : -1;
-      button.addEventListener("focus", () => {
-        for (const other of dock.querySelectorAll<HTMLButtonElement>("button")) other.tabIndex = -1;
-        button.tabIndex = 0;
-      });
-    }
+    oneTabStop(dock, this.shadow);
     this.dockSlot.replaceChildren(dock);
     this.renderHint();
   }
@@ -267,7 +256,8 @@ export class Toolbar {
       h("span", {
         class: "thumb",
         "aria-hidden": "true",
-        style: `transform: translateX(${index * 34}px)`,
+        // One button's width per step: the thumb is as wide as a button.
+        style: `transform: translateX(${index * 100}%)`,
       }),
       ...devices.map(([id, iconName, label]) =>
         h(
@@ -318,9 +308,13 @@ export class Toolbar {
 
   private setMinimized(minimized: boolean) {
     this.minimized = minimized;
+    try {
+      localStorage.setItem(STORE, JSON.stringify({ minimized }));
+    } catch {
+      // Storage blocked: the tools still hide, just not for the next page.
+    }
     if (minimized) this.setMode("idle");
-    localStorage.setItem(STORE, JSON.stringify({ minimized }));
-    this.render();
+    else this.render();
   }
 
   private setDevice(device: Device) {
@@ -332,7 +326,7 @@ export class Toolbar {
       if (this.surface === "outer") location.href = path;
       return;
     }
-    const url = `/__clodable/frame?device=${device}&path=${encodeURIComponent(path)}`;
+    const url = `${ROUTES.frame}?device=${device}&path=${encodeURIComponent(path)}`;
     location.href = url;
   }
 
@@ -344,8 +338,12 @@ export class Toolbar {
 
   // ── Pointer and keyboard ─────────────────────────────────────────────────
 
+  /** Browsers show events from inside the shadow root as the host's; other DOMs may not. */
   private isOurs(target: EventTarget | null) {
-    return target === this.host || (target instanceof Node && this.host.contains(target));
+    return (
+      target instanceof Node &&
+      (target === this.host || this.host.contains(target) || this.shadow.contains(target))
+    );
   }
 
   private listen() {
@@ -565,13 +563,12 @@ export class Toolbar {
       if (result.ok) {
         // Keep the new words on screen: the app reloads them from the source in a moment.
         editing.node.textContent = keepEdges(editing.before, after);
-        this.active.show(editing.el, "saved");
-        setTimeout(() => this.active.hide(), 900);
+        this.active.fadeOut(editing.el, "saved");
         this.toasts.show("Text updated · saved to your draft");
       } else {
         editing.node.textContent = editing.before;
         this.active.hide();
-        const reason = (result as { reason: string }).reason;
+        const { reason } = result;
         this.toasts.show(
           reason === "dynamic"
             ? MESSAGES.dynamic
@@ -604,7 +601,6 @@ export class Toolbar {
         class: "btn primary",
         onclick: () => this.openComposerFor(el, `Change “${short(text)}” to `),
       },
-      icon("sparkles", 16),
       "Ask Claude",
     );
     const panel = h(
@@ -650,7 +646,7 @@ export class Toolbar {
       }
       send.setAttribute("disabled", "");
       try {
-        const location = source ? parseSrc(source.src) : undefined;
+        const location = source ? parseSourceAttr(source.src) : undefined;
         await api.ask(request, describeForClaude(el), location);
         this.closePopover();
         this.setMode("idle");
@@ -721,12 +717,15 @@ export class Toolbar {
   }
 
   private closePopover(hideHover = true) {
+    const fromMenu =
+      this.popover?.classList.contains("menu") && this.popover.contains(this.shadow.activeElement);
     this.popover?.remove();
     this.popover = undefined;
     if (hideHover) this.hover.hide();
-    this.shadow
-      ?.querySelector('.brand[aria-expanded="true"]')
-      ?.setAttribute("aria-expanded", "false");
+    const brand = this.shadow?.querySelector<HTMLElement>('.brand[aria-expanded="true"]');
+    brand?.setAttribute("aria-expanded", "false");
+    // A menu closed with focus in it hands focus back to its button (WAI-ARIA menu button).
+    if (fromMenu) brand?.focus();
   }
 
   private closePopoverIfDetached() {
@@ -777,6 +776,7 @@ export class Toolbar {
       h("hr"),
       item("minimize", "Hide these tools", "⌥⇧H", () => this.setMinimized(true)),
     );
+    arrowKeys(menu, this.shadow, "ArrowUp", "ArrowDown");
     this.popover = menu;
     this.layer.append(menu);
     button.setAttribute("aria-expanded", "true");
@@ -793,7 +793,7 @@ export class Toolbar {
       parent.postMessage(
         {
           type: "clodable:route",
-          path: location.pathname + location.search.replace(/[?&]__clodable_frame=1/, ""),
+          path: location.pathname + location.search.replace(FRAME_MARK, ""),
         },
         location.origin,
       );
@@ -819,6 +819,41 @@ export class Toolbar {
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
+
+/**
+ * A toolbar is one tab stop, the button last focused (the first at the start), and arrow keys move
+ * between its buttons: the WAI-ARIA toolbar pattern.
+ */
+function oneTabStop(toolbar: HTMLElement, root: ShadowRoot) {
+  arrowKeys(toolbar, root, "ArrowLeft", "ArrowRight");
+  const buttons = Array.from(toolbar.querySelectorAll<HTMLButtonElement>("button"));
+  for (const [i, button] of buttons.entries()) {
+    button.tabIndex = i === 0 ? 0 : -1;
+    button.addEventListener("focus", () => {
+      for (const other of buttons) other.tabIndex = -1;
+      button.tabIndex = 0;
+    });
+  }
+}
+
+/** Arrow keys move between a group's buttons, round the ends; Home and End jump to them. */
+function arrowKeys(group: HTMLElement, root: ShadowRoot, previous: string, next: string) {
+  group.addEventListener("keydown", (e) => {
+    const buttons = Array.from(group.querySelectorAll<HTMLButtonElement>("button"));
+    const index = buttons.indexOf(root.activeElement as HTMLButtonElement);
+    if (index < 0) return;
+    const to: Record<string, number> = {
+      [previous]: index - 1,
+      [next]: index + 1,
+      Home: 0,
+      End: buttons.length - 1,
+    };
+    const target = to[e.key];
+    if (target === undefined) return;
+    e.preventDefault();
+    buttons[(target + buttons.length) % buttons.length]?.focus();
+  });
+}
 
 const short = (text: string) => {
   const t = text.replace(/\s+/g, " ").trim();

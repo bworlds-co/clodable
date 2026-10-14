@@ -1,4 +1,4 @@
-import { cssVariables } from "@clodable/design";
+import { cssVariables, z } from "@clodable/design";
 
 /** Everything lives in a shadow root: nothing leaks into the app, and the app's CSS can't reach in. */
 export const styles = `
@@ -8,7 +8,7 @@ ${cssVariables({ selector: ":host" })}
   position: fixed;
   inset: 0;
   pointer-events: none;
-  z-index: 2147483000;
+  z-index: ${z.toolbar};
   font: 13px/18px var(--cl-font-ui);
   color: var(--cl-ink);
   -webkit-font-smoothing: antialiased;
@@ -167,7 +167,8 @@ button:focus-visible, [tabindex]:focus-visible, textarea:focus-visible {
   display: inline-flex; align-items: center; gap: 5px;
   height: 22px; padding: 0 8px 0 6px; border-radius: var(--cl-radius-pill);
   font-size: 11.5px; font-weight: 600; white-space: nowrap; max-width: 320px; overflow: hidden; text-overflow: ellipsis;
-  color: #fff; background: var(--cl-clay);
+  /* on-clay reads on every chip fill (clay, cobalt, ash), in both schemes: see design's contrast test. */
+  color: var(--cl-on-clay); background: var(--cl-clay);
   box-shadow: var(--cl-shadow-sm);
 }
 .chip.ask { background: var(--cl-cobalt); }

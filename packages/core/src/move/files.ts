@@ -2,9 +2,10 @@ import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { appendFile, readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { type Flow, step } from "../events.js";
+import { messageOf } from "../errors.js";
+import { type Flow, log, step } from "../events.js";
 import { FILES_LIST } from "./export.js";
-import { literal } from "./fixes.js";
+import { ident, literal } from "./fixes.js";
 import type { Sql } from "./postgres.js";
 import { projectUrl } from "./supabase-api.js";
 import { MANAGED_SCHEMAS } from "./toc.js";
@@ -130,34 +131,15 @@ export async function* copyFiles(
   const done = new Set(
     existsSync(ledgerPath) ? (await readFile(ledgerPath, "utf8")).split("\n").filter(Boolean) : [],
   );
-  const waiting = new Set<string>();
-  let copied = 0;
-  let tooBig = 0;
+  const { todo, waiting, tooBig, ...plan } = planCopy(files, done, isPublic, target);
+  let copied = plan.copied;
   let failed = 0;
   const failures: string[] = [];
-  const todo: StoredFile[] = [];
-  for (const file of files) {
-    if (done.has(key(file))) {
-      copied++;
-      continue;
-    }
-    if (!isPublic.get(file.bucket) && !target.sourceKey) {
-      waiting.add(file.bucket);
-      continue;
-    }
-    if (file.size > target.maxBytes) {
-      tooBig++;
-      continue;
-    }
-    todo.push(file);
-  }
+  const notCopied = new Set<string>();
+  const soFar = () =>
+    `${copied.toLocaleString("en-US")} of ${files.length.toLocaleString("en-US")}`;
 
-  yield step(
-    "move:files",
-    "running",
-    "Copying your files",
-    `${copied.toLocaleString("en-US")} of ${files.length.toLocaleString("en-US")}`,
-  );
+  yield step("move:files", "running", "Copying your files", soFar());
   let lastReport = Date.now();
   let next = 0;
   const worker = async () => {
@@ -175,10 +157,9 @@ export async function* copyFiles(
         copied++;
       } catch (error) {
         failed++;
+        notCopied.add(key(file));
         if (failures.length < 20) {
-          failures.push(
-            `${file.bucket}: ${error instanceof Error ? error.message : String(error)}`,
-          );
+          failures.push(`${file.bucket}: ${messageOf(error)}`);
         }
       }
     }
@@ -194,42 +175,15 @@ export async function* copyFiles(
     await Promise.race([all, new Promise((resolve) => setTimeout(resolve, 2000))]);
     if (Date.now() - lastReport >= 2000 || finished) {
       lastReport = Date.now();
-      yield step(
-        "move:files",
-        "running",
-        "Copying your files",
-        `${copied.toLocaleString("en-US")} of ${files.length.toLocaleString("en-US")}`,
-      );
+      yield step("move:files", "running", "Copying your files", soFar());
     }
   }
   await all;
 
-  // The bytes themselves, on a sample of every bucket: smallest, middle, largest.
   yield step("move:files", "running", "Checking your files", "Comparing them byte for byte");
-  for (const bucket of new Set(files.map((f) => f.bucket))) {
-    if (waiting.has(bucket)) continue;
-    const copiedHere = files
-      .filter((f) => f.bucket === bucket && f.size <= target.maxBytes)
-      .sort((a, b) => a.size - b.size);
-    const sample = [...new Set([0, Math.floor(copiedHere.length / 2), copiedHere.length - 1])]
-      .map((i) => copiedHere[i])
-      .filter((f): f is StoredFile => Boolean(f));
-    for (const file of sample) {
-      try {
-        const [before, after] = await Promise.all([
-          download(target.from, file, Boolean(isPublic.get(bucket)), target.sourceKey),
-          download(target.to, file, false, target.secretKey),
-        ]);
-        if (sha256(before) !== sha256(after)) {
-          failed++;
-          failures.push(`${bucket}: a copied file differs from the original`);
-        }
-      } catch (error) {
-        failed++;
-        failures.push(`${bucket}: ${error instanceof Error ? error.message : String(error)}`);
-      }
-    }
-  }
+  const differences = await checkSample(files, target, isPublic, { waiting, notCopied });
+  failed += differences.length;
+  failures.push(...differences);
 
   // Files keep their owner, which access rules often check ("only you see your files").
   await restoreOwners(
@@ -252,12 +206,13 @@ export async function* copyFiles(
     signedLinks,
   };
   const pending = outcome.waiting.length > 0 || tooBig > 0 || failed > 0;
+  for (const failure of failures) yield log("warn", failure);
   yield step(
     "move:files",
     pending ? "warning" : "done",
     pending ? "Copied most of your files" : "Copied your files",
     [
-      `${copied.toLocaleString("en-US")} of ${files.length.toLocaleString("en-US")}`,
+      soFar(),
       ...(outcome.waiting.length > 0
         ? [`private folders waiting: ${outcome.waiting.join(", ")}`]
         : []),
@@ -266,6 +221,68 @@ export async function* copyFiles(
     ].join(" · "),
   );
   return outcome;
+}
+
+/**
+ * What to copy now. Files copied before (the ledger) count as copied; private folders wait for
+ * Lovable Cloud's key; files larger than the new project takes can't go.
+ */
+function planCopy(
+  files: StoredFile[],
+  done: Set<string>,
+  isPublic: Map<string, boolean>,
+  target: FilesTarget,
+) {
+  const todo: StoredFile[] = [];
+  const waiting = new Set<string>();
+  let copied = 0;
+  let tooBig = 0;
+  for (const file of files) {
+    if (done.has(key(file))) copied++;
+    else if (!isPublic.get(file.bucket) && !target.sourceKey) waiting.add(file.bucket);
+    else if (file.size > target.maxBytes) tooBig++;
+    else todo.push(file);
+  }
+  return { todo, waiting, copied, tooBig };
+}
+
+/**
+ * The bytes themselves, on a sample of every folder that came over: its smallest, middle and
+ * largest file, compared on both sides. A file that didn't come over is already counted. Returns
+ * what differs.
+ */
+async function checkSample(
+  files: StoredFile[],
+  target: FilesTarget,
+  isPublic: Map<string, boolean>,
+  skip: { waiting: Set<string>; notCopied: Set<string> },
+): Promise<string[]> {
+  const differences: string[] = [];
+  for (const bucket of new Set(files.map((f) => f.bucket))) {
+    if (skip.waiting.has(bucket)) continue;
+    const copiedHere = files
+      .filter(
+        (f) => f.bucket === bucket && f.size <= target.maxBytes && !skip.notCopied.has(key(f)),
+      )
+      .sort((a, b) => a.size - b.size);
+    const sample = [...new Set([0, Math.floor(copiedHere.length / 2), copiedHere.length - 1])]
+      .map((i) => copiedHere[i])
+      .filter((f): f is StoredFile => Boolean(f));
+    for (const file of sample) {
+      try {
+        const [before, after] = await Promise.all([
+          download(target.from, file, Boolean(isPublic.get(bucket)), target.sourceKey),
+          download(target.to, file, false, target.secretKey),
+        ]);
+        if (sha256(before) !== sha256(after)) {
+          differences.push(`${bucket}: a copied file differs from the original`);
+        }
+      } catch (error) {
+        differences.push(`${bucket}: ${messageOf(error)}`);
+      }
+    }
+  }
+  return differences;
 }
 
 /** Put each file's owner back, from the export (uploads by the service key have none). */
@@ -312,8 +329,8 @@ async function repointLinks(
   let changed = 0;
   let signed = 0;
   for (const c of columns) {
-    const table = `"${c.schema.replace(/"/g, '""')}"."${c.table.replace(/"/g, '""')}"`;
-    const column = `"${c.column.replace(/"/g, '""')}"`;
+    const table = `${ident(c.schema)}.${ident(c.table)}`;
+    const column = ident(c.column);
     const cast =
       c.type === "jsonb"
         ? "::jsonb"

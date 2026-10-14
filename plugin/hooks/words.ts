@@ -296,6 +296,16 @@ export function supabaseTool(name: string): string | undefined {
 
 export const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
+/** A site's address as people read it: "https://crumb.example/" → "crumb.example". */
+export const hostOf = (url: string) => url.replace(/^https?:\/\//, "").replace(/\/$/, "");
+
+/** A version in the history, by what it did: a restore says which version it went back to. */
+export function versionName(subject: string): string {
+  const back = subject.match(/^Restored the version from (.+?)(?:: (.+))?$/);
+  if (!back) return subject;
+  return back[2] ? `Went back to “${back[2]}”` : `Went back to the version from ${back[1]}`;
+}
+
 /** A commit subject from what the builder asked: first meaningful line, trimmed, at most 72 characters. */
 export function saveMessage(request: string): string {
   // Requests Clodable wrote for the builder get the builder's words, not the error's.
@@ -320,6 +330,16 @@ export function saveMessage(request: string): string {
   if (!cleaned) return "Saved changes";
   const short = cleaned.length > 72 ? `${cleaned.slice(0, 71).trimEnd()}…` : cleaned;
   return short.charAt(0).toUpperCase() + short.slice(1);
+}
+
+/** What stopped, in two words: a save a secret key held back, or a publish. */
+export const stoppedTitle = (code: string) =>
+  code === "secret-found" ? "Not saved" : "Not published";
+
+/** What a publish or an undo did. On Lovable's hosting, it reached GitHub; Lovable puts it live. */
+export function doneTitle(kind: "published" | "undone", onLovable: boolean): string {
+  if (onLovable) return kind === "published" ? "Published on GitHub" : "Undone on GitHub";
+  return kind === "published" ? "You're live" : "Undone. The previous version is live";
 }
 
 /** Why something stopped, in a few words for the bar. The panel tells the whole story. */

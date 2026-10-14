@@ -1,9 +1,12 @@
 import { join } from "node:path";
+import { messageOf } from "../errors.js";
 import { type Flow, step } from "../events.js";
 import { BACKUP, type ExportSummary } from "./export.js";
 import {
   alignSequences,
   createQueues,
+  EMAIL_QUEUE_KEY,
+  ident,
   type NewKeys,
   removeExportBucket,
   repairMigrationHistory,
@@ -129,12 +132,12 @@ export async function* copyExport(
   );
   if (plan.queues.length > 0) {
     await createQueues(target.sql, plan.queues).catch((error: unknown) => {
-      problems.push(`queues: ${error instanceof Error ? error.message : String(error)}`);
+      problems.push(`queues: ${messageOf(error)}`);
     });
     if (options.queueMessages && plan.queueData.length > 0) {
       // Emails waiting to go out at the pause go out from here, once.
       await target.sql
-        .run(plan.queues.map((q) => `truncate pgmq."q_${q.replace(/"/g, '""')}";`).join("\n"))
+        .run(plan.queues.map((q) => `truncate pgmq.${ident(`q_${q}`)};`).join("\n"))
         .catch(() => {});
       keep(
         (
@@ -181,7 +184,7 @@ export async function* copyExport(
       const done = await work();
       if (done) fixes.push(done);
     } catch (error) {
-      problems.push(`${what}: ${error instanceof Error ? error.message : String(error)}`);
+      problems.push(`${what}: ${messageOf(error)}`);
     }
   };
   await attempt("export folder", async () => {
@@ -214,10 +217,10 @@ export async function* copyExport(
         : undefined;
     });
   }
-  if (summary.vaultSecrets.includes("email_queue_service_role_key") && target.keys.serviceRole) {
+  if (summary.vaultSecrets.includes(EMAIL_QUEUE_KEY) && target.keys.serviceRole) {
     const key = target.keys.serviceRole;
     await attempt("email queue", async () => {
-      await setVaultSecret(target.sql, "email_queue_service_role_key", key);
+      await setVaultSecret(target.sql, EMAIL_QUEUE_KEY, key);
       return "Gave the email queue its new key";
     });
   }

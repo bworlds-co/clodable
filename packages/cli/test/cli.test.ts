@@ -1,6 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
-import { rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { writeInbox } from "../../core/src/index.js";
@@ -24,9 +25,13 @@ afterEach(async () => {
 });
 
 function clodable(...args: string[]) {
+  return clodableWith({}, ...args);
+}
+
+function clodableWith(env: Record<string, string>, ...args: string[]) {
   const run = spawnSync(tsx, [entry, ...args, "--json"], {
     cwd: sb.work,
-    env: { ...process.env, CLODABLE_FAKE_GITHUB: sb.bare, NO_COLOR: "1" },
+    env: { ...process.env, CLODABLE_FAKE_GITHUB: sb.bare, NO_COLOR: "1", ...env },
     encoding: "utf8",
     timeout: 60_000,
   });
@@ -83,6 +88,15 @@ describe("clodable --json", () => {
       ok: false,
       error: { code: "nothing-to-publish", message: expect.any(String) },
     });
+    // A move step that doesn't exist, even one every object has, says which ones do.
+    for (const step of ["nope", "constructor"]) {
+      const move = clodable("move", step);
+      expect(move.code).toBe(1);
+      expect(move.result.error).toMatchObject({
+        code: "not-found",
+        hint: expect.stringContaining("check, facts, status, connect"),
+      });
+    }
   });
 
   it("keeps a secret key off GitHub: the save stops with secret-found", async () => {
@@ -166,4 +180,63 @@ describe("clodable --json", () => {
       });
     }
   });
+
+  it("sets up the app in this folder once its tools are there, and stops before when they aren't", async () => {
+    // A stand-in `gh`: signed in as ada (FAKE_GH=signed-in), or not.
+    const bin = await mkdtemp(join(tmpdir(), "clodable-gh-"));
+    const gh = [
+      "#!/bin/sh",
+      '[ "$FAKE_GH" = signed-in ] || { echo "You are not logged into any GitHub hosts." >&2; exit 1; }',
+      'if [ "$1 $2" = "api user" ]; then echo \'{"login":"ada","name":"Ada","id":1}\'; fi',
+      "",
+    ].join("\n");
+    await writeFile(join(bin, "gh"), gh, { mode: 0o755 });
+    const PATH = `${bin}:${process.env.PATH}`;
+    try {
+      const signedOut = clodableWith({ PATH }, "setup", "--yes");
+      expect(signedOut.code).toBe(1);
+      expect(signedOut.result.error).toMatchObject({
+        code: "gh-auth",
+        hint: "Run `gh auth login --web` to connect your account",
+      });
+
+      const setup = clodableWith({ PATH, FAKE_GH: "signed-in" }, "setup", "--yes");
+      expect(setup.code).toBe(0);
+      expect(setup.result.data).toMatchObject({ saved: true, published: false });
+      expect(setup.result.data.files).toContain("AGENTS.md");
+      expect(readFileSync(join(sb.work, "AGENTS.md"), "utf8")).toContain("clodable:begin");
+    } finally {
+      await rm(bin, { recursive: true, force: true });
+    }
+  }, 120_000);
+
+  it("says a repository it can't find is the problem, not the internet", async () => {
+    // A stand-in `gh`, signed in, that finds no such repository, in gh's own words.
+    const bin = await mkdtemp(join(tmpdir(), "clodable-gh-"));
+    const empty = await mkdtemp(join(tmpdir(), "clodable-empty-"));
+    const gh = [
+      "#!/bin/sh",
+      'if [ "$1 $2" = "api user" ]; then echo \'{"login":"ada","name":"Ada","id":1}\'; exit 0; fi',
+      `if [ "$1 $2" = "repo clone" ]; then echo "GraphQL: Could not resolve to a Repository with the name 'ada/typo'. (repository)" >&2; exit 1; fi`,
+      "",
+    ].join("\n");
+    await writeFile(join(bin, "gh"), gh, { mode: 0o755 });
+    try {
+      const run = spawnSync(tsx, [entry, "setup", "--repo", "ada/typo", "--yes", "--json"], {
+        cwd: empty,
+        env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, NO_COLOR: "1" },
+        encoding: "utf8",
+        timeout: 60_000,
+      });
+      const result = JSON.parse(run.stdout.trim().split("\n").at(-1)!);
+      expect(run.status).toBe(1);
+      expect(result.error).toMatchObject({
+        code: "not-found",
+        message: "Couldn't bring in ada/typo.",
+      });
+    } finally {
+      await rm(bin, { recursive: true, force: true });
+      await rm(empty, { recursive: true, force: true });
+    }
+  }, 120_000);
 });

@@ -15,11 +15,15 @@ import {
   loadConfig,
   loadMove,
   lovableAiLeft,
+  messageOf,
   type ProjectConfig,
+  type ProjectInfo,
   parseGitHubRemote,
   planKit,
   publish,
   save,
+  supabaseRef,
+  Workspace,
 } from "@clodable/core";
 import pc from "picocolors";
 import { type Context, drive, run } from "../context.js";
@@ -35,7 +39,30 @@ export interface DoctorItem {
 
 const MIN_NODE = [20, 19] as const;
 
+/** What setup can't go on without. */
+const REQUIRED = ["node", "git", "gh", "github"];
+
+/** Everything Clodable needs, then, in an app on GitHub, how the app stands. */
 export async function doctor(cwd: string): Promise<DoctorItem[]> {
+  const items = await toolChecks(cwd);
+  const git = new Git(cwd);
+  const isRepo = items.some((i) => i.id === "git" && i.status === "ok") && (await git.isRepo());
+  const remote = isRepo ? await git.remoteUrl("origin") : undefined;
+  const parsed = remote ? parseGitHubRemote(remote) : undefined;
+  items.push({
+    id: "repo",
+    label: "Your app on GitHub",
+    status: parsed ? "ok" : "fail",
+    ...(parsed
+      ? { detail: `${parsed.owner}/${parsed.repo}` }
+      : { fix: "Run `clodable setup` in an empty folder to bring your app in from GitHub" }),
+  });
+  if (!isRepo) return items;
+  return [...items, ...(await appChecks(git))];
+}
+
+/** Node, Git, the secret-key check, and GitHub. */
+async function toolChecks(cwd: string): Promise<DoctorItem[]> {
   const items: DoctorItem[] = [];
   const [major = 0, minor = 0] = process.versions.node.split(".").map(Number);
   const nodeOk = major > MIN_NODE[0] || (major === MIN_NODE[0] && minor >= MIN_NODE[1]);
@@ -65,7 +92,7 @@ export async function doctor(cwd: string): Promise<DoctorItem[]> {
   // Fetches the pinned gitleaks the first time, so the first save doesn't wait for it.
   const scanner = await gitleaksBinary().then(
     (path) => ({ ok: true as const, path }),
-    (error: unknown) => ({ ok: false as const, reason: String((error as Error).message ?? error) }),
+    (error: unknown) => ({ ok: false as const, reason: messageOf(error) }),
   );
   items.push({
     id: "secrets",
@@ -105,21 +132,12 @@ export async function doctor(cwd: string): Promise<DoctorItem[]> {
         : { fix: "Run `gh auth login --web` to connect your account" }),
     });
   }
+  return items;
+}
 
-  const git = new Git(cwd);
-  const isRepo = gitOk && (await git.isRepo());
-  const remote = isRepo ? await git.remoteUrl("origin") : undefined;
-  const parsed = remote ? parseGitHubRemote(remote) : undefined;
-  items.push({
-    id: "repo",
-    label: "Your app on GitHub",
-    status: parsed ? "ok" : "fail",
-    ...(parsed
-      ? { detail: `${parsed.owner}/${parsed.repo}` }
-      : { fix: "Run `clodable setup` in an empty folder to bring your app in from GitHub" }),
-  });
-  if (!isRepo) return items;
-
+/** The app in this repository: what it is, its packages, Clodable's files, its database. */
+async function appChecks(git: Git): Promise<DoctorItem[]> {
+  const items: DoctorItem[] = [];
   const root = await git.root();
   const project = await detectProject(root);
   const typeLabel =
@@ -135,13 +153,12 @@ export async function doctor(cwd: string): Promise<DoctorItem[]> {
     detail: `${typeLabel}${project.lovable.generated ? ", made with Lovable" : ""}`,
   });
 
+  const installed = existsSync(join(root, "node_modules"));
   items.push({
     id: "deps",
     label: "App dependencies",
-    status: existsSync(join(root, "node_modules")) ? "ok" : "warn",
-    ...(existsSync(join(root, "node_modules"))
-      ? {}
-      : { fix: `Run \`${project.packageManager} install\`` }),
+    status: installed ? "ok" : "warn",
+    ...(installed ? {} : { fix: `Run \`${project.packageManager} install\`` }),
   });
 
   const config = await loadConfig(root);
@@ -156,7 +173,7 @@ export async function doctor(cwd: string): Promise<DoctorItem[]> {
       : { detail: `${missing.length} file(s) missing`, fix: "Run `clodable kit --apply`" }),
   });
 
-  const ref = config.supabase.projectRef ?? project.supabase.projectRef;
+  const ref = supabaseRef(config, project);
   items.push(
     config.backend === "lovable-cloud"
       ? {
@@ -177,7 +194,19 @@ export async function doctor(cwd: string): Promise<DoctorItem[]> {
               : "None",
         },
   );
+  return [...items, ...(await lovableChecks(git, project, config))];
+}
 
+/**
+ * Lovable's link to GitHub and its AI. While the app still runs on Lovable they're expected:
+ * turning them off comes at the end of the move, never before. After it, they're warnings.
+ */
+async function lovableChecks(
+  git: Git,
+  project: ProjectInfo,
+  config: ProjectConfig,
+): Promise<DoctorItem[]> {
+  const items: DoctorItem[] = [];
   // Lovable's GitHub sync commits as a bot. Recent bot commits on the live branch mean it's still
   // connected; once the move is finished (the builder disconnected it), only newer ones count.
   const recent = await git.log(`origin/${config.liveBranch}`, { firstParent: true, limit: 30 });
@@ -189,8 +218,6 @@ export async function doctor(cwd: string): Promise<DoctorItem[]> {
   const lovableBot = recent.some(
     (c) => /gpt-engineer-app|lovable/i.test(c.author) && Date.parse(c.date) > since,
   );
-  // While the app still runs on Lovable, its link to GitHub and its AI are expected: turning them
-  // off comes at the end of the move, never before.
   const onLovable =
     config.backend === "lovable-cloud" ||
     config.hosting === "lovable" ||
@@ -217,12 +244,11 @@ export async function doctor(cwd: string): Promise<DoctorItem[]> {
   // Lovable's AI with no key of the builder's: on Lovable, the move switches it; off it, it fails.
   const aiLeft = await lovableAiLeft(project.root);
   if (aiLeft) {
-    // Claude's names can hold commas ("Summarize, on each note"): quoted, they read as names.
-    const names = aiLeft.features.map((f) => `“${f}”`);
+    const one = aiLeft.features.length === 1;
     const what =
-      names.length === 0
+      aiLeft.features.length === 0
         ? "Your app's AI features don't"
-        : `${names.length === 1 ? names[0]! : `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`} ${names.length === 1 ? "doesn't" : "don't"}`;
+        : `${quotedList(aiLeft.features)} ${one ? "doesn't" : "don't"}`;
     items.push(
       onLovable
         ? {
@@ -235,7 +261,7 @@ export async function doctor(cwd: string): Promise<DoctorItem[]> {
             id: "lovable-ai",
             label: "Lovable AI",
             status: "warn",
-            detail: `${what} work: ${names.length === 1 ? "it calls" : "they call"} Lovable's AI, which your app no longer has`,
+            detail: `${what} work: ${one ? "it calls" : "they call"} Lovable's AI, which your app no longer has`,
             fix: "Claude can switch it to an AI key of your own",
           },
     );
@@ -243,16 +269,30 @@ export async function doctor(cwd: string): Promise<DoctorItem[]> {
   return items;
 }
 
+/**
+ * `“a”, “b” and “c”`. Claude's names for features can hold commas ("Summarize, on each note"):
+ * quoted, they read as names.
+ */
+function quotedList(names: string[]): string {
+  const quoted = names.map((n) => `“${n}”`);
+  return quoted.length === 1
+    ? quoted[0]!
+    : `${quoted.slice(0, -1).join(", ")} and ${quoted.at(-1)}`;
+}
+
 const MARK = { ok: celadon("✓"), warn: ochre("!"), fail: oxide("✕"), info: ash("·") };
+
+/** One check's line, with what to do when it isn't fine. */
+function doctorLine(ctx: Context, item: DoctorItem) {
+  ctx.out.line(
+    `${MARK[item.status]} ${item.label.padEnd(26)}${item.detail ? ash(item.detail) : ""}`,
+  );
+  if (item.fix && item.status !== "ok") ctx.out.line(`  ${ash("→")} ${item.fix}`);
+}
 
 function renderDoctor(ctx: Context, items: DoctorItem[]) {
   ctx.out.header("doctor");
-  for (const item of items) {
-    ctx.out.line(
-      `${MARK[item.status]} ${item.label.padEnd(26)}${item.detail ? ash(item.detail) : ""}`,
-    );
-    if (item.fix && item.status !== "ok") ctx.out.line(`  ${ash("→")} ${item.fix}`);
-  }
+  for (const item of items) doctorLine(ctx, item);
   ctx.out.line();
 }
 
@@ -305,10 +345,9 @@ export async function kitCommand(ctx: Context, options: { apply?: boolean; liveU
   );
 }
 
-/** Interactive setup for the terminal. Claude Desktop's setup wizard uses the same steps through `--json`. */
 /** Ask where the data and the live site are, unless already known. No database means "none". */
 async function whereItRuns(
-  project: Awaited<ReturnType<typeof detectProject>>,
+  project: ProjectInfo,
   current: {
     backend: ProjectConfig["backend"];
     hosting: ProjectConfig["hosting"];
@@ -352,6 +391,65 @@ async function whereItRuns(
   return { backend, hosting };
 }
 
+/** Node, Git and GitHub, shown as they stand; without any of them, setup stops here. */
+async function requireTools(ctx: Context): Promise<void> {
+  const tools = (await toolChecks(ctx.cwd)).filter((t) => REQUIRED.includes(t.id));
+  if (!ctx.out.json) for (const tool of tools) doctorLine(ctx, tool);
+  const blocking = tools.filter((t) => t.status === "fail");
+  if (blocking.length > 0) {
+    throw new ClodableError({
+      code: blocking.some((b) => b.id === "github") ? "gh-auth" : "gh-missing",
+      message: "A few tools are needed first.",
+      hint: blocking
+        .map((b) => b.fix)
+        .filter(Boolean)
+        .join("\n    "),
+    });
+  }
+}
+
+/** Which app to bring in: the one given, or, in a terminal, one picked from the builder's own. */
+async function pickRepo(ctx: Context, given: string | undefined, interactive: boolean) {
+  if (given) return given;
+  if (interactive) {
+    const repos = await new GhCli(ctx.cwd).repositories();
+    const choice = await select({
+      message: "Which app should Clodable open?",
+      options: repos.map((r) => ({ value: r.name, label: r.name, hint: r.description ?? "" })),
+    });
+    if (isCancel(choice)) throw new ClodableError({ code: "unknown", message: "Setup cancelled." });
+    return choice;
+  }
+  throw new ClodableError({
+    code: "not-a-repo",
+    message: "Which app should Clodable open?",
+    hint: "Run `clodable setup --repo owner/name`.",
+  });
+}
+
+/** Bring the app onto this computer: into this folder if it's empty, else into a folder of its own. */
+async function bringIn(ctx: Context, repo: string, interactive: boolean): Promise<string> {
+  const empty = readdirSync(ctx.cwd).filter((n) => !n.startsWith(".")).length === 0;
+  const target = empty ? ctx.cwd : join(ctx.cwd, repo.split("/")[1]!);
+  const s = interactive ? spinner() : undefined;
+  s?.start(`Bringing in ${repo}`);
+  try {
+    await new GhCli(ctx.cwd).clone(repo, target);
+  } catch (error) {
+    s?.error(`Couldn't bring in ${repo}`);
+    // Not connected or offline says so; anything else is about this repository.
+    if (error instanceof ClodableError && error.code !== "unknown") throw error;
+    throw new ClodableError({
+      code: "not-found",
+      message: `Couldn't bring in ${repo}.`,
+      details: error instanceof ClodableError ? error.details : messageOf(error),
+    });
+  }
+  s?.stop(`Brought in ${repo}`);
+  return target;
+}
+
+/** Interactive setup for the terminal. Claude Desktop's setup wizard uses the same steps through `--json`. */
 export async function setupCommand(
   ctx: Context,
   options: {
@@ -367,88 +465,11 @@ export async function setupCommand(
     ctx,
     async () => {
       ctx.out.header("let's bring your app home");
-      const tools = await doctor(ctx.cwd);
-      const blocking = tools.filter(
-        (t) => ["node", "git", "gh", "github"].includes(t.id) && t.status === "fail",
-      );
-      if (!ctx.out.json)
-        for (const t of tools.filter((t) => ["node", "git", "gh", "github"].includes(t.id))) {
-          ctx.out.line(`${MARK[t.status]} ${t.label.padEnd(26)}${t.detail ? ash(t.detail) : ""}`);
-          if (t.fix && t.status !== "ok") ctx.out.line(`  ${ash("→")} ${t.fix}`);
-        }
-      if (blocking.length > 0) {
-        throw new ClodableError({
-          code: blocking.some((b) => b.id === "github") ? "gh-auth" : "gh-missing",
-          message: "A few tools are needed first.",
-          hint: blocking
-            .map((b) => b.fix)
-            .filter(Boolean)
-            .join("\n    "),
-        });
-      }
-
-      let root = ctx.cwd;
+      await requireTools(ctx);
       const git = new Git(ctx.cwd);
-      if (!(await git.isRepo())) {
-        let repo = options.repo;
-        if (!repo && interactive) {
-          const list = await exec(
-            "gh",
-            [
-              "repo",
-              "list",
-              "--limit",
-              "40",
-              "--json",
-              "nameWithOwner,description,updatedAt",
-              "--source",
-            ],
-            { cwd: ctx.cwd },
-          );
-          const repos = JSON.parse(list.stdout || "[]") as Array<{
-            nameWithOwner: string;
-            description: string | null;
-          }>;
-          const choice = await select({
-            message: "Which app should Clodable open?",
-            options: repos.map((r) => ({
-              value: r.nameWithOwner,
-              label: r.nameWithOwner,
-              hint: r.description ?? "",
-            })),
-          });
-          if (isCancel(choice))
-            throw new ClodableError({ code: "unknown", message: "Setup cancelled." });
-          repo = choice;
-        }
-        if (!repo) {
-          throw new ClodableError({
-            code: "not-a-repo",
-            message: "Which app should Clodable open?",
-            hint: "Run `clodable setup --repo owner/name`.",
-          });
-        }
-        const empty = readdirSync(ctx.cwd).filter((n) => !n.startsWith(".")).length === 0;
-        const target = empty ? ctx.cwd : join(ctx.cwd, repo.split("/")[1]!);
-        const s = interactive ? spinner() : undefined;
-        s?.start(`Bringing in ${repo}`);
-        const cloned = await exec("gh", ["repo", "clone", repo, target], {
-          cwd: ctx.cwd,
-          timeout: 10 * 60_000,
-        });
-        if (cloned.exitCode !== 0) {
-          s?.error(`Couldn't bring in ${repo}`);
-          throw new ClodableError({
-            code: "not-found",
-            message: `Couldn't bring in ${repo}.`,
-            details: cloned.stderr,
-          });
-        }
-        s?.stop(`Brought in ${repo}`);
-        root = target;
-      } else {
-        root = await git.root();
-      }
+      const root = (await git.isRepo())
+        ? await git.root()
+        : await bringIn(ctx, await pickRepo(ctx, options.repo, interactive), interactive);
 
       const project = await detectProject(root);
       const loaded = await loadConfig(root);
@@ -488,10 +509,7 @@ export async function setupCommand(
         else s?.error("Packages couldn't be installed. You can retry later with npm install.");
       }
 
-      const ws = await (await import("@clodable/core")).Workspace.open({
-        cwd: root,
-        ...(ctx.github ? { github: ctx.github } : {}),
-      });
+      const ws = await Workspace.open({ cwd: root, ...(ctx.github ? { github: ctx.github } : {}) });
       const saved = await save(ws, { message: "Set up Clodable", kind: "setup" });
       let published = false;
       if (saved.saved && (options.publish || (interactive && (await confirmPublish())))) {

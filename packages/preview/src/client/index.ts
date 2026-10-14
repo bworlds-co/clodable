@@ -1,3 +1,4 @@
+import { FRAME_PARAM, ROUTES } from "../shared.js";
 import { installEarlyCapture } from "./errors.js";
 import { type Surface, Toolbar } from "./toolbar.js";
 
@@ -8,9 +9,9 @@ function boot() {
   // Listen right away: an app that crashes while loading does so before the toolbar mounts.
   installEarlyCapture();
   const surface: Surface =
-    location.pathname === "/__clodable/frame"
+    location.pathname === ROUTES.frame
       ? "outer"
-      : new URLSearchParams(location.search).has("__clodable_frame")
+      : new URLSearchParams(location.search).has(FRAME_PARAM)
         ? "inner"
         : "app";
   // Mount after the app has hydrated, so server-rendered markup is never disturbed.

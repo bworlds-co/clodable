@@ -1,7 +1,8 @@
+import { messageOf } from "@clodable/core";
 import { cac } from "cac";
 import { dbCommand } from "./commands/db.js";
 import { devCommand } from "./commands/dev.js";
-import { configCommand, moveCommand } from "./commands/move.js";
+import { configCommand, MOVE_HELP, moveCommand } from "./commands/move.js";
 import { checkCommand, publishCommand, undoCommand } from "./commands/publish.js";
 import { settingsCommand } from "./commands/settings.js";
 import { doctorCommand, kitCommand, setupCommand } from "./commands/setup.js";
@@ -125,11 +126,16 @@ cli
     dbCommand(ctx(options), { action: String(action), ...(arg ? { arg: String(arg) } : {}) }),
   );
 
+/** An option given as text, or nothing when it wasn't given. */
+const text = (value: unknown) =>
+  value === undefined || value === false || value === "" ? undefined : String(value);
+
+/** A yes/no option: anything but no, false or 0 is a yes. */
+const yes = (value: unknown) =>
+  value === undefined ? undefined : !/^(no|false|0)$/i.test(String(value));
+
 cli
-  .command(
-    "move [step] [arg]",
-    "Move off Lovable, step by step: check, facts [--set], status, connect, choices, create, export, copy, verify, diagnose, files, functions, secrets, secret <NAME>, vault, vault-secret <NAME>, preview <copy|live>, netlify, teams, site, settings, setting <NAME>, method <careful|quick>, resend, emails --domain <domain>|--hook|--skip, services, ai <openrouter|gemini|openai>, app-emails, google <client id>|--skip, pause, paused, golive, domain [name|--skip], finished, forget, disconnect",
-  )
+  .command("move [step] [arg]", MOVE_HELP)
   .option("--org <slug>", "create: the Supabase organization")
   .option("--region <code>", "create: where it runs (eu-central-1…)")
   .option("--name <name>", "create: the project's name")
@@ -149,26 +155,22 @@ cli
   .option("--confirm-email <yes|no>", "golive: whether new people confirm their email first")
   .action((step, arg, options) =>
     moveCommand(ctx(options), {
-      step: step ?? "check",
-      ...(arg ? { arg: String(arg) } : {}),
-      ...(options.org ? { org: String(options.org) } : {}),
-      ...(options.region ? { region: String(options.region) } : {}),
-      ...(options.name ? { name: String(options.name) } : {}),
-      ...(options.file ? { file: String(options.file) } : {}),
-      ...(options.private ? { private: true } : {}),
-      ...(options.fix ? { fix: true } : {}),
-      ...(options.account ? { account: String(options.account) } : {}),
-      ...(options.domain ? { domain: String(options.domain) } : {}),
-      ...(options.sender ? { sender: String(options.sender) } : {}),
-      ...(options.skip ? { skip: true } : {}),
-      ...(options.hook ? { hook: true } : {}),
-      ...(options.set ? { set: true } : {}),
-      ...(options.signUp !== undefined
-        ? { signUp: !/^(no|false|0)$/i.test(String(options.signUp)) }
-        : {}),
-      ...(options.confirmEmail !== undefined
-        ? { confirmEmail: !/^(no|false|0)$/i.test(String(options.confirmEmail)) }
-        : {}),
+      step: text(step) ?? "check",
+      arg: text(arg),
+      org: text(options.org),
+      region: text(options.region),
+      name: text(options.name),
+      file: text(options.file),
+      private: options.private === true,
+      fix: options.fix === true,
+      account: text(options.account),
+      domain: text(options.domain),
+      sender: text(options.sender),
+      skip: options.skip === true,
+      hook: options.hook === true,
+      set: options.set === true,
+      signUp: yes(options.signUp),
+      confirmEmail: yes(options.confirmEmail),
     }),
   );
 
@@ -206,6 +208,6 @@ try {
     await cli.runMatchedCommand();
   }
 } catch (error) {
-  process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+  process.stderr.write(`${messageOf(error)}\n`);
   process.exitCode = 1;
 }

@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { basename, relative, resolve } from "node:path";
 import { ClodableError } from "./errors.js";
 import { literal } from "./move/fixes.js";
-import { homeSql } from "./move/flows.js";
+import { homeSql } from "./move/home.js";
 import { SupabaseApi } from "./move/supabase-api.js";
 import type { Workspace } from "./workspace.js";
 
@@ -39,7 +39,7 @@ async function database(ws: Workspace) {
       hint: "Connect your Supabase account in the Clodable panel: changes to your database go through it.",
     });
   }
-  return homeSql(api, ref);
+  return { api, ref, sql: homeSql(api, ref) };
 }
 
 function statement(sql: string | undefined): string {
@@ -58,9 +58,8 @@ export async function checkDatabase(ws: Workspace): Promise<{
   ok: boolean;
   findings: Array<{ level: string; title: string; detail?: string; fix?: string }>;
 }> {
-  await database(ws);
-  const api = await SupabaseApi.required();
-  const lints = await api.advisors(ws.config.supabase.projectRef!, "security");
+  const { api, ref } = await database(ws);
+  const lints = await api.advisors(ref, "security");
   const findings = lints
     .filter((l) => l.level === "ERROR" || l.level === "WARN")
     .map((l) => ({
@@ -85,7 +84,7 @@ export async function queryDatabase(
       hint: "To change data: clodable db run. To change the tables: a migration, with clodable db apply.",
     });
   }
-  const db = await database(ws);
+  const { sql: db } = await database(ws);
   const rows = await db.rows(`select * from (${text}) clodable_query limit ${MAX_ROWS + 1}`);
   return { rows: rows.slice(0, MAX_ROWS), truncated: rows.length > MAX_ROWS };
 }
@@ -105,7 +104,7 @@ export async function runOnDatabase(
       hint: "Write it to supabase/migrations/<timestamp>_<what>.sql, then clodable db apply that file.",
     });
   }
-  const db = await database(ws);
+  const { sql: db } = await database(ws);
   await db.run(`${text};`);
   return { done: true };
 }
@@ -128,11 +127,12 @@ export async function applyMigration(
       hint: "A file in supabase/migrations/, named <timestamp>_<what>.sql.",
     });
   }
-  const [, version, name] = match as unknown as [string, string, string];
+  const version = match[1]!;
+  const name = match[2]!;
   const text = await readFile(path, "utf8").catch(() => {
     throw new ClodableError({ code: "not-found", message: `There's no ${file}.` });
   });
-  const db = await database(ws);
+  const { sql: db } = await database(ws);
   const [history] = await db.rows<{ present: boolean }>(
     "select to_regclass('supabase_migrations.schema_migrations') is not null as present",
   );

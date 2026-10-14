@@ -1,10 +1,15 @@
 import { existsSync } from "node:fs";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import { z } from "zod";
 import { ClodableError } from "./errors.js";
+import { writeJsonFile } from "./places.js";
+import type { ProjectInfo } from "./project.js";
 
-/** `.clodable/config.json`: committed and shared by everyone working on the project. */
+/**
+ * `.clodable/config.json`: committed and shared by everyone working on the project. A missing
+ * section gets its fields' defaults (`prefault` runs `{}` through the section's own schema).
+ */
 export const ProjectConfigSchema = z.object({
   $schema: z.string().optional(),
   version: z.literal(1).default(1),
@@ -18,12 +23,12 @@ export const ProjectConfigSchema = z.object({
       /** The package.json script that builds the app for production. */
       buildScript: z.string().default("build"),
     })
-    .default({ type: "unknown", buildScript: "build" }),
+    .prefault({}),
   supabase: z
     .object({
       projectRef: z.string().optional(),
     })
-    .default({}),
+    .prefault({}),
   /**
    * Where the app's data lives. On Lovable Cloud, Lovable owns the database and backend functions:
    * Clodable shapes the pages, and the move to the builder's own Supabase is a guided step.
@@ -37,7 +42,7 @@ export const ProjectConfigSchema = z.object({
       packages: z.boolean().default(true),
       secrets: z.boolean().default(true),
     })
-    .default({ build: true, packages: true, secrets: true }),
+    .prefault({}),
   publish: z
     .object({
       /** Wait for the repository's own CI checks on the draft before publishing. */
@@ -45,7 +50,7 @@ export const ProjectConfigSchema = z.object({
       ciTimeoutMinutes: z.number().positive().default(20),
       deployTimeoutMinutes: z.number().positive().default(10),
     })
-    .default({ waitForCi: true, ciTimeoutMinutes: 20, deployTimeoutMinutes: 10 }),
+    .prefault({}),
 });
 
 export type ProjectConfig = z.infer<typeof ProjectConfigSchema>;
@@ -104,11 +109,18 @@ export async function loadConfig(root: string): Promise<ProjectConfig> {
   return parsed.data;
 }
 
-export async function saveConfig(root: string, config: ProjectConfig): Promise<void> {
-  await writeJson(join(root, CONFIG_PATH), {
-    $schema: "https://clodable.dev/schema/config.json",
-    ...config,
-  });
+/** The Supabase project the app uses: the one in Clodable's settings, else the one its code names. */
+export function supabaseRef(config: ProjectConfig, project: ProjectInfo): string | undefined {
+  return config.supabase.projectRef ?? project.supabase.projectRef;
+}
+
+/** The config as its file holds it: its schema first, for editors. */
+export function configFile(config: ProjectConfig): ProjectConfig {
+  return { $schema: "https://clodable.dev/schema/config.json", ...config };
+}
+
+export function saveConfig(root: string, config: ProjectConfig): Promise<void> {
+  return writeJsonFile(join(root, CONFIG_PATH), configFile(config));
 }
 
 export async function loadState(root: string): Promise<LocalState> {
@@ -121,11 +133,6 @@ export async function loadState(root: string): Promise<LocalState> {
   }
 }
 
-export async function saveState(root: string, state: LocalState): Promise<void> {
-  await writeJson(join(root, STATE_PATH), state);
-}
-
-async function writeJson(path: string, value: unknown): Promise<void> {
-  await mkdir(dirname(path), { recursive: true });
-  await writeFile(path, `${JSON.stringify(value, null, 2)}\n`);
+export function saveState(root: string, state: LocalState): Promise<void> {
+  return writeJsonFile(join(root, STATE_PATH), state);
 }

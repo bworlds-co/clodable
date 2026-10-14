@@ -1,4 +1,4 @@
-import { ClodableError } from "../errors.js";
+import { ClodableError, messageOf } from "../errors.js";
 import { forgetSecret, readSecret } from "../local-secrets.js";
 
 /**
@@ -197,7 +197,7 @@ export class SupabaseApi {
           code: "offline",
           message: "Couldn't reach Supabase.",
           hint: "Check your internet connection, then try again.",
-          details: error instanceof Error ? error.message : String(error),
+          details: messageOf(error),
         });
       }
       if (response.status === 429 && attempt < 4) {

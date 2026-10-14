@@ -1,5 +1,6 @@
 import { ClodableError } from "../errors.js";
 import { readSecret } from "../local-secrets.js";
+import { type ApiService, callApi } from "./http.js";
 
 /**
  * Resend's API, with the builder's own key: their sending domain and a narrow key for Supabase.
@@ -30,12 +31,31 @@ export interface ResendDomain {
 
 export class ResendApi {
   private readonly base: string;
+  private readonly service: ApiService;
 
-  constructor(
-    private readonly key: string,
-    base = process.env.CLODABLE_RESEND_API ?? "https://api.resend.com",
-  ) {
+  constructor(key: string, base = process.env.CLODABLE_RESEND_API ?? "https://api.resend.com") {
     this.base = base.replace(/\/+$/, "");
+    this.service = {
+      name: "Resend",
+      token: key,
+      failed: "resend-failed",
+      refused: (status, message, details) =>
+        status === 401 || status === 403
+          ? new ClodableError({
+              code: "resend-auth",
+              message: /restricted|sending/i.test(message)
+                ? "That Resend key can only send emails."
+                : "Resend didn't accept that key.",
+              hint: "Create a key with Full access in Resend (API Keys → Create API Key), then connect again.",
+              details,
+            })
+          : new ClodableError({
+              code: "resend-failed",
+              message: "Resend refused the request.",
+              hint: "Try again in a minute. If it keeps happening, share the details with your developer.",
+              details,
+            }),
+    };
   }
 
   static async required(): Promise<ResendApi> {
@@ -50,54 +70,8 @@ export class ResendApi {
     return new ResendApi(key);
   }
 
-  private async request<T>(method: string, path: string, body?: unknown): Promise<T> {
-    let response: Response;
-    try {
-      response = await fetch(`${this.base}${path}`, {
-        method,
-        headers: {
-          Authorization: `Bearer ${this.key}`,
-          "User-Agent": "clodable",
-          ...(body !== undefined ? { "Content-Type": "application/json" } : {}),
-        },
-        ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
-        signal: AbortSignal.timeout(30_000),
-      });
-    } catch (error) {
-      throw new ClodableError({
-        code: "offline",
-        message: "Couldn't reach Resend.",
-        hint: "Check your internet connection, then try again.",
-        details: error instanceof Error ? error.message : String(error),
-      });
-    }
-    const text = await response.text();
-    if (!response.ok) {
-      let message = text;
-      try {
-        message = (JSON.parse(text) as { message?: string }).message ?? text;
-      } catch {
-        // plain text
-      }
-      const details = `Resend answered ${response.status}: ${message.slice(0, 400)}`;
-      if (response.status === 401 || response.status === 403) {
-        throw new ClodableError({
-          code: "resend-auth",
-          message: /restricted|sending/i.test(message)
-            ? "That Resend key can only send emails."
-            : "Resend didn't accept that key.",
-          hint: "Create a key with Full access in Resend (API Keys → Create API Key), then connect again.",
-          details,
-        });
-      }
-      throw new ClodableError({
-        code: "resend-failed",
-        message: "Resend refused the request.",
-        hint: "Try again in a minute. If it keeps happening, share the details with your developer.",
-        details,
-      });
-    }
-    return (text ? JSON.parse(text) : undefined) as T;
+  private request<T>(method: string, path: string, body?: unknown): Promise<T> {
+    return callApi<T>(this.service, method, `${this.base}${path}`, body);
   }
 
   async domains(): Promise<ResendDomain[]> {
