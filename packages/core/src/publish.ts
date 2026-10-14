@@ -2,7 +2,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { checksFailed, runChecks } from "./checks/index.js";
-import { ensurePullRequest, save } from "./draft.js";
+import { BEFORE_RESTORE, ensurePullRequest, save } from "./draft.js";
 import { ClodableError } from "./errors.js";
 import { type Flow, step } from "./events.js";
 import { type Commit, kindTrailer } from "./git.js";
@@ -44,10 +44,17 @@ export interface PublishResult {
   functions: FunctionsOutcome;
 }
 
+/** The save Clodable makes on its own when Publish finds changes not saved yet. */
+const LAST_TOUCHES = "Last touches before publishing";
+
+/** Saves Clodable makes on its own, around a restore or a publish: they never name a publish. */
+const OWN_SAVES = new Set([BEFORE_RESTORE, LAST_TOUCHES]);
+
 /** "Made the header blue", "Made the header blue; added a pricing page", or "… and 3 more changes". */
 export function publishTitle(saves: Commit[]): string {
   const subjects = saves
     .filter((c) => c.kind === "save" || c.kind === "restore" || c.kind === undefined)
+    .filter((c) => !OWN_SAVES.has(c.subject))
     .map((c) => c.subject)
     .reverse();
   if (subjects.length === 0) return "Updated the site";
@@ -66,7 +73,7 @@ export async function* publish(ws: Workspace, options: PublishOptions = {}): Flo
   yield step("save", "running", "Saving your latest changes");
   let saved: Awaited<ReturnType<typeof save>>;
   try {
-    saved = await save(ws, { message: options.message ?? "Last touches before publishing" });
+    saved = await save(ws, { message: options.message ?? LAST_TOUCHES });
   } catch (error) {
     if (error instanceof ClodableError && error.code === "secret-found") {
       yield step("save", "failed", error.message);

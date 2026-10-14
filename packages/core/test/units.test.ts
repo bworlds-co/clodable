@@ -61,6 +61,15 @@ describe("words", () => {
     );
     expect(publishTitle([commit("C"), commit("B"), commit("A")])).toBe("A and 2 more changes");
     expect(publishTitle([commit("Sync", "sync")])).toBe("Updated the site");
+    // Clodable's own saves, around a restore or a publish, never name it.
+    expect(
+      publishTitle([
+        commit("Last touches before publishing"),
+        commit("Added menu"),
+        commit("Saved changes before restoring"),
+      ]),
+    ).toBe("Added menu");
+    expect(publishTitle([commit("Saved changes before restoring")])).toBe("Updated the site");
   });
 
   it("names one draft per GitHub login", () => {
