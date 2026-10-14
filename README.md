@@ -88,7 +88,7 @@ Apps from other AI app builders aren't supported yet. A React app built with Vit
 2. **Open an empty folder** in Claude Desktop's Code tab, and type `/clodable`.
 3. **Follow the setup.** It connects GitHub, brings your app in, and adds a few plain files. Then ask for your first change.
 
-On Lovable Cloud, the panel opens on **Move off Lovable** ([how it goes](#move-off-lovable-to-a-stack-you-own)). Helping a client? Follow the [onboarding playbook](docs/ONBOARDING.md).
+On Lovable Cloud, type `/move-off-lovable` to open **Move off Lovable** in the panel ([how it goes](#move-off-lovable-to-a-stack-you-own)). Once the move has started, the panel opens on it. Helping a client? Follow the [onboarding playbook](docs/ONBOARDING.md).
 
 ## Move off Lovable, to a stack you own
 

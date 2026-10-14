@@ -87,6 +87,8 @@ export function toStatus(data: any): ClodableStatus {
     backend: data?.project?.backend ?? "unknown",
     hosting: data?.project?.hosting ?? "unknown",
     lovableUrl: data?.project?.lovableUrl ?? null,
+    madeWithLovable: Boolean(data?.project?.madeWithLovable),
+    movingOffLovable: Boolean(data?.movingOffLovable),
     finishingMove: Boolean(data?.finishingMove),
     movedAt: data?.movedAt ?? null,
     databaseConnected:

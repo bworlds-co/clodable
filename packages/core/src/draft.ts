@@ -38,6 +38,8 @@ export interface Status {
     hosting: ProjectConfig["hosting"];
     /** The project in Lovable's editor, when the README links it. */
     lovableUrl?: string;
+    /** The app was made with Lovable (its packages or its .lovable folder say so). */
+    madeWithLovable: boolean;
   };
   branch: string | undefined;
   draftBranch: string;
@@ -52,6 +54,8 @@ export interface Status {
   conflicts: string[];
   pullRequest?: { number: number; url: string };
   lastPublish?: { sha: string; title: string; at: string; url?: string };
+  /** A move off Lovable has started (Claude looked at the app, or a way to move was chosen) and isn't over. */
+  movingOffLovable?: true;
   /** Moving off Lovable: live on the new backend, with the last clicks in Lovable still to do. */
   finishingMove?: true;
   /** When the move off Lovable ended: from then on, the app is changed here. */
@@ -317,6 +321,7 @@ export async function status(ws: Workspace, options: { fetch?: boolean } = {}): 
       backend: ws.config.backend,
       hosting: ws.config.hosting,
       ...(ws.project.lovable.projectUrl ? { lovableUrl: ws.project.lovable.projectUrl } : {}),
+      madeWithLovable: ws.project.lovable.generated,
     },
     branch,
     draftBranch,
@@ -328,7 +333,7 @@ export async function status(ws: Workspace, options: { fetch?: boolean } = {}): 
     conflicts,
     ...(state.lastPublish ? { lastPublish: state.lastPublish } : {}),
     ...(state.pullRequest ? { pullRequest: state.pullRequest } : {}),
-    ...(await finishingMove(ws.root)),
+    ...(await whereTheMoveIs(ws.root)),
     ...(ws.config.backend === "supabase"
       ? { database: { connected: Boolean(await readSecret(SUPABASE_TOKEN)) } }
       : {}),
@@ -376,8 +381,12 @@ export async function restore(ws: Workspace, sha: string): Promise<SaveResult> {
   });
 }
 
-async function finishingMove(root: string): Promise<{ finishingMove?: true; movedAt?: string }> {
+/** Where the move off Lovable stands: not started, under way, its last clicks left, or over. */
+async function whereTheMoveIs(
+  root: string,
+): Promise<Pick<Status, "movingOffLovable" | "finishingMove" | "movedAt">> {
   const move = await loadMove(root).catch(() => undefined);
   if (move?.switch?.finishedAt) return { movedAt: move.switch.finishedAt };
-  return move?.switch?.liveAt ? { finishingMove: true } : {};
+  if (move?.switch?.liveAt) return { movingOffLovable: true, finishingMove: true };
+  return move?.facts || move?.method || move?.home ? { movingOffLovable: true } : {};
 }

@@ -67,7 +67,7 @@ In Lovable, open **More → Settings → Git → GitHub → Disconnect**. Otherw
 
 ## 7. Leaving Lovable Cloud or Lovable AI
 
-The builder does it in the Clodable panel (**Move off Lovable**). Claude first looks at the app to see what it uses (AI, sign-in, emails, payments…), then guides each step: a working copy on their own Supabase to try, the site on Netlify, their own emails and AI key, then the switch, carefully (with a short pause) or in one go for a prototype. The live app stays on Lovable until then. Stay close for the parts the panel marks as best done with help.
+The builder types `/move-off-lovable`, which opens the move in the Clodable panel (**Move off Lovable**); once it has started, the panel opens on it. Claude first looks at the app to see what it uses (AI, sign-in, emails, payments…), then guides each step: a working copy on their own Supabase to try, the site on Netlify, their own emails and AI key, then the switch, carefully (with a short pause) or in one go for a prototype. The live app stays on Lovable until then. Stay close for the parts the panel marks as best done with help.
 
 ## 8. Hand-off note for the builder
 

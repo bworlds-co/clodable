@@ -58,6 +58,9 @@ describe("clodable --json", () => {
       "Warmer welcome",
     ]);
     expect(status.result.data.pullRequest).toMatchObject({ number: 1 });
+    // Front ends ask Lovable's questions only of an app made with Lovable, and open on a move under way.
+    expect(status.result.data.project.madeWithLovable).toBe(false);
+    expect(status.result.data.movingOffLovable).toBeUndefined();
   });
 
   it("streams publish steps, then the live result", async () => {

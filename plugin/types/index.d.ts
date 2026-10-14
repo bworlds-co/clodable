@@ -16,6 +16,10 @@ export interface ClodableStatus {
   hosting: "unknown" | "github" | "lovable";
   /** The project in Lovable's editor, when known. */
   lovableUrl: string | null;
+  /** The app was made with Lovable: where its data and site are matter, so the panel asks. */
+  madeWithLovable: boolean;
+  /** A move off Lovable has started and isn't over: the panel opens on it. */
+  movingOffLovable: boolean;
   /** Moving off Lovable: live on the new backend, the last clicks in Lovable still to do. */
   finishingMove: boolean;
   /** When the move off Lovable ended. */

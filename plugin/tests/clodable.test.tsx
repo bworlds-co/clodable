@@ -691,9 +691,11 @@ describe("apps still on Lovable", () => {
       view: {},
     },
   } as const;
-  const onLovable = (extra: object = {}) => ({
+  const madeWithLovable = { ...STATUS, project: { ...STATUS.project, madeWithLovable: true } };
+  const onLovable = (extra: object = {}, moving = true) => ({
     ...STATUS,
     project: { ...STATUS.project, backend: "lovable-cloud", hosting: "lovable", ...extra },
+    ...(moving ? { movingOffLovable: true } : {}),
   });
   async function shows(pane: any, text: string | RegExp) {
     for (let i = 0; i < 30; i++) {
@@ -704,8 +706,8 @@ describe("apps still on Lovable", () => {
     return undefined;
   }
 
-  test("the panel asks once where the data and the live site are", async ($, on) => {
-    const calls = harness(on);
+  test("an app made with Lovable is asked once where its data and its site are", async ($, on) => {
+    const calls = harness(on, madeWithLovable);
     await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
     const pane = await $.ui.mount(PANE);
     expect(await shows(pane, "Where does your app's data live?")).toBeDefined();
@@ -721,7 +723,73 @@ describe("apps still on Lovable", () => {
     ]);
   });
 
-  test("on Lovable Cloud, the panel is the move: Claude looks at the app first, then what it involves", async ($, on) => {
+  test("on Lovable Cloud, /clodable opens the app, with one quiet line to the move and a way back", async ($, on) => {
+    harness(on, onLovable({}, false));
+    on("ui.open", () => ({ value: { isOpen: true } }) as never);
+    await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+    await $.command.run({ command: "clodable", args: "" } as never);
+    const pane = await $.ui.mount(PANE);
+    expect(await shows(pane, "History")).toBeDefined();
+    expect(await shows(pane, "Your data is on Lovable Cloud.")).toBeDefined();
+    expect((await pane.find({ type: "Button", key: "open-move" }))?.text).toBe("Move off Lovable");
+    expect(await pane.find({ type: "Text", text: /Your data, your people/ })).toBeUndefined();
+
+    await pane.press({ key: "open-move" });
+    expect(await shows(pane, /Your data, your people and your backend/)).toBeDefined();
+    expect(await pane.find({ type: "Text", text: "History" })).toBeUndefined();
+    await pane.press({ key: "back-to-app" });
+    expect(await shows(pane, "History")).toBeDefined();
+    await pane.unmount();
+  });
+
+  test("an app not made with Lovable isn't asked about Lovable, nor offered the move", async ($, on) => {
+    harness(on);
+    on("ui.open", () => ({ value: { isOpen: true } }) as never);
+    await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+    await $.command.run({ command: "clodable", args: "" } as never);
+    const pane = await $.ui.mount(PANE);
+    expect(await shows(pane, "History")).toBeDefined();
+    for (const lovable of ["Where does your app's data live?", "Your data is on Lovable Cloud."]) {
+      expect(await pane.find({ type: "Text", text: lovable })).toBeUndefined();
+    }
+    await pane.unmount();
+  });
+
+  test("a move under way opens the panel on it; History opens the app", async ($, on) => {
+    harness(on, onLovable());
+    on("ui.open", () => ({ value: { isOpen: true } }) as never);
+    await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+    await $.command.run({ command: "clodable", args: "" } as never);
+    let pane = await $.ui.mount(PANE);
+    expect(await shows(pane, /Your data, your people and your backend/)).toBeDefined();
+    await pane.unmount();
+
+    const band = await $.ui.mount({ ...BAND, surface: "desktop" });
+    await band.press({ key: "history" });
+    await band.unmount();
+    pane = await $.ui.mount(PANE);
+    expect(await shows(pane, "History")).toBeDefined();
+    expect((await pane.find({ type: "Button", key: "open-move" }))?.text).toBe(
+      "Continue moving off Lovable",
+    );
+    await pane.unmount();
+  });
+
+  test("/move-off-lovable on an app's own Supabase says there's nothing to move", async ($, on) => {
+    harness(on, {
+      ...STATUS,
+      project: { ...STATUS.project, backend: "supabase", hosting: "github" },
+    });
+    on("ui.open", () => ({ value: { isOpen: true } }) as never);
+    await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+    await $.command.run({ command: "move-off-lovable", args: "" } as never);
+    const pane = await $.ui.mount(PANE);
+    expect(await shows(pane, /Yours isn't: there's nothing to move\./)).toBeDefined();
+    expect(await pane.find({ type: "Button", key: "back-to-app" })).toBeDefined();
+    await pane.unmount();
+  });
+
+  test("/move-off-lovable opens the move: Claude looks at the app first, then what it involves", async ($, on) => {
     let method: string | undefined;
     let looked = false;
     const prompts: string[] = [];
@@ -730,7 +798,7 @@ describe("apps still on Lovable", () => {
       prompts.push(e.text);
       return { text: e.text };
     });
-    const calls = harness(on, onLovable(), true, {
+    const calls = harness(on, onLovable({}, false), true, {
       move: (args) => {
         if (args.includes("method")) {
           method = args[2];
@@ -779,8 +847,10 @@ describe("apps still on Lovable", () => {
               ...(method ? { method } : {}),
             });
       },
+      status: () => out(onLovable({}, looked)),
     });
     await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+    await $.command.run({ command: "move-off-lovable", args: "" } as never);
     let pane = await $.ui.mount(PANE);
     expect(await shows(pane, "Move off Lovable")).toBeDefined();
     // First, Claude reads the code: nothing about the move is said before it has.
@@ -941,11 +1011,11 @@ describe("apps still on Lovable", () => {
   test("a button keeps its number across redraws, so the first click counts", async ($, on) => {
     // Desktop clicks by the number a drawing gave the button: a redraw that renumbered it would
     // lose a click that lands before Desktop catches up ("ui_press not handled").
-    const calls = harness(on, STATUS, true, {
+    const calls = harness(on, madeWithLovable, true, {
       status: (args) =>
         args[0] === "move"
           ? out({ steps: [], preview: "live", vaultKey: false, functions: 0 })
-          : out(STATUS),
+          : out(madeWithLovable),
     });
     await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
     const pane = await $.ui.mount(PANE);
@@ -987,7 +1057,7 @@ describe("apps still on Lovable", () => {
   test("an answer shows at once, and saves once", async ($, on) => {
     // Like the CLI: `status` reports what `config` saved.
     let backend: string | undefined;
-    const calls = harness(on, STATUS, true, {
+    const calls = harness(on, madeWithLovable, true, {
       config: (args) => {
         backend = args[2];
         return out({ backend });
@@ -995,7 +1065,10 @@ describe("apps still on Lovable", () => {
       status: (args) =>
         args[0] === "move"
           ? out({ steps: [], preview: "live", vaultKey: false, functions: 0 })
-          : out({ ...STATUS, project: { ...STATUS.project, ...(backend ? { backend } : {}) } }),
+          : out({
+              ...madeWithLovable,
+              project: { ...madeWithLovable.project, ...(backend ? { backend } : {}) },
+            }),
     });
     await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
     const pane = await $.ui.mount(PANE);
@@ -2127,7 +2200,11 @@ describe("every step of the move", () => {
     test(c.name, async ($, on) => {
       harness(
         on,
-        { ...STATUS, project: { ...STATUS.project, backend: "lovable-cloud", hosting: "lovable" } },
+        {
+          ...STATUS,
+          project: { ...STATUS.project, backend: "lovable-cloud", hosting: "lovable" },
+          movingOffLovable: true,
+        },
         true,
         {
           move: (args) => {
@@ -2161,7 +2238,11 @@ describe("every step of the move", () => {
   test("with every step done, the move says where the app runs now", async ($, on) => {
     harness(
       on,
-      { ...STATUS, project: { ...STATUS.project, backend: "lovable-cloud", hosting: "lovable" } },
+      {
+        ...STATUS,
+        project: { ...STATUS.project, backend: "lovable-cloud", hosting: "lovable" },
+        movingOffLovable: true,
+      },
       true,
       {
         move: (args) =>
