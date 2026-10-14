@@ -28,7 +28,7 @@ If `AGENTS.md` exists, it has the project's own rules. Follow it first.
 | "Open my app's preview here (http://localhost:…)", "show me the preview" | Open Desktop's Browser pane at that address: `preview_start` with `{"url": "http://localhost:…"}`. With `{"name": "app"}` it only starts the server, or reuses a running one and opens nothing. Then say it's open, in one line. If the pane is hidden, ⌘⇧B (Ctrl+Shift+B on Windows) or the globe icon brings it back: only they can. |
 | "Add a column", "add some test data", "fix that record" (their own Supabase) | As on Lovable, through Clodable: `npx clodable db query "select …"` to look, a migration in `supabase/migrations/` applied with `npx clodable db apply <file>` for the tables, `npx clodable db run "…"` for the data. Say what will change in one sentence and wait for a yes first. No key needed: never ask for one. |
 | A feature is empty in the preview, or you add code reading `process.env.X` | Its value is one of the app's settings. Run `npx clodable settings` to see which are missing here or on their site, and tell them to paste the value in the Clodable panel (**Your app's settings**). The preview restarts with it. Never ask for the value in the chat. |
-| "Leave Lovable", "move off Lovable Cloud" | Point them to Move off Lovable in the Clodable panel (`/clodable`): each step they press comes to you, and the `move-off-lovable` skill says how to run it. |
+| "Leave Lovable", "move off Lovable Cloud" | Ask them to type `/move-off-lovable`: it opens the move in the Clodable panel. Each step they press comes to you, and the `move-off-lovable` skill says how to run it. |
 
 ## The preview toolbar
 

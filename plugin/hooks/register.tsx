@@ -93,6 +93,11 @@ import {
 } from "./words.ts";
 
 const PANE = "clodable";
+/**
+ * What the panel shows: the app (History, Publish), or the move off Lovable. Unset, the move once
+ * one has started, the app otherwise. /move-off-lovable asks for the move; History, for the app.
+ */
+let paneView: "app" | "move" | null = null;
 
 // Desktop clicks a button by the number its drawing gave it, and every redraw numbers each button
 // anew and forgets the old numbers: a click that lands after a redraw Desktop hasn't caught up with
@@ -766,7 +771,9 @@ async function moveWith($: EngineInterface, args: string[], value: string) {
   await moveStep($, args, text);
 }
 
-async function openPane($: EngineInterface) {
+async function openPane($: EngineInterface, view: "app" | "move" | null = "app") {
+  paneView = view;
+  $.ui.invalidate("ui.render");
   await $.ui.open({ id: PANE, title: "Clodable", focus: true, closeOnEscape: true });
   background(refreshChecks($));
   background(refreshStatus($));
@@ -975,6 +982,7 @@ async function registerCommands($: EngineInterface) {
     { name: "clodable", description: "Open Clodable: your draft, your live site, setup" },
     { name: "publish", description: "Put your draft live (checks first)" },
     { name: "undo-publish", description: "Put the previous version live again" },
+    { name: "move-off-lovable", description: "Move your app off Lovable, step by step" },
   ]) {
     try {
       await $.command.register({ ...command, immediate: true });
@@ -1093,7 +1101,12 @@ export const register: Register = (on) => {
   }).catch((_$, e, next) => next(e));
 
   on("command.run", { command: "clodable" }, async ($) => {
-    await openPane($);
+    await openPane($, null);
+    return {};
+  });
+
+  on("command.run", { command: "move-off-lovable" }, async ($) => {
+    await openPane($, "move");
     return {};
   });
 
@@ -1425,15 +1438,8 @@ export const register: Register = (on) => {
     if (versions === null) background(refreshVersions($));
     const desktop = e.surface === "desktop";
 
-    // Still on Lovable Cloud, or not known yet: the panel is the move and its questions, nothing else.
-    if (
-      s.backend === "unknown" ||
-      s.hosting === "unknown" ||
-      s.backend === "lovable-cloud" ||
-      s.finishingMove
-    ) {
-      return movePane($, ui, header, s, now);
-    }
+    const view = paneView ?? (s.movingOffLovable || s.finishingMove ? "move" : "app");
+    if (view === "move") return movePane($, ui, header, s, now);
 
     if (appSettingsStatus === null && !settingsAsked) {
       settingsAsked = true;
@@ -1446,11 +1452,13 @@ export const register: Register = (on) => {
           {header}
           {url ? siteLink(ui, url) : null}
         </Box>
+        {appQuestions($, ui, s)}
         {movedOffCard($, ui, s, desktop)}
         {databaseCard($, ui, s)}
-        {settingsCard($, ui)}
+        {settingsCard($, ui, s)}
         {stateCard($, ui, s, a, now, desktop)}
         {lovableHostingCard(ui, s)}
+        {moveLine($, ui, s)}
         {historySection($, ui, desktop, now)}
         {warningsSection($, ui, doctor)}
         <Box flexDirection="row" columnGap={1} alignItems="center">
@@ -2201,14 +2209,49 @@ function databaseCard($: EngineInterface, ui: PaneUi, s: ClodableStatus) {
   );
 }
 
-/**
- * The settings the app's server code reads, missing on this computer or on the site. Off Lovable
- * Cloud by now, so not where Lovable lists them.
- */
-function settingsCard($: EngineInterface, ui: PaneUi) {
+/** The settings the app's server code reads, missing on this computer or on the site. */
+function settingsCard($: EngineInterface, ui: PaneUi, s: ClodableStatus) {
   const { Text } = ui;
-  const fields = settingsFields($, ui, "app-setting", false);
+  const fields = settingsFields($, ui, "app-setting", s.backend === "lovable-cloud");
   return fields ? card(ui, <Text bold>Your app's settings</Text>, fields) : null;
+}
+
+/**
+ * Where the data and the live site are, asked in the app's view only for an app made with Lovable:
+ * there they decide what Clodable can do (change the database, the last click after Publish).
+ */
+function appQuestions($: EngineInterface, ui: PaneUi, s: ClodableStatus) {
+  const { Box, Text } = ui;
+  if (!s.madeWithLovable) return null;
+  const questions = whereQuestions($, ui, s);
+  if (questions.length === 0) return null;
+  return (
+    <Box flexDirection="column" rowGap={2}>
+      <Text bold>{questions.length === 2 ? "Two quick questions" : "One quick question"}</Text>
+      {questions}
+    </Box>
+  );
+}
+
+/** On Lovable Cloud: one quiet line to the move, never more until the builder asks. */
+function moveLine($: EngineInterface, ui: PaneUi, s: ClodableStatus) {
+  const { Box, Text, Button } = ui;
+  if (s.backend !== "lovable-cloud" && !s.movingOffLovable) return null;
+  return (
+    <Box flexDirection="row" columnGap={2} alignItems="center">
+      <Text dimColor>Your data is on Lovable Cloud.</Text>
+      <Button
+        key="open-move"
+        plain
+        onPress={() => {
+          paneView = "move";
+          $.ui.invalidate("ui.render");
+        }}
+      >
+        {s.movingOffLovable ? "Continue moving off Lovable" : "Move off Lovable"}
+      </Button>
+    </Box>
+  );
 }
 
 /** On Lovable's hosting only: where the last click is. */
@@ -2416,7 +2459,7 @@ function whereQuestion(
 
 // ── The move off Lovable (top level, so they can use $) ─────────────────────
 
-/** Still on Lovable Cloud, or not known yet: the panel is the move and its questions, nothing else. */
+/** The move off Lovable and the questions it needs, with the way back to the app. */
 function movePane(
   $: EngineInterface,
   ui: PaneUi,
@@ -2424,25 +2467,39 @@ function movePane(
   s: ClodableStatus,
   now: number,
 ) {
-  const { Box, Text } = ui;
+  const { Box, Text, Button } = ui;
   // Live on the new backend already, until the builder is done in Lovable: still the move.
   const moving = s.backend === "lovable-cloud" || s.finishingMove;
-  const onCloud = moving || s.backend === "unknown";
   if (s.backend === "lovable-cloud" && !assessment && !assessing) background(loadAssessment($));
   if (moving && !move && !loadingMove && !moveError) background(loadMove($));
   const questions = whereQuestions($, ui, s);
+  // Known not to be on Lovable Cloud: nothing to move.
+  const elsewhere = !moving && s.backend !== "unknown";
   return (
     <Box flexDirection="column" rowGap={2} paddingX={2} paddingY={1}>
-      {header}
-      {onCloud ? (
-        <Box flexDirection="column" rowGap={1}>
-          <Text bold>Move off Lovable</Text>
-          <Text dimColor>
-            Your data, your people and your backend come to your own Supabase, step by step. Your
-            live app keeps running on Lovable until you switch.
-          </Text>
-        </Box>
-      ) : null}
+      <Box flexDirection="row" justifyContent="space-between" alignItems="center">
+        {header}
+        <Button
+          key="back-to-app"
+          plain
+          onPress={() => {
+            paneView = "app";
+            $.ui.invalidate("ui.render");
+          }}
+        >
+          Back to your app
+        </Button>
+      </Box>
+      <Box flexDirection="column" rowGap={1}>
+        <Text bold>Move off Lovable</Text>
+        <Text dimColor>
+          {s.movedAt && elsewhere
+            ? "Your app is off Lovable: it runs on your own Supabase and Netlify, and each Publish updates it."
+            : elsewhere
+              ? "Moving off Lovable is for apps whose data is on Lovable Cloud. Yours isn't: there's nothing to move."
+              : "Your data, your people and your backend come to your own Supabase, step by step. Your live app keeps running on Lovable until you switch."}
+        </Text>
+      </Box>
       {questions.length > 0 ? (
         <Box flexDirection="column" rowGap={2}>
           <Text bold>
