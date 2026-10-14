@@ -8,6 +8,7 @@ import {
   ProjectConfigSchema,
   supabaseRef,
 } from "../config.js";
+import { WORKFLOW_PATH } from "../move/site.js";
 import type { ProjectInfo } from "../project.js";
 import { agentsMd } from "./agents-md.js";
 
@@ -32,6 +33,26 @@ export interface KitChange {
   /** Why this file matters, for the setup screen. */
   purpose: string;
   content: string;
+}
+
+/**
+ * Clodable's own files in a project: its settings and this computer's state, how Claude works here,
+ * and the workflow that publishes to Netlify. Restoring an earlier version of the app leaves them
+ * as they are now. `.gitignore` is the app's: it's restored, then keepIgnored() puts Clodable's
+ * lines back.
+ */
+export const CLODABLE_FILES = [
+  ".clodable",
+  ".claude",
+  "AGENTS.md",
+  "CLAUDE.md",
+  ".mcp.json",
+  WORKFLOW_PATH,
+];
+
+/** Put Clodable's lines back in `.gitignore` if they're missing, so this computer's state stays out of git. */
+export async function keepIgnored(root: string): Promise<void> {
+  await applyKit(root, [await gitignorePlan(root)]);
 }
 
 const BEGIN = "<!-- clodable:begin";

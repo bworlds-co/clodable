@@ -335,9 +335,20 @@ export class Git {
     return this.ok(["switch", "--quiet", name]);
   }
 
-  /** Make the working tree match `sha` (tracked files only), without moving the branch. */
-  async restoreTree(sha: string): Promise<void> {
-    await this.ok(["restore", `--source=${sha}`, "--staged", "--worktree", "--", ":/"]);
+  /**
+   * Make the working tree match `sha` (tracked files only), without moving the branch. The paths in
+   * `keep` (files or folders, from the top) stay as they are.
+   */
+  async restoreTree(sha: string, keep: string[] = []): Promise<void> {
+    await this.ok([
+      "restore",
+      `--source=${sha}`,
+      "--staged",
+      "--worktree",
+      "--",
+      ":/",
+      ...keep.map((path) => `:(top,exclude)${path}`),
+    ]);
   }
 
   async stageAll(): Promise<void> {
