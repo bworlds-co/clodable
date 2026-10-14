@@ -172,6 +172,17 @@ describe("save names", () => {
       ),
     ).toBe("Switch my preview back to my live data");
     expect(saveMessage("make the header blue")).toBe("Make the header blue");
+    // The move's requests, in the builder's words now: the command goes to Claude apart.
+    expect(
+      saveMessage(
+        "Moving off Lovable: copy my data into my new backend, then make sure my app works on it.",
+      ),
+    ).toBe("Copy my data into my new backend");
+    expect(
+      saveMessage(
+        "Moving off Lovable: I've downloaded my Lovable export. Read it and tell me what's in it.",
+      ),
+    ).toBe("Downloaded my Lovable export");
   });
 
   test("the toolbar's requests are said and saved in the builder's words", () => {
@@ -852,6 +863,7 @@ describe("apps still on Lovable", () => {
     let method: string | undefined;
     let looked = false;
     const prompts: string[] = [];
+    const session = mock.session(on);
     on("ui.open", () => ({ value: { isOpen: true } }) as never);
     on("prompt.submit", (_$: unknown, e: { text: string }) => {
       prompts.push(e.text);
@@ -919,8 +931,8 @@ describe("apps still on Lovable", () => {
     }
     await pane.press({ key: "move-facts" });
     for (let i = 0; i < 30 && prompts.length === 0; i++) await pane.redraw();
-    expect(prompts[0]).toMatch(
-      /^Moving off Lovable: look at my app's code to see what it uses .*Start from `node ".*\/cli\/clodable\.mjs" move facts`, check each thing in the code, record what you found as the move skill says/,
+    expect(prompts[0]).toBe(
+      "Moving off Lovable: look at my app's code to see what it uses (AI, sign-in, emails, connected services, payments, scheduled jobs, uploads), then tell me in a few plain lines.",
     );
     await pane.unmount();
     // Claude recorded what it found: the panel, opened again, says what the move involves.
@@ -965,6 +977,11 @@ describe("apps still on Lovable", () => {
     }
     await pane.unmount();
     expect(calls.some((c) => c[0] === "move" && c[1] === "check")).toBe(true);
+    // The command reached Claude beside the builder's words, when that turn started.
+    await $.turn.start({ text: prompts[0]!, turnId: "turn-facts" } as never);
+    expect(readBy(session)[0]).toMatch(
+      /Start from `node ".*\/cli\/clodable\.mjs" move facts`, check each thing in the code/,
+    );
   });
 
   test("only the stage the builder is in is open; what comes after is folded, even if done", async ($, on) => {
@@ -1035,6 +1052,7 @@ describe("apps still on Lovable", () => {
       },
     );
     const prompts: string[] = [];
+    const session = mock.session(on);
     on("prompt.submit", (_$: unknown, e: { text: string }) => {
       prompts.push(e.text);
       return { text: e.text };
@@ -1047,12 +1065,13 @@ describe("apps still on Lovable", () => {
     expect(await shows(pane, /“Summarize, on each note” doesn't work/)).toBeDefined();
     await pane.press({ key: "worth-lovable-ai" });
     for (let i = 0; i < 30 && prompts.length === 0; i++) await pane.redraw();
-    expect(prompts[0]).toMatch(
-      /^Switch my app's AI features off Lovable's AI to an AI provider of my own .*a setting named AI_API_KEY that I'll paste in the Clodable panel/,
+    expect(prompts[0]).toBe(
+      "Switch my app's AI features off Lovable's AI to an AI provider of my own (OpenRouter, Google Gemini or OpenAI), and tell me where to create the key.",
     );
     // Claude switched it: once its turn ends, there's nothing left to switch.
     switched = true;
     await $.turn.start({ text: prompts[0], turnId: "turn-ai" } as never);
+    expect(readBy(session)[0]).toContain("a setting named AI_API_KEY");
     await $.turn.complete({
       turnId: "turn-ai",
       answer: "Summarize now uses OpenRouter. Paste your key as AI_API_KEY in the panel.",
@@ -1279,6 +1298,7 @@ describe("apps still on Lovable", () => {
       return { value: { code: 0, signal: null } };
     });
     const prompts: string[] = [];
+    const session = mock.session(on);
     on("prompt.submit", (_$: unknown, e: { text: string }) => {
       prompts.push(e.text);
       return { text: e.text };
@@ -1305,9 +1325,14 @@ describe("apps still on Lovable", () => {
     await pane.press({ key: "move-create" });
     for (let i = 0; i < 30 && prompts.length === 0; i++) await pane.redraw();
     // Claude runs the step in the conversation, as the builder's own request; the panel waits.
-    expect(prompts[0]).toMatch(
-      /^Moving off Lovable: create my new backend in my Supabase organization “Studio”, in East US \(North Virginia\)\. Run `node ".*\/cli\/clodable\.mjs" move create --org studio --region us-east-1`, then tell me how it went\.$/,
+    expect(prompts[0]).toBe(
+      "Moving off Lovable: create my new backend in my Supabase organization “Studio”, in East US (North Virginia), then tell me how it went.",
     );
+    await $.turn.start({ text: prompts[0]!, turnId: "turn-create" } as never);
+    expect(readBy(session)[0]).toMatch(
+      /Run `node ".*\/cli\/clodable\.mjs" move create --org studio --region us-east-1`\./,
+    );
+    expect(readBy(session).join(" ")).not.toContain(token);
     expect(spawned).toEqual([]);
     expect(await shows(pane, "Claude is on it, in the conversation.")).toBeDefined();
     await pane.unmount();
@@ -1413,6 +1438,7 @@ describe("apps still on Lovable", () => {
       },
     });
     const prompts: string[] = [];
+    const session = mock.session(on);
     on("prompt.submit", (_$: unknown, e: { text: string }) => {
       prompts.push(e.text);
       return { text: e.text };
@@ -1457,9 +1483,14 @@ describe("apps still on Lovable", () => {
     expect(prompts).toEqual([]);
     await pane.input({ key: "move-email-domain", text: "https://www.Crumb.app/", kind: "submit" });
     for (let i = 0; i < 30 && prompts.length === 0; i++) await pane.redraw();
-    expect(prompts[0]).toMatch(
-      /^Moving off Lovable: set up emails for my users from crumb\.app with `node ".*\/cli\/clodable\.mjs" move emails --domain crumb\.app`/,
+    expect(prompts[0]).toBe(
+      "Moving off Lovable: set up emails for my users from crumb.app, then tell me what to do at my domain's provider.",
     );
+    await $.turn.start({ text: prompts[0]!, turnId: "turn-emails" } as never);
+    expect(readBy(session)[0]).toMatch(
+      /Run `node ".*\/cli\/clodable\.mjs" move emails --domain crumb\.app`\./,
+    );
+    expect(readBy(session).join(" ")).not.toContain(key);
     await pane.unmount();
     for (const call of calls) expect(call.join(" ")).not.toContain(key);
     expect(prompts.join(" ")).not.toContain(key);
@@ -1630,6 +1661,7 @@ describe("apps still on Lovable", () => {
     });
     const spawned: string[][] = [];
     const prompts: string[] = [];
+    const session = mock.session(on);
     on("prompt.submit", (_$: unknown, ev: { text: string }) => {
       prompts.push(ev.text);
       return { text: ev.text };
@@ -1673,8 +1705,12 @@ describe("apps still on Lovable", () => {
     expect(calls.filter((c) => c[0] === "status").length).toBeGreaterThan(statusLooks);
     // The conversation, where the builder works from now on, opens the preview and says how.
     for (let i = 0; i < 30 && prompts.length === 0; i++) await pane.redraw();
-    expect(prompts[0]).toMatch(
-      /^Moving off Lovable: I've finished in Lovable\. (Open my app's preview here \(http:\/\/localhost:\d+\)|Start my app's preview and open it here)\. Then tell me in a few lines how I change my app from now on\.$/,
+    expect(prompts[0]).toBe(
+      "Moving off Lovable: I've finished in Lovable. Show me my app's preview, then tell me in a few lines how I change my app from now on.",
+    );
+    await $.turn.start({ text: prompts[0]!, turnId: "turn-finished" } as never);
+    expect(readBy(session)[0]).toMatch(
+      /(Open my app's preview here \(http:\/\/localhost:\d+\)|Start my app's preview and open it here)\.$/,
     );
     await pane.unmount();
   });
@@ -1849,6 +1885,7 @@ describe("apps still on Lovable", () => {
 
   test("in one go, going live first stops Lovable's scheduled jobs, so they don't run twice", async ($, on) => {
     const prompts: string[] = [];
+    const session = mock.session(on);
     on("prompt.submit", (_$: unknown, e: { text: string }) => {
       prompts.push(e.text);
       return { text: e.text };
@@ -1895,7 +1932,11 @@ describe("apps still on Lovable", () => {
     await pane.select({ key: "move-new-people", value: "invite" });
     await pane.press({ key: "move-golive" });
     for (let i = 0; i < 30 && prompts.length === 0; i++) await pane.redraw();
-    expect(prompts[0]).toMatch(/move golive --sign-up no`/);
+    expect(prompts[0]).toBe(
+      "Moving off Lovable: switch my app to its new backend and site, then tell me what changed and how to put it live.",
+    );
+    await $.turn.start({ text: prompts[0]!, turnId: "turn-golive" } as never);
+    expect(readBy(session)[0]).toMatch(/move golive --sign-up no`/);
     await pane.unmount();
   });
 
@@ -1903,6 +1944,7 @@ describe("apps still on Lovable", () => {
     const key = `sk-or-v1-${"b7".repeat(20)}`;
     let provider: string | undefined;
     const prompts: string[] = [];
+    const session = mock.session(on);
     on("prompt.submit", (_$: unknown, e: { text: string }) => {
       prompts.push(e.text);
       return { text: e.text };
@@ -1950,10 +1992,13 @@ describe("apps still on Lovable", () => {
     expect(await shows(pane, /Your Google Gemini key is saved/)).toBeDefined();
     await pane.press({ key: "move-ai-switch" });
     for (let i = 0; i < 30 && prompts.length === 0; i++) await pane.redraw();
-    expect(prompts[0]).toMatch(
-      /^Moving off Lovable: switch my app's AI features from Lovable's AI to Google Gemini\./,
+    expect(prompts[0]).toBe(
+      "Moving off Lovable: switch my app's AI features from Lovable's AI to Google Gemini, then check it works in the preview.",
     );
-    expect(prompts[0]).toContain("Keep Lovable's as the fallback");
+    await $.turn.start({ text: prompts[0]!, turnId: "turn-ai-switch" } as never);
+    expect(readBy(session)[0]).toContain("Keep Lovable's as the fallback");
+    expect(readBy(session)[0]).toContain("/chat/completions");
+    expect(readBy(session).join(" ")).not.toContain(key);
     await pane.unmount();
     for (const call of calls) expect(call.join(" ")).not.toContain(key);
     expect(prompts.join(" ")).not.toContain(key);

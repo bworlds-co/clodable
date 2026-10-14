@@ -733,6 +733,22 @@ function moveCommand($: EngineInterface, args: string[]): string {
   return moveCommandLine($.plugin.root, args);
 }
 
+/**
+ * A request Clodable sends in the builder's name: their words, and what Claude also needs (the
+ * exact command, how to change the code), which reaches it beside the message, out of their sight.
+ */
+type Ask = { text: string; details?: string };
+
+/** What Claude needs for a step of the move, said once for all of them. */
+function stepDetails(...lines: string[]): string {
+  return `From Clodable, for this step of the move: ${lines.join(" ")}`;
+}
+
+/** "Run `node …/clodable.mjs move copy`.": the step's own command, for Claude. */
+function runStep($: EngineInterface, args: string[]): string {
+  return `Run \`${moveCommand($, args)}\`.`;
+}
+
 /** The request that creates the new backend, in the builder's words, with the choices made. */
 function createRequest(
   $: EngineInterface,
@@ -740,18 +756,28 @@ function createRequest(
   choices: ClodableMoveChoices,
   slug: string,
   region: string,
-): string {
+): Ask {
   const where = (choices.regions ?? []).find((r) => r.code === region)?.name;
-  return `Moving off Lovable: create my new backend${org ? ` in my Supabase organization “${org.name}”` : ""}${where ? `, in ${where}` : ""}. Run \`${moveCommand($, ["create", ...(slug ? ["--org", slug] : []), ...(region ? ["--region", region] : [])])}\`, then tell me how it went.`;
+  return {
+    text: `Moving off Lovable: create my new backend${org ? ` in my Supabase organization “${org.name}”` : ""}${where ? `, in ${where}` : ""}, then tell me how it went.`,
+    details: stepDetails(
+      runStep($, [
+        "create",
+        ...(slug ? ["--org", slug] : []),
+        ...(region ? ["--region", region] : []),
+      ]),
+    ),
+  };
 }
 
 /** Hand a step of the move to Claude, as the builder's own request in this conversation. */
-async function pilot($: EngineInterface, text: string) {
+async function pilot($: EngineInterface, ask: Ask) {
   if (isPiloting() || moveRun) return;
   piloting = { at: Date.now() };
   moveError = null;
   $.ui.invalidate("ui.render");
-  background($.prompt.submit({ text, asUser: true }));
+  if (ask.details !== undefined) detailsFor.set(ask.text, ask.details);
+  background($.prompt.submit({ text: ask.text, asUser: true }));
 }
 
 /** Careful or in one go: the builder's choice, recorded directly (nothing for Claude to do). */
@@ -960,10 +986,10 @@ async function finishMove($: EngineInterface) {
   if (!result.ok) return;
   await refreshStatus($);
   background(
-    pilot(
-      $,
-      `Moving off Lovable: I've finished in Lovable. ${previewRequest(previewUrl)} Then tell me in a few lines how I change my app from now on.`,
-    ),
+    pilot($, {
+      text: "Moving off Lovable: I've finished in Lovable. Show me my app's preview, then tell me in a few lines how I change my app from now on.",
+      details: stepDetails(previewRequest(previewUrl)),
+    }),
   );
 }
 
@@ -2391,10 +2417,11 @@ function warningsSection($: EngineInterface, ui: PaneUi, doctor: ClodableCheck[]
                   variant="secondary"
                   onPress={() =>
                     background(
-                      pilot(
-                        $,
-                        "Switch my app's AI features off Lovable's AI to an AI provider of my own (OpenRouter, Google Gemini or OpenAI). Keep the provider's address and model in the code, read the key from a setting named AI_API_KEY that I'll paste in the Clodable panel, and tell me where to create the key.",
-                      ),
+                      pilot($, {
+                        text: "Switch my app's AI features off Lovable's AI to an AI provider of my own (OpenRouter, Google Gemini or OpenAI), and tell me where to create the key.",
+                        details:
+                          "From Clodable: keep the provider's address and model in the code, and read the key from a setting named AI_API_KEY, which the builder pastes in the Clodable panel.",
+                      }),
                     )
                   }
                 >
@@ -2848,13 +2875,12 @@ function firstLook($: EngineInterface, ui: PaneUi) {
         <Text dimColor>Claude is looking at your app…</Text>
       ) : (
         <Box flexDirection="row">
-          {pilotButton(
-            $,
-            ui,
-            "move-facts",
-            "Look at my app",
-            `Moving off Lovable: look at my app's code to see what it uses (AI, sign-in, emails, connected services, payments, scheduled jobs, uploads). Start from \`${moveCommand($, ["facts"])}\`, check each thing in the code, record what you found as the move skill says, then tell me in a few plain lines.`,
-          )}
+          {pilotButton($, ui, "move-facts", "Look at my app", {
+            text: "Moving off Lovable: look at my app's code to see what it uses (AI, sign-in, emails, connected services, payments, scheduled jobs, uploads), then tell me in a few plain lines.",
+            details: stepDetails(
+              `Start from \`${moveCommand($, ["facts"])}\`, check each thing in the code, and record what you found as the move skill says.`,
+            ),
+          })}
         </Box>
       )}
     </Box>
@@ -3133,13 +3159,10 @@ function exportStep($: EngineInterface, { ui, s }: StepView) {
         "Lovable emails you a download link (it's also in Cloud → Storage). Download the zip.",
       ])}
       <Box flexDirection="row" columnGap={2} alignItems="center">
-        {pilotButton(
-          $,
-          ui,
-          "move-export",
-          "I've downloaded it",
-          `Moving off Lovable: I've downloaded my Lovable export. Read it with \`${moveCommand($, ["export"])}\` and tell me what's in it.`,
-        )}
+        {pilotButton($, ui, "move-export", "I've downloaded it", {
+          text: "Moving off Lovable: I've downloaded my Lovable export. Read it and tell me what's in it.",
+          details: stepDetails(`Read it with \`${moveCommand($, ["export"])}\`.`),
+        })}
         {openLovable(ui, s)}
       </Box>
       <Text dimColor>
@@ -3166,13 +3189,10 @@ function copyStep($: EngineInterface, { ui, step }: StepView) {
           Lovable meanwhile.
         </Text>
       )}
-      {pilotButton(
-        $,
-        ui,
-        "move-copy",
-        again ? "Copy again" : "Copy my data",
-        `Moving off Lovable: copy my data into my new backend with \`${moveCommand($, ["copy"])}\`, then make sure my app works on it.`,
-      )}
+      {pilotButton($, ui, "move-copy", again ? "Copy again" : "Copy my data", {
+        text: "Moving off Lovable: copy my data into my new backend, then make sure my app works on it.",
+        details: stepDetails(runStep($, ["copy"])),
+      })}
     </Box>
   );
 }
@@ -3221,13 +3241,10 @@ function filesStep($: EngineInterface, { ui }: StepView) {
             accepts.
           </Text>
         ) : null}
-        {pilotButton(
-          $,
-          ui,
-          "move-files",
-          move?.files ? "Copy the rest" : "Copy my files",
-          `Moving off Lovable: copy my uploaded files to my new backend with \`${moveCommand($, ["files"])}\`.`,
-        )}
+        {pilotButton($, ui, "move-files", move?.files ? "Copy the rest" : "Copy my files", {
+          text: "Moving off Lovable: copy my uploaded files to my new backend.",
+          details: stepDetails(runStep($, ["files"])),
+        })}
       </Box>
     );
   }
@@ -3288,13 +3305,10 @@ function functionsStep($: EngineInterface, { ui, step }: StepView) {
         Your {plural(move?.functions ?? 0, "backend function")} go to your new backend, all
         together.
       </Text>
-      {pilotButton(
-        $,
-        ui,
-        "move-functions",
-        again ? "Deploy them again" : "Deploy my functions",
-        `Moving off Lovable: deploy my backend functions to my new backend with \`${moveCommand($, ["functions"])}\`.`,
-      )}
+      {pilotButton($, ui, "move-functions", again ? "Deploy them again" : "Deploy my functions", {
+        text: "Moving off Lovable: deploy my backend functions to my new backend.",
+        details: stepDetails(runStep($, ["functions"])),
+      })}
     </Box>
   );
 }
@@ -3315,7 +3329,10 @@ function tryStep($: EngineInterface, { ui }: StepView) {
             ui,
             "move-live",
             "Back to live data",
-            `Switch my preview back to my live data with \`${moveCommand($, ["preview", "live"])}\`.`,
+            {
+              text: "Switch my preview back to my live data.",
+              details: stepDetails(runStep($, ["preview", "live"])),
+            },
             "secondary",
           )}
           {move?.home ? <Link href={move.home.dashboard} label="Open it in Supabase ↗" /> : null}
@@ -3324,13 +3341,10 @@ function tryStep($: EngineInterface, { ui }: StepView) {
     ) : (
       <Box flexDirection="column" rowGap={1}>
         <Text dimColor>The preview restarts on your new backend. Your live app is untouched.</Text>
-        {pilotButton(
-          $,
-          ui,
-          "move-try",
-          "Try my app on the copy",
-          `Moving off Lovable: switch my preview to the copy with \`${moveCommand($, ["preview", "copy"])}\`. ${previewRequest(previewUrl)} Then check my app works on it.`,
-        )}
+        {pilotButton($, ui, "move-try", "Try my app on the copy", {
+          text: "Moving off Lovable: switch my preview to the copy, then check my app works on it.",
+          details: stepDetails(runStep($, ["preview", "copy"]), previewRequest(previewUrl)),
+        })}
       </Box>
     );
   return (
@@ -3397,13 +3411,10 @@ function siteStep($: EngineInterface, { ui }: StepView) {
           }}
         />
       ) : null}
-      {pilotButton(
-        $,
-        ui,
-        "move-site",
-        "Put my site on Netlify",
-        `Moving off Lovable: put my site on Netlify with \`${moveCommand($, ["site", ...(moveTeam ? ["--account", moveTeam] : [])])}\`, then tell me what's left before I can see it there.`,
-      )}
+      {pilotButton($, ui, "move-site", "Put my site on Netlify", {
+        text: "Moving off Lovable: put my site on Netlify, then tell me what's left before I can see it there.",
+        details: stepDetails(runStep($, ["site", ...(moveTeam ? ["--account", moveTeam] : [])])),
+      })}
     </Box>
   );
 }
@@ -3440,10 +3451,10 @@ function emailsStep($: EngineInterface, { ui }: StepView) {
         </Text>
         {domainField($, ui, "move-email-domain", "example.com", "Set it up", true, (domain) =>
           background(
-            pilot(
-              $,
-              `Moving off Lovable: set up emails for my users from ${domain} with \`${moveCommand($, ["emails", "--domain", domain])}\`, then tell me what to do at my domain's provider.`,
-            ),
+            pilot($, {
+              text: `Moving off Lovable: set up emails for my users from ${domain}, then tell me what to do at my domain's provider.`,
+              details: stepDetails(runStep($, ["emails", "--domain", domain])),
+            }),
           ),
         )}
         {noEmails($, ui, "No domain of your own yet?")}
@@ -3460,13 +3471,10 @@ function emailsStep($: EngineInterface, { ui }: StepView) {
       </Text>
       {dnsRecords($, ui, "record", records)}
       <Box flexDirection="row" columnGap={2} alignItems="center">
-        {pilotButton(
-          $,
-          ui,
-          "move-emails-check",
-          "Check again",
-          `Moving off Lovable: check whether ${move.emails.domain}'s email records are in place with \`${moveCommand($, ["emails"])}\`, and finish setting up my emails if they are.`,
-        )}
+        {pilotButton($, ui, "move-emails-check", "Check again", {
+          text: `Moving off Lovable: check whether ${move.emails.domain}'s email records are in place, and finish setting up my emails if they are.`,
+          details: stepDetails(runStep($, ["emails"])),
+        })}
       </Box>
       {noEmails($, ui, "Rather do this later?")}
     </Box>
@@ -3475,7 +3483,7 @@ function emailsStep($: EngineInterface, { ui }: StepView) {
 
 /** Said in each request that switches a service: the app keeps working on Lovable until the end. */
 const KEEP_LOVABLE_WORKING =
-  "Keep Lovable's as the fallback when that key isn't set, so my app keeps working on Lovable until the switch.";
+  "Keep Lovable's as the fallback when that key isn't set, so the app keeps working on Lovable until the switch.";
 
 /** The services the app reaches through Lovable (AI, its own emails, connectors), one at a time. */
 function servicesStep($: EngineInterface, { ui }: StepView) {
@@ -3538,13 +3546,14 @@ function serviceToSwitch($: EngineInterface, ui: PaneUi): RenderElement | null {
     return (
       <Box flexDirection="column" rowGap={1}>
         <Text>Your {name} key is saved. Claude now points your app's AI features at it.</Text>
-        {pilotButton(
-          $,
-          ui,
-          "move-ai-switch",
-          "Switch my AI features",
-          `Moving off Lovable: switch my app's AI features from Lovable's AI to ${name}. Clodable saved AI_API_URL and AI_API_KEY for my preview, my site and my backend functions: make the code call \`\${AI_API_URL}/chat/completions\` with AI_API_KEY (the same OpenAI-style API). ${KEEP_LOVABLE_WORKING} Deploy my backend functions with \`${moveCommand($, ["functions"])}\` if you changed any, then check it works in the preview.`,
-        )}
+        {pilotButton($, ui, "move-ai-switch", "Switch my AI features", {
+          text: `Moving off Lovable: switch my app's AI features from Lovable's AI to ${name}, then check it works in the preview.`,
+          details: stepDetails(
+            `Clodable saved AI_API_URL and AI_API_KEY for the preview, the site and the backend functions: make the code call \`\${AI_API_URL}/chat/completions\` with AI_API_KEY (the same OpenAI-style API).`,
+            KEEP_LOVABLE_WORKING,
+            `Deploy the backend functions with \`${moveCommand($, ["functions"])}\` if you changed any.`,
+          ),
+        })}
       </Box>
     );
   }
@@ -3555,13 +3564,14 @@ function serviceToSwitch($: EngineInterface, ui: PaneUi): RenderElement | null {
           Your app sends its own emails through Lovable. Clodable gives it a Resend key of its own,
           sending from {move?.emails?.sender}, and Claude switches the sending.
         </Text>
-        {pilotButton(
-          $,
-          ui,
-          "move-app-emails",
-          "Switch my emails",
-          `Moving off Lovable: switch my app's own emails from Lovable to Resend. Run \`${moveCommand($, ["app-emails"])}\`: it gives my app RESEND_API_KEY and EMAIL_FROM. Then make the code send through Resend's API with them. ${KEEP_LOVABLE_WORKING} Deploy my backend functions with \`${moveCommand($, ["functions"])}\`${sv.hook ? `, then turn on my own sign-in emails with \`${moveCommand($, ["emails", "--hook"])}\`` : ""}.`,
-        )}
+        {pilotButton($, ui, "move-app-emails", "Switch my emails", {
+          text: `Moving off Lovable: switch my app's own emails from Lovable to Resend${sv.hook ? ", then turn on my own sign-in emails" : ""}.`,
+          details: stepDetails(
+            `Run \`${moveCommand($, ["app-emails"])}\`: it gives the app RESEND_API_KEY and EMAIL_FROM. Then make the code send through Resend's API with them.`,
+            KEEP_LOVABLE_WORKING,
+            `Deploy the backend functions with \`${moveCommand($, ["functions"])}\`${sv.hook ? `, then turn on the app's own sign-in emails with \`${moveCommand($, ["emails", "--hook"])}\`` : ""}.`,
+          ),
+        })}
       </Box>
     );
   }
@@ -3580,13 +3590,12 @@ function serviceToSwitch($: EngineInterface, ui: PaneUi): RenderElement | null {
           Your app has its own sign-in emails (from Lovable). Clodable turns them on, so
           confirmations and password resets look like your app.
         </Text>
-        {pilotButton(
-          $,
-          ui,
-          "move-email-hook",
-          "Turn on my sign-in emails",
-          `Moving off Lovable: turn on my app's own sign-in emails with \`${moveCommand($, ["emails", "--hook"])}\` (deploy my backend functions with \`${moveCommand($, ["functions"])}\` first if it asks).`,
-        )}
+        {pilotButton($, ui, "move-email-hook", "Turn on my sign-in emails", {
+          text: "Moving off Lovable: turn on my app's own sign-in emails.",
+          details: stepDetails(
+            `Run \`${moveCommand($, ["emails", "--hook"])}\` (deploy the backend functions with \`${moveCommand($, ["functions"])}\` first if it asks).`,
+          ),
+        })}
       </Box>
     );
   }
@@ -3607,13 +3616,12 @@ function serviceToSwitch($: EngineInterface, ui: PaneUi): RenderElement | null {
           { placeholder: `Your ${name} key` },
         ),
       )}
-      {pilotButton(
-        $,
-        ui,
-        "move-connectors",
-        "Switch them",
-        `Moving off Lovable: my app reaches ${names.join(", ")} through Lovable's connectors (connector-gateway.lovable.dev). Switch each to that service's own API, reading its key from ${names.map(connectorSetting).join(", ")} (process.env on the server; tell me where to paste any that's missing). Check it works in the preview.`,
-      )}
+      {pilotButton($, ui, "move-connectors", "Switch them", {
+        text: `Moving off Lovable: switch ${names.join(", ")} from Lovable's connectors to their own services, then check it works in the preview.`,
+        details: stepDetails(
+          `The app reaches them through Lovable's connectors (connector-gateway.lovable.dev). Switch each to that service's own API, reading its key from ${names.map(connectorSetting).join(", ")} (process.env on the server); tell the builder where to paste any that's missing.`,
+        ),
+      })}
     </Box>
   );
 }
@@ -3628,13 +3636,12 @@ function googleStep($: EngineInterface, { ui }: StepView) {
           Google sign-in is on in your new backend. Claude now switches your app's Google button to
           it.
         </Text>
-        {pilotButton(
-          $,
-          ui,
-          "move-google-switch",
-          "Switch my Google sign-in",
-          "Moving off Lovable: my app signs in with Google through Lovable's broker (@lovable.dev/cloud-auth-js), which only works on Lovable. Clodable turned Google on in my new backend and set VITE_GOOGLE_SIGN_IN=supabase for my preview and my site. Make the Google button call supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin } }) when import.meta.env.VITE_GOOGLE_SIGN_IN is 'supabase', and keep Lovable's broker otherwise, so my app keeps working on Lovable until the switch. Check it in the preview.",
-        )}
+        {pilotButton($, ui, "move-google-switch", "Switch my Google sign-in", {
+          text: "Moving off Lovable: switch my Google sign-in to my new backend, then check it in the preview.",
+          details: stepDetails(
+            "The app signs in with Google through Lovable's broker (@lovable.dev/cloud-auth-js), which only works on Lovable. Clodable turned Google on in the new backend and set VITE_GOOGLE_SIGN_IN=supabase for the preview and the site. Make the Google button call supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin } }) when import.meta.env.VITE_GOOGLE_SIGN_IN is 'supabase', and keep Lovable's broker otherwise, so the app keeps working on Lovable until the switch.",
+          ),
+        })}
       </Box>
     );
   }
@@ -3735,13 +3742,10 @@ function finalExportStep($: EngineInterface, { ui, s }: StepView) {
       </Text>
       {numbered(ui, [...EXPORT_CLICKS, "Download the zip from the email Lovable sends."])}
       <Box flexDirection="row" columnGap={2} alignItems="center">
-        {pilotButton(
-          $,
-          ui,
-          "move-final-export",
-          "I've downloaded it",
-          `Moving off Lovable: I've downloaded my final Lovable export, made after the pause. Read it with \`${moveCommand($, ["export"])}\` and tell me what's in it.`,
-        )}
+        {pilotButton($, ui, "move-final-export", "I've downloaded it", {
+          text: "Moving off Lovable: I've downloaded my final Lovable export, made after the pause. Read it and tell me what's in it.",
+          details: stepDetails(`Read it with \`${moveCommand($, ["export"])}\`.`),
+        })}
         {openLovable(ui, s)}
       </Box>
       {undoPause($, ui)}
@@ -3764,13 +3768,13 @@ function finalCopyStep($: EngineInterface, { ui, step }: StepView) {
           scheduled jobs. Your new backend then takes changes again.
         </Text>
       )}
-      {pilotButton(
-        $,
-        ui,
-        "move-final-copy",
-        again ? "Copy again" : "Copy it in for good",
-        `Moving off Lovable: copy my final export into my new backend for good with \`${moveCommand($, ["copy"])}\`${hasFiles ? `, then copy the files uploaded since with \`${moveCommand($, ["files"])}\`` : ""}, and make sure everything is there.`,
-      )}
+      {pilotButton($, ui, "move-final-copy", again ? "Copy again" : "Copy it in for good", {
+        text: `Moving off Lovable: copy my final export into my new backend for good${hasFiles ? ", then copy the files uploaded since" : ""}, and make sure everything is there.`,
+        details: stepDetails(
+          runStep($, ["copy"]),
+          ...(hasFiles ? [`Then the files: \`${moveCommand($, ["files"])}\`.`] : []),
+        ),
+      })}
       {undoPause($, ui)}
     </Box>
   );
@@ -3839,13 +3843,17 @@ function goLiveStep($: EngineInterface, { ui }: StepView) {
           . Anything written in your Lovable app since stays there.
         </Text>
       ) : null}
-      {pilotButton(
-        $,
-        ui,
-        "move-golive",
-        "Go live",
-        `Moving off Lovable: switch my app to its new backend and site with \`${moveCommand($, ["golive", "--sign-up", people === "invite" ? "no" : "yes", ...(emailsOn ? ["--confirm-email", people === "confirm" ? "yes" : "no"] : [])])}\`, then tell me what changed and how to put it live.`,
-      )}
+      {pilotButton($, ui, "move-golive", "Go live", {
+        text: "Moving off Lovable: switch my app to its new backend and site, then tell me what changed and how to put it live.",
+        details: stepDetails(
+          runStep($, [
+            "golive",
+            "--sign-up",
+            people === "invite" ? "no" : "yes",
+            ...(emailsOn ? ["--confirm-email", people === "confirm" ? "yes" : "no"] : []),
+          ]),
+        ),
+      })}
     </Box>
   );
 }
@@ -3876,13 +3884,10 @@ function domainStep($: EngineInterface, { ui }: StepView) {
         </Text>
         {dnsRecords($, ui, "domain-record", records)}
         <Box flexDirection="row" columnGap={2} alignItems="center">
-          {pilotButton(
-            $,
-            ui,
-            "move-domain-check",
-            "Check again",
-            `Moving off Lovable: check whether ${move.domain.name} points to my new site with \`${moveCommand($, ["domain"])}\`, and tell me what's left if it doesn't.`,
-          )}
+          {pilotButton($, ui, "move-domain-check", "Check again", {
+            text: `Moving off Lovable: check whether ${move.domain.name} points to my new site, and tell me what's left if it doesn't.`,
+            details: stepDetails(runStep($, ["domain"])),
+          })}
         </Box>
       </Box>
     );
@@ -3896,10 +3901,10 @@ function domainStep($: EngineInterface, { ui }: StepView) {
       </Text>
       {domainField($, ui, "move-domain", "yourapp.com", "Move it", false, (domain) =>
         background(
-          pilot(
-            $,
-            `Moving off Lovable: move my domain ${domain} to my new site with \`${moveCommand($, ["domain", domain])}\`, then tell me what to change at my domain's provider.`,
-          ),
+          pilot($, {
+            text: `Moving off Lovable: move my domain ${domain} to my new site, then tell me what to change at my domain's provider.`,
+            details: stepDetails(runStep($, ["domain", domain])),
+          }),
         ),
       )}
       {skipRow($, ui, {
@@ -3982,7 +3987,7 @@ function pilotButton(
   ui: PaneUi,
   key: string,
   label: string,
-  request: string,
+  request: Ask,
   variant: "primary" | "secondary" = "primary",
 ) {
   const { Button } = ui;

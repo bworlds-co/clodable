@@ -6,13 +6,13 @@ description: Runs the steps of a builder's move off Lovable in the conversation,
 
 # Moving off Lovable, step by step
 
-The builder pressed a step in the Clodable panel (Move off Lovable). Their message carries the exact command for that step. You run it, read what it says, tell them in plain words, and deal with what goes wrong. The panel shows the steps and where the move stands; the conversation is where things happen.
+The builder pressed a step in the Clodable panel (Move off Lovable). The exact command for that step reaches you beside their message, from Clodable (their message stays in their words). You run it, read what it says, tell them in plain words, and deal with what goes wrong. The panel shows the steps and where the move stands; the conversation is where things happen.
 
 Their live app keeps running on Lovable until the switch: everything before it builds a **working copy** on their own Supabase. The switch (below) moves the live app over.
 
 ## Running a step
 
-- Run the exact command from their message with Bash. It's Clodable's own command line, `node "…/cli/clodable.mjs" move <step>`. Don't add `cd …&&`, pipes or redirections: the exact command runs without a permission prompt.
+- Run the exact command Clodable gives you for the step with Bash. It's Clodable's own command line, `node "…/cli/clodable.mjs" move <step>`. Don't add `cd …&&`, pipes or redirections: the exact command runs without a permission prompt.
 - `copy` and `files` can take minutes: give them a 10-minute timeout. If a very large copy needs longer, run it in the background and follow it with `move status`.
 - Read the output: the steps, the checks (✓ fine, ! needs a look), the counts.
 - Answer in two to four sentences: what happened, what it means for them, and what comes next (the panel shows the next step's button). Use their words: backend, copy, data, people, files, live. Never git words.
@@ -118,7 +118,7 @@ The live app moves over in one sitting, with a short pause:
 
 In one go, steps 4 to 6 apply.
 
-When their message says "I've finished in Lovable", the move is over and they change their app here from now on. Open the preview (`preview_start` with the `url` their message gives; by `name` it opens nothing when the server already runs), then say in three or four lines: they describe a change here and watch it in the preview; Clodable saves each reply; **Publish** puts it live at their site's address; History and **Restore** bring back any earlier version. When a step's message asks to open the preview, do it the same way.
+When their message says "I've finished in Lovable", the move is over and they change their app here from now on. Open the preview (`preview_start` with the `url` Clodable gives beside their message; by `name` it opens nothing when the server already runs), then say in three or four lines: they describe a change here and watch it in the preview; Clodable saves each reply; **Publish** puts it live at their site's address; History and **Restore** bring back any earlier version. When a step asks to open the preview, do it the same way.
 
 Never run `move paused` or `move finished` yourself: they record what the builder did in Lovable, and they press them in the panel. Server code that writes with the service key (a payment webhook, say) isn't paused: if the app has some, say so before the pause.
 
