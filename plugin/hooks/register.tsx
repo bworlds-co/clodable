@@ -25,7 +25,7 @@ import type {
   ClodableStatus,
   ClodableStep,
 } from "../types/index.d.ts";
-import { justDone, savingNow, stoppedBy } from "./activity.ts";
+import { DONE_SHOWN_MS, doneSaid, justDone, savingNow, stoppedBy } from "./activity.ts";
 import {
   eventReader,
   lastResult,
@@ -447,15 +447,17 @@ async function publishNow($: EngineInterface) {
   if (result.ok) {
     const data = result.data ?? {};
     const onLovable = data.deploy === "lovable";
+    const at = Date.now();
     await update<ClodableActivity>($, activity, (x) => ({
       kind: "published",
       steps: x.steps,
       title: data.title,
       url: data.url ?? null,
-      at: Date.now(),
+      at,
       ...(onLovable ? { onLovable, lovableUrl: data.lovableUrl ?? null } : {}),
       ...(data.site ? { site: data.site } : {}),
     }));
+    sayDoneUntil($, at);
     $.ui.toast(
       onLovable
         ? "Published on GitHub. Click Publish in Lovable to put it live."
@@ -480,6 +482,16 @@ async function publishNow($: EngineInterface) {
   if (move) await loadMove($);
 }
 
+/**
+ * "You're live" and "Undone" stay up for DONE_SHOWN_MS, then the bar is the usual one again, with
+ * History. Nothing else redraws it then: the status refresh waits for an idle bar.
+ */
+function sayDoneUntil($: EngineInterface, at: number) {
+  $.clock.after(DONE_SHOWN_MS, () => {
+    background(update<ClodableActivity>($, activity, doneSaid(at)).then(() => refreshStatus($)));
+  });
+}
+
 async function undoNow($: EngineInterface) {
   const s = await read($, status);
   const title = s?.ready && s.lastPublish ? s.lastPublish.title : "your last publish";
@@ -499,14 +511,16 @@ async function undoNow($: EngineInterface) {
   const result = await flow($, ["undo", "--yes"], "undoing");
   if (result.ok) {
     const onLovable = result.data?.deploy === "lovable";
+    const at = Date.now();
     await update<ClodableActivity>($, activity, (x) => ({
       kind: "undone",
       steps: x.steps,
       title,
       url: result.data?.url ?? null,
-      at: Date.now(),
+      at,
       ...(onLovable ? { onLovable, lovableUrl: result.data?.lovableUrl ?? null } : {}),
     }));
+    sayDoneUntil($, at);
     $.ui.toast(
       onLovable
         ? "Undone on GitHub. Click Publish in Lovable to put the previous version back live."

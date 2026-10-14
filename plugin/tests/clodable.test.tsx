@@ -556,6 +556,37 @@ describe("a publish that stopped", () => {
   });
 });
 
+describe("after a publish", () => {
+  test("“You're live” comes down on its own, and the usual bar comes back, with History", async ($, on) => {
+    const calls = harness(on);
+    const clock = (
+      calls as unknown as { clock: { advance(ms: number): Promise<void>; settle(): Promise<void> } }
+    ).clock;
+    on("process.spawn", async function* () {
+      const data = { title: "Menu", url: "https://crumb.example", deploy: "live", functions: {} };
+      yield { stream: "stdout", text: `${JSON.stringify({ type: "result", ok: true, data })}\n` };
+      return { value: { code: 0, signal: null } };
+    });
+    const history = async () => {
+      const band = await $.ui.mount({ ...BAND, surface: "desktop" });
+      const found = await band.find({ type: "Button", key: "history" });
+      await band.unmount();
+      return found;
+    };
+    await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+    const band = await $.ui.mount({ ...BAND, surface: "desktop" });
+    await band.press({ key: "publish" });
+    await band.unmount();
+    expect(await bandText($, "desktop", /You're live/)).toBe("You're live");
+    expect(await history()).toBeUndefined();
+
+    await clock.advance(2 * 60_000);
+    for (let i = 0; i < 20; i++) await clock.settle();
+    expect(await bandText($, "desktop", /not live yet/)).toBe("2 changes not live yet");
+    expect(await history()).toBeDefined();
+  });
+});
+
 describe("a publish that takes a while", () => {
   test("the bar says what the build is doing, and for how long", async ($, on) => {
     harness(on);
