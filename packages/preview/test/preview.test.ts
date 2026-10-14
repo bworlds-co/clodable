@@ -112,12 +112,18 @@ describe("inline text editing", () => {
 });
 
 describe("toolbar injection", () => {
-  it("injects once, before </head>, or after <body> when there is no head", () => {
-    const html = "<html><head><title>x</title></head><body><div id=root></div></body></html>";
+  it("injects once, first in <head> (before any script of the app), or after <body> without one", () => {
+    const html =
+      '<html><head lang="en"><script src="/analytics.js"></script><title>x</title></head><body><header>top</header></body></html>';
     const once = injectToolbar(html)!;
-    expect(once).toContain("data-clodable-toolbar></script></head>");
+    expect(once).toContain(
+      '<head lang="en"><script src="/__clodable/toolbar.js" data-clodable-toolbar></script><script src="/analytics.js">',
+    );
+    // Neither deferred nor async: it runs before the app's scripts, not after them.
+    expect(once).not.toMatch(/toolbar\.js"[^>]*\b(defer|async)\b/);
     expect(injectToolbar(once)).toBe(once);
-    expect(injectToolbar("<body class=a><p>hi</p></body>")).toContain(
+    // A <header> isn't a <head>.
+    expect(injectToolbar("<body class=a><header>hi</header></body>")).toContain(
       '<body class=a><script src="/__clodable/toolbar.js"',
     );
     expect(injectToolbar("<p>fragment</p>")).toBeUndefined();

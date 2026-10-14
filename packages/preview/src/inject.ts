@@ -1,19 +1,23 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { PREFIX, ROUTES } from "./shared.js";
 
-export const TOOLBAR_TAG = `<script src="${ROUTES.toolbar}" defer data-clodable-toolbar></script>`;
+/**
+ * The toolbar's script tag. Neither deferred nor async, and first in <head>: the toolbar starts
+ * before any script of the app, keeps the browser's own fetch, and its token never meets one.
+ */
+export const TOOLBAR_TAG = `<script src="${ROUTES.toolbar}" data-clodable-toolbar></script>`;
+
+/** Just after the page's opening <head …> (not a <header>), else just after <body …>. */
+function afterOpening(html: string): number | undefined {
+  const opening = /<head(?=[\s>])[^>]*>/i.exec(html) ?? /<body(?=[\s>])[^>]*>/i.exec(html);
+  return opening ? opening.index + opening[0].length : undefined;
+}
 
 /** Insert the toolbar script into an HTML document, once. */
 export function injectToolbar(html: string): string | undefined {
   if (html.includes("data-clodable-toolbar")) return html;
-  const head = html.search(/<\/head>/i);
-  if (head >= 0) return html.slice(0, head) + TOOLBAR_TAG + html.slice(head);
-  const body = html.search(/<body[^>]*>/i);
-  if (body >= 0) {
-    const close = html.indexOf(">", body) + 1;
-    return html.slice(0, close) + TOOLBAR_TAG + html.slice(close);
-  }
-  return undefined;
+  const at = afterOpening(html);
+  return at === undefined ? undefined : html.slice(0, at) + TOOLBAR_TAG + html.slice(at);
 }
 
 const TAG_BYTES = Buffer.from(TOOLBAR_TAG, "utf8");
@@ -22,22 +26,16 @@ const TAG_BYTES = Buffer.from(TOOLBAR_TAG, "utf8");
 export function injectToolbarBytes(bytes: Uint8Array): Uint8Array | undefined {
   const buf = Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   if (buf.includes("data-clodable-toolbar")) return bytes;
-  let at = buf.indexOf("</head>");
-  if (at < 0) at = buf.indexOf("</HEAD>");
-  if (at < 0) {
-    const body = buf.indexOf("<body");
-    if (body < 0) return undefined;
-    const close = buf.indexOf(">", body);
-    if (close < 0) return undefined;
-    at = close + 1;
-  }
+  // Latin-1 reads one character per byte: a position in that text is the same position in bytes.
+  const at = afterOpening(buf.toString("latin1"));
+  if (at === undefined) return undefined;
   return Buffer.concat([buf.subarray(0, at), TAG_BYTES, buf.subarray(at)]);
 }
 
 type Next = (error?: unknown) => void;
 type Callback = (error?: Error | null) => void;
 
-/** Give up looking for </head> after this much HTML, and pass everything through untouched. */
+/** Give up looking for <head> after this much HTML, and pass everything through untouched. */
 const MAX_HOLD = 512 * 1024;
 
 const toBuffer = (chunk: unknown, encoding?: BufferEncoding): Buffer | undefined => {
@@ -49,9 +47,9 @@ const toBuffer = (chunk: unknown, encoding?: BufferEncoding): Buffer | undefined
 
 /**
  * Middleware that adds the toolbar to HTML rendered by a server framework (TanStack Start, Nitro).
- * React streams HTML in small pieces, and `</head>` can be split between two of them. So the start
- * of the document is held back until the head closes, the tag is inserted, and then everything
- * streams on untouched. A page that never closes its head is passed through as it was.
+ * React streams HTML in small pieces, and `<head …>` can be split between two of them. So the start
+ * of the document is held back until the head opens, the tag is inserted, and then everything
+ * streams on untouched. A page with no head or body is passed through as it was.
  */
 export function htmlInjectionMiddleware(
   req: IncomingMessage,
