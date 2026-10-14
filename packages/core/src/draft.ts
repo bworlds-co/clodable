@@ -4,6 +4,7 @@ import type { ProjectConfig } from "./config.js";
 import { ClodableError } from "./errors.js";
 import type { Commit, CommitKind } from "./git.js";
 import type { PullRequest } from "./github/types.js";
+import { CLODABLE_FILES, keepIgnored } from "./kit/index.js";
 import { readSecret } from "./local-secrets.js";
 import { loadMove } from "./move/state.js";
 import { SUPABASE_TOKEN } from "./move/supabase-api.js";
@@ -361,7 +362,10 @@ export async function restore(ws: Workspace, sha: string): Promise<SaveResult> {
   if (await ws.git.hasChanges()) {
     await save(ws, { message: "Saved changes before restoring" });
   }
-  await ws.git.restoreTree(target);
+  // The app's files go back. Clodable's stay as they are now: an older .clodable/ or AGENTS.md
+  // would undo the builder's answers, or take Clodable out of the project altogether.
+  await ws.git.restoreTree(target, CLODABLE_FILES);
+  await keepIgnored(ws.root);
   const when = commit ? formatAbsolute(commit.date) : target.slice(0, 7);
   return save(ws, {
     message: `Restored the version from ${when}${commit ? `: ${commit.subject}` : ""}`,

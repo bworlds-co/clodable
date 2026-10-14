@@ -569,4 +569,36 @@ describe("undo and restore", () => {
     ]);
     expect(h.draft[0]!.kind).toBe("restore");
   });
+
+  it("brings back the app's files, and leaves Clodable's own as they are now", async () => {
+    const ws = await sb.ws();
+    await sb.write("src/app.txt", "Getting started\n");
+    await save(ws, { message: "Getting started" });
+    // An early version, before Clodable was set up here: no AGENTS.md, no Clodable lines to ignore.
+    await sb.write(".gitignore", "node_modules/\n");
+    await sb.write("src/app.txt", "Version A\n");
+    await ws.git.ok(["add", ".gitignore", "src/app.txt"]);
+    await ws.git.ok(["commit", "--quiet", "-m", "Version A"]);
+    const a = (await ws.git.revParse("HEAD"))!;
+    // Since then: Clodable set up, the builder's answers saved, the app changed.
+    const config = JSON.parse(await readFile(join(sb.work, ".clodable/config.json"), "utf8"));
+    const answered = `${JSON.stringify({ ...config, backend: "supabase", hosting: "github" })}\n`;
+    await sb.write(".clodable/config.json", answered);
+    await sb.write("AGENTS.md", "How Claude works here.\n");
+    await sb.write(".gitignore", "node_modules/\ndist/\n.clodable/local/\n.clodable/inbox/\n");
+    await sb.write("src/app.txt", "Version B\n");
+    await save(ws, { message: "Version B" });
+
+    await restore(ws, a);
+
+    expect(await readFile(join(sb.work, "src/app.txt"), "utf8")).toBe("Version A\n");
+    expect(await readFile(join(sb.work, ".clodable/config.json"), "utf8")).toBe(answered);
+    expect(await readFile(join(sb.work, "AGENTS.md"), "utf8")).toBe("How Claude works here.\n");
+    const ignored = await readFile(join(sb.work, ".gitignore"), "utf8");
+    expect(ignored).toMatch(/^node_modules\/\n/);
+    expect(ignored).not.toContain("dist/");
+    expect(ignored).toContain(".clodable/local/\n.clodable/inbox/\n");
+    // This computer's state never reached the history.
+    expect(await ws.git.run(["ls-files", ".clodable/local"])).toMatchObject({ stdout: "" });
+  });
 });
