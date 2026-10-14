@@ -12,7 +12,7 @@
   "bugs": "https://github.com/bworlds-co/clodable/issues",
   "type": "module",
   "bin": {
-    "clodable": "./dist/clodable.mjs"
+    "clodable": "dist/clodable.mjs"
   },
   "files": [
     "dist"
