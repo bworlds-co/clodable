@@ -13,7 +13,7 @@ We aim to reply within 3 working days.
 
 ## How Clodable is built to be safe
 
-- **The preview toolbar** exists only on the local dev server. Its endpoints need a per-session token, refuse other origins, and only write to files inside the project that the tagger saw. It never ships in a production build.
+- **The preview toolbar** exists only on the local dev server. Its endpoints answer only this computer (never the rest of the network, even when the app does), need a per-session token, refuse other origins, and only write to files inside the project that the tagger saw. It never ships in a production build.
 - **The Claude plugin** guards:
   - Claude can't push, force-push, merge or publish.
   - Edge-function deploys are refused outside Publish.
