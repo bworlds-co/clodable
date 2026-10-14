@@ -306,10 +306,33 @@ export function versionName(subject: string): string {
   return back[2] ? `Went back to “${back[2]}”` : `Went back to the version from ${back[1]}`;
 }
 
+/**
+ * What the builder pointed at in the preview, as they'd say it: "Heading <h1 class="…"> “Bread”"
+ * (the toolbar's description, for Claude) reads "the heading “Bread”".
+ */
+export function pointedAt(element: string | undefined): string {
+  const described = element?.match(/^([A-Z][a-z]+) <[^>]*>(?: “(.*)”)?$/);
+  const kind = described?.[1]?.toLowerCase();
+  if (!kind || kind === "element") return "this part of the page";
+  return described?.[2] ? `the ${kind} “${described[2]}”` : `the ${kind}`;
+}
+
+/** The builder's words for a Point & ask request: "About the heading “Bread”: make it warmer". */
+export const POINTED_AT = /^About (?:the [a-z]+(?: “[^”]*”)?|this part of the page): (.+)$/s;
+
+/** A page of the app, as the builder knows it: "the home page", "the /menu page". */
+export const pageName = (path: string | undefined) =>
+  !path || path === "/" ? "the home page" : `the ${path} page`;
+
 /** A commit subject from what the builder asked: first meaningful line, trimmed, at most 72 characters. */
 export function saveMessage(request: string): string {
   // Requests Clodable wrote for the builder get the builder's words, not the error's.
-  if (/^From the preview: the page .* is broken/.test(request)) return "Fixed a page that broke";
+  if (/^Fix (?:the home page|the \/\S* page): it's broken in the preview\.$/.test(request)) {
+    return "Fixed a page that broke";
+  }
+  // Point & ask: what the builder asked, without what they pointed at.
+  const asked = request.match(POINTED_AT)?.[1];
+  if (asked) return saveMessage(asked);
   if (request.startsWith("Saving stopped: ")) return "Moved a secret key out of the code";
   if (request.startsWith("Publishing stopped: ")) return "Fixed what stopped publishing";
   // A step of the move, as the panel asked Claude: what it did, not the command.
