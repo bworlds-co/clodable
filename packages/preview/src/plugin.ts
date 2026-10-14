@@ -10,7 +10,7 @@ import { originalPositionFor, TraceMap } from "@jridgewell/trace-mapping";
 import type { Plugin, ViteDevServer } from "vite";
 import { DEVICES, type Device, framePage } from "./frame.js";
 import { htmlInjectionMiddleware, injectToolbar } from "./inject.js";
-import { buildError, PREFIX, parseSourceAttr, ROUTES } from "./shared.js";
+import { buildError, CONFIG_NAME, PREFIX, parseSourceAttr, ROUTES } from "./shared.js";
 import { tagJsx } from "./tagger.js";
 import { editText, probeText } from "./text-edit.js";
 import { toolbarSource } from "./toolbar-source.js";
@@ -146,10 +146,13 @@ export function clodablePreview(options: PreviewOptions = {}): Plugin {
     }
   };
 
-  /** The toolbar's script, with what it needs to talk back to this server. */
+  /**
+   * The toolbar's script, with what it needs to talk back to this server: handed to its code as an
+   * argument, never put on `window`, where the page's own scripts would read the token.
+   */
   async function toolbarScript() {
     const config = JSON.stringify({ token, backend: options.backend?.() ?? "live" });
-    return `window.__CLODABLE__=${config};\n${await toolbarSource()}`;
+    return `(function (${CONFIG_NAME}) {\n${await toolbarSource()}\n})(${config});`;
   }
 
   /** The app in a phone or tablet frame. */
@@ -230,7 +233,13 @@ export function clodablePreview(options: PreviewOptions = {}): Plugin {
     if (!fromThisComputer(req)) return send(res, 403, { error: "forbidden" });
 
     if (req.method === "GET") {
-      if (path === ROUTES.toolbar) return send(res, 200, await toolbarScript(), "text/javascript");
+      if (path === ROUTES.toolbar) {
+        // Loaded by the page's script tag, not read by its scripts: a fetch() would see the token.
+        // Browsers set Sec-Fetch-Dest themselves; a page can't. Older ones don't send it at all.
+        const dest = req.headers["sec-fetch-dest"];
+        if (dest !== undefined && dest !== "script") return send(res, 403, { error: "forbidden" });
+        return send(res, 200, await toolbarScript(), "text/javascript");
+      }
       if (path === ROUTES.health) return send(res, 200, { ok: true, tagged: tagged.size });
       if (path === ROUTES.frame) return send(res, 200, devicePage(url), "text/html");
     }
