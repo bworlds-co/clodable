@@ -180,10 +180,11 @@ What the app's server code reads (`process.env.GREETING`, found by scanning `src
 
 ## The tools a builder doesn't install (DECISIONS Q18)
 
-- **Node.js:** at session start, before anything runs, the plugin checks `node` (20.19 or newer). Without one, it fetches Node.js v24 LTS from nodejs.org into Clodable's cache (`~/Library/Caches/clodable/node`, `~/.cache/clodable` on Linux) with `curl`, checks its SHA-256 (`plugin/hooks/tools.ts`) and links `node`, `npm` and `npx` in the cache's `bin`. Not on Windows yet.
-- **GitHub CLI:** `ghBinary()` (`core/src/github/gh-binary.ts`) uses the one installed, else fetches a pinned release (checked by SHA-256) into the cache and links it in the same `bin`. It reads the same sign-in as an installed one. The setup's **Connect GitHub** signs in through it.
-- **The session's PATH:** the plugin puts that `bin` on it with `$.env.set`, which every command started afterwards inherits: Clodable's CLI, Claude's Bash, MCP servers. The builder's tools come first; Clodable's come first only when the builder's Node.js is missing or too old.
-- **The preview:** Desktop starts it with its own PATH, so the kit's launch entry runs `/bin/sh -c 'PATH="$PATH:<cache>/bin" exec npx clodable dev'` (plain `npx clodable dev` on Windows).
+- **Where they go:** the `tools` folder in the plugin's data folder, `~/.claude/plugins/data/clodable-clodable/tools`. Claude Code keeps it across updates and removes it with the plugin (`${CLAUDE_PLUGIN_DATA}`). Mods aren't told that folder, so the plugin reads it off its own install folder (`toolsFolder` in `plugin/hooks/tools.ts`) and passes it to the CLI in `CLODABLE_TOOLS_DIR`. A plugin loaded from a folder of its own (a developer's), and the CLI on its own, use Clodable's cache instead (`~/Library/Caches/clodable`).
+- **Node.js:** at session start, before anything runs, the plugin checks `node` (20.19 or newer). Without one, it fetches Node.js v24 LTS from nodejs.org into `tools/node` with `curl`, checks its SHA-256 (`plugin/hooks/tools.ts`) and links `node`, `npm` and `npx` in `tools/bin`. Not on Windows yet. The plugin runs its own CLI with that Node.js, or the builder's, by its full path.
+- **GitHub CLI:** `ghBinary()` (`core/src/github/gh-binary.ts`) uses the one installed, else fetches a pinned release (checked by SHA-256) into `tools/gh` and links it in `tools/bin`. It reads the same sign-in as an installed one. The setup's **Connect GitHub** signs in through it.
+- **The session's PATH:** the plugin puts `tools/bin` on it with `$.env.set`, which every command started afterwards inherits: Claude's Bash, MCP servers. The builder's tools come first; Clodable's come first only when the builder's Node.js is missing or too old.
+- **The preview:** Desktop starts it with its own PATH, so the kit's launch entry runs `/bin/sh -c 'PATH="$PATH:$HOME/.claude/plugins/data/clodable-clodable/tools/bin" exec npx clodable dev'` (plain `npx clodable dev` on Windows).
 - **Git:** on macOS, the setup's **Install Git** button runs `xcode-select --install`, which opens Apple's installer.
 - **Package managers:** an app whose lockfile names one that isn't installed (Bun, say) is installed, built and audited with npm.
 
@@ -192,6 +193,7 @@ What the app's server code reads (`process.env.GREETING`, found by scanning `src
 - **Only in apps Clodable set up.** A Claude plugin loads in every session, so Clodable first checks for `.clodable/config.json`:
   - The CLI's save, status, publish, undo, restore and inbox commands refuse other projects (`not-set-up`). Only `kit` and `setup` run before setup.
   - In other projects the mod stays out of the way: no bar, auto-save, guards, permission changes or plain-language rows. An empty folder gets a setup invitation, and `/clodable` works everywhere.
+  - The check follows the session's folder as it is now, not as it was at `session.start`. Desktop starts a conversation's engine ahead of time in a spare folder (`~/.claude/spares/…`, gone once used) and moves it into the project when the conversation opens. The mod reads the folder again before each command, on each turn and every 1.5 seconds (`syncFolder`), and looks at a new one as a session start would.
 - **Guards in the mod:**
   - No pushes to the live branch and no force-pushes. Merges happen only through Publish.
   - No direct edge-function deploys.

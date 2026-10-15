@@ -5,7 +5,8 @@ import { dirname, join } from "node:path";
 /**
  * Where Clodable keeps things on this computer, and how it writes them. Outside every project,
  * the usual way on each system: settings and secrets in the config folder, downloaded tools in
- * the cache. `CLODABLE_CONFIG_DIR` and `CLODABLE_CACHE_DIR` move them (tests use them).
+ * the cache. `CLODABLE_CONFIG_DIR` and `CLODABLE_CACHE_DIR` move them (tests use them). The tools
+ * a builder would otherwise install go where the plugin says (`toolsDir`).
  */
 
 export function configDir(): string {
@@ -17,6 +18,15 @@ export function configDir(): string {
     return join(process.env.APPDATA ?? join(homedir(), "AppData", "Roaming"), "clodable");
   }
   return join(process.env.XDG_CONFIG_HOME ?? join(homedir(), ".config"), "clodable");
+}
+
+/**
+ * Where the tools Clodable fetches for a builder who has none go (the GitHub CLI; the plugin's
+ * Node.js): the plugin's own data folder, which Claude Code removes with the plugin. The plugin
+ * passes it in `CLODABLE_TOOLS_DIR`; the CLI on its own uses the cache.
+ */
+export function toolsDir(): string {
+  return process.env.CLODABLE_TOOLS_DIR || cacheDir();
 }
 
 export function cacheDir(): string {

@@ -10,7 +10,7 @@ import {
   safeCommand,
 } from "../hooks/guards.ts";
 import { connectorSetting, sizeOf, stagesOf, typedDomain } from "../hooks/move.ts";
-import { cacheFolder, nodeOk, pathWith } from "../hooks/tools.ts";
+import { nodeFrom, nodeOk, pathWith, pluginDataFolder, toolsFolder } from "../hooks/tools.ts";
 import { FIX_TEXT, hostOf, pageName, pointedAt, saveMessage, versionName } from "../hooks/words.ts";
 
 const CWD = "/work/crumb";
@@ -90,7 +90,7 @@ function harness(
     ReturnType<typeof out> | ((argv: string[]) => ReturnType<typeof out>)
   > = {},
   /** Answers a command before anything else does (the computer's own tools), or passes it on. */
-  first?: (argv: string[], init?: { env?: Record<string, string> }) => unknown,
+  first?: (argv: string[], init?: { env?: Record<string, string>; cwd?: string }) => unknown,
 ) {
   const calls: string[][] = [];
   /** What each CLI call got on stdin, in call order (keys and tokens travel only this way). */
@@ -117,7 +117,7 @@ function harness(
       _$: unknown,
       e: {
         argv: string[];
-        init?: { stdin?: string; timeoutMs?: number; env?: Record<string, string> };
+        init?: { stdin?: string; timeoutMs?: number; env?: Record<string, string>; cwd?: string };
       },
     ) => {
       const early = first?.(e.argv, e.init);
@@ -2902,6 +2902,47 @@ describe("the preview, when Desktop attaches late", () => {
   });
 });
 
+describe("a conversation Desktop started ahead of time", () => {
+  test("follows the session into the project: Clodable runs there, and the bar appears", async ($, on) => {
+    // Desktop starts the engine in a spare folder of its own, then moves it into the project when
+    // the conversation opens: session.start saw the spare, which is gone once used.
+    const SPARE = "/Users/ada/.claude/spares/spare-ZbIpL3";
+    let folder = SPARE;
+    on("session.cwd", () => ({ value: folder }));
+    const ranIn: string[] = [];
+    const calls = harness(on, STATUS, true, {}, (argv, init) => {
+      if (!argv[1]?.endsWith("/cli/clodable.mjs")) return undefined;
+      ranIn.push(init?.cwd ?? "");
+      return init?.cwd === SPARE
+        ? out({ code: "not-a-repo", message: "No app here." }, false)
+        : undefined;
+    });
+    const clock = (
+      calls as unknown as { clock: { advance(ms: number): Promise<void>; settle(): Promise<void> } }
+    ).clock;
+    on("mcp.call", () => ({
+      value: {
+        content: [{ type: "text", text: '{ "port": 5199, "name": "app" }' }],
+        isError: false,
+      },
+    }));
+    await $.session.start({ surface: "desktop", isInteractive: true, cwd: SPARE });
+    for (let i = 0; i < 40 && ranIn.length === 0; i++) await clock.settle();
+    expect(ranIn).toEqual([SPARE]);
+    // No bar in the spare folder: it's no app.
+    const spare = await $.ui.mount({ ...BAND, surface: "desktop" });
+    expect(await spare.find({ key: "publish" })).toBeUndefined();
+    await spare.unmount();
+
+    folder = CWD;
+    await clock.advance(1600);
+    expect(await bandText($, "desktop", /not live yet/)).toBe("2 changes not live yet");
+    // Every command since runs in the project, never in the spare folder that's gone.
+    expect(ranIn.slice(1).length).toBeGreaterThan(0);
+    expect(ranIn.slice(1).every((where) => where === CWD)).toBe(true);
+  });
+});
+
 describe("the preview, when Claude starts it", () => {
   test("the bar's Preview asks for the address Claude's preview_start returned, and its pane gets this conversation's name", async ($, on) => {
     harness(on);
@@ -3303,7 +3344,10 @@ describe("an app that isn't online, or has no backend", () => {
 });
 
 describe("the tools Clodable needs", () => {
-  const BIN = "/Users/ada/Library/Caches/clodable/bin";
+  // Loaded from its own folder, as in these tests, Clodable keeps its tools in its cache.
+  const TOOLS = "/Users/ada/Library/Caches/clodable";
+  const BIN = `${TOOLS}/bin`;
+  const OURS = `${TOOLS}/node/node-v24.21.0-darwin-arm64/bin/node`;
   const ran = (stdout: string, exitCode = 0) => ({
     exitCode,
     stdout,
@@ -3311,6 +3355,8 @@ describe("the tools Clodable needs", () => {
     isStdoutTruncated: false,
     isStderrTruncated: false,
   });
+  /** What a Node.js prints about itself: its version and where it runs from. */
+  const node = (version: string, path: string) => ran(JSON.stringify([version, path]));
 
   /** A Mac whose own Node.js is `own` (none: undefined), and what Clodable did about it. */
   function computer(
@@ -3325,26 +3371,35 @@ describe("the tools Clodable needs", () => {
       else env[e.name] = e.value;
       return { value: undefined };
     });
-    const seen = { fetched: undefined as Record<string, string> | undefined, cliAt: -1, setAt: -1 };
+    const seen = {
+      fetched: undefined as Record<string, string> | undefined,
+      cliAt: -1,
+      setAt: -1,
+      /** The Node.js the CLI ran with, and what it was told beside its arguments. */
+      node: "",
+      cliEnv: undefined as Record<string, string> | undefined,
+    };
     let step = 0;
     const first = (argv: string[], init?: { env?: Record<string, string> }) => {
       step++;
       const [command, flag] = argv;
       if (command === "uname") return ran("Darwin arm64\n");
       if (flag === "-e") {
-        if (command === `${BIN}/node`) return seen.fetched ? ran("24.21.0") : ran("", 127);
+        if (command === `${BIN}/node`) return seen.fetched ? node("24.21.0", OURS) : ran("", 127);
         // `node` is whichever comes first on the PATH: Clodable's, once fetched and put first.
-        if (env.PATH?.startsWith(`${BIN}:`) && seen.fetched) return ran("24.21.0");
+        if (env.PATH?.startsWith(`${BIN}:`) && seen.fetched) return node("24.21.0", OURS);
         // A fragile Node.js only runs with the PATH the session had.
         if (fragile && env.PATH !== path) return ran("", 127);
-        return own ? ran(own) : ran("", 127);
+        return own ? node(own, "/opt/homebrew/bin/node") : ran("", 127);
       }
       if (command === "/bin/sh") {
         seen.fetched = init?.env;
         return ran("");
       }
-      if (command === "node" && seen.cliAt < 0) {
+      if (argv[1]?.endsWith("/cli/clodable.mjs") && seen.cliAt < 0) {
         seen.cliAt = step;
+        seen.node = command ?? "";
+        seen.cliEnv = init?.env;
         if (env.PATH !== "/opt/homebrew/bin:/usr/bin") seen.setAt = step;
       }
       return undefined;
@@ -3361,13 +3416,17 @@ describe("the tools Clodable needs", () => {
       CLODABLE_NODE_URL: "https://nodejs.org/dist/v24.21.0/node-v24.21.0-darwin-arm64.tar.gz",
       CLODABLE_NODE_SHA: "bed7eea5325e1108f32ce5228ddd6a5f0f08a499ee42aa7442aea583702f6057",
       CLODABLE_NODE_NAME: "node-v24.21.0-darwin-arm64",
-      CLODABLE_NODE_DIR: "/Users/ada/Library/Caches/clodable/node",
+      CLODABLE_NODE_DIR: `${TOOLS}/node`,
       CLODABLE_BIN: BIN,
     });
     // Clodable's own Node.js comes first, for Clodable, the preview and Claude's commands alike,
-    // and only then does Clodable run.
+    // and only then does Clodable run: with that Node.js by its full path.
     expect(env.PATH).toBe(`${BIN}:/opt/homebrew/bin:/usr/bin`);
     expect(seen.setAt).toBe(seen.cliAt);
+    expect(seen.node).toBe(OURS);
+    // The CLI, and Claude's own runs of it, find the tools in the same place.
+    expect(seen.cliEnv).toEqual({ CLODABLE_TOOLS_DIR: TOOLS });
+    expect(env.CLODABLE_TOOLS_DIR).toBe(TOOLS);
   });
 
   test("a Mac with its own Node.js keeps it first; Clodable's tools come after", async ($, on) => {
@@ -3377,6 +3436,7 @@ describe("the tools Clodable needs", () => {
     for (let i = 0; i < 5000 && seen.cliAt < 0; i++) await Promise.resolve();
     expect(seen.fetched).toBeUndefined();
     expect(env.PATH).toBe(`/opt/homebrew/bin:/usr/bin:${BIN}`);
+    expect(seen.node).toBe("/opt/homebrew/bin/node");
   });
 
   test("a Node.js too old for Clodable is passed over", async ($, on) => {
@@ -3386,6 +3446,7 @@ describe("the tools Clodable needs", () => {
     for (let i = 0; i < 5000 && seen.cliAt < 0; i++) await Promise.resolve();
     expect(seen.fetched?.CLODABLE_NODE_NAME).toBe("node-v24.21.0-darwin-arm64");
     expect(env.PATH.startsWith(`${BIN}:`)).toBe(true);
+    expect(seen.node).toBe(OURS);
   });
 
   test("a Mac without Git gets Apple's installer from a button, no Terminal", async ($, on) => {
@@ -3511,7 +3572,29 @@ describe("the tools Clodable needs", () => {
     expect(nodeOk("18.20.4")).toBe(false);
     expect(pathWith("/a:/b", "/c", false)).toBe("/a:/b:/c");
     expect(pathWith("/c:/a:/b", "/c", true)).toBe("/c:/a:/b");
-    expect(cacheFolder("Linux x86_64", { home: "/home/ada" })).toBe("/home/ada/.cache/clodable");
-    expect(cacheFolder("MINGW64_NT", { home: "C:/Users/ada" })).toBeUndefined();
+    expect(nodeFrom('["22.11.0","/opt/homebrew/bin/node"]')).toBe("/opt/homebrew/bin/node");
+    expect(nodeFrom('["18.20.4","/usr/local/bin/node"]')).toBeUndefined();
+    expect(nodeFrom("22.11.0")).toBeUndefined();
+  });
+
+  test("the tools live in the plugin's data folder, which Claude Code removes with the plugin", () => {
+    const installed = "/Users/ada/.claude/plugins/cache/clodable/clodable/0.3.0";
+    expect(pluginDataFolder(installed)).toBe("/Users/ada/.claude/plugins/data/clodable-clodable");
+    expect(
+      pluginDataFolder("/Users/ada/.claude/plugins/cache/claude-plugins.official/clodable/1/"),
+    ).toBe("/Users/ada/.claude/plugins/data/clodable-claude-plugins-official");
+    expect(toolsFolder(installed, "Darwin arm64", { home: "/Users/ada" })).toBe(
+      "/Users/ada/.claude/plugins/data/clodable-clodable/tools",
+    );
+    // A plugin loaded from a folder of its own keeps them in Clodable's cache.
+    expect(pluginDataFolder("/work/clodable/plugin")).toBeUndefined();
+    expect(toolsFolder("/work/clodable/plugin", "Darwin arm64", { home: "/Users/ada" })).toBe(
+      "/Users/ada/Library/Caches/clodable",
+    );
+    expect(toolsFolder("/work/clodable/plugin", "Linux x86_64", { home: "/home/ada" })).toBe(
+      "/home/ada/.cache/clodable",
+    );
+    expect(toolsFolder(installed, "Linux x86_64", { override: "/tmp/tools" })).toBe("/tmp/tools");
+    expect(toolsFolder(installed, "MINGW64_NT", { home: "C:/Users/ada" })).toBeUndefined();
   });
 });
