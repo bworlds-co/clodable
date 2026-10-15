@@ -27,25 +27,16 @@
 
 ## Get started
 
-**You'll need** a Mac with [Claude Desktop](https://claude.com/download), signed in with a paid Claude plan, and your app on GitHub. Lovable [pushes it there in one click](https://docs.lovable.dev/integrations/github). Windows hasn't been tested yet.
+**You'll need** a Mac with [Claude Desktop](https://claude.com/download) (on a paid Claude plan) and your app on GitHub. Lovable [puts it there in one click](https://docs.lovable.dev/integrations/github).
 
-1. **Install the tools Clodable uses.** You only do this once.
-   - [Node.js](https://nodejs.org/en/download): the LTS version, as the macOS Installer (.pkg).
-   - [GitHub CLI](https://github.com/cli/cli/releases/latest): the file ending in `macOS_universal.pkg`.
-   - Git: open Terminal and type `git --version`. If your Mac offers to install the command line developer tools, click **Install**.
-2. **Sign in to GitHub.** In Terminal, type `gh auth login --web`, then press Enter at each question and follow the browser.
-3. **Add Clodable to Claude.** Paste these lines in Terminal. The first two install Claude Code's command line, which Claude Desktop doesn't include; skip them if `claude --version` already works.
+1. **Install [Node.js](https://nodejs.org/en/download) and the [GitHub CLI](https://github.com/cli/cli/releases/latest)** (for the GitHub CLI, the file ending in `macOS_universal.pkg`).
+2. **Add Clodable to Claude.** Paste this line in Terminal:
    ```
-   curl -fsSL https://claude.ai/install.sh | bash
-   export PATH="$HOME/.local/bin:$PATH"
-   claude plugin marketplace add bworlds-co/clodable
-   claude plugin install clodable@clodable
+   curl -fsSL https://claude.ai/install.sh | bash && ~/.local/bin/claude plugin install clodable --marketplace bworlds-co/clodable
    ```
-4. **Open an empty folder** in Claude Desktop's **Code** tab and type `/clodable`. If Claude Desktop was open, quit it (⌘Q) and open it again first. The setup checks your tools, brings your app in from GitHub and adds a few plain files. Then ask for your first change.
+3. **Open an empty folder** in Claude Desktop's **Code** tab and type `/clodable`. It signs you in to GitHub and brings your app in. (If Claude Desktop was open, restart it first.)
 
-Moving off Lovable, putting your site online, adding a backend: Clodable sets up Netlify and Supabase in your name when you need them (both free to start). On Lovable Cloud, type `/move-off-lovable` to open **Move off Lovable** in the panel ([how it goes](#move-off-lovable-to-a-stack-you-own)). Helping a client? Follow the [onboarding playbook](docs/ONBOARDING.md).
-
-> **About Claude plans.** Pro and Max are personal plans. For your company's app, use **Claude Team or Enterprise**. Anthropic's consumer terms don't allow business use of personal plans in the EU.
+Moving off Lovable, putting your site online, adding a backend: Clodable sets them up in your own Netlify and Supabase accounts when you need them (both free to start). On Lovable Cloud, type `/move-off-lovable` ([how it goes](#move-off-lovable-to-a-stack-you-own)).
 
 ## Why Clodable
 
@@ -91,6 +82,8 @@ Clodable is built and tested with apps made with **Lovable**:
 - **Your database:** your own Supabase project, or Lovable Cloud, which Clodable moves to a Supabase project in your name. No database yet? Clodable adds one on your own Supabase when your app needs sign-in or saved data.
 - **Your site:** still on Lovable's hosting, on Netlify after the move, or on any host that deploys from GitHub, such as Vercel, Netlify or Cloudflare. Not online yet? Clodable puts it on your own Netlify, and each Publish updates it.
 - **Your computer:** a Mac with Claude Desktop. Windows hasn't been tested yet, and the move off Lovable doesn't run there yet.
+
+> **About Claude plans.** Pro and Max are personal plans. For your company's app, use **Claude Team or Enterprise**. Anthropic's consumer terms don't allow business use of personal plans in the EU. Helping a client set up? Follow the [onboarding playbook](docs/ONBOARDING.md).
 
 Apps from other AI app builders aren't supported yet. A React app built with Vite may already work, since that's what Clodable's preview runs, but none has been tested. Apps built with Next.js don't work yet.
 
