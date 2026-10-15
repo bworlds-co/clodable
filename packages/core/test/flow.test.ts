@@ -375,6 +375,42 @@ describe("what counts as not live yet", () => {
     expect(both.unpublished).toBe(2);
     expect((await status(ws)).unpublished).toHaveLength(2);
   });
+
+  it("nothing, when the saves cancel out: the app is as it's live, so there's nothing to publish", async () => {
+    const ws = await sb.ws();
+    const live = (await ws.git.revParse(ws.liveRef))!;
+    await sb.write("src/app.txt", "Warmer welcome\n");
+    await save(ws, { message: "Warmer welcome" });
+    // Restoring a version the app already looks like changes nothing, so nothing is saved.
+    expect((await restore(ws, live)).saved).toBe(true);
+    expect((await restore(ws, live)).saved).toBe(false);
+
+    expect((await status(ws)).unpublished).toEqual([]);
+    const h = await history(ws);
+    expect(h.draft).toHaveLength(2);
+    expect(h.sameAsLive).toBe(true);
+    await expectError(publishAll(), "nothing-to-publish");
+
+    // A new change: the saves since the last publish are waiting again.
+    await sb.write("src/app.txt", "Warmest welcome\n");
+    expect((await save(ws, { message: "Warmest welcome" })).unpublished).toBe(3);
+    expect((await history(ws)).sameAsLive).toBe(false);
+  });
+
+  it("Clodable's own files still go live with Publish, like the site's publish workflow", async () => {
+    const ws = await sb.ws();
+    await sb.write(".github/workflows/clodable-netlify.yml", "name: Publish to Netlify\n");
+    await save(ws, { message: "Put my site on Netlify" });
+    expect((await status(ws)).unpublished).toEqual([]);
+
+    await publishAll();
+
+    const live = await new Git(sb.bare).run([
+      "show",
+      "main:.github/workflows/clodable-netlify.yml",
+    ]);
+    expect(live.stdout).toBe("name: Publish to Netlify\n");
+  });
 });
 
 describe("where the move off Lovable stands", () => {

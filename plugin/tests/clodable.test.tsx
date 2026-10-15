@@ -2755,6 +2755,59 @@ describe("restore", () => {
     await pane.unmount();
     expect(calls.find((c) => c[0] === "restore")).toEqual(["restore", "p9", "--json"]);
   });
+
+  test("saves that cancel out: nothing waits, and Restore says when nothing changed", async ($, on) => {
+    const calls = harness(
+      on,
+      {
+        ...STATUS,
+        project: { ...STATUS.project, backend: "supabase", hosting: "github" },
+        unpublished: [],
+      },
+      true,
+      {
+        history: out({ ...HISTORY, sameAsLive: true }),
+        restore: out({ saved: false, branch: "draft/ada", pushed: true, unpublished: 0 }),
+      },
+    );
+    const toasts: string[] = [];
+    on("ui.toast", (_$: unknown, e: { text: string }) => {
+      toasts.push(e.text);
+      return { value: undefined };
+    });
+    await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+    const pane = await $.ui.mount({
+      plugin: "clodable",
+      surface: "desktop",
+      component: "Pane",
+      requestId: "clodable",
+      props: {
+        title: "Clodable",
+        isFocused: true,
+        bodyColumns: 80,
+        placement: "dock",
+        scroll: { offset: 0, bodyRows: 40 },
+        view: {},
+      },
+    });
+    let since: any;
+    for (let i = 0; i < 30 && !since; i++) {
+      since = await pane.find({ type: "Text", text: "Since your last publish" });
+      if (!since) await pane.redraw();
+    }
+    // The saves are still there to go back to, but the live site already looks like this.
+    expect(since).toBeDefined();
+    expect(await pane.find({ type: "Text", text: "Not live yet" })).toBeUndefined();
+    expect(await pane.find({ type: "Text", text: "Everything is live" })).toBeDefined();
+    expect(await pane.find({ type: "Button", key: "publish" })).toBeUndefined();
+
+    await pane.press({ key: "restore-p9" });
+    await pane.press({ key: "restore-confirm-p9" });
+    for (let i = 0; i < 30 && toasts.length === 0; i++) await Promise.resolve();
+    await pane.unmount();
+    expect(calls.find((c) => c[0] === "restore")).toEqual(["restore", "p9", "--json"]);
+    expect(toasts).toEqual(["Your app already looks like this version. Nothing changed."]);
+  });
 });
 
 describe("the preview", () => {

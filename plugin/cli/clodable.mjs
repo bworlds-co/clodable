@@ -23826,7 +23826,19 @@ async function liveBase(ws) {
   return await ws.git.revParse(ws.liveBranch) ? ws.liveBranch : void 0;
 }
 async function countUnpublished(ws) {
-  return (await unpublishedSaves(ws, { buildersOnly: true })).length;
+  return (await waitingSaves(ws)).length;
+}
+async function waitingSaves(ws) {
+  const saves = await unpublishedSaves(ws, { buildersOnly: true });
+  return saves.length > 0 && await sameAsLive(ws) ? [] : saves;
+}
+async function sameAsLive(ws, options = {}) {
+  const live = await liveBase(ws);
+  if (!live) return false;
+  const diff = await ws.git.run(["diff", "--name-only", `${live}...HEAD`]);
+  if (diff.exitCode !== 0) return false;
+  const changed = diff.stdout.split("\n").filter(Boolean);
+  return options.clodablesToo ? changed.length === 0 : changed.every(clodables);
 }
 async function unpublishedSaves(ws, options = {}) {
   const live = await liveBase(ws);
@@ -23838,7 +23850,10 @@ async function unpublishedSaves(ws, options = {}) {
   return saves.filter((c2) => c2.kind !== "setup" && !onlyClodables(files.get(c2.sha) ?? []));
 }
 function onlyClodables(paths) {
-  return paths.length > 0 && paths.every((path2) => CLODABLE_FILES.some((own2) => path2 === own2 || path2.startsWith(`${own2}/`)));
+  return paths.length > 0 && paths.every(clodables);
+}
+function clodables(path2) {
+  return CLODABLE_FILES.some((own2) => path2 === own2 || path2.startsWith(`${own2}/`));
 }
 async function ensurePullRequest(ws, branch) {
   const saves = await unpublishedSaves(ws);
@@ -23882,7 +23897,7 @@ async function status(ws, options = {}) {
     ws.state()
   ]);
   const hasLive = Boolean(await ws.git.revParse(ws.liveRef));
-  const unpublished = branch === ws.liveBranch ? [] : await unpublishedSaves(ws, { buildersOnly: true });
+  const unpublished = branch === ws.liveBranch ? [] : await waitingSaves(ws);
   const behindLive = hasLive ? await ws.git.count(`HEAD..${ws.liveRef}`, { noMerges: true }) : 0;
   return {
     project: {
@@ -23914,7 +23929,7 @@ async function history(ws, options = {}) {
     unpublishedSaves(ws, { buildersOnly: true }),
     ws.git.log(live, { firstParent: true, limit: options.limit ?? 30 })
   ]);
-  return { draft, published };
+  return { draft, sameAsLive: draft.length > 0 && await sameAsLive(ws), published };
 }
 var BEFORE_RESTORE = "Saved changes before restoring";
 async function restore(ws, sha) {
@@ -28090,7 +28105,7 @@ async function* publish(ws, options = {}) {
     yield step("sync", "done", "Already up to date with your live site");
   }
   const saves = await ws.git.log(`${ws.liveRef}..HEAD`, { noMerges: true, limit: 200 });
-  if (saves.length === 0) {
+  if (saves.length === 0 || await sameAsLive(ws, { clodablesToo: true })) {
     throw new ClodableError({
       code: "nothing-to-publish",
       message: "There's nothing new to publish. Your live site already has everything."
@@ -48854,6 +48869,7 @@ async function historyCommand(ctx2, options) {
       out.header("history");
       out.line(import_picocolors5.default.bold("Your draft"));
       if (h2.draft.length === 0) out.line(ash("  Nothing waiting to go live."));
+      else if (h2.sameAsLive) out.line(ash("  Same as your live site: nothing to publish."));
       for (const c2 of h2.draft) {
         out.line(
           `  ${clay("\u25CF")} ${c2.subject} ${ash(`\xB7 ${formatRelative(c2.date)} \xB7 ${c2.sha.slice(0, 7)}`)}`
@@ -48878,6 +48894,10 @@ async function restoreCommand(ctx2, sha) {
     ctx2,
     async () => restore(await ctx2.workspace(), sha),
     (result) => {
+      if (!result.saved) {
+        ctx2.out.line(`${celadon("\u2713")} Your app already looks like this version: nothing changed`);
+        return;
+      }
       ctx2.out.line(
         `${celadon("\u2713")} Restored ${ash(`\xB7 saved as a new version, nothing was erased`)}`
       );

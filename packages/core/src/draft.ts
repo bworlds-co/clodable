@@ -249,7 +249,32 @@ async function liveBase(ws: Workspace): Promise<string | undefined> {
 
 /** The builder's saves not live yet: what the bar counts. */
 export async function countUnpublished(ws: Workspace): Promise<number> {
-  return (await unpublishedSaves(ws, { buildersOnly: true })).length;
+  return (await waitingSaves(ws)).length;
+}
+
+/**
+ * The builder's saves that would change the live site. Saves that cancel out (a change, then a
+ * restore of the version before it) leave the app as it's live, so nothing is waiting then.
+ */
+async function waitingSaves(ws: Workspace): Promise<Commit[]> {
+  const saves = await unpublishedSaves(ws, { buildersOnly: true });
+  return saves.length > 0 && (await sameAsLive(ws)) ? [] : saves;
+}
+
+/**
+ * Whether the draft brings nothing new to the app: its files are the ones it found on the live
+ * site. `clodablesToo` also asks the same of Clodable's own files.
+ */
+export async function sameAsLive(
+  ws: Workspace,
+  options: { clodablesToo?: boolean } = {},
+): Promise<boolean> {
+  const live = await liveBase(ws);
+  if (!live) return false;
+  const diff = await ws.git.run(["diff", "--name-only", `${live}...HEAD`]);
+  if (diff.exitCode !== 0) return false;
+  const changed = diff.stdout.split("\n").filter(Boolean);
+  return options.clodablesToo ? changed.length === 0 : changed.every(clodables);
 }
 
 /**
@@ -272,10 +297,12 @@ async function unpublishedSaves(
 
 /** Changed files that are all Clodable's own. A save that changed nothing isn't counted as one. */
 function onlyClodables(paths: string[]): boolean {
-  return (
-    paths.length > 0 &&
-    paths.every((path) => CLODABLE_FILES.some((own) => path === own || path.startsWith(`${own}/`)))
-  );
+  return paths.length > 0 && paths.every(clodables);
+}
+
+/** One of Clodable's own files, or a file inside one of its folders. */
+function clodables(path: string): boolean {
+  return CLODABLE_FILES.some((own) => path === own || path.startsWith(`${own}/`));
 }
 
 /** The draft's page on GitHub: one pull request per draft, opened at the first save. */
@@ -330,8 +357,7 @@ export async function status(ws: Workspace, options: { fetch?: boolean } = {}): 
     ws.state(),
   ]);
   const hasLive = Boolean(await ws.git.revParse(ws.liveRef));
-  const unpublished =
-    branch === ws.liveBranch ? [] : await unpublishedSaves(ws, { buildersOnly: true });
+  const unpublished = branch === ws.liveBranch ? [] : await waitingSaves(ws);
   const behindLive = hasLive ? await ws.git.count(`HEAD..${ws.liveRef}`, { noMerges: true }) : 0;
   return {
     project: {
@@ -363,6 +389,8 @@ export async function status(ws: Workspace, options: { fetch?: boolean } = {}): 
 export interface History {
   /** Saves on the draft that aren't live yet, newest first. */
   draft: Commit[];
+  /** True when those saves cancel out: the app's files are the ones live, nothing to publish. */
+  sameAsLive: boolean;
   /** Recent publishes on the live branch, newest first. */
   published: Commit[];
 }
@@ -373,7 +401,7 @@ export async function history(ws: Workspace, options: { limit?: number } = {}): 
     unpublishedSaves(ws, { buildersOnly: true }),
     ws.git.log(live, { firstParent: true, limit: options.limit ?? 30 }),
   ]);
-  return { draft, published };
+  return { draft, sameAsLive: draft.length > 0 && (await sameAsLive(ws)), published };
 }
 
 /** The save Clodable makes on its own before a restore, so nothing unsaved is lost. */
