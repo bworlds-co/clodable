@@ -23,7 +23,7 @@ In Lovable, connect the project to GitHub, in the client's own account or organi
 
 Follow [Get started](../README.md#get-started) with them:
 1. [Claude Desktop](https://claude.com/download), signed in with the right plan.
-2. [Node.js](https://nodejs.org/en/download) and the [GitHub CLI](https://github.com/cli/cli/releases/latest) (`macOS_universal.pkg`). Clodable's setup checks each one and says what's missing. Git: macOS offers it in one click the first time it's needed.
+2. Nothing else to install by hand: Clodable fetches Node.js and the GitHub CLI the first time when the Mac has none (pinned releases, checked), and its setup has an **Install Git** button that opens Apple's installer.
 3. Add Clodable, in Terminal. Claude Desktop doesn't include Claude Code's command line, and can't add a marketplace itself, so the line installs it first and calls it by its full path (a new Mac's Terminal doesn't search `~/.local/bin`):
    ```
    curl -fsSL https://claude.ai/install.sh | bash && ~/.local/bin/claude plugin install clodable --marketplace bworlds-co/clodable

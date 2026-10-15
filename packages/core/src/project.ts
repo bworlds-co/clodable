@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs";
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { hasCommand } from "./exec.js";
 
 export type AppType = "vite-spa" | "tanstack-start" | "unknown";
 export type PackageManager = "npm" | "pnpm" | "yarn" | "bun";
@@ -54,6 +55,15 @@ export function detectPackageManager(root: string): PackageManager {
   if (existsSync(join(root, "package-lock.json"))) return "npm";
   if (existsSync(join(root, "bun.lockb")) || existsSync(join(root, "bun.lock"))) return "bun";
   return "npm";
+}
+
+/**
+ * The package manager to run on this computer: the project's own, or npm when that one isn't
+ * installed (a Lovable app with only bun.lock, on a Mac without Bun). npm reads package.json.
+ */
+export async function packageManagerHere(project: ProjectInfo): Promise<PackageManager> {
+  if (project.packageManager === "npm") return "npm";
+  return (await hasCommand(project.packageManager, project.root)) ? project.packageManager : "npm";
 }
 
 export function runScriptCommand(pm: PackageManager, script: string): [string, string[]] {

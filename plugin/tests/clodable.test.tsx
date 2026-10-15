@@ -10,6 +10,7 @@ import {
   safeCommand,
 } from "../hooks/guards.ts";
 import { connectorSetting, sizeOf, stagesOf, typedDomain } from "../hooks/move.ts";
+import { cacheFolder, nodeOk, pathWith } from "../hooks/tools.ts";
 import { FIX_TEXT, hostOf, pageName, pointedAt, saveMessage, versionName } from "../hooks/words.ts";
 
 const CWD = "/work/crumb";
@@ -88,6 +89,8 @@ function harness(
     string,
     ReturnType<typeof out> | ((argv: string[]) => ReturnType<typeof out>)
   > = {},
+  /** Answers a command before anything else does (the computer's own tools), or passes it on. */
+  first?: (argv: string[], init?: { env?: Record<string, string> }) => unknown,
 ) {
   const calls: string[][] = [];
   /** What each CLI call got on stdin, in call order (keys and tokens travel only this way). */
@@ -110,7 +113,15 @@ function harness(
   (calls as unknown as { timeouts: typeof timeouts }).timeouts = timeouts;
   on(
     "process.run",
-    (_$: unknown, e: { argv: string[]; init?: { stdin?: string; timeoutMs?: number } }) => {
+    (
+      _$: unknown,
+      e: {
+        argv: string[];
+        init?: { stdin?: string; timeoutMs?: number; env?: Record<string, string> };
+      },
+    ) => {
+      const early = first?.(e.argv, e.init);
+      if (early) return { value: early };
       calls.push(e.argv.slice(2));
       stdins.push(e.init?.stdin);
       timeouts.push(e.init?.timeoutMs);
@@ -3288,5 +3299,157 @@ describe("an app that isn't online, or has no backend", () => {
     expect(connect.deny).toContain("Clodable panel");
     const npx: any = await $.tool.call({ tool: "Bash", command: "npx clodable connect supabase" });
     expect(npx.deny).toContain("Clodable panel");
+  });
+});
+
+describe("the tools Clodable needs", () => {
+  const BIN = "/Users/ada/Library/Caches/clodable/bin";
+  const ran = (stdout: string, exitCode = 0) => ({
+    exitCode,
+    stdout,
+    stderr: "",
+    isStdoutTruncated: false,
+    isStderrTruncated: false,
+  });
+
+  /** A Mac whose own Node.js is `own` (none: undefined), and what Clodable did about it. */
+  function computer(on: any, own: string | undefined) {
+    const env: Record<string, string> = { HOME: "/Users/ada", PATH: "/opt/homebrew/bin:/usr/bin" };
+    on("env.get", (_$: unknown, e: { name: string }) => ({ value: env[e.name] }));
+    on("env.set", (_$: unknown, e: { name: string; value?: string }) => {
+      if (e.value === undefined) delete env[e.name];
+      else env[e.name] = e.value;
+      return { value: undefined };
+    });
+    const seen = { fetched: undefined as Record<string, string> | undefined, cliAt: -1, setAt: -1 };
+    let step = 0;
+    const first = (argv: string[], init?: { env?: Record<string, string> }) => {
+      step++;
+      const [command, flag] = argv;
+      if (command === "uname") return ran("Darwin arm64\n");
+      if (flag === "-e") {
+        if (command === `${BIN}/node`) return seen.fetched ? ran("24.21.0") : ran("", 127);
+        return own ? ran(own) : ran("", 127);
+      }
+      if (command === "/bin/sh") {
+        seen.fetched = init?.env;
+        return ran("");
+      }
+      if (command === "node" && seen.cliAt < 0) {
+        seen.cliAt = step;
+        if (env.PATH !== "/opt/homebrew/bin:/usr/bin") seen.setAt = step;
+      }
+      return undefined;
+    };
+    return { env, seen, first };
+  }
+
+  test("a Mac with no Node.js gets Clodable's own, before anything runs, first on the PATH", async ($, on) => {
+    const { env, seen, first } = computer(on, undefined);
+    harness(on, STATUS, true, {}, first);
+    await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+    for (let i = 0; i < 5000 && seen.cliAt < 0; i++) await Promise.resolve();
+    expect(seen.fetched).toEqual({
+      CLODABLE_NODE_URL: "https://nodejs.org/dist/v24.21.0/node-v24.21.0-darwin-arm64.tar.gz",
+      CLODABLE_NODE_SHA: "bed7eea5325e1108f32ce5228ddd6a5f0f08a499ee42aa7442aea583702f6057",
+      CLODABLE_NODE_NAME: "node-v24.21.0-darwin-arm64",
+      CLODABLE_NODE_DIR: "/Users/ada/Library/Caches/clodable/node",
+      CLODABLE_BIN: BIN,
+    });
+    // Clodable's own Node.js comes first, for Clodable, the preview and Claude's commands alike,
+    // and only then does Clodable run.
+    expect(env.PATH).toBe(`${BIN}:/opt/homebrew/bin:/usr/bin`);
+    expect(seen.setAt).toBe(seen.cliAt);
+  });
+
+  test("a Mac with its own Node.js keeps it first; Clodable's tools come after", async ($, on) => {
+    const { env, seen, first } = computer(on, "22.11.0");
+    harness(on, STATUS, true, {}, first);
+    await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+    for (let i = 0; i < 5000 && seen.cliAt < 0; i++) await Promise.resolve();
+    expect(seen.fetched).toBeUndefined();
+    expect(env.PATH).toBe(`/opt/homebrew/bin:/usr/bin:${BIN}`);
+  });
+
+  test("a Node.js too old for Clodable is passed over", async ($, on) => {
+    const { env, seen, first } = computer(on, "18.20.4");
+    harness(on, STATUS, true, {}, first);
+    await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+    for (let i = 0; i < 5000 && seen.cliAt < 0; i++) await Promise.resolve();
+    expect(seen.fetched?.CLODABLE_NODE_NAME).toBe("node-v24.21.0-darwin-arm64");
+    expect(env.PATH.startsWith(`${BIN}:`)).toBe(true);
+  });
+
+  test("a Mac without Git gets Apple's installer from a button, no Terminal", async ($, on) => {
+    const ran: string[][] = [];
+    const calls = harness(
+      on,
+      { code: "not-a-repo", message: "No app here yet." },
+      false,
+      {
+        doctor: out([
+          { id: "node", label: "Node.js", status: "ok" },
+          {
+            id: "git",
+            label: "Git",
+            status: "fail",
+            fix: "Run `xcode-select --install`, then try again",
+          },
+          { id: "gh", label: "GitHub CLI", status: "ok" },
+        ]),
+      },
+      (argv) => {
+        if (argv[0] === "xcode-select") {
+          ran.push(argv);
+          return {
+            exitCode: 0,
+            stdout: "",
+            stderr: "",
+            isStdoutTruncated: false,
+            isStderrTruncated: false,
+          };
+        }
+        return undefined;
+      },
+    );
+    on("ui.toast", () => ({ value: undefined }));
+    on("ui.open", () => ({ value: { isOpen: true } }) as never);
+    await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+    await $.command.run({ command: "clodable", args: "" } as never);
+    const pane = await $.ui.mount({
+      plugin: "clodable",
+      surface: "desktop",
+      component: "Pane",
+      requestId: "clodable",
+      props: {
+        title: "Clodable",
+        isFocused: true,
+        bodyColumns: 80,
+        placement: "dock",
+        scroll: { offset: 0, bodyRows: 80 },
+        view: {},
+      },
+    } as never);
+    for (let i = 0; i < 30 && !(await pane.find({ key: "install-git" })); i++) await pane.redraw();
+    await pane.press({ key: "install-git" });
+    for (let i = 0; i < 30 && ran.length === 0; i++) await Promise.resolve();
+    expect(ran).toEqual([["xcode-select", "--install"]]);
+    const before = calls.filter((c) => c[0] === "doctor").length;
+    await pane.press({ key: "check-again" });
+    for (let i = 0; i < 30 && calls.filter((c) => c[0] === "doctor").length === before; i++)
+      await Promise.resolve();
+    expect(calls.filter((c) => c[0] === "doctor").length).toBe(before + 1);
+    await pane.unmount();
+  });
+
+  test("versions Clodable runs on", () => {
+    expect(nodeOk("20.19.0")).toBe(true);
+    expect(nodeOk("v24.21.0")).toBe(true);
+    expect(nodeOk("20.18.1")).toBe(false);
+    expect(nodeOk("18.20.4")).toBe(false);
+    expect(pathWith("/a:/b", "/c", false)).toBe("/a:/b:/c");
+    expect(pathWith("/c:/a:/b", "/c", true)).toBe("/c:/a:/b");
+    expect(cacheFolder("Linux x86_64", { home: "/home/ada" })).toBe("/home/ada/.cache/clodable");
+    expect(cacheFolder("MINGW64_NT", { home: "C:/Users/ada" })).toBeUndefined();
   });
 });

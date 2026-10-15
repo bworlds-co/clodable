@@ -71,6 +71,7 @@ export {
 } from "./git.js";
 export { FakeGitHub } from "./github/fake.js";
 export { GhCli } from "./github/gh.js";
+export { GH_VERSION, ghBinary, ghIsOurs, toolsBin } from "./github/gh-binary.js";
 export type {
   CheckSummary,
   Deployment,
@@ -102,6 +103,7 @@ export {
   type KitOptions,
   mergeManagedBlock,
   planKit,
+  previewCommand,
 } from "./kit/index.js";
 export { forgetSecret, readSecret, storeSecret } from "./local-secrets.js";
 export {
@@ -242,6 +244,7 @@ export {
   detectProject,
   type PackageManager,
   type ProjectInfo,
+  packageManagerHere,
 } from "./project.js";
 export {
   type PublishOptions,

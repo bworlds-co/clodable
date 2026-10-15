@@ -178,6 +178,15 @@ What the app's server code reads (`process.env.GREETING`, found by scanning `src
 
 `clodable dev` never edits the app's `vite.config`. It starts the app's own Vite with `@clodable/preview` added through Vite's inline config. The toolbar exists only in that dev server, never in a production build.
 
+## The tools a builder doesn't install (DECISIONS Q18)
+
+- **Node.js:** at session start, before anything runs, the plugin checks `node` (20.19 or newer). Without one, it fetches Node.js v24 LTS from nodejs.org into Clodable's cache (`~/Library/Caches/clodable/node`, `~/.cache/clodable` on Linux) with `curl`, checks its SHA-256 (`plugin/hooks/tools.ts`) and links `node`, `npm` and `npx` in the cache's `bin`. Not on Windows yet.
+- **GitHub CLI:** `ghBinary()` (`core/src/github/gh-binary.ts`) uses the one installed, else fetches a pinned release (checked by SHA-256) into the cache and links it in the same `bin`. It reads the same sign-in as an installed one. The setup's **Connect GitHub** signs in through it.
+- **The session's PATH:** the plugin puts that `bin` on it with `$.env.set`, which every command started afterwards inherits: Clodable's CLI, Claude's Bash, MCP servers. The builder's tools come first; Clodable's come first only when the builder's Node.js is missing or too old.
+- **The preview:** Desktop starts it with its own PATH, so the kit's launch entry runs `/bin/sh -c 'PATH="$PATH:<cache>/bin" exec npx clodable dev'` (plain `npx clodable dev` on Windows).
+- **Git:** on macOS, the setup's **Install Git** button runs `xcode-select --install`, which opens Apple's installer.
+- **Package managers:** an app whose lockfile names one that isn't installed (Bun, say) is installed, built and audited with npm.
+
 ## Security model
 
 - **Only in apps Clodable set up.** A Claude plugin loads in every session, so Clodable first checks for `.clodable/config.json`:

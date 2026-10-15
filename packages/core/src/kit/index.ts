@@ -175,8 +175,7 @@ async function launchPlan(root: string, options: KitOptions): Promise<KitChange>
     before,
     {},
   );
-  const dev = options.devCommand ??
-    clodableDev(launch.configurations ?? []) ?? { executable: "npx", args: ["clodable", "dev"] };
+  const dev = options.devCommand ?? clodableDev(launch.configurations ?? []) ?? previewCommand();
   const ours = {
     name: "app",
     runtimeExecutable: dev.executable,
@@ -199,9 +198,32 @@ async function launchPlan(root: string, options: KitOptions): Promise<KitChange>
 }
 
 /**
+ * Where Clodable keeps the tools it fetched for a builder who has none (Node.js, the GitHub CLI),
+ * as a shell spells it on macOS and Linux: `cacheDir()`'s `bin` folder.
+ */
+const TOOLS_PATH = "$HOME/Library/Caches/clodable/bin:${XDG_CACHE_HOME:-$HOME/.cache}/clodable/bin";
+
+/**
+ * How Desktop starts the preview: `npx clodable dev`. Desktop starts it with its own PATH, where
+ * the Node.js Clodable fetched isn't, so on macOS and Linux it goes through `sh`, with Clodable's
+ * tools after the builder's own.
+ */
+export function previewCommand(platform: NodeJS.Platform = process.platform): {
+  executable: string;
+  args: string[];
+} {
+  if (platform === "win32") return { executable: "npx", args: ["clodable", "dev"] };
+  return {
+    executable: "/bin/sh",
+    args: ["-c", `PATH="$PATH:${TOOLS_PATH}" exec npx clodable dev`],
+  };
+}
+
+/**
  * The preview's command already in launch.json, when it runs Clodable's own: a demo, or a test of
  * an unreleased Clodable, runs it from a folder rather than from npm, and planning the kit again
- * (answering a question, say) keeps it.
+ * (answering a question, say) keeps it. The plain `npx clodable dev` of earlier versions becomes
+ * today's.
  */
 function clodableDev(
   configurations: Array<Record<string, unknown>>,
@@ -211,6 +233,7 @@ function clodableDev(
   const args = app?.runtimeArgs;
   if (typeof executable !== "string" || !Array.isArray(args)) return undefined;
   const words = [executable, ...args].map(String);
+  if (words.join(" ") === "npx clodable dev") return undefined;
   return words.some((w) => w.includes("clodable")) && words.includes("dev")
     ? { executable, args: args.map(String) }
     : undefined;
