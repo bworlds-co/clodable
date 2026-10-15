@@ -6,9 +6,11 @@ import {
   ClodableError,
   detectProject,
   exec,
+  GH_VERSION,
   GhCli,
   GITLEAKS_VERSION,
   Git,
+  ghIsOurs,
   gitleaksBinary,
   hasCommand,
   type KitChange,
@@ -18,6 +20,7 @@ import {
   messageOf,
   type ProjectConfig,
   type ProjectInfo,
+  packageManagerHere,
   parseGitHubRemote,
   planKit,
   publish,
@@ -113,13 +116,20 @@ async function toolChecks(cwd: string): Promise<DoctorItem[]> {
         }),
   });
 
+  // Clodable fetches its own copy when none is installed, the first time it's asked for.
   const gh = new GhCli(cwd);
   const ready = await gh.ready();
   items.push({
     id: "gh",
     label: "GitHub CLI",
     status: ready.installed ? "ok" : "fail",
-    ...(ready.installed ? {} : { fix: "Install it from https://cli.github.com" }),
+    ...(ready.installed
+      ? (await ghIsOurs())
+        ? { detail: `${GH_VERSION}, Clodable's own` }
+        : {}
+      : {
+          fix: "Check your internet connection: Clodable downloads it. Or install it from https://cli.github.com",
+        }),
   });
   if (ready.installed) {
     let login: string | undefined;
@@ -163,7 +173,7 @@ async function appChecks(git: Git): Promise<DoctorItem[]> {
     id: "deps",
     label: "App dependencies",
     status: installed ? "ok" : "warn",
-    ...(installed ? {} : { fix: `Run \`${project.packageManager} install\`` }),
+    ...(installed ? {} : { fix: `Run \`${await packageManagerHere(project)} install\`` }),
   });
 
   const config = await loadConfig(root);
@@ -511,7 +521,7 @@ export async function setupCommand(
       if (!existsSync(join(root, "node_modules"))) {
         const s = interactive ? spinner() : undefined;
         s?.start("Installing your app's packages (a minute or two)");
-        const installed = await exec(project.packageManager, ["install"], {
+        const installed = await exec(await packageManagerHere(project), ["install"], {
           cwd: root,
           timeout: 15 * 60_000,
         });

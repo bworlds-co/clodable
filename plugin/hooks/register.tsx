@@ -77,6 +77,7 @@ import {
   previewRequest,
   previewTabIn,
 } from "./preview.ts";
+import { cacheFolder, FETCH_NODE, NODE_BUILDS, nodeOk, nodeUrl, pathWith } from "./tools.ts";
 import {
   ago,
   describeGroup,
@@ -315,6 +316,78 @@ function background(work: Promise<unknown>): void {
   work.catch(() => {});
 }
 
+// ── The tools Clodable needs: the builder's, or its own ─────────────────────
+
+/** Clodable's tools are on the session's PATH, once per session. */
+let toolsReady: Promise<void> | null = null;
+/** Node.js being fetched: the setup screen says so. */
+let fetchingNode = false;
+
+/**
+ * Node.js and the GitHub CLI, for Clodable, the preview and Claude's own commands. The builder's
+ * own come first; Clodable's bin folder (where the CLI links the GitHub CLI it fetched) comes
+ * after. With no recent enough Node.js on this computer, Clodable fetches one into that folder,
+ * and it comes first. `$.env.set` reaches every command started after: Clodable's, Claude's Bash.
+ */
+function ensureTools($: EngineInterface): Promise<void> {
+  toolsReady ??= prepareTools($).catch((error: unknown) => {
+    note($, `tools: ${String(error)}`.slice(0, 400));
+  });
+  return toolsReady;
+}
+
+async function prepareTools($: EngineInterface) {
+  const home = await $.env.get("HOME");
+  const uname = await $.process.run(["uname", "-sm"], { timeoutMs: 10_000 }).catch(() => null);
+  const system = uname?.exitCode === 0 ? uname.stdout.trim() : "";
+  const cache = cacheFolder(system, {
+    ...(home ? { home } : {}),
+    xdg: (await $.env.get("XDG_CACHE_HOME")) ?? "",
+    override: (await $.env.get("CLODABLE_CACHE_DIR")) ?? "",
+  });
+  if (!cache) return;
+  const bin = `${cache}/bin`;
+  const path = (await $.env.get("PATH")) ?? "";
+  if (await runsNode($, "node")) {
+    await $.env.set("PATH", pathWith(path, bin, false));
+    return;
+  }
+  if (!(await runsNode($, `${bin}/node`))) {
+    const build = NODE_BUILDS[system];
+    if (!build) return;
+    fetchingNode = true;
+    $.ui.invalidate("ui.render");
+    try {
+      const fetched = await $.process.run(["/bin/sh", "-c", FETCH_NODE], {
+        timeoutMs: MAX_RUN_MS,
+        env: {
+          CLODABLE_NODE_URL: nodeUrl(build.name),
+          CLODABLE_NODE_SHA: build.sha256,
+          CLODABLE_NODE_NAME: build.name,
+          CLODABLE_NODE_DIR: `${cache}/node`,
+          CLODABLE_BIN: bin,
+        },
+      });
+      if (fetched.exitCode !== 0) {
+        note($, `Node.js wasn't fetched: ${fetched.stderr}`.slice(0, 400));
+        return;
+      }
+    } finally {
+      fetchingNode = false;
+      $.ui.invalidate("ui.render");
+    }
+  }
+  await $.env.set("PATH", pathWith(path, bin, true));
+}
+
+/** Whether this Node.js runs, and is recent enough for Clodable. */
+async function runsNode($: EngineInterface, node: string): Promise<boolean> {
+  const run = await $.process
+    .run([node, "-e", "process.stdout.write(process.versions.node)"], { timeoutMs: 15_000 })
+    .catch(() => null);
+  return run?.exitCode === 0 && nodeOk(run.stdout.trim());
+}
+
 // ── The CLI, from this plugin's own folder ──────────────────────────────────
 
 function argv($: EngineInterface, args: string[]): string[] {
@@ -330,6 +403,7 @@ async function cli(
   timeoutMs = 120_000,
   input?: string,
 ): Promise<Result> {
+  await ensureTools($);
   try {
     const out = await $.process.run(argv($, args), {
       cwd,
@@ -363,6 +437,7 @@ async function streamCli(
   onStep: (step: Step) => unknown,
   input?: string,
 ): Promise<{ result?: Result; failure?: unknown }> {
+  await ensureTools($);
   const read = eventReader();
   let result: Result | undefined;
   try {
@@ -2117,13 +2192,29 @@ function setupPane(
       {header}
       <Text>Let's bring your app home. It takes a minute, once.</Text>
       {section(ui, "1 · Tools")}
-      {tools.length === 0 ? <Text dimColor>Checking…</Text> : null}
+      {fetchingNode ? (
+        <Text dimColor>Getting Node.js ready for your app: about a minute, once.</Text>
+      ) : tools.length === 0 ? (
+        <Text dimColor>Checking…</Text>
+      ) : null}
       {tools.map((c) => (
         <Box flexDirection="column">
           <Text color={c.status === "ok" ? "success" : "error"}>
             {c.status === "ok" ? "✓" : "✕"} {c.label} {c.detail ? `· ${c.detail}` : ""}
           </Text>
-          {c.status !== "ok" && c.fix ? <Text dimColor> {c.fix}</Text> : null}
+          {c.status !== "ok" && c.id === "git" && c.fix?.includes("xcode-select") ? (
+            // macOS: Apple's own installer for Git, no Terminal needed.
+            <Box flexDirection="row" columnGap={1} alignItems="center">
+              <Button key="install-git" variant="primary" onPress={() => background(installGit($))}>
+                Install Git
+              </Button>
+              <Button key="check-again" plain onPress={() => background(refreshChecks($))}>
+                Check again
+              </Button>
+            </Box>
+          ) : c.status !== "ok" && c.fix ? (
+            <Text dimColor> {c.fix}</Text>
+          ) : null}
         </Box>
       ))}
       {github && github.status !== "ok" ? (
@@ -4625,6 +4716,7 @@ function settingsFields($: EngineInterface, ui: PaneUi, key: string, fromLovable
 // ── Setup helpers (top level, so they can use $) ─────────────────────────────
 
 async function loadRepos($: EngineInterface) {
+  await ensureTools($);
   const out = await $.process.run(
     ["gh", "repo", "list", "--limit", "50", "--json", "nameWithOwner,updatedAt", "--source"],
     { cwd, timeoutMs: 30_000 },
@@ -4691,9 +4783,16 @@ async function setUpHere($: EngineInterface) {
   await refreshChecks($);
 }
 
+/** Apple's installer for its command line developer tools, Git among them: its own window. */
+async function installGit($: EngineInterface) {
+  await $.process.run(["xcode-select", "--install"], { timeoutMs: 30_000 }).catch(() => null);
+  $.ui.toast("Follow Apple's window to install Git, then press Check again.");
+}
+
 async function connectGitHub($: EngineInterface) {
   deviceCode = "";
   $.ui.invalidate("ui.render");
+  await ensureTools($);
   for await (const chunk of $.process.spawn({
     argv: ["gh", "auth", "login", "--web", "--git-protocol", "https", "--hostname", "github.com"],
     cwd,

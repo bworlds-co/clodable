@@ -1,5 +1,6 @@
 import { ClodableError, type ErrorInfo } from "../errors.js";
-import { commandPath, type ExecResult, exec, hasCommand } from "../exec.js";
+import { type ExecResult, exec } from "../exec.js";
+import { ghBinary } from "./gh-binary.js";
 import type {
   BuildProgress,
   CheckSummary,
@@ -17,8 +18,8 @@ export class GhCli implements GitHubAdapter {
   constructor(readonly cwd: string) {}
 
   /** Run `gh` without prompts, colors or update notices; never throws for its exit code. */
-  private run(args: string[], options: { timeout?: number; input?: string } = {}) {
-    return exec("gh", args, {
+  private async run(args: string[], options: { timeout?: number; input?: string } = {}) {
+    return exec(await ghBinary(), args, {
       cwd: this.cwd,
       timeout: options.timeout ?? 60_000,
       env: { GH_PROMPT_DISABLED: "1", GH_NO_UPDATE_NOTIFIER: "1", NO_COLOR: "1" },
@@ -43,7 +44,9 @@ export class GhCli implements GitHubAdapter {
   }
 
   async ready() {
-    if (!(await hasCommand("gh", this.cwd))) return { installed: false, authenticated: false };
+    if (!(await ghBinary().then(Boolean, () => false))) {
+      return { installed: false, authenticated: false };
+    }
     const status = await this.run(["auth", "status", "--hostname", "github.com"], {
       timeout: 20_000,
     });
@@ -72,8 +75,7 @@ export class GhCli implements GitHubAdapter {
    * `gh auth setup-git` does, for this folder only).
    */
   async clone(repo: string, target: string): Promise<void> {
-    const gh = (await commandPath("gh", this.cwd)) ?? "gh";
-    const helper = `!'${gh}' auth git-credential`;
+    const helper = `!'${await ghBinary()}' auth git-credential`;
     const cloned = await exec(
       "git",
       [
@@ -333,7 +335,7 @@ export class GhCli implements GitHubAdapter {
  * GitHub answering that a name isn't there.
  */
 const OFFLINE =
-  /error connecting to|could not resolve host|no such host|connection refused|network is unreachable|i\/o timeout|tls handshake timeout|context deadline exceeded/i;
+  /error connecting to|could not resolve host|failed to connect to|no such host|connection refused|network is unreachable|i\/o timeout|tls handshake timeout|context deadline exceeded/i;
 
 /**
  * A failed `gh` call in the builder's words: not connected to GitHub, offline (gh says "error

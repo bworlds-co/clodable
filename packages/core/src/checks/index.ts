@@ -4,7 +4,7 @@ import type { ProjectConfig } from "../config.js";
 import { ClodableError } from "../errors.js";
 import { type Flow, step } from "../events.js";
 import { exec } from "../exec.js";
-import { type ProjectInfo, runScriptCommand } from "../project.js";
+import { type ProjectInfo, packageManagerHere, runScriptCommand } from "../project.js";
 import { ScannerUnavailable } from "./gitleaks.js";
 import { describeFinding, scanVersion } from "./secrets.js";
 
@@ -72,7 +72,7 @@ async function checkBuild(project: ProjectInfo, config: ProjectConfig): Promise<
   if (!project.scripts[script]) {
     return { id: "build", status: "skipped", summary: "No build step to check" };
   }
-  const [command, args] = runScriptCommand(project.packageManager, script);
+  const [command, args] = runScriptCommand(await packageManagerHere(project), script);
   const result = await exec(command, args, {
     cwd: project.root,
     env: { CI: "1", NODE_ENV: "production", FORCE_COLOR: "0" },
@@ -105,7 +105,7 @@ async function checkPackages(project: ProjectInfo): Promise<CheckResult> {
     yarn: undefined,
     bun: undefined,
   };
-  const command = args[project.packageManager];
+  const command = args[await packageManagerHere(project)];
   if (!command) {
     return {
       id: "packages",

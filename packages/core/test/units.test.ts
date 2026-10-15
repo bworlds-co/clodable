@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -26,6 +27,7 @@ import {
   ProjectConfigSchema,
   parseGitHubRemote,
   planKit,
+  previewCommand,
   publishTitle,
   readInbox,
   readSecret,
@@ -634,8 +636,8 @@ describe("repo kit", () => {
 
       const launch = JSON.parse(await readFile(join(root, ".claude/launch.json"), "utf8"));
       expect(launch.configurations[0]).toMatchObject({
-        runtimeExecutable: "npx",
-        runtimeArgs: ["clodable", "dev"],
+        runtimeExecutable: previewCommand().executable,
+        runtimeArgs: previewCommand().args,
         port: 8080,
         autoPort: true,
       });
@@ -675,11 +677,44 @@ describe("repo kit", () => {
         runtimeArgs: local,
       });
       expect(await keep("vite", ["--port", "8080"])).toMatchObject({
-        runtimeExecutable: "npx",
-        runtimeArgs: ["clodable", "dev"],
+        runtimeExecutable: previewCommand().executable,
+        runtimeArgs: previewCommand().args,
+      });
+      // The plain command of earlier versions becomes today's, which finds Clodable's own Node.js.
+      expect(await keep("npx", ["clodable", "dev"])).toMatchObject({
+        runtimeExecutable: previewCommand().executable,
       });
     } finally {
       await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("starts the preview through sh on macOS and Linux, with Clodable's tools after the builder's", async () => {
+    expect(previewCommand("win32")).toEqual({ executable: "npx", args: ["clodable", "dev"] });
+    const mac = previewCommand("darwin");
+    expect(mac.executable).toBe("/bin/sh");
+    const dir = await mkdtemp(join(tmpdir(), "clodable-path-"));
+    try {
+      // The command really finds a tool in Clodable's bin folder, when nothing else has it.
+      const bin = join(dir, "Library/Caches/clodable/bin");
+      await mkdir(bin, { recursive: true });
+      await writeFile(join(bin, "npx"), '#!/bin/sh\necho "npx $*"\n', { mode: 0o755 });
+      const run = spawnSync(mac.executable, mac.args, {
+        env: { HOME: dir, PATH: "/usr/bin:/bin" },
+        encoding: "utf8",
+      });
+      expect(run.stdout.trim()).toBe("npx clodable dev");
+      // The builder's own tools come first.
+      const own = join(dir, "own");
+      await mkdir(own, { recursive: true });
+      await writeFile(join(own, "npx"), '#!/bin/sh\necho "own npx"\n', { mode: 0o755 });
+      const first = spawnSync(mac.executable, mac.args, {
+        env: { HOME: dir, PATH: `${own}:/usr/bin:/bin` },
+        encoding: "utf8",
+      });
+      expect(first.stdout.trim()).toBe("own npx");
+    } finally {
+      await rm(dir, { recursive: true, force: true });
     }
   });
 });
@@ -852,7 +887,20 @@ describe("GitHub through gh", () => {
   });
 
   it("tells a repository GitHub doesn't have from a network that's down", async () => {
-    const clone = (gh: GhCli) => gh.clone("ada/network-app", join(tmpdir(), "clodable-none"));
+    // Setup clones with git over HTTPS (signed in through gh): git's own words, per mode.
+    const git = [
+      "#!/bin/sh",
+      'case "$FAKE_GH" in',
+      `  missing) printf "remote: Repository not found.\nfatal: repository 'https://github.com/ada/network-app.git/' not found\n" >&2; exit 128 ;;`,
+      `  no-host) echo "fatal: unable to access 'https://github.com/ada/network-app.git/': Could not resolve host: github.com" >&2; exit 128 ;;`,
+      `  offline) echo "fatal: unable to access 'https://github.com/ada/network-app.git/': Failed to connect to github.com port 443" >&2; exit 128 ;;`,
+      "esac",
+      "",
+    ].join("\n");
+    const clone = async (gh: GhCli) => {
+      await writeFile(join(gh.cwd, "git"), git, { mode: 0o755 });
+      return gh.clone("ada/network-app", join(tmpdir(), "clodable-none"));
+    };
     await expect(withGh("missing", clone)).rejects.toMatchObject({ code: "unknown" });
     await expect(withGh("no-host", clone)).rejects.toMatchObject({ code: "offline" });
     await expect(withGh("offline", clone)).rejects.toMatchObject({ code: "offline" });

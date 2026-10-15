@@ -848,6 +848,10 @@ function detectPackageManager(root) {
   if (existsSync2(join3(root, "bun.lockb")) || existsSync2(join3(root, "bun.lock"))) return "bun";
   return "npm";
 }
+async function packageManagerHere(project) {
+  if (project.packageManager === "npm") return "npm";
+  return await hasCommand(project.packageManager, project.root) ? project.packageManager : "npm";
+}
 function runScriptCommand(pm, script) {
   switch (pm) {
     case "pnpm":
@@ -1115,7 +1119,7 @@ async function checkBuild(project, config2) {
   if (!project.scripts[script]) {
     return { id: "build", status: "skipped", summary: "No build step to check" };
   }
-  const [command, args] = runScriptCommand(project.packageManager, script);
+  const [command, args] = runScriptCommand(await packageManagerHere(project), script);
   const result = await exec2(command, args, {
     cwd: project.root,
     env: { CI: "1", NODE_ENV: "production", FORCE_COLOR: "0" },
@@ -1140,7 +1144,7 @@ async function checkPackages(project) {
     yarn: void 0,
     bun: void 0
   };
-  const command = args[project.packageManager];
+  const command = args[await packageManagerHere(project)];
   if (!command) {
     return {
       id: "packages",
@@ -20303,8 +20307,8 @@ function convertBaseSchema(schema, ctx2) {
       });
     }
     ctx2.processing.add(refPath);
-    const resolved2 = resolveRef(refPath, ctx2);
-    const zodSchema2 = convertSchema(resolved2, ctx2);
+    const resolved3 = resolveRef(refPath, ctx2);
+    const zodSchema2 = convertSchema(resolved3, ctx2);
     ctx2.refs.set(refPath, zodSchema2);
     ctx2.processing.delete(refPath);
     return zodSchema2;
@@ -23611,8 +23615,8 @@ async function launchPlan(root, options) {
     before,
     {}
   );
-  const dev = options.devCommand ?? clodableDev(launch.configurations ?? []) ?? { executable: "npx", args: ["clodable", "dev"] };
-  const ours = {
+  const dev = options.devCommand ?? clodableDev(launch.configurations ?? []) ?? previewCommand();
+  const ours2 = {
     name: "app",
     runtimeExecutable: dev.executable,
     runtimeArgs: dev.args,
@@ -23627,16 +23631,25 @@ async function launchPlan(root, options) {
     ".claude/launch.json",
     "Starts your app in the preview, with the Clodable toolbar",
     before,
-    json2({ version: launch.version ?? "0.0.1", configurations: [ours, ...others] })
+    json2({ version: launch.version ?? "0.0.1", configurations: [ours2, ...others] })
   );
+}
+var TOOLS_PATH = "$HOME/Library/Caches/clodable/bin:${XDG_CACHE_HOME:-$HOME/.cache}/clodable/bin";
+function previewCommand(platform = process.platform) {
+  if (platform === "win32") return { executable: "npx", args: ["clodable", "dev"] };
+  return {
+    executable: "/bin/sh",
+    args: ["-c", `PATH="$PATH:${TOOLS_PATH}" exec npx clodable dev`]
+  };
 }
 function clodableDev(configurations) {
   const app = configurations.find((c2) => c2.name === "app");
-  const executable2 = app?.runtimeExecutable;
+  const executable3 = app?.runtimeExecutable;
   const args = app?.runtimeArgs;
-  if (typeof executable2 !== "string" || !Array.isArray(args)) return void 0;
-  const words = [executable2, ...args].map(String);
-  return words.some((w) => w.includes("clodable")) && words.includes("dev") ? { executable: executable2, args: args.map(String) } : void 0;
+  if (typeof executable3 !== "string" || !Array.isArray(args)) return void 0;
+  const words = [executable3, ...args].map(String);
+  if (words.join(" ") === "npx clodable dev") return void 0;
+  return words.some((w) => w.includes("clodable")) && words.includes("dev") ? { executable: executable3, args: args.map(String) } : void 0;
 }
 async function settingsPlan(root, options) {
   const before = await read(root, ".claude/settings.json");
@@ -23686,8 +23699,8 @@ async function mcpPlan(root, config2, ref) {
   if (config2.backend === "lovable-cloud") {
     const before2 = await read(root, ".mcp.json");
     const mcp2 = parseJson(before2, {});
-    const ours = mcp2.mcpServers?.supabase?.url?.startsWith("https://mcp.supabase.com/");
-    if (before2 === void 0 || !ours) return void 0;
+    const ours2 = mcp2.mcpServers?.supabase?.url?.startsWith("https://mcp.supabase.com/");
+    if (before2 === void 0 || !ours2) return void 0;
     const { supabase: _, ...others } = mcp2.mcpServers ?? {};
     return change(
       ".mcp.json",
@@ -24577,6 +24590,104 @@ ${input2.body}`]);
   }
 };
 
+// ../core/src/github/gh-binary.ts
+import { createHash as createHash5 } from "node:crypto";
+import { existsSync as existsSync12 } from "node:fs";
+import { chmod as chmod5, mkdir as mkdir7, mkdtemp as mkdtemp5, rename as rename4, rm as rm6, symlink, unlink, writeFile as writeFile7 } from "node:fs/promises";
+import { join as join16 } from "node:path";
+var GH_VERSION = "2.102.0";
+var RELEASES2 = {
+  "darwin-arm64": {
+    file: "macOS_arm64.zip",
+    sha256: "da922c20d1792e5b2cbf375593d7a658acf034c12c84e007e71c76ef959c337e"
+  },
+  "darwin-x64": {
+    file: "macOS_amd64.zip",
+    sha256: "b245f24eb2bf5f75b426b4c26da3651a107f8d5b6f4fddfbfccc5679041378b3"
+  },
+  "linux-arm64": {
+    file: "linux_arm64.tar.gz",
+    sha256: "7862c86c72f43df3a2d93ddde6f473285b4e2af61b494849846827e513ef6484"
+  },
+  "linux-x64": {
+    file: "linux_amd64.tar.gz",
+    sha256: "bb766f710eef8ede859c18578c72c327597cd4c8a85b06001b1f3843c6019386"
+  },
+  "win32-arm64": {
+    file: "windows_arm64.zip",
+    sha256: "5dcf12aa8525eabd0c46ec414f323ab6cf65229fc2cd46543cc705001bbaf223"
+  },
+  "win32-x64": {
+    file: "windows_amd64.zip",
+    sha256: "ae64e556ecc240b200f7eba60d550e4bb60d78e860e69dd88c449405b86067f4"
+  }
+};
+var executable2 = process.platform === "win32" ? "gh.exe" : "gh";
+function toolsBin() {
+  return join16(cacheDir(), "bin");
+}
+var resolved2;
+async function ghBinary() {
+  if (process.env.CLODABLE_GH) return process.env.CLODABLE_GH;
+  const installed = await commandPath("gh");
+  if (installed && !installed.startsWith(toolsBin())) return installed;
+  resolved2 ??= ours().catch((error62) => {
+    resolved2 = void 0;
+    throw error62;
+  });
+  return resolved2;
+}
+async function ghIsOurs() {
+  return (await ghBinary().catch(() => "")).startsWith(cacheDir());
+}
+async function ours() {
+  const release = RELEASES2[`${process.platform}-${process.arch}`];
+  if (!release) throw new Error(`No GitHub CLI build for ${process.platform}-${process.arch}.`);
+  const dir = join16(cacheDir(), "gh", GH_VERSION);
+  const path2 = join16(dir, executable2);
+  if (!existsSync12(path2)) {
+    try {
+      await download2(release, dir, path2);
+    } catch (error62) {
+      throw new Error(`Couldn't download the GitHub CLI ${GH_VERSION}: ${messageOf(error62)}`);
+    }
+  }
+  await linkInBin(path2);
+  return path2;
+}
+async function download2(release, dir, path2) {
+  const name = `gh_${GH_VERSION}_${release.file}`;
+  const url2 = `https://github.com/cli/cli/releases/download/v${GH_VERSION}/${name}`;
+  const response = await fetch(url2, { signal: AbortSignal.timeout(18e4) });
+  if (!response.ok) throw new Error(`GitHub answered ${response.status}`);
+  const bytes = Buffer.from(await response.arrayBuffer());
+  const digest = createHash5("sha256").update(bytes).digest("hex");
+  if (digest !== release.sha256) throw new Error("the download didn't match its checksum");
+  await mkdir7(dir, { recursive: true });
+  const work = await mkdtemp5(join16(dir, ".download-"));
+  try {
+    await writeFile7(join16(work, name), bytes);
+    const inside2 = process.platform === "win32" ? `bin/${executable2}` : `${name.replace(/\.(zip|tar\.gz)$/, "")}/bin/${executable2}`;
+    const unpacked = await exec2("tar", ["-xf", name, inside2], { cwd: work, timeout: 6e4 });
+    if (unpacked.exitCode !== 0) throw new Error(unpacked.stderr.trim() || "couldn't unpack it");
+    await chmod5(join16(work, inside2), 493);
+    await rename4(join16(work, inside2), path2).catch((error62) => {
+      if (!existsSync12(path2)) throw error62;
+    });
+  } finally {
+    await rm6(work, { recursive: true, force: true });
+  }
+}
+async function linkInBin(path2) {
+  if (process.platform === "win32") return;
+  const link2 = join16(toolsBin(), executable2);
+  await mkdir7(toolsBin(), { recursive: true });
+  await unlink(link2).catch(() => {
+  });
+  await symlink(path2, link2).catch(() => {
+  });
+}
+
 // ../core/src/github/gh.ts
 var GhCli = class {
   constructor(cwd2) {
@@ -24585,8 +24696,8 @@ var GhCli = class {
   cwd;
   repoCache;
   /** Run `gh` without prompts, colors or update notices; never throws for its exit code. */
-  run(args, options = {}) {
-    return exec2("gh", args, {
+  async run(args, options = {}) {
+    return exec2(await ghBinary(), args, {
       cwd: this.cwd,
       timeout: options.timeout ?? 6e4,
       env: { GH_PROMPT_DISABLED: "1", GH_NO_UPDATE_NOTIFIER: "1", NO_COLOR: "1" },
@@ -24610,7 +24721,9 @@ ${result.stdout}`.trim()
     return JSON.parse(await this.gh(args));
   }
   async ready() {
-    if (!await hasCommand("gh", this.cwd)) return { installed: false, authenticated: false };
+    if (!await ghBinary().then(Boolean, () => false)) {
+      return { installed: false, authenticated: false };
+    }
     const status2 = await this.run(["auth", "status", "--hostname", "github.com"], {
       timeout: 2e4
     });
@@ -24637,8 +24750,7 @@ ${result.stdout}`.trim()
    * `gh auth setup-git` does, for this folder only).
    */
   async clone(repo, target) {
-    const gh = await commandPath("gh", this.cwd) ?? "gh";
-    const helper = `!'${gh}' auth git-credential`;
+    const helper = `!'${await ghBinary()}' auth git-credential`;
     const cloned = await exec2(
       "git",
       [
@@ -24848,7 +24960,7 @@ ${cloned.stderr}`.trim()
     return out;
   }
 };
-var OFFLINE = /error connecting to|could not resolve host|no such host|connection refused|network is unreachable|i\/o timeout|tls handshake timeout|context deadline exceeded/i;
+var OFFLINE = /error connecting to|could not resolve host|failed to connect to|no such host|connection refused|network is unreachable|i\/o timeout|tls handshake timeout|context deadline exceeded/i;
 function ghError(result, otherwise) {
   const text2 = `${result.stderr}
 ${result.stdout}`.trim();
@@ -24886,9 +24998,9 @@ function toPullRequest(raw) {
 
 // ../core/src/inbox.ts
 import { randomBytes } from "node:crypto";
-import { existsSync as existsSync12 } from "node:fs";
-import { readdir as readdir3, readFile as readFile9, rename as rename4, rm as rm6 } from "node:fs/promises";
-import { join as join16 } from "node:path";
+import { existsSync as existsSync13 } from "node:fs";
+import { readdir as readdir3, readFile as readFile9, rename as rename5, rm as rm7 } from "node:fs/promises";
+import { join as join17 } from "node:path";
 var INBOX_DIR = ".clodable/inbox";
 var Page = external_exports.object({ url: external_exports.string(), path: external_exports.string(), title: external_exports.string().optional() });
 var Source = external_exports.object({
@@ -24929,24 +25041,24 @@ async function writeInbox(root, item) {
   const createdAt = (/* @__PURE__ */ new Date()).toISOString();
   const id = `${item.kind}-${createdAt.replace(/[-:.TZ]/g, "")}-${randomBytes(3).toString("hex")}`;
   const full = { ...item, id, createdAt };
-  await writeJsonFile(join16(root, INBOX_DIR, `${id}.json`), full);
+  await writeJsonFile(join17(root, INBOX_DIR, `${id}.json`), full);
   return full;
 }
 async function waiting(root) {
-  const dir = join16(root, INBOX_DIR);
-  if (!existsSync12(dir)) return [];
+  const dir = join17(root, INBOX_DIR);
+  if (!existsSync13(dir)) return [];
   const found2 = [];
   for (const name of (await readdir3(dir)).filter((n4) => n4.endsWith(".json")).sort()) {
     let text2;
     try {
-      text2 = await readFile9(join16(dir, name), "utf8");
+      text2 = await readFile9(join17(dir, name), "utf8");
     } catch {
       continue;
     }
     try {
       found2.push({ name, item: JSON.parse(text2) });
     } catch {
-      await rm6(join16(dir, name), { force: true });
+      await rm7(join17(dir, name), { force: true });
     }
   }
   return found2;
@@ -24957,24 +25069,24 @@ async function readInbox(root) {
 var SAFE_ID = /^[\w-]+$/;
 async function ackInbox(root, id) {
   if (!SAFE_ID.test(id)) return;
-  await rm6(join16(root, INBOX_DIR, `${id}.json`), { force: true });
+  await rm7(join17(root, INBOX_DIR, `${id}.json`), { force: true });
 }
 var PRESENCE_DIR = ".clodable/local";
 var LIVE_MS = 2e4;
 var GONE_MS = 24 * 60 * 6e4;
 async function livePresences(root, now) {
   const live = /* @__PURE__ */ new Map();
-  const dir = join16(root, PRESENCE_DIR);
-  if (!existsSync12(dir)) return live;
+  const dir = join17(root, PRESENCE_DIR);
+  if (!existsSync13(dir)) return live;
   for (const name of await readdir3(dir)) {
     if (!/^session-[\w-]+\.json$/.test(name)) continue;
     let presence;
     try {
-      presence = JSON.parse(await readFile9(join16(dir, name), "utf8"));
+      presence = JSON.parse(await readFile9(join17(dir, name), "utf8"));
     } catch {
       continue;
     }
-    if (now - presence.alive > GONE_MS) await rm6(join16(dir, name), { force: true });
+    if (now - presence.alive > GONE_MS) await rm7(join17(dir, name), { force: true });
     else if (now - presence.alive <= LIVE_MS) live.set(presence.id, presence);
   }
   return live;
@@ -24994,37 +25106,37 @@ async function claimInbox(root, session) {
   if (found2.length === 0) return [];
   const live = await livePresences(root, Date.now());
   const owner = usedLast(live);
-  const dir = join16(root, INBOX_DIR);
+  const dir = join17(root, INBOX_DIR);
   const items = [];
   for (const { name, item } of found2) {
     const mine = item.conversation && live.has(item.conversation) ? item.conversation === session : !owner || owner === session;
     if (!mine) continue;
-    const claimed = join16(dir, `.${name}.${session}.claimed`);
+    const claimed = join17(dir, `.${name}.${session}.claimed`);
     try {
-      await rename4(join16(dir, name), claimed);
+      await rename5(join17(dir, name), claimed);
     } catch {
       continue;
     }
     items.push(item);
-    await rm6(claimed, { force: true });
+    await rm7(claimed, { force: true });
   }
   return items;
 }
 
 // ../core/src/move/copy.ts
-import { existsSync as existsSync15 } from "node:fs";
-import { mkdtemp as mkdtemp5, readdir as readdir5, readFile as readFile11, rename as rename6, rm as rm9 } from "node:fs/promises";
-import { join as join20 } from "node:path";
+import { existsSync as existsSync16 } from "node:fs";
+import { mkdtemp as mkdtemp6, readdir as readdir5, readFile as readFile11, rename as rename7, rm as rm10 } from "node:fs/promises";
+import { join as join21 } from "node:path";
 
 // ../core/src/move/export.ts
-import { createWriteStream as createWriteStream3, existsSync as existsSync13 } from "node:fs";
-import { copyFile, readdir as readdir4, rm as rm8, stat as stat2, writeFile as writeFile7 } from "node:fs/promises";
+import { createWriteStream as createWriteStream3, existsSync as existsSync14 } from "node:fs";
+import { copyFile, readdir as readdir4, rm as rm9, stat as stat2, writeFile as writeFile8 } from "node:fs/promises";
 import { homedir as homedir2 } from "node:os";
-import { basename as basename4, extname, join as join17 } from "node:path";
+import { basename as basename4, extname, join as join18 } from "node:path";
 
 // ../core/src/move/zip.ts
 import { createReadStream, createWriteStream as createWriteStream2 } from "node:fs";
-import { open as open2, rename as rename5, rm as rm7 } from "node:fs/promises";
+import { open as open2, rename as rename6, rm as rm8 } from "node:fs/promises";
 import { Transform } from "node:stream";
 import { pipeline as pipeline2 } from "node:stream/promises";
 import { crc32, createInflateRaw } from "node:zlib";
@@ -25145,9 +25257,9 @@ async function extractEntry(path2, entry, target) {
     if (size !== entry.size || crc >>> 0 !== entry.crc >>> 0) {
       throw new Error("the file inside the zip is damaged");
     }
-    await rename5(partial2, target);
+    await rename6(partial2, target);
   } catch (error62) {
-    await rm7(partial2, { force: true });
+    await rm8(partial2, { force: true });
     throw error62;
   }
 }
@@ -25156,14 +25268,14 @@ async function extractEntry(path2, entry, target) {
 var BACKUP = "export.backup";
 var FILES_LIST = "files.jsonl";
 var JOBS_FILE = "jobs.json";
-async function findExport(folder = join17(homedir2(), "Downloads")) {
-  if (!existsSync13(folder)) return void 0;
+async function findExport(folder = join18(homedir2(), "Downloads")) {
+  if (!existsSync14(folder)) return void 0;
   const month = Date.now() - 31 * 24 * 60 * 6e4;
   const candidates2 = [];
   for (const name of await readdir4(folder).catch(() => [])) {
     const ext = extname(name).toLowerCase();
     if (ext !== ".zip" && ext !== ".backup") continue;
-    const path2 = join17(folder, name);
+    const path2 = join18(folder, name);
     const info = await stat2(path2).catch(() => void 0);
     if (!info?.isFile() || info.mtimeMs < month) continue;
     candidates2.push({ path: path2, at: info.mtimeMs });
@@ -25177,8 +25289,8 @@ async function findExport(folder = join17(homedir2(), "Downloads")) {
   return void 0;
 }
 async function takeBackup(source, dir) {
-  const target = join17(dir, BACKUP);
-  await rm8(target, { force: true });
+  const target = join18(dir, BACKUP);
+  await rm9(target, { force: true });
   if (source.toLowerCase().endsWith(".zip")) {
     let entries;
     try {
@@ -25212,9 +25324,9 @@ var unreadable = (error62) => new ClodableError({
 });
 async function readExport(source, dir) {
   await takeBackup(source, dir);
-  const backup = join17(dir, BACKUP);
+  const backup = join18(dir, BACKUP);
   const listing = await listArchive(backup);
-  await writeFile7(join17(dir, "toc.list"), listing, { mode: 384 });
+  await writeFile8(join18(dir, "toc.list"), listing, { mode: 384 });
   const toc = parseToc(listing);
   if (toc.entries.length === 0) {
     throw new ClodableError({
@@ -25271,7 +25383,7 @@ async function readExport(source, dir) {
   const wanted = (e) => e.type === "TABLE DATA" && (e.schema !== null && !isManaged(e.schema) && e.schema !== "supabase_migrations" || e.schema === "auth" && ["users", "identities", "sessions"].includes(e.tag) || e.schema === "storage" && (e.tag === "buckets" || e.tag === "objects") || e.schema === "cron" && e.tag === "job" || e.schema === "vault" && e.tag === "secrets");
   await scanRows(backup, toc.entries.filter(wanted), dir, summary, sourceRefs);
   summary.sourceRefs = [...sourceRefs].sort();
-  await writeJsonFile(join17(dir, "export.json"), summary, { private: true });
+  await writeJsonFile(join18(dir, "export.json"), summary, { private: true });
   return { summary, toc };
 }
 var API_ROLES = /* @__PURE__ */ new Set(["anon", "authenticated", "service_role"]);
@@ -25331,7 +25443,7 @@ function copyValue(raw) {
   );
 }
 async function scanRows(backup, entries, dir, summary, sourceRefs) {
-  const files = createWriteStream3(join17(dir, FILES_LIST), { mode: 384 });
+  const files = createWriteStream3(join18(dir, FILES_LIST), { mode: 384 });
   const jobs = [];
   const buckets = /* @__PURE__ */ new Map();
   let table = null;
@@ -25423,11 +25535,11 @@ async function scanRows(backup, entries, dir, summary, sourceRefs) {
   summary.buckets = [...buckets.values()].sort((a2, b) => a2.id.localeCompare(b.id));
   summary.scheduledJobs.sort();
   summary.vaultSecrets.sort();
-  await writeJsonFile(join17(dir, JOBS_FILE), jobs, { private: true });
+  await writeJsonFile(join18(dir, JOBS_FILE), jobs, { private: true });
 }
 
 // ../core/src/move/restore.ts
-import { join as join18 } from "node:path";
+import { join as join19 } from "node:path";
 var managed = [...MANAGED_SCHEMAS].map((s) => `'${s}'`).join(", ");
 async function emptyCopy(sql) {
   await sql.run(`
@@ -25474,7 +25586,7 @@ end $$;`);
 }
 async function* copyExport(target, dir, toc, summary, options = {}) {
   const plan = planRestore(toc, new Set(summary.appTriggers));
-  const backup = join18(dir, BACKUP);
+  const backup = join19(dir, BACKUP);
   const problems = [];
   const keep = (errors) => {
     for (const error62 of errors) {
@@ -25631,9 +25743,9 @@ async function newBackendSignIn(api, ref, site) {
 }
 
 // ../core/src/move/switch.ts
-import { existsSync as existsSync14 } from "node:fs";
-import { readFile as readFile10, writeFile as writeFile8 } from "node:fs/promises";
-import { join as join19 } from "node:path";
+import { existsSync as existsSync15 } from "node:fs";
+import { readFile as readFile10, writeFile as writeFile9 } from "node:fs/promises";
+import { join as join20 } from "node:path";
 function writeGrants(grants) {
   const lines = [];
   for (const [table, roles] of Object.entries(grants)) {
@@ -25791,8 +25903,8 @@ async function giveBackGrants(sql, grants) {
   return lines.length;
 }
 async function recreateJobs(sql, dir, from, to, keys) {
-  const path2 = join19(dir, JOBS_FILE);
-  if (!existsSync14(path2)) return { created: 0, check: [] };
+  const path2 = join20(dir, JOBS_FILE);
+  if (!existsSync15(path2)) return { created: 0, check: [] };
   const jobs = JSON.parse(await readFile10(path2, "utf8"));
   const site = to.siteUrl ? new URL(to.siteUrl).origin : void 0;
   const existing = new Set(
@@ -25885,25 +25997,25 @@ async function* goLive(ws, options = {}) {
   const backend = backendOf(state.home.ref, keys);
   const { SUPABASE_SERVICE_ROLE_KEY: _, ...values } = backendEnv(backend);
   for (const name of [".env", ".env.local", ".env.production"]) {
-    const path2 = join19(ws.root, name);
-    if (!existsSync14(path2)) continue;
+    const path2 = join20(ws.root, name);
+    if (!existsSync15(path2)) continue;
     const before = await readFile10(path2, "utf8");
     const after = rewriteEnv(before, values);
     if (after !== before) {
-      await writeFile8(path2, after);
+      await writeFile9(path2, after);
       files.push(name);
     }
   }
   if (from) {
-    const toml = join19(ws.root, "supabase", "config.toml");
-    if (existsSync14(toml)) {
+    const toml = join20(ws.root, "supabase", "config.toml");
+    if (existsSync15(toml)) {
       const before = await readFile10(toml, "utf8");
       const after = before.replace(
         /^project_id\s*=\s*"[^"]*"/m,
         `project_id = "${state.home.ref}"`
       );
       if (after !== before) {
-        await writeFile8(toml, after);
+        await writeFile9(toml, after);
         files.push("supabase/config.toml");
       }
     }
@@ -25911,7 +26023,7 @@ async function* goLive(ws, options = {}) {
       if (!file3.text.includes(from)) continue;
       const next = repoint(file3.text, from, state.home.ref, { ...keys.legacy, anon: backend.anon });
       if (next.text !== file3.text) {
-        await writeFile8(join19(ws.root, file3.path), next.text);
+        await writeFile9(join20(ws.root, file3.path), next.text);
         files.push(file3.path.replace(/^\//, ""));
       }
     }
@@ -26152,7 +26264,7 @@ async function* importExport(ws, options = {}) {
   const dir = await moveDir(ws.root);
   const before = await loadMove(ws.root);
   const pausedAt = before.switch?.liveAt ? void 0 : before.switch?.frozenAt;
-  const target = pausedAt ? await mkdtemp5(join20(dir, "incoming-")) : dir;
+  const target = pausedAt ? await mkdtemp6(join21(dir, "incoming-")) : dir;
   let summary;
   try {
     summary = (await readExport(file3, target)).summary;
@@ -26165,12 +26277,12 @@ async function* importExport(ws, options = {}) {
         });
       }
       for (const name of await readdir5(target)) {
-        await rm9(join20(dir, name), { recursive: true, force: true });
-        await rename6(join20(target, name), join20(dir, name));
+        await rm10(join21(dir, name), { recursive: true, force: true });
+        await rename7(join21(target, name), join21(dir, name));
       }
     }
   } finally {
-    if (pausedAt) await rm9(target, { recursive: true, force: true });
+    if (pausedAt) await rm10(target, { recursive: true, force: true });
   }
   const sourceRef = ws.project.supabase.projectRef ?? summary.sourceRefs[0];
   await updateMove(ws.root, (s) => {
@@ -26190,8 +26302,8 @@ function describeExport(summary) {
   ].join(" \xB7 ");
 }
 async function migrationVersions(root) {
-  const dir = join20(root, "supabase", "migrations");
-  if (!existsSync15(dir)) return [];
+  const dir = join21(root, "supabase", "migrations");
+  if (!existsSync16(dir)) return [];
   return (await readdir5(dir)).map((name) => name.match(/^(\d{8,})_.*\.sql$/)?.[1]).filter((v) => Boolean(v)).sort();
 }
 async function* copyData(ws) {
@@ -26212,15 +26324,15 @@ async function* copyData(ws) {
   }
   const api = await SupabaseApi.required();
   const dir = await moveDir(ws.root);
-  const backup = join20(dir, "export.backup");
-  if (!existsSync15(backup)) {
+  const backup = join21(dir, "export.backup");
+  if (!existsSync16(backup)) {
     throw new ClodableError({
       code: "export-not-found",
       message: "The export Clodable read is gone from this computer.",
       hint: "Read it again: download the export from Lovable, then run that step again."
     });
   }
-  const toc = parseToc(await readFile11(join20(dir, "toc.list"), "utf8"));
+  const toc = parseToc(await readFile11(join21(dir, "toc.list"), "utf8"));
   const summary = state.export.summary;
   yield step("move:data", "running", "Copying your data", "Connecting to your new database");
   const pg = await homeConnection(api, state.home);
@@ -26742,20 +26854,20 @@ async function* setUpEmails(ws, options = {}) {
 }
 
 // ../core/src/move/files.ts
-import { createHash as createHash5 } from "node:crypto";
-import { existsSync as existsSync16 } from "node:fs";
+import { createHash as createHash6 } from "node:crypto";
+import { existsSync as existsSync17 } from "node:fs";
 import { appendFile, readFile as readFile12 } from "node:fs/promises";
-import { join as join21 } from "node:path";
+import { join as join22 } from "node:path";
 var LEDGER = "files-done.txt";
 var key = (f) => `${f.bucket}/${f.name}#${f.size}`;
 var path = (name) => name.split("/").map(encodeURIComponent).join("/");
 async function readFileList(dir) {
-  const list = join21(dir, FILES_LIST);
-  if (!existsSync16(list)) return [];
+  const list = join22(dir, FILES_LIST);
+  if (!existsSync17(list)) return [];
   return (await readFile12(list, "utf8")).split("\n").filter(Boolean).map((line) => JSON.parse(line));
 }
 var authHeaders = (key2) => key2.startsWith("sb_") ? { apikey: key2 } : { apikey: key2, Authorization: `Bearer ${key2}` };
-async function download2(from, file3, isPublic, sourceKey) {
+async function download3(from, file3, isPublic, sourceKey) {
   const url2 = isPublic ? `${projectUrl(from)}/storage/v1/object/public/${encodeURIComponent(file3.bucket)}/${path(file3.name)}` : `${projectUrl(from)}/storage/v1/object/${encodeURIComponent(file3.bucket)}/${path(file3.name)}`;
   const response = await fetch(url2, {
     headers: sourceKey && !isPublic ? authHeaders(sourceKey) : {},
@@ -26784,13 +26896,13 @@ async function upload(to, secretKey, file3, body) {
     throw new Error(`upload answered ${response.status} ${text2.slice(0, 200)}`);
   }
 }
-var sha2562 = (data) => createHash5("sha256").update(data).digest("hex");
+var sha2562 = (data) => createHash6("sha256").update(data).digest("hex");
 async function* copyFiles(target, dir, buckets) {
   const files = await readFileList(dir);
   const isPublic = new Map(buckets.map((b) => [b.id, b.public]));
-  const ledgerPath = join21(dir, LEDGER);
+  const ledgerPath = join22(dir, LEDGER);
   const done = new Set(
-    existsSync16(ledgerPath) ? (await readFile12(ledgerPath, "utf8")).split("\n").filter(Boolean) : []
+    existsSync17(ledgerPath) ? (await readFile12(ledgerPath, "utf8")).split("\n").filter(Boolean) : []
   );
   const { todo, waiting: waiting2, tooBig, ...plan } = planCopy(files, done, isPublic, target);
   let copied = plan.copied;
@@ -26805,7 +26917,7 @@ async function* copyFiles(target, dir, buckets) {
     while (next < todo.length) {
       const file3 = todo[next++];
       try {
-        const body = await download2(
+        const body = await download3(
           target.from,
           file3,
           Boolean(isPublic.get(file3.bucket)),
@@ -26899,8 +27011,8 @@ async function checkSample(files, target, isPublic, skip) {
     for (const file3 of sample) {
       try {
         const [before, after] = await Promise.all([
-          download2(target.from, file3, Boolean(isPublic.get(bucket)), target.sourceKey),
-          download2(target.to, file3, false, target.secretKey)
+          download3(target.from, file3, Boolean(isPublic.get(bucket)), target.sourceKey),
+          download3(target.to, file3, false, target.secretKey)
         ]);
         if (sha2562(before) !== sha2562(after)) {
           differences.push(`${bucket}: a copied file differs from the original`);
@@ -26963,16 +27075,16 @@ async function repointLinks(sql, from, to) {
 }
 
 // ../core/src/move/functions.ts
-import { existsSync as existsSync17 } from "node:fs";
+import { existsSync as existsSync18 } from "node:fs";
 import { readdir as readdir6, readFile as readFile13 } from "node:fs/promises";
-import { dirname as dirname6, join as join22, normalize as normalize2, relative as relative3, sep as sep3 } from "node:path";
+import { dirname as dirname6, join as join23, normalize as normalize2, relative as relative3, sep as sep3 } from "node:path";
 var BUILT_IN = /^SUPABASE_/;
 var LOVABLE_OWN = /^LOVABLE_/;
 var IMPORT = /(?:import|export)\s[^'"`;]*?from\s*["']([^"']+)["']|import\s*\(\s*["']([^"']+)["']\s*\)|import\s+["']([^"']+)["']/g;
 async function jwtSettings(root) {
   const settings2 = /* @__PURE__ */ new Map();
-  const path2 = join22(root, "supabase", "config.toml");
-  if (!existsSync17(path2)) return settings2;
+  const path2 = join23(root, "supabase", "config.toml");
+  if (!existsSync18(path2)) return settings2;
   let section = null;
   for (const line of (await readFile13(path2, "utf8")).split("\n")) {
     const header = line.match(/^\s*\[functions\.("?)([\w-]+)\1\]\s*$/);
@@ -26990,35 +27102,35 @@ async function jwtSettings(root) {
   return settings2;
 }
 async function localFunctions(root) {
-  const base = join22(root, "supabase", "functions");
-  if (!existsSync17(base)) return [];
+  const base = join23(root, "supabase", "functions");
+  if (!existsSync18(base)) return [];
   const settings2 = await jwtSettings(root);
   const out = [];
   for (const entry of await readdir6(base, { withFileTypes: true })) {
     if (!entry.isDirectory() || entry.name.startsWith("_") || entry.name.startsWith(".")) continue;
-    const dir = join22(base, entry.name);
+    const dir = join23(base, entry.name);
     const index = ["index.ts", "index.tsx", "index.js", "index.mjs"].find(
-      (f) => existsSync17(join22(dir, f))
+      (f) => existsSync18(join23(dir, f))
     );
     if (!index) continue;
-    const entrypoint = join22(dir, index);
+    const entrypoint = join23(dir, index);
     const files = /* @__PURE__ */ new Set();
     const walk2 = async (file3) => {
       const key2 = relative3(root, file3).split(sep3).join("/");
-      if (files.has(key2) || !existsSync17(file3)) return;
+      if (files.has(key2) || !existsSync18(file3)) return;
       files.add(key2);
       if (!/\.(m?[jt]sx?)$/.test(file3)) return;
       const text2 = await readFile13(file3, "utf8").catch(() => "");
       for (const match of text2.matchAll(IMPORT)) {
         const spec = match[1] ?? match[2] ?? match[3];
         if (!spec || !(spec.startsWith("./") || spec.startsWith("../"))) continue;
-        const target = normalize2(join22(dirname6(file3), spec));
+        const target = normalize2(join23(dirname6(file3), spec));
         if (relative3(root, target).startsWith("..")) continue;
         await walk2(target);
       }
     };
     await walk2(entrypoint);
-    const importMap = ["deno.json", "deno.jsonc", "import_map.json"].map((f) => join22(dir, f)).find((f) => existsSync17(f));
+    const importMap = ["deno.json", "deno.jsonc", "import_map.json"].map((f) => join23(dir, f)).find((f) => existsSync18(f));
     if (importMap) files.add(relative3(root, importMap).split(sep3).join("/"));
     out.push({
       name: entry.name,
@@ -27037,7 +27149,7 @@ async function functionSecrets(root, functions) {
     for (const file3 of fn.files) {
       if (seen.has(file3)) continue;
       seen.add(file3);
-      const text2 = await readFile13(join22(root, file3), "utf8").catch(() => "");
+      const text2 = await readFile13(join23(root, file3), "utf8").catch(() => "");
       for (const match of text2.matchAll(/Deno\.env\.get\(\s*["'`]([A-Z][A-Z0-9_]*)["'`]\s*\)/g)) {
         if (!BUILT_IN.test(match[1]) && !LOVABLE_OWN.test(match[1])) names2.add(match[1]);
       }
@@ -27050,7 +27162,7 @@ async function stripeWebhooks(root, functions) {
   for (const fn of functions) {
     for (const file3 of fn.files) {
       if (file3.includes("/_shared/")) continue;
-      const text2 = await readFile13(join22(root, file3), "utf8").catch(() => "");
+      const text2 = await readFile13(join23(root, file3), "utf8").catch(() => "");
       if (/stripe-signature|constructEvent(Async)?\(/i.test(text2)) {
         names2.push(fn.name);
         break;
@@ -27063,7 +27175,7 @@ async function uploadFunction(api, ref, root, fn) {
   const files = await Promise.all(
     fn.files.map(async (path2) => ({
       path: path2,
-      content: new Uint8Array(await readFile13(join22(root, path2)))
+      content: new Uint8Array(await readFile13(join23(root, path2)))
     }))
   );
   await api.deployFunction(
@@ -27941,9 +28053,9 @@ async function moveProgress(ws) {
 }
 
 // ../core/src/online.ts
-import { existsSync as existsSync18 } from "node:fs";
-import { readFile as readFile14, writeFile as writeFile9 } from "node:fs/promises";
-import { join as join23 } from "node:path";
+import { existsSync as existsSync19 } from "node:fs";
+import { readFile as readFile14, writeFile as writeFile10 } from "node:fs/promises";
+import { join as join24 } from "node:path";
 async function siteChoices(ws) {
   const netlify = await NetlifyApi.onThisComputer();
   const teams = netlify ? await netlify.accounts() : [];
@@ -28078,15 +28190,15 @@ async function* createBackend(ws, options = {}) {
   yield step("backend", "running", "Creating your backend", "Connecting your app to it");
   const backend = backendOf(ref, await homeKeys(api, ref));
   const files = [];
-  const envPath = join23(ws.root, ENV_FILE);
-  const before = existsSync18(envPath) ? await readFile14(envPath, "utf8") : "";
+  const envPath = join24(ws.root, ENV_FILE);
+  const before = existsSync19(envPath) ? await readFile14(envPath, "utf8") : "";
   const after = envWith(before, {
     VITE_SUPABASE_PROJECT_ID: ref,
     VITE_SUPABASE_PUBLISHABLE_KEY: backend.publishable,
     VITE_SUPABASE_URL: backend.url
   });
   if (after !== before) {
-    await writeFile9(envPath, after);
+    await writeFile10(envPath, after);
     files.push(ENV_FILE);
   }
   await rememberSettings(ws.root, {
@@ -28134,14 +28246,14 @@ function pickOrganization(organizations, slug) {
 }
 
 // ../core/src/publish.ts
-import { mkdtemp as mkdtemp6, rm as rm10 } from "node:fs/promises";
+import { mkdtemp as mkdtemp7, rm as rm11 } from "node:fs/promises";
 import { tmpdir as tmpdir4 } from "node:os";
-import { join as join26 } from "node:path";
+import { join as join27 } from "node:path";
 
 // ../core/src/publish-functions.ts
-import { existsSync as existsSync19 } from "node:fs";
+import { existsSync as existsSync20 } from "node:fs";
 import { readdir as readdir7 } from "node:fs/promises";
-import { join as join24 } from "node:path";
+import { join as join25 } from "node:path";
 async function changedFunctions(ws, sha) {
   const files = await ws.git.diffNames(`${sha}^..${sha}`);
   const names2 = /* @__PURE__ */ new Set();
@@ -28153,8 +28265,8 @@ async function changedFunctions(ws, sha) {
     else names2.add(match[1]);
   }
   if (shared) {
-    const dir = join24(ws.root, "supabase", "functions");
-    if (existsSync19(dir)) {
+    const dir = join25(ws.root, "supabase", "functions");
+    if (existsSync20(dir)) {
       for (const entry of await readdir7(dir, { withFileTypes: true })) {
         if (entry.isDirectory() && !entry.name.startsWith("_")) names2.add(entry.name);
       }
@@ -28227,9 +28339,9 @@ async function* deployThroughCli(ref, root, names2, outcome) {
 }
 
 // ../core/src/waits.ts
-import { existsSync as existsSync20 } from "node:fs";
+import { existsSync as existsSync21 } from "node:fs";
 import { readdir as readdir8, readFile as readFile15 } from "node:fs/promises";
-import { join as join25 } from "node:path";
+import { join as join26 } from "node:path";
 function timing(options) {
   return {
     sleep: options.sleep ?? ((ms) => new Promise((resolve9) => setTimeout(resolve9, ms))),
@@ -28238,11 +28350,11 @@ function timing(options) {
   };
 }
 async function runsChecksOnPullRequests(root) {
-  const dir = join25(root, ".github", "workflows");
-  if (!existsSync20(dir)) return false;
+  const dir = join26(root, ".github", "workflows");
+  if (!existsSync21(dir)) return false;
   for (const name of await readdir8(dir)) {
     if (!/\.ya?ml$/.test(name)) continue;
-    const text2 = await readFile15(join25(dir, name), "utf8").catch(() => "");
+    const text2 = await readFile15(join26(dir, name), "utf8").catch(() => "");
     if (/\bpull_request(_target)?\b/.test(text2)) return true;
   }
   return false;
@@ -28597,7 +28709,7 @@ async function* undoPublish(ws, options = {}) {
   const [target] = options.sha ? await ws.git.log(`${options.sha}^!`) : await ws.git.log(ws.liveRef, { firstParent: true, limit: 1 });
   if (!target)
     throw new ClodableError({ code: "not-found", message: "There's no publish to undo yet." });
-  const dir = await mkdtemp6(join26(tmpdir4(), "clodable-undo-"));
+  const dir = await mkdtemp7(join27(tmpdir4(), "clodable-undo-"));
   const branch = `undo/${target.sha.slice(0, 7)}`;
   try {
     const side = await ws.git.worktreeAdd(dir, branch, ws.liveRef);
@@ -28678,7 +28790,7 @@ ${kindTrailer("undo")}`
     };
   } finally {
     await ws.git.worktreeRemove(dir);
-    await rm10(dir, { recursive: true, force: true });
+    await rm11(dir, { recursive: true, force: true });
     await ws.git.run(["branch", "-D", branch]);
   }
 }
@@ -30752,18 +30864,18 @@ async function dbCommand(ctx2, options) {
 }
 
 // src/commands/dev.ts
-import { existsSync as existsSync24 } from "node:fs";
-import { dirname as dirname8, join as join28, resolve as resolve7 } from "node:path";
+import { existsSync as existsSync25 } from "node:fs";
+import { dirname as dirname8, join as join29, resolve as resolve7 } from "node:path";
 
 // ../preview/src/dev-server.ts
-import { existsSync as existsSync23, readFileSync as readFileSync3, statSync as statSync2 } from "node:fs";
-import { dirname as dirname7, join as join27 } from "node:path";
+import { existsSync as existsSync24, readFileSync as readFileSync3, statSync as statSync2 } from "node:fs";
+import { dirname as dirname7, join as join28 } from "node:path";
 import { pathToFileURL } from "node:url";
 
 // ../preview/src/plugin.ts
 import { randomBytes as randomBytes3 } from "node:crypto";
-import { existsSync as existsSync22, readFileSync as readFileSync2, realpathSync as realpathSync4 } from "node:fs";
-import { readFile as readFile17, writeFile as writeFile10 } from "node:fs/promises";
+import { existsSync as existsSync23, readFileSync as readFileSync2, realpathSync as realpathSync4 } from "node:fs";
+import { readFile as readFile17, writeFile as writeFile11 } from "node:fs/promises";
 import { isAbsolute, relative as relative4, resolve as resolve6, sep as sep4 } from "node:path";
 import { stripVTControlCharacters as stripVTControlCharacters2 } from "node:util";
 
@@ -47508,7 +47620,7 @@ function editText(code2, file3, location, before, after) {
 }
 
 // ../preview/src/toolbar-source.ts
-import { existsSync as existsSync21 } from "node:fs";
+import { existsSync as existsSync22 } from "node:fs";
 import { readFile as readFile16 } from "node:fs/promises";
 import { fileURLToPath as fileURLToPath2 } from "node:url";
 var cached2;
@@ -47517,7 +47629,7 @@ async function toolbarSource() {
   const live = Boolean(process.env.CLODABLE_TOOLBAR_DEV);
   if (cached2 && !live) return cached2;
   const dist = fileURLToPath2(new URL("../dist/toolbar.js", import.meta.url));
-  if (!live && existsSync21(dist)) {
+  if (!live && existsSync22(dist)) {
     cached2 = await readFile16(dist, "utf8");
     return cached2;
   }
@@ -47646,7 +47758,7 @@ ${await toolbarSource()}
     const location = parseSourceAttr(String(body.src ?? ""));
     const rel = location && inside(root, location.file);
     const full = rel && resolve6(root, rel);
-    if (!location || !full || !EDITABLE.test(full) || !tagged.has(full) || !existsSync22(full)) {
+    if (!location || !full || !EDITABLE.test(full) || !tagged.has(full) || !existsSync23(full)) {
       return { ok: false, editable: false, reason: "not-found" };
     }
     const code2 = await readFile17(full, "utf8");
@@ -47664,7 +47776,7 @@ ${await toolbarSource()}
     if (!after.trim()) return { ok: false, reason: "empty" };
     const result = editText(code2, location.file, location, before, after);
     if (!result.ok) return result;
-    await writeFile10(full, result.code);
+    await writeFile11(full, result.code);
     await writeInbox(root, {
       kind: "edit",
       page: toolbarPage(body.page) ?? { url: "", path: "/" },
@@ -47846,8 +47958,8 @@ function backendPlugin(current) {
 function resolveProjectVite(root) {
   let dir = root;
   while (true) {
-    const pkgPath = join27(dir, "node_modules", "vite", "package.json");
-    if (existsSync23(pkgPath)) {
+    const pkgPath = join28(dir, "node_modules", "vite", "package.json");
+    if (existsSync24(pkgPath)) {
       const pkg = JSON.parse(readFileSync3(pkgPath, "utf8"));
       const dot = pkg.exports?.["."];
       const pick2 = (entry2) => {
@@ -47859,7 +47971,7 @@ function resolveProjectVite(root) {
         return void 0;
       };
       const entry = pick2(dot) ?? pkg.module ?? pkg.main ?? "dist/node/index.js";
-      return join27(dirname7(pkgPath), entry);
+      return join28(dirname7(pkgPath), entry);
     }
     const parent = dirname7(dir);
     if (parent === dir) break;
@@ -47972,7 +48084,7 @@ var import_picocolors2 = __toESM(require_picocolors(), 1);
 function findAppRoot(start) {
   let dir = resolve7(start);
   while (true) {
-    if (existsSync24(join28(dir, "package.json"))) return dir;
+    if (existsSync25(join29(dir, "package.json"))) return dir;
     const parent = dirname8(dir);
     if (parent === dir) return resolve7(start);
     dir = parent;
@@ -47980,7 +48092,7 @@ function findAppRoot(start) {
 }
 async function devCommand(ctx2, options) {
   const root = findAppRoot(ctx2.cwd);
-  if (!existsSync24(join28(root, "node_modules")) && existsSync24(join28(root, "package.json"))) {
+  if (!existsSync25(join29(root, "node_modules")) && existsSync25(join29(root, "package.json"))) {
     const pm = detectPackageManager(root);
     process.stdout.write(
       `
@@ -48020,10 +48132,10 @@ async function devCommand(ctx2, options) {
           if (fresh) known.set(move.home.ref, fresh);
           return fresh;
         },
-        watch: join28(root, MOVE_PATH)
+        watch: join29(root, MOVE_PATH)
       },
       // The settings the app's server code reads, from Clodable's private store on this computer.
-      settings: { current: () => localSettings(root), watch: join28(root, SETTINGS_PATH) }
+      settings: { current: () => localSettings(root), watch: join29(root, SETTINGS_PATH) }
     });
     process.stdout.write(
       `
@@ -48935,8 +49047,8 @@ async function settingsCommand(ctx2, options) {
 }
 
 // src/commands/setup.ts
-import { existsSync as existsSync25, readdirSync } from "node:fs";
-import { join as join29, resolve as resolve8 } from "node:path";
+import { existsSync as existsSync26, readdirSync } from "node:fs";
+import { join as join30, resolve as resolve8 } from "node:path";
 var import_picocolors4 = __toESM(require_picocolors(), 1);
 var MIN_NODE = [20, 19];
 var REQUIRED = ["node", "git", "gh", "github"];
@@ -48998,7 +49110,9 @@ async function toolChecks(cwd2) {
     id: "gh",
     label: "GitHub CLI",
     status: ready2.installed ? "ok" : "fail",
-    ...ready2.installed ? {} : { fix: "Install it from https://cli.github.com" }
+    ...ready2.installed ? await ghIsOurs() ? { detail: `${GH_VERSION}, Clodable's own` } : {} : {
+      fix: "Check your internet connection: Clodable downloads it. Or install it from https://cli.github.com"
+    }
   });
   if (ready2.installed) {
     let login;
@@ -49024,12 +49138,12 @@ async function appChecks(git) {
     status: project.appType === "unknown" ? "warn" : "ok",
     detail: `${typeLabel}${project.lovable.generated ? ", made with Lovable" : ""}`
   });
-  const installed = existsSync25(join29(root, "node_modules"));
+  const installed = existsSync26(join30(root, "node_modules"));
   items.push({
     id: "deps",
     label: "App dependencies",
     status: installed ? "ok" : "warn",
-    ...installed ? {} : { fix: `Run \`${project.packageManager} install\`` }
+    ...installed ? {} : { fix: `Run \`${await packageManagerHere(project)} install\`` }
   });
   const config2 = await loadConfig(root);
   const kit = await planKit(project, config2);
@@ -49236,7 +49350,7 @@ async function pickRepo(ctx2, given, interactive) {
 }
 async function bringIn(ctx2, repo, interactive) {
   const empty = readdirSync(ctx2.cwd).filter((n4) => !n4.startsWith(".")).length === 0;
-  const target = empty ? ctx2.cwd : join29(ctx2.cwd, repo.split("/")[1]);
+  const target = empty ? ctx2.cwd : join30(ctx2.cwd, repo.split("/")[1]);
   const s = interactive ? spinner() : void 0;
   s?.start(`Bringing in ${repo}`);
   try {
@@ -49287,10 +49401,10 @@ async function setupCommand(ctx2, options) {
           });
       }
       await applyKit(root, changes);
-      if (!existsSync25(join29(root, "node_modules"))) {
+      if (!existsSync26(join30(root, "node_modules"))) {
         const s = interactive ? spinner() : void 0;
         s?.start("Installing your app's packages (a minute or two)");
-        const installed = await exec2(project.packageManager, ["install"], {
+        const installed = await exec2(await packageManagerHere(project), ["install"], {
           cwd: root,
           timeout: 15 * 6e4
         });
