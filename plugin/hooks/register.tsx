@@ -77,7 +77,15 @@ import {
   previewRequest,
   previewTabIn,
 } from "./preview.ts";
-import { cacheFolder, FETCH_NODE, NODE_BUILDS, nodeOk, nodeUrl, pathWith } from "./tools.ts";
+import {
+  FETCH_NODE,
+  NODE_BUILDS,
+  NODE_FACTS,
+  nodeFrom,
+  nodeUrl,
+  pathWith,
+  toolsFolder,
+} from "./tools.ts";
 import {
   ago,
   describeGroup,
@@ -146,6 +154,7 @@ const LOGO =
   '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" shape-rendering="crispEdges"><path fill="#3B1A10" d="M9 0h3v1h-3zM7 1h2v1h-2zM12 1h1v1h-1zM6 2h1v1h-1zM12 2h1v1h-1zM4 3h2v1h-2zM12 3h1v1h-1zM3 4h1v1h-1zM13 4h1v1h-1zM2 5h1v1h-1zM14 5h1v1h-1zM1 6h1v1h-1zM14 6h1v1h-1zM1 7h1v1h-1zM14 7h1v1h-1zM0 8h1v1h-1zM15 8h1v1h-1zM0 9h1v1h-1zM15 9h1v1h-1zM0 10h1v1h-1zM15 10h1v1h-1zM0 11h2v1h-2zM15 11h1v1h-1zM2 12h1v1h-1zM14 12h1v1h-1zM2 13h2v1h-2zM7 13h3v1h-3zM13 13h2v1h-2zM4 14h1v1h-1zM6 14h1v1h-1zM10 14h1v1h-1zM12 14h1v1h-1zM4 15h3v1h-3zM10 15h3v1h-3z"/><path fill="#E88858" d="M9 1h3v1h-3zM7 2h5v1h-5zM6 3h6v1h-6zM4 4h9v1h-9zM3 5h11v1h-11zM2 6h12v1h-12zM2 7h2v1h-2zM6 7h4v1h-4zM12 7h2v1h-2zM1 8h3v1h-3zM6 8h4v1h-4zM12 8h3v1h-3zM1 9h6v1h-6zM9 9h6v1h-6zM1 10h14v1h-14zM2 11h13v1h-13zM3 12h11v1h-11zM4 13h3v1h-3zM10 13h3v1h-3zM5 14h1v1h-1zM11 14h1v1h-1z"/><path fill="#2A140C" d="M4 7h2v1h-2zM10 7h2v1h-2zM4 8h2v1h-2zM10 8h2v1h-2zM7 9h2v1h-2z"/></svg>';
 
 // Module state: lost on hot reload, and that's fine for all of these.
+/** The session's folder, as last read (`syncFolder`): Desktop may move the session after it starts. */
 let cwd = "";
 let showDetails = false;
 /**
@@ -300,6 +309,61 @@ async function folderIsEmpty($: EngineInterface): Promise<boolean> {
   }
 }
 
+/**
+ * The session's folder, read again: Desktop starts a conversation's engine ahead of time in a
+ * folder of its own (`~/.claude/spares/…`, gone once used) and moves it into the project when the
+ * conversation opens, after `session.start` saw the spare. Commands run in the folder this
+ * returns; when it moved, Clodable looks at the new one as a session start would.
+ */
+async function syncFolder($: EngineInterface): Promise<string> {
+  const now = await $.session.cwd().catch(() => "");
+  if (now && now !== cwd) {
+    const before = cwd;
+    cwd = now;
+    if (before) {
+      note($, `the session moved from ${before} to ${now}`);
+      await lookAtFolder($);
+    }
+  }
+  return cwd;
+}
+
+/** What Clodable knows of the session's folder, found out anew: at start, and after a move. */
+async function lookAtFolder($: EngineInterface) {
+  inApp = (await $.fs.exists(".clodable/config.json").catch(() => false)) ? true : null;
+  emptyFolder = false;
+  versions = null;
+  replySaves = [];
+  blockSaves.clear();
+  previewUrl = null;
+  previewAsked = false;
+  move = null;
+  moveError = null;
+  assessment = null;
+  assessedFacts = "";
+  appSettingsStatus = null;
+  settingsAsked = false;
+  deployable = [];
+  // The bar says "getting ready" until the new folder's status is in.
+  if ((await read($, status)) !== null) {
+    await update<ClodableStatus | ClodableNotReady | null>($, status, () => null);
+  }
+  $.ui.invalidate("ui.render");
+  background(present($));
+  background(loadReplySaves($));
+  firstStatus = refreshStatus($);
+  background(firstStatus);
+  // On Desktop, the app's preview opens with the session. The terminal has no preview pane. Desktop
+  // may attach after this runs, so the bar starts it too the first time Desktop draws it.
+  background(
+    (async () => {
+      const surfaces: readonly string[] = await $.session.surfaces().catch(() => []);
+      note($, `in ${cwd}: surfaces=${JSON.stringify(surfaces)}`);
+      if (surfaces.includes("desktop") && (await isApp())) await startPreview($);
+    })(),
+  );
+}
+
 /** Recent notes on what Clodable tried, for developers: .clodable/local/clodable.log (never saved). */
 const notes: string[] = [];
 function note($: EngineInterface, line: string) {
@@ -324,12 +388,17 @@ let toolsReady: Promise<void> | null = null;
 let fetchingNode = false;
 /** Why the tool check failed, when it did: the setup screen says so instead of "Checking…". */
 let checksFailed: string | null = null;
+/** The Node.js Clodable's CLI runs with, by its full path once found: no PATH lookup can miss it. */
+let nodePath = "node";
+/** Where the tools Clodable fetched live (`toolsFolder`), for the CLI: `CLODABLE_TOOLS_DIR`. */
+let toolsDir = "";
 
 /**
  * Node.js and the GitHub CLI, for Clodable, the preview and Claude's own commands. The builder's
- * own come first; Clodable's bin folder (where the CLI links the GitHub CLI it fetched) comes
- * after. With no recent enough Node.js on this computer, Clodable fetches one into that folder,
- * and it comes first. `$.env.set` reaches every command started after: Clodable's, Claude's Bash.
+ * own come first; Clodable's bin folder, in the plugin's data folder (where the CLI links the
+ * GitHub CLI it fetched), comes after. With no recent enough Node.js on this computer, Clodable
+ * fetches one into that folder, and it comes first. `$.env.set` reaches every command started
+ * after: Claude's Bash, MCP servers. Clodable runs its own CLI with that Node.js's full path.
  */
 function ensureTools($: EngineInterface): Promise<void> {
   toolsReady ??= prepareTools($).catch((error: unknown) => {
@@ -355,24 +424,30 @@ async function prepareTools($: EngineInterface) {
   const home = await $.env.get("HOME");
   const uname = await $.process.run(["uname", "-sm"], { timeoutMs: 10_000 }).catch(() => null);
   const system = uname?.exitCode === 0 ? uname.stdout.trim() : "";
-  const cache = cacheFolder(system, {
+  const tools = toolsFolder($.plugin.root, system, {
     ...(home ? { home } : {}),
     xdg: (await $.env.get("XDG_CACHE_HOME")) ?? "",
-    override: (await $.env.get("CLODABLE_CACHE_DIR")) ?? "",
+    override: (await $.env.get("CLODABLE_TOOLS_DIR")) ?? "",
   });
-  if (!cache) return;
-  const bin = `${cache}/bin`;
+  if (!tools) return;
+  toolsDir = tools;
+  // Claude's own runs of the CLI find the same tools.
+  await $.env.set("CLODABLE_TOOLS_DIR", tools).catch(() => {});
+  const bin = `${tools}/bin`;
+  const own = await nodeAt($, "node");
+  if (own) nodePath = own;
   const path = (await $.env.get("PATH")) ?? "";
   // A PATH that can't be read is left alone: replacing it would lose every tool on it.
   if (!path) {
     note($, "tools: the session's PATH couldn't be read; left as it is");
     return;
   }
-  if (await runsNode($, "node")) {
+  if (own) {
     await setPath($, path, pathWith(path, bin, false));
     return;
   }
-  if (!(await runsNode($, `${bin}/node`))) {
+  let ours = await nodeAt($, `${bin}/node`);
+  if (!ours) {
     const build = NODE_BUILDS[system];
     if (!build) return;
     fetchingNode = true;
@@ -384,7 +459,7 @@ async function prepareTools($: EngineInterface) {
           CLODABLE_NODE_URL: nodeUrl(build.name),
           CLODABLE_NODE_SHA: build.sha256,
           CLODABLE_NODE_NAME: build.name,
-          CLODABLE_NODE_DIR: `${cache}/node`,
+          CLODABLE_NODE_DIR: `${tools}/node`,
           CLODABLE_BIN: bin,
         },
       });
@@ -396,31 +471,37 @@ async function prepareTools($: EngineInterface) {
       fetchingNode = false;
       $.ui.invalidate("ui.render");
     }
+    ours = await nodeAt($, `${bin}/node`);
   }
+  if (!ours) return;
+  nodePath = ours;
   await setPath($, path, pathWith(path, bin, true));
 }
 
 /** The session's PATH changed, then checked: if Node.js no longer runs with it, the old one is back. */
 async function setPath($: EngineInterface, before: string, after: string) {
   await $.env.set("PATH", after);
-  if (await runsNode($, "node")) return;
+  if (await nodeAt($, "node")) return;
   await $.env.set("PATH", before);
   note($, "tools: Node.js didn't run with Clodable's PATH; the session's own is back");
 }
 
-/** Whether this Node.js runs, and is recent enough for Clodable. */
-async function runsNode($: EngineInterface, node: string): Promise<boolean> {
+/** The full path of this Node.js, when it runs and is recent enough for Clodable. */
+async function nodeAt($: EngineInterface, node: string): Promise<string | undefined> {
   const run = await $.process
-    .run([node, "-e", "process.stdout.write(process.versions.node)"], { timeoutMs: 15_000 })
+    .run([node, "-e", NODE_FACTS], { timeoutMs: 15_000 })
     .catch(() => null);
-  return run?.exitCode === 0 && nodeOk(run.stdout.trim());
+  return run?.exitCode === 0 ? nodeFrom(run.stdout.trim()) : undefined;
 }
 
 // ── The CLI, from this plugin's own folder ──────────────────────────────────
 
 function argv($: EngineInterface, args: string[]): string[] {
-  return ["node", `${$.plugin.root}/cli/clodable.mjs`, ...args, "--json"];
+  return [nodePath, `${$.plugin.root}/cli/clodable.mjs`, ...args, "--json"];
 }
+
+/** What the CLI needs to know beside its arguments: where the tools Clodable fetched live. */
+const cliEnv = (): Record<string, string> => (toolsDir ? { CLODABLE_TOOLS_DIR: toolsDir } : {});
 
 /** The longest the engine lets `$.process.run` take; it refuses to start anything asking for more. */
 const MAX_RUN_MS = 10 * 60_000;
@@ -434,7 +515,8 @@ async function cli(
   await toolsFirst($);
   try {
     const out = await $.process.run(argv($, args), {
-      cwd,
+      cwd: await syncFolder($),
+      env: cliEnv(),
       timeoutMs: Math.min(timeoutMs, MAX_RUN_MS),
       ...(input !== undefined ? { stdin: input } : {}),
     });
@@ -471,7 +553,8 @@ async function streamCli(
   try {
     for await (const chunk of $.process.spawn({
       argv: argv($, args),
-      cwd,
+      cwd: await syncFolder($),
+      env: cliEnv(),
       ...(input !== undefined ? { input } : {}),
     })) {
       if (chunk.stream !== "stdout") continue;
@@ -529,7 +612,10 @@ async function flow(
 // ── State refresh ───────────────────────────────────────────────────────────
 
 async function refreshStatus($: EngineInterface) {
+  const where = await syncFolder($);
   const result = await cli($, ["status"], 30_000);
+  // The session moved meanwhile: the new folder's own look is on its way.
+  if (cwd !== where) return;
   const code = result.error?.code;
   const before = inApp;
   if (result.ok) inApp = true;
@@ -1092,8 +1178,9 @@ async function refreshVersions($: EngineInterface) {
   if (loadingVersions) return;
   loadingVersions = true;
   try {
+    const where = cwd;
     const result = await cli($, ["history"], 30_000);
-    if (!result.ok) return;
+    if (!result.ok || cwd !== where) return;
     const next = {
       draft: (result.data?.draft ?? []).map(toVersion),
       sameAsLive: result.data?.sameAsLive === true,
@@ -1261,9 +1348,12 @@ function liveDataNotice($: EngineInterface, toolUseId: string | undefined, sql: 
 
 /** Requests from the preview toolbar: Try to fix, Point & ask, and text edits to save. */
 async function pollInbox($: EngineInterface) {
-  if (!cwd || inApp !== true || polling) return;
+  if (polling) return;
   polling = true;
   try {
+    // Also how Clodable notices Desktop moved the session into the project.
+    await syncFolder($);
+    if (!cwd || inApp !== true) return;
     if (Date.now() - lastPresence > 5000) await present($).catch(() => {});
     let entries: Array<{ name: string; kind: string }>;
     try {
@@ -1325,23 +1415,9 @@ function handleRequest($: EngineInterface, item: ClodableRequest) {
 export const register: Register = (on) => {
   on("session.start", async ($, e, next) => {
     cwd = e.cwd || (await $.session.cwd());
-    inApp = (await $.fs.exists(".clodable/config.json").catch(() => false)) ? true : null;
-    if (inApp) $.ui.invalidate("ui.render");
     // A conversation the person just opened is the one in front of them.
     lastActive = Date.now();
-    background(present($));
-    background(loadReplySaves($));
-    firstStatus = refreshStatus($);
-    background(firstStatus);
-    // On Desktop, the app's preview opens with the session. The terminal has no preview pane. Desktop
-    // may attach after this runs, so the bar starts it too the first time Desktop draws it.
-    background(
-      (async () => {
-        const surfaces: readonly string[] = await $.session.surfaces().catch(() => []);
-        note($, `session start: surfaces=${JSON.stringify(surfaces)}`);
-        if (surfaces.includes("desktop") && (await isApp())) await startPreview($);
-      })(),
-    );
+    await lookAtFolder($);
     $.clock.every(1500, () => background(pollInbox($)));
     $.clock.every(45_000, () => {
       if (inApp !== true) return;
@@ -1359,22 +1435,26 @@ export const register: Register = (on) => {
   }).catch((_$, e, next) => next(e));
 
   on("command.run", { command: "clodable" }, async ($) => {
+    await syncFolder($);
     await openPane($, null);
     return {};
   });
 
   on("command.run", { command: "move-off-lovable" }, async ($) => {
+    await syncFolder($);
     await openPane($, "move");
     return {};
   });
 
   on("command.run", { command: "publish" }, async ($) => {
+    await syncFolder($);
     await openPane($);
     if (await isApp()) background(publishNow($));
     return {};
   });
 
   on("command.run", { command: "undo-publish" }, async ($) => {
+    await syncFolder($);
     if (await isApp()) await askUndo($);
     else await openPane($);
     return {};
@@ -1382,6 +1462,7 @@ export const register: Register = (on) => {
 
   // Remember what each turn was asked, so its save gets a meaningful name.
   on("turn.start", async ($, e, next) => {
+    await syncFolder($);
     requests.set(e.turnId, e.text);
     // A request Clodable sent in the builder's name: its details, for Claude only.
     const details = detailsFor.get(e.text);
@@ -1405,6 +1486,8 @@ export const register: Register = (on) => {
     return next(e);
   });
   on("session.attach", ($, e, next) => {
+    // Desktop attaches once it has moved the session into the project.
+    background(syncFolder($));
     markActive($);
     // Desktop lists the commands it was told of when it attached: tell it again.
     background(registerCommands($));
@@ -4761,7 +4844,7 @@ async function loadRepos($: EngineInterface) {
   await toolsFirst($);
   const out = await $.process.run(
     ["gh", "repo", "list", "--limit", "50", "--json", "nameWithOwner,updatedAt", "--source"],
-    { cwd, timeoutMs: 30_000 },
+    { timeoutMs: 30_000 },
   );
   try {
     const list = JSON.parse(out.stdout) as Array<{ nameWithOwner: string }>;
@@ -4804,7 +4887,7 @@ async function bringIn($: EngineInterface) {
   const result = await runSetup($, ["--repo", repo]);
   if (!result) return;
   const root = String(result.data?.root ?? "");
-  if (root && root !== cwd) {
+  if (root && root !== (await syncFolder($))) {
     await $.ui
       .ask(
         `Your app is in ${root}. Open that folder in a new Claude session to start shaping it.`,
@@ -4842,7 +4925,6 @@ async function connectGitHub($: EngineInterface) {
   await toolsFirst($);
   for await (const chunk of $.process.spawn({
     argv: ["gh", "auth", "login", "--web", "--git-protocol", "https", "--hostname", "github.com"],
-    cwd,
     input: "\n",
   })) {
     const code = chunk.text.match(/one-time code:\s*([A-Z0-9]{4}-[A-Z0-9]{4})/);

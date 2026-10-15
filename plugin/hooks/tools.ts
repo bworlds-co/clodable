@@ -37,23 +37,58 @@ export const NODE_BUILDS: Record<string, { name: string; sha256: string }> = {
 export const nodeUrl = (name: string) => `https://nodejs.org/dist/${NODE_VERSION}/${name}.tar.gz`;
 
 /**
- * Clodable's cache folder, as the CLI's `cacheDir()` has it, for macOS and Linux (`uname -s`).
- * Undefined elsewhere: on Windows, the builder installs Node.js themselves for now.
+ * Where the tools Clodable fetches go, on macOS and Linux (`uname -s`): the `tools` folder in the
+ * plugin's data folder, which Claude Code keeps across updates and removes with the plugin. The
+ * CLI reads it from `CLODABLE_TOOLS_DIR`. A plugin loaded from a folder of its own (a developer's)
+ * has no data folder: Clodable's cache, as the CLI's `cacheDir()` has it. Undefined on Windows,
+ * where the builder installs Node.js themselves for now.
  */
-export function cacheFolder(
+export function toolsFolder(
+  root: string,
   system: string,
   env: { home?: string; xdg?: string; override?: string },
 ): string | undefined {
   if (env.override) return env.override;
+  if (!system.startsWith("Darwin") && !system.startsWith("Linux")) return undefined;
+  const data = pluginDataFolder(root);
+  if (data) return `${data}/tools`;
   if (!env.home) return undefined;
-  if (system.startsWith("Darwin")) return `${env.home}/Library/Caches/clodable`;
-  if (system.startsWith("Linux")) return `${env.xdg || `${env.home}/.cache`}/clodable`;
-  return undefined;
+  return system.startsWith("Darwin")
+    ? `${env.home}/Library/Caches/clodable`
+    : `${env.xdg || `${env.home}/.cache`}/clodable`;
 }
 
 /**
- * Downloads the Node.js build named in the environment, checks it, unpacks it in Clodable's cache,
- * and links node, npm and npx in Clodable's bin folder. Only macOS's and Linux's own tools.
+ * The plugin's data folder (`${CLAUDE_PLUGIN_DATA}` in a plugin's hooks), which mods aren't told:
+ * an installed plugin's folder is `<plugins>/cache/<marketplace>/<plugin>/<version>`, its data
+ * `<plugins>/data/<plugin>-<marketplace>`, with anything but letters, digits, `_` and `-` as `-`.
+ */
+export function pluginDataFolder(root: string): string | undefined {
+  const parts = root.replace(/\/+$/, "").split("/");
+  if (parts.length < 6 || parts.at(-4) !== "cache") return undefined;
+  const id = `${parts.at(-2)}@${parts.at(-3)}`.replace(/[^A-Za-z0-9_-]/g, "-");
+  return [...parts.slice(0, -4), "data", id].join("/");
+}
+
+/** Prints the Node.js version and where it runs from, as JSON: `node -e NODE_FACTS`. */
+export const NODE_FACTS =
+  "process.stdout.write(JSON.stringify([process.versions.node, process.execPath]))";
+
+/** The full path of a Node.js recent enough for Clodable, from what NODE_FACTS printed. */
+export function nodeFrom(printed: string): string | undefined {
+  try {
+    const [version, path] = JSON.parse(printed) as unknown[];
+    return typeof version === "string" && typeof path === "string" && path && nodeOk(version)
+      ? path
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Downloads the Node.js build named in the environment, checks it, unpacks it in Clodable's tools
+ * folder, and links node, npm and npx in its bin folder. Only macOS's and Linux's own tools.
  */
 export const FETCH_NODE = `set -e
 PATH=/usr/bin:/bin:/usr/sbin:/sbin:$PATH

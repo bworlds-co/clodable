@@ -198,11 +198,11 @@ async function launchPlan(root: string, options: KitOptions): Promise<KitChange>
 }
 
 /**
- * Where Clodable keeps the tools it fetched for a builder who has none (Node.js, the GitHub CLI),
- * as a shell spells it on macOS and Linux: `cacheDir()`'s `bin` folder.
+ * Where the plugin keeps the tools it fetched for a builder who has none (Node.js, the GitHub CLI),
+ * as a shell spells it on macOS and Linux: `bin` in the tools folder of the data folder Claude
+ * Code gives `clodable@clodable`, the plugin these settings turn on.
  */
-// biome-ignore lint/suspicious/noTemplateCurlyInString: the shell expands it, not JavaScript
-const TOOLS_PATH = "$HOME/Library/Caches/clodable/bin:${XDG_CACHE_HOME:-$HOME/.cache}/clodable/bin";
+const TOOLS_PATH = "$HOME/.claude/plugins/data/clodable-clodable/tools/bin";
 
 /**
  * How Desktop starts the preview: `npx clodable dev`. Desktop starts it with its own PATH, where
@@ -223,8 +223,8 @@ export function previewCommand(platform: NodeJS.Platform = process.platform): {
 /**
  * The preview's command already in launch.json, when it runs Clodable's own: a demo, or a test of
  * an unreleased Clodable, runs it from a folder rather than from npm, and planning the kit again
- * (answering a question, say) keeps it. The plain `npx clodable dev` of earlier versions becomes
- * today's.
+ * (answering a question, say) keeps it. Earlier versions' own, plain `npx clodable dev` or through
+ * `sh` with another tools folder, becomes today's.
  */
 function clodableDev(
   configurations: Array<Record<string, unknown>>,
@@ -234,7 +234,9 @@ function clodableDev(
   const args = app?.runtimeArgs;
   if (typeof executable !== "string" || !Array.isArray(args)) return undefined;
   const words = [executable, ...args].map(String);
-  if (words.join(" ") === "npx clodable dev") return undefined;
+  const command = words.join(" ");
+  if (command === "npx clodable dev") return undefined;
+  if (/^\/bin\/sh -c PATH="\$PATH:[^"]*" exec npx clodable dev$/.test(command)) return undefined;
   return words.some((w) => w.includes("clodable")) && words.includes("dev")
     ? { executable, args: args.map(String) }
     : undefined;

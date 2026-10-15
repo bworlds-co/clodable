@@ -604,6 +604,9 @@ function configDir() {
   }
   return join(process.env.XDG_CONFIG_HOME ?? join(homedir(), ".config"), "clodable");
 }
+function toolsDir() {
+  return process.env.CLODABLE_TOOLS_DIR || cacheDir();
+}
 function cacheDir() {
   if (process.env.CLODABLE_CACHE_DIR) return process.env.CLODABLE_CACHE_DIR;
   if (process.platform === "darwin") return join(homedir(), "Library", "Caches", "clodable");
@@ -23634,7 +23637,7 @@ async function launchPlan(root, options) {
     json2({ version: launch.version ?? "0.0.1", configurations: [ours2, ...others] })
   );
 }
-var TOOLS_PATH = "$HOME/Library/Caches/clodable/bin:${XDG_CACHE_HOME:-$HOME/.cache}/clodable/bin";
+var TOOLS_PATH = "$HOME/.claude/plugins/data/clodable-clodable/tools/bin";
 function previewCommand(platform = process.platform) {
   if (platform === "win32") return { executable: "npx", args: ["clodable", "dev"] };
   return {
@@ -23648,7 +23651,9 @@ function clodableDev(configurations) {
   const args = app?.runtimeArgs;
   if (typeof executable3 !== "string" || !Array.isArray(args)) return void 0;
   const words = [executable3, ...args].map(String);
-  if (words.join(" ") === "npx clodable dev") return void 0;
+  const command = words.join(" ");
+  if (command === "npx clodable dev") return void 0;
+  if (/^\/bin\/sh -c PATH="\$PATH:[^"]*" exec npx clodable dev$/.test(command)) return void 0;
   return words.some((w) => w.includes("clodable")) && words.includes("dev") ? { executable: executable3, args: args.map(String) } : void 0;
 }
 async function settingsPlan(root, options) {
@@ -24624,7 +24629,7 @@ var RELEASES2 = {
 };
 var executable2 = process.platform === "win32" ? "gh.exe" : "gh";
 function toolsBin() {
-  return join16(cacheDir(), "bin");
+  return join16(toolsDir(), "bin");
 }
 var resolved2;
 async function ghBinary() {
@@ -24638,12 +24643,12 @@ async function ghBinary() {
   return resolved2;
 }
 async function ghIsOurs() {
-  return (await ghBinary().catch(() => "")).startsWith(cacheDir());
+  return (await ghBinary().catch(() => "")).startsWith(toolsDir());
 }
 async function ours() {
   const release = RELEASES2[`${process.platform}-${process.arch}`];
   if (!release) throw new Error(`No GitHub CLI build for ${process.platform}-${process.arch}.`);
-  const dir = join16(cacheDir(), "gh", GH_VERSION);
+  const dir = join16(toolsDir(), "gh", GH_VERSION);
   const path2 = join16(dir, executable2);
   if (!existsSync12(path2)) {
     try {

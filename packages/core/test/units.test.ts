@@ -35,6 +35,7 @@ import {
   scanVersion,
   storeSecret,
   summarizeBuildOutput,
+  toolsBin,
   writeInbox,
 } from "../src/index.js";
 import { buildLine } from "../src/waits.js";
@@ -680,10 +681,17 @@ describe("repo kit", () => {
         runtimeExecutable: previewCommand().executable,
         runtimeArgs: previewCommand().args,
       });
-      // The plain command of earlier versions becomes today's, which finds Clodable's own Node.js.
+      // Earlier versions' own command becomes today's, which finds Clodable's own Node.js.
       expect(await keep("npx", ["clodable", "dev"])).toMatchObject({
         runtimeExecutable: previewCommand().executable,
       });
+      expect(
+        await keep("/bin/sh", [
+          "-c",
+          // biome-ignore lint/suspicious/noTemplateCurlyInString: the shell expands it, not JavaScript
+          'PATH="$PATH:$HOME/Library/Caches/clodable/bin:${XDG_CACHE_HOME:-$HOME/.cache}/clodable/bin" exec npx clodable dev',
+        ]),
+      ).toMatchObject({ runtimeArgs: previewCommand().args });
     } finally {
       await rm(root, { recursive: true, force: true });
     }
@@ -695,8 +703,8 @@ describe("repo kit", () => {
     expect(mac.executable).toBe("/bin/sh");
     const dir = await mkdtemp(join(tmpdir(), "clodable-path-"));
     try {
-      // The command really finds a tool in Clodable's bin folder, when nothing else has it.
-      const bin = join(dir, "Library/Caches/clodable/bin");
+      // The command really finds a tool in the plugin's tools folder, when nothing else has it.
+      const bin = join(dir, ".claude/plugins/data/clodable-clodable/tools/bin");
       await mkdir(bin, { recursive: true });
       await writeFile(join(bin, "npx"), '#!/bin/sh\necho "npx $*"\n', { mode: 0o755 });
       const run = spawnSync(mac.executable, mac.args, {
@@ -715,6 +723,20 @@ describe("repo kit", () => {
       expect(first.stdout.trim()).toBe("own npx");
     } finally {
       await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("keeps the GitHub CLI it fetches where the plugin says: its data folder", () => {
+    const before = process.env.CLODABLE_TOOLS_DIR;
+    try {
+      process.env.CLODABLE_TOOLS_DIR = "/Users/ada/.claude/plugins/data/clodable-clodable/tools";
+      expect(toolsBin()).toBe("/Users/ada/.claude/plugins/data/clodable-clodable/tools/bin");
+      // On its own, the CLI keeps it in its cache.
+      delete process.env.CLODABLE_TOOLS_DIR;
+      expect(toolsBin().endsWith(join("clodable", "bin"))).toBe(true);
+    } finally {
+      if (before === undefined) delete process.env.CLODABLE_TOOLS_DIR;
+      else process.env.CLODABLE_TOOLS_DIR = before;
     }
   });
 });

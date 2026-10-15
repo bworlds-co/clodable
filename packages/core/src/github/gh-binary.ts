@@ -4,7 +4,7 @@ import { chmod, mkdir, mkdtemp, rename, rm, symlink, unlink, writeFile } from "n
 import { join } from "node:path";
 import { messageOf } from "../errors.js";
 import { commandPath, exec } from "../exec.js";
-import { cacheDir } from "../places.js";
+import { toolsDir } from "../places.js";
 
 /**
  * The GitHub CLI (https://cli.github.com, MIT), which Clodable signs in and talks to GitHub with.
@@ -49,7 +49,7 @@ const executable = process.platform === "win32" ? "gh.exe" : "gh";
  * the plugin adds it to the PATH of Claude's session, after the builder's own.
  */
 export function toolsBin(): string {
-  return join(cacheDir(), "bin");
+  return join(toolsDir(), "bin");
 }
 
 let resolved: Promise<string> | undefined;
@@ -72,14 +72,14 @@ export async function ghBinary(): Promise<string> {
 
 /** Whether the GitHub CLI in use is the one Clodable fetched. */
 export async function ghIsOurs(): Promise<boolean> {
-  return (await ghBinary().catch(() => "")).startsWith(cacheDir());
+  return (await ghBinary().catch(() => "")).startsWith(toolsDir());
 }
 
 /** Clodable's own copy, downloaded and checked the first time. */
 async function ours(): Promise<string> {
   const release = RELEASES[`${process.platform}-${process.arch}`];
   if (!release) throw new Error(`No GitHub CLI build for ${process.platform}-${process.arch}.`);
-  const dir = join(cacheDir(), "gh", GH_VERSION);
+  const dir = join(toolsDir(), "gh", GH_VERSION);
   const path = join(dir, executable);
   if (!existsSync(path)) {
     try {
