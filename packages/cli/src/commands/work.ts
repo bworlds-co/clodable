@@ -99,6 +99,7 @@ export async function historyCommand(ctx: Context, options: { limit?: number }) 
       out.header("history");
       out.line(pc.bold("Your draft"));
       if (h.draft.length === 0) out.line(ash("  Nothing waiting to go live."));
+      else if (h.sameAsLive) out.line(ash("  Same as your live site: nothing to publish."));
       for (const c of h.draft) {
         out.line(
           `  ${clay("●")} ${c.subject} ${ash(`· ${formatRelative(c.date)} · ${c.sha.slice(0, 7)}`)}`,
@@ -124,6 +125,10 @@ export async function restoreCommand(ctx: Context, sha: string) {
     ctx,
     async () => restore(await ctx.workspace(), sha),
     (result) => {
+      if (!result.saved) {
+        ctx.out.line(`${celadon("✓")} Your app already looks like this version: nothing changed`);
+        return;
+      }
       ctx.out.line(
         `${celadon("✓")} Restored ${ash(`· saved as a new version, nothing was erased`)}`,
       );

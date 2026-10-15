@@ -2,10 +2,11 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { checksFailed, runChecks } from "./checks/index.js";
-import { BEFORE_RESTORE, ensurePullRequest, save } from "./draft.js";
+import { BEFORE_RESTORE, ensurePullRequest, sameAsLive, save } from "./draft.js";
 import { ClodableError } from "./errors.js";
 import { type Flow, step } from "./events.js";
 import { type Commit, kindTrailer } from "./git.js";
+import { clodableFile, keepIgnored } from "./kit/index.js";
 import { loadMove, updateMove } from "./move/state.js";
 import { deployChangedFunctions, type FunctionsOutcome } from "./publish-functions.js";
 import { timing, waitForCiIfAny, waitForDeploy } from "./waits.js";
@@ -146,7 +147,8 @@ export async function* publish(ws: Workspace, options: PublishOptions = {}): Flo
   }
 
   const saves = await ws.git.log(`${ws.liveRef}..HEAD`, { noMerges: true, limit: 200 });
-  if (saves.length === 0) {
+  // Saves that cancel out leave the files as they're live: publishing them would change nothing.
+  if (saves.length === 0 || (await sameAsLive(ws, { clodablesToo: true }))) {
     throw new ClodableError({
       code: "nothing-to-publish",
       message: "There's nothing new to publish. Your live site already has everything.",
@@ -295,6 +297,11 @@ export async function* undoPublish(
         hint: "Ask Claude to undo it by hand. It can see exactly what changed.",
       });
     }
+    // Clodable's own files stay as they're live, as with Restore: undoing a publish mustn't take
+    // back the builder's answers, Clodable's setup or the site's publish workflow.
+    const undone = await side.run(["diff", "--cached", "--name-only", "HEAD"]);
+    await side.restorePaths("HEAD", undone.stdout.split("\n").filter(clodableFile));
+    await keepIgnored(dir);
     const undoTitle = `Undo: ${target.subject}`;
     const identity = (await ws.git.identity()) ?? undefined;
     await side.commitAll(undoTitle, {

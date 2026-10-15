@@ -374,6 +374,19 @@ export class Git {
     ]);
   }
 
+  /** Put these paths (files, from the top) back as they are in `sha`, staged and in the files. */
+  async restorePaths(sha: string, paths: string[]): Promise<void> {
+    if (paths.length === 0) return;
+    await this.ok([
+      "restore",
+      `--source=${sha}`,
+      "--staged",
+      "--worktree",
+      "--",
+      ...paths.map((path) => `:(top,literal)${path}`),
+    ]);
+  }
+
   async stageAll(): Promise<void> {
     await this.ok(["add", "--all"]);
   }

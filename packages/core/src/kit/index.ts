@@ -50,6 +50,11 @@ export const CLODABLE_FILES = [
   WORKFLOW_PATH,
 ];
 
+/** One of Clodable's own files, or a file inside one of its folders (a path from the top). */
+export function clodableFile(path: string): boolean {
+  return CLODABLE_FILES.some((own) => path === own || path.startsWith(`${own}/`));
+}
+
 /** Put Clodable's lines back in `.gitignore` if they're missing, so this computer's state stays out of git. */
 export async function keepIgnored(root: string): Promise<void> {
   await applyKit(root, [await gitignorePlan(root)]);

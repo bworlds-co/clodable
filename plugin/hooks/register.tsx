@@ -256,7 +256,7 @@ let previewUrl: string | null = null;
 let previewAsked = false;
 
 /** The panel's history: saves not live yet, then recent publishes, newest first. Null until loaded. */
-let versions: { draft: Version[]; published: Version[] } | null = null;
+let versions: { draft: Version[]; sameAsLive: boolean; published: Version[] } | null = null;
 let loadingVersions = false;
 /**
  * The save each of Claude's replies made, so Restore can sit under that reply. A reply's blocks
@@ -913,6 +913,7 @@ async function refreshVersions($: EngineInterface) {
     if (!result.ok) return;
     const next = {
       draft: (result.data?.draft ?? []).map(toVersion),
+      sameAsLive: result.data?.sameAsLive === true,
       published: (result.data?.published ?? []).map(toVersion),
     };
     if (same(versions, next)) return;
@@ -937,9 +938,11 @@ async function restoreNow($: EngineInterface, sha: string) {
     x.kind === "saving" ? { kind: "idle", steps: [] } : x,
   );
   $.ui.toast(
-    result.ok
-      ? "Restored. Publish when you're happy with it."
-      : (result.error?.message ?? "That version couldn't be restored."),
+    !result.ok
+      ? (result.error?.message ?? "That version couldn't be restored.")
+      : result.data?.saved === false
+        ? "Your app already looks like this version. Nothing changed."
+        : "Restored. Publish when you're happy with it.",
   );
   await refreshStatus($);
 }
@@ -2385,7 +2388,10 @@ function historySection($: EngineInterface, ui: PaneUi, desktop: boolean, now: n
         <Text dimColor>No versions yet.</Text>
       ) : (
         <Box flexDirection="column">
-          {draftRows.length > 0 ? <Text dimColor>Not live yet</Text> : null}
+          {draftRows.length > 0 ? (
+            // Saves that cancel out aren't waiting: the live site already looks like this.
+            <Text dimColor>{versions.sameAsLive ? "Since your last publish" : "Not live yet"}</Text>
+          ) : null}
           {draftRows.map((v) => versionRow($, ui, v, desktop, now))}
           {publishedRows.length > 0 ? <Text dimColor>Published</Text> : null}
           {publishedRows.map((v) => versionRow($, ui, v, desktop, now))}
