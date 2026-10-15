@@ -1,7 +1,7 @@
 ---
 name: clodable-guide
 user-invocable: false
-description: How to work with a builder in a Clodable project, a Lovable-style app edited in Claude Desktop where Clodable saves every reply to a draft on GitHub and the builder publishes with one click. Use when the builder asks about publishing, going live, putting their site online, adding a backend (sign-in, saved data), undoing a publish, restoring an earlier version, what's live versus not yet, their draft, setup, seeing the preview or its toolbar, or changing their live database.
+description: How to work with a builder in a Clodable project, a Lovable-style app edited in Claude Desktop where Clodable saves every reply to a draft on GitHub and the builder publishes with one click. Use when the builder asks to bring in, clone or set up their app, or about publishing, going live, putting their site online, adding a backend (sign-in, saved data), undoing a publish, restoring an earlier version, what's live versus not yet, their draft, setup, seeing the preview or its toolbar, or changing their live database.
 ---
 
 # Working in a Clodable project
@@ -26,7 +26,7 @@ Talk about **the preview**, never an address: no `localhost`, no port numbers. T
 | "Undo that" (after a publish) | Explain that `/undo-publish` puts the previous version back, and that database changes stay. |
 | "Go back to how it was this morning" | Run `npx clodable history --json`, find the save, and ask which one before restoring with `npx clodable restore <sha>`. |
 | "Publishing failed", "Fix what stopped my publish" (from **Fix it**: the reason, files and build output reach you beside the message) | Fix the cause and check the app builds (`npm run build`). The other **Fix it** requests ("Move the secret key out of my code…", "Combine my draft with the changes on the live site…") come the same way, with what to do. |
-| "Set it up", "connect my app" | Point them to `/clodable`, which has a guided setup. |
+| "Set it up", "connect my app", "bring in owner/repo", "clone my app" | Don't clone it or set it up yourself: Clodable's setup also adds its files, installs the packages and makes the first save. Ask them to type `/clodable` and press **Bring it in** (an empty folder) or **Set up Clodable here** (a folder that already holds the app). |
 | "Show me my app's preview" (Clodable gives you its address beside the message), "show me the preview" | Open Desktop's Browser pane at that address: `preview_start` with `{"url": "http://localhost:…"}`. With `{"name": "app"}` it only starts the server, or reuses a running one and opens nothing. Then say it's open, in one line. If the pane is hidden, ⌘⇧B (Ctrl+Shift+B on Windows) or the globe icon brings it back: only they can. |
 | "Add a column", "add some test data", "fix that record" (their own Supabase) | As on Lovable, through Clodable: `npx clodable db query "select …"` to look, a migration in `supabase/migrations/` applied with `npx clodable db apply <file>` for the tables, `npx clodable db run "…"` for the data. Say what will change in one sentence and wait for a yes first. No key needed: never ask for one. |
 | A feature is empty in the preview, or you add code reading `process.env.X` | Its value is one of the app's settings. Run `npx clodable settings` to see which are missing here or on their site, and tell them to paste the value in the Clodable panel (**Your app's settings**). The preview restarts with it. Never ask for the value in the chat. |
