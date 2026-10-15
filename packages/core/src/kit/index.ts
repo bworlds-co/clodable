@@ -201,6 +201,7 @@ async function launchPlan(root: string, options: KitOptions): Promise<KitChange>
  * Where Clodable keeps the tools it fetched for a builder who has none (Node.js, the GitHub CLI),
  * as a shell spells it on macOS and Linux: `cacheDir()`'s `bin` folder.
  */
+// biome-ignore lint/suspicious/noTemplateCurlyInString: the shell expands it, not JavaScript
 const TOOLS_PATH = "$HOME/Library/Caches/clodable/bin:${XDG_CACHE_HOME:-$HOME/.cache}/clodable/bin";
 
 /**
