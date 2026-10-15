@@ -23407,6 +23407,9 @@ var CLODABLE_FILES = [
   ".mcp.json",
   WORKFLOW_PATH
 ];
+function clodableFile(path2) {
+  return CLODABLE_FILES.some((own2) => path2 === own2 || path2.startsWith(`${own2}/`));
+}
 async function keepIgnored(root) {
   await applyKit(root, [await gitignorePlan(root)]);
 }
@@ -23838,7 +23841,7 @@ async function sameAsLive(ws, options = {}) {
   const diff = await ws.git.run(["diff", "--name-only", `${live}...HEAD`]);
   if (diff.exitCode !== 0) return false;
   const changed = diff.stdout.split("\n").filter(Boolean);
-  return options.clodablesToo ? changed.length === 0 : changed.every(clodables);
+  return options.clodablesToo ? changed.length === 0 : changed.every(clodableFile);
 }
 async function unpublishedSaves(ws, options = {}) {
   const live = await liveBase(ws);
@@ -23850,10 +23853,7 @@ async function unpublishedSaves(ws, options = {}) {
   return saves.filter((c2) => c2.kind !== "setup" && !onlyClodables(files.get(c2.sha) ?? []));
 }
 function onlyClodables(paths) {
-  return paths.length > 0 && paths.every(clodables);
-}
-function clodables(path2) {
-  return CLODABLE_FILES.some((own2) => path2 === own2 || path2.startsWith(`${own2}/`));
+  return paths.length > 0 && paths.every(clodableFile);
 }
 async function ensurePullRequest(ws, branch) {
   const saves = await unpublishedSaves(ws);
@@ -24247,6 +24247,18 @@ ${kindTrailer(options.kind)}`
       "--",
       ":/",
       ...keep.map((path2) => `:(top,exclude)${path2}`)
+    ]);
+  }
+  /** Put these paths (files, from the top) back as they are in `sha`, staged and in the files. */
+  async restorePaths(sha, paths) {
+    if (paths.length === 0) return;
+    await this.ok([
+      "restore",
+      `--source=${sha}`,
+      "--staged",
+      "--worktree",
+      "--",
+      ...paths.map((path2) => `:(top,literal)${path2}`)
     ]);
   }
   async stageAll() {
@@ -28210,6 +28222,9 @@ async function* undoPublish(ws, options = {}) {
         hint: "Ask Claude to undo it by hand. It can see exactly what changed."
       });
     }
+    const undone = await side.run(["diff", "--cached", "--name-only", "HEAD"]);
+    await side.restorePaths("HEAD", undone.stdout.split("\n").filter(clodableFile));
+    await keepIgnored(dir);
     const undoTitle = `Undo: ${target.subject}`;
     const identity = await ws.git.identity() ?? void 0;
     await side.commitAll(undoTitle, {

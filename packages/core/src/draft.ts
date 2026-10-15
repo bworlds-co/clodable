@@ -4,7 +4,7 @@ import type { ProjectConfig } from "./config.js";
 import { ClodableError } from "./errors.js";
 import type { Commit, CommitKind } from "./git.js";
 import type { PullRequest } from "./github/types.js";
-import { CLODABLE_FILES, keepIgnored } from "./kit/index.js";
+import { CLODABLE_FILES, clodableFile, keepIgnored } from "./kit/index.js";
 import { readSecret } from "./local-secrets.js";
 import { loadMove } from "./move/state.js";
 import { SUPABASE_TOKEN } from "./move/supabase-api.js";
@@ -274,7 +274,7 @@ export async function sameAsLive(
   const diff = await ws.git.run(["diff", "--name-only", `${live}...HEAD`]);
   if (diff.exitCode !== 0) return false;
   const changed = diff.stdout.split("\n").filter(Boolean);
-  return options.clodablesToo ? changed.length === 0 : changed.every(clodables);
+  return options.clodablesToo ? changed.length === 0 : changed.every(clodableFile);
 }
 
 /**
@@ -297,12 +297,7 @@ async function unpublishedSaves(
 
 /** Changed files that are all Clodable's own. A save that changed nothing isn't counted as one. */
 function onlyClodables(paths: string[]): boolean {
-  return paths.length > 0 && paths.every(clodables);
-}
-
-/** One of Clodable's own files, or a file inside one of its folders. */
-function clodables(path: string): boolean {
-  return CLODABLE_FILES.some((own) => path === own || path.startsWith(`${own}/`));
+  return paths.length > 0 && paths.every(clodableFile);
 }
 
 /** The draft's page on GitHub: one pull request per draft, opened at the first save. */

@@ -6,6 +6,7 @@ import { BEFORE_RESTORE, ensurePullRequest, sameAsLive, save } from "./draft.js"
 import { ClodableError } from "./errors.js";
 import { type Flow, step } from "./events.js";
 import { type Commit, kindTrailer } from "./git.js";
+import { clodableFile, keepIgnored } from "./kit/index.js";
 import { loadMove, updateMove } from "./move/state.js";
 import { deployChangedFunctions, type FunctionsOutcome } from "./publish-functions.js";
 import { timing, waitForCiIfAny, waitForDeploy } from "./waits.js";
@@ -296,6 +297,11 @@ export async function* undoPublish(
         hint: "Ask Claude to undo it by hand. It can see exactly what changed.",
       });
     }
+    // Clodable's own files stay as they're live, as with Restore: undoing a publish mustn't take
+    // back the builder's answers, Clodable's setup or the site's publish workflow.
+    const undone = await side.run(["diff", "--cached", "--name-only", "HEAD"]);
+    await side.restorePaths("HEAD", undone.stdout.split("\n").filter(clodableFile));
+    await keepIgnored(dir);
     const undoTitle = `Undo: ${target.subject}`;
     const identity = (await ws.git.identity()) ?? undefined;
     await side.commitAll(undoTitle, {

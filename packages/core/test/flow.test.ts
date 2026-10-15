@@ -644,6 +644,31 @@ describe("undo and restore", () => {
     );
   });
 
+  it("leaves Clodable's own files as they're live: the builder's answers and the site's workflow stay", async () => {
+    const ws = await sb.ws();
+    const config = JSON.parse(await readFile(join(sb.work, ".clodable/config.json"), "utf8"));
+    const answered = `${JSON.stringify({ ...config, backend: "supabase", hosting: "github" })}\n`;
+    await sb.write(".clodable/config.json", answered);
+    await sb.write("AGENTS.md", "Your data is on your own Supabase.\n");
+    await sb.write(".github/workflows/clodable-netlify.yml", "name: Publish to Netlify\n");
+    await sb.write("src/app.txt", "Brand new welcome\n");
+    await save(ws, { message: "New welcome" });
+    await publishAll();
+
+    await runFlow(undoPublish(await sb.ws(), instant()));
+
+    const live = async (path: string) =>
+      (await new Git(sb.bare).run(["show", `main:${path}`])).stdout;
+    const before = "Welcome to Crumb & Co.\nFresh bread every morning.\n";
+    expect(await live("src/app.txt")).toBe(before);
+    expect(await live(".clodable/config.json")).toBe(answered);
+    expect(await live("AGENTS.md")).toBe("Your data is on your own Supabase.\n");
+    expect(await live(".github/workflows/clodable-netlify.yml")).toBe("name: Publish to Netlify\n");
+    // The builder's files follow what's live: the app is back, Clodable's answers are kept.
+    expect(await readFile(join(sb.work, "src/app.txt"), "utf8")).toBe(before);
+    expect(await readFile(join(sb.work, ".clodable/config.json"), "utf8")).toBe(answered);
+  });
+
   it("restores an earlier save as a new save, keeping history", async () => {
     const ws = await sb.ws();
     await sb.write("src/app.txt", "Version A\n");
