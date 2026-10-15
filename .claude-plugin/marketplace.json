@@ -6,14 +6,14 @@
   },
   "metadata": {
     "description": "The AI app builder you own. For people who built their app with Lovable.",
-    "version": "0.2.0"
+    "version": "0.2.1"
   },
   "plugins": [
     {
       "name": "clodable",
       "source": "./plugin",
       "description": "The Publish bar and panel for Claude Desktop: every change saved to your draft on GitHub, one-click publish with checks, undo, and plain-language activity.",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "author": {
         "name": "The Clodable authors"
       },
