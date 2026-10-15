@@ -1,5 +1,5 @@
 ---
-name: move-off-lovable
+name: clodable-move
 user-invocable: false
 description: Runs the steps of a builder's move off Lovable in the conversation, with Clodable's own `move` commands (first look at the app's code and record what it uses, then create their own Supabase backend, read Lovable's export, copy data, people and files, deploy functions, switch the preview to the copy, put the website on Netlify, set up emails, switch off Lovable's AI, email and connectors, Google sign-in, then the switch: pause, final export and copy, go live, the app's domain, finishing in Lovable), and finds and fixes what goes wrong. Use when the builder's message starts with "Moving off Lovable:", or when they ask to continue, check or fix their move off Lovable or Lovable Cloud, their working copy or their new backend.
 ---
