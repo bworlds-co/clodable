@@ -10,7 +10,7 @@ import {
   safeCommand,
 } from "../hooks/guards.ts";
 import { connectorSetting, sizeOf, stagesOf, typedDomain } from "../hooks/move.ts";
-import { hostOf, pageName, pointedAt, saveMessage, versionName } from "../hooks/words.ts";
+import { FIX_TEXT, hostOf, pageName, pointedAt, saveMessage, versionName } from "../hooks/words.ts";
 
 const CWD = "/work/crumb";
 /** Where the plugin is loaded from: Claude's runs of Clodable name its CLI there. */
@@ -198,6 +198,12 @@ describe("save names", () => {
     expect(saveMessage("Fix the /menu page: it's broken in the preview.")).toBe(
       "Fixed a page that broke",
     );
+  });
+
+  test("Fix it's requests are saved in the builder's words", () => {
+    expect(saveMessage(FIX_TEXT.publish)).toBe("Fixed what stopped publishing");
+    expect(saveMessage(FIX_TEXT.secret)).toBe("Moved a secret key out of the code");
+    expect(saveMessage(FIX_TEXT.conflict)).toBe("Combined the draft with the live site");
   });
 
   test("a version is named by what it did; a site by its address", () => {
@@ -537,6 +543,7 @@ describe("secret keys", () => {
       ),
     });
     const submitted: string[] = [];
+    const session = mock.session(on);
     on("prompt.submit", (_$: unknown, e: { text: string }) => {
       submitted.push(e.text);
       return { text: e.text };
@@ -558,9 +565,14 @@ describe("secret keys", () => {
     await band.press({ key: "fix" });
     for (let i = 0; i < 30 && submitted.length === 0; i++) await Promise.resolve();
     await band.unmount();
-    expect(submitted[0]).toContain("Saving stopped: A secret key is in src/pay.ts");
-    expect(submitted[0]).toContain("src/pay.ts:2");
-    expect(submitted[0]).toContain("Supabase Edge Function secret");
+    // The builder's message is theirs; what the check found reaches Claude beside it.
+    expect(submitted[0]).toBe("Move the secret key out of my code, so my changes can be saved.");
+    await $.turn.start({ text: submitted[0]!, turnId: "turn-fix" } as never);
+    const details = readBy(session).join("\n");
+    expect(details).toContain("A secret key is in src/pay.ts");
+    expect(details).toContain("src/pay.ts:2");
+    expect(details).toContain("sk_liv…Qa");
+    expect(details).toContain("Supabase Edge Function secret");
   });
 });
 
@@ -586,6 +598,45 @@ describe("a publish that stopped", () => {
     expect(await bandText($, "desktop", /Not published/)).toBe("Not published");
     expect(await bandText($, "desktop", /same text/)).toBe("The live site changed the same text");
     expect(await bandText($, "desktop", /combine/)).toBe("Let Claude combine them");
+  });
+
+  test("Fix it asks in the builder's words; the build's output reaches Claude beside them", async ($, on) => {
+    harness(on);
+    const output = "src/components/Menu.tsx(12,7): error TS2304: Cannot find name 'Bread'.";
+    on("process.spawn", async function* () {
+      const error = {
+        code: "checks-failed",
+        message: "Checks found a problem: the app doesn't build.",
+        details: output,
+        files: ["src/components/Menu.tsx"],
+      };
+      yield { stream: "stdout", text: `${JSON.stringify({ type: "result", ok: false, error })}\n` };
+      return { value: { code: 1, signal: null } };
+    });
+    const submitted: string[] = [];
+    const session = mock.session(on);
+    on("prompt.submit", (_$: unknown, e: { text: string }) => {
+      submitted.push(e.text);
+      return { text: e.text };
+    });
+    await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+    const band = await $.ui.mount({ ...BAND, surface: "desktop" });
+    await band.press({ key: "publish" });
+    await band.unmount();
+    expect(await bandText($, "desktop", /Not published/)).toBe("Not published");
+
+    const again = await $.ui.mount({ ...BAND, surface: "desktop" });
+    await again.press({ key: "fix" });
+    await again.unmount();
+    for (let i = 0; i < 30 && submitted.length === 0; i++) await Promise.resolve();
+    expect(submitted).toEqual(["Fix what stopped my publish, so I can publish again."]);
+
+    await $.turn.start({ text: submitted[0]!, turnId: "turn-fix" } as never);
+    const details = readBy(session).join("\n");
+    expect(details).toContain("Checks found a problem: the app doesn't build.");
+    expect(details).toContain("Where: src/components/Menu.tsx");
+    expect(details).toContain(output);
+    expect(details).toContain("Don't publish yourself");
   });
 });
 
@@ -711,6 +762,7 @@ describe("buttons that can't be used right now", () => {
   test("Let Claude combine them gives way to a note while Claude works on it", async ($, on) => {
     harness(on, { ...STATUS, merging: true, conflicts: ["src/components/Hero.tsx"] });
     const submitted: string[] = [];
+    const session = mock.session(on);
     on("prompt.submit", (_$: unknown, e: { text: string }) => {
       submitted.push(e.text);
       return { text: e.text };
@@ -725,13 +777,17 @@ describe("buttons that can't be used right now", () => {
     await band.press({ key: "combine" });
     await band.unmount();
     for (let i = 0; i < 10; i++) await Promise.resolve();
-    expect(submitted).toHaveLength(1);
-    expect(submitted[0]).toContain("Hero.tsx");
+    expect(submitted).toEqual([
+      "Combine my draft with the changes on the live site, so I can publish again.",
+    ]);
     expect(await button($, "combine")).toBeUndefined();
     expect(await bandText($, "desktop", /combining/)).toBe("Claude is combining…");
 
-    // Claude's reply ends: the button comes back for whatever is still left to combine.
+    // Which files, and how to finish, reach Claude beside the message.
     await $.turn.start({ text: submitted[0]!, turnId: "turn-combine" } as never);
+    expect(readBy(session)[0]).toContain("Files: src/components/Hero.tsx.");
+    expect(readBy(session)[0]).toContain("finish the merge");
+    // Claude's reply ends: the button comes back for whatever is still left to combine.
     await $.turn.complete({
       turnId: "turn-combine",
       answer: "Combined both headlines.",

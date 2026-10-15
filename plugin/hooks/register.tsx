@@ -80,7 +80,7 @@ import {
   describeGroup,
   describeTool,
   doneTitle,
-  fixPrompt,
+  fixRequest,
   hostOf,
   pageName,
   plural,
@@ -580,15 +580,15 @@ async function fixIt($: EngineInterface) {
   if (isFixing()) return;
   const a = await read($, activity);
   const s = await read($, status);
-  const text = a.error
-    ? fixPrompt(a.error)
+  const ask = a.error
+    ? fixRequest(a.error)
     : s?.ready && (s.merging || s.conflicts.length > 0)
-      ? fixPrompt({ code: "conflict", message: "", files: s.conflicts })
+      ? fixRequest({ code: "conflict", message: "", files: s.conflicts })
       : undefined;
-  if (!text) return;
+  if (!ask) return;
   fixing = { at: Date.now() };
   $.ui.invalidate("ui.render");
-  background($.prompt.submit({ text, asUser: true }));
+  background(askClaude($, ask.text, ask.details));
 }
 
 /** Record where the data or the live site is, then refresh what the bar and the panel show. */
