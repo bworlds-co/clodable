@@ -29,11 +29,10 @@
 
 **You'll need** a Mac with [Claude Desktop](https://claude.com/download) (on a paid Claude plan) and your app on GitHub. Lovable [puts it there in one click](https://docs.lovable.dev/integrations/github).
 
-1. **Add Clodable to Claude.** Paste this line in Terminal:
-   ```
-   curl -fsSL https://claude.ai/install.sh | bash && ~/.local/bin/claude plugin install clodable --marketplace bworlds-co/clodable
-   ```
-2. **Open an empty folder** in Claude Desktop's **Code** tab and type `/clodable`. Clodable gets what it needs the first time, signs you in to GitHub and brings your app in. (If Claude Desktop was open, restart it first.)
+1. **Add Clodable to Claude Desktop.** Open **Customize › Plugins**, click **Add › Add marketplace › Add from a repository**, and enter `bworlds-co/clodable`. Then add **Clodable** from that marketplace.
+2. **Open an empty folder** in Claude Desktop's **Code** tab and type `/clodable`. Clodable gets what it needs the first time, signs you in to GitHub and brings your app in.
+
+Already use Claude Code in Terminal? `claude plugin install clodable --marketplace bworlds-co/clodable` does step 1.
 
 Moving off Lovable, putting your site online, adding a backend: Clodable sets them up in your own Netlify and Supabase accounts when you need them (both free to start). On Lovable Cloud, type `/move-off-lovable` ([how it goes](#move-off-lovable-to-a-stack-you-own)).
 
