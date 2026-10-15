@@ -24,7 +24,7 @@ In Lovable, connect the project to GitHub, in the client's own account or organi
 Follow [Get started](../README.md#get-started) with them:
 1. [Claude Desktop](https://claude.com/download), signed in with the right plan.
 2. Nothing else to install by hand: Clodable fetches Node.js and the GitHub CLI the first time when the Mac has none (pinned releases, checked), and its setup has an **Install Git** button that opens Apple's installer.
-3. Add Clodable in Claude Desktop: **Customize › Plugins › Add › Add marketplace › Add from a repository**, enter `bworlds-co/clodable`, then add **Clodable** from that marketplace. (In Terminal, `claude plugin install clodable --marketplace bworlds-co/clodable` does the same.)
+3. Add Clodable in Claude Desktop: **Customize › Plugins › Add › Add marketplace › Add from a repository**, enter `bworlds-co/clodable`, then, under **Discover**, click **Add** next to Clodable. (In Terminal, `claude plugin install clodable --marketplace bworlds-co/clodable` does the same.)
 
 ## 3. Bring the app in
 
