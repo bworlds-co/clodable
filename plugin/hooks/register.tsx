@@ -1043,7 +1043,10 @@ function markActive($: EngineInterface) {
   background(present($));
 }
 
-/** Clodable's slash commands, each on its own: a name that's taken must not stop the others. */
+/**
+ * Clodable's slash commands, each on its own: a name that's taken must not stop the others. Our
+ * skills' names are taken too (Claude Code refuses `/x` when a skill is `x`): the build checks.
+ */
 async function registerCommands($: EngineInterface) {
   for (const command of [
     { name: "clodable", description: "Open Clodable: your draft, your live site, setup" },

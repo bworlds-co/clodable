@@ -211,7 +211,7 @@ Clodable only acts in apps it set up, so your other projects are unaffected. To 
 | [`packages/cli`](packages/cli) | `clodable`: pretty output for people, NDJSON (`--json`) for programs |
 | [`packages/preview`](packages/preview) | The dev-only Vite plugin and preview toolbar |
 | [`packages/design`](packages/design) | Tokens, icons and the logo ([brand](docs/design/BRAND.md), [UX principles](docs/design/PRINCIPLES.md)) |
-| [`plugin`](plugin) | The Claude Code plugin: Publish bar, panel, guards, auto-save, and the `clodable-guide` and `move-off-lovable` skills |
+| [`plugin`](plugin) | The Claude Code plugin: Publish bar, panel, guards, auto-save, and the `clodable-guide` and `clodable-move` skills |
 | [`examples`](examples) | Faithful Lovable apps, classic Vite and TanStack Start, for development |
 
 Clodable is built for Claude: Claude reads your app and decides, and the CLI does the exact work (keys, accounts, your data, the checks). Your app itself doesn't depend on Clodable. It's plain code on your GitHub, your data in your Supabase, your site on your host: that's the "no lock-in" promise.
