@@ -1,6 +1,6 @@
 {
   "name": "clodable",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "The AI app builder you own. The Clodable command line: save, publish, undo, preview.",
   "license": "MIT",
   "homepage": "https://github.com/bworlds-co/clodable#readme",
