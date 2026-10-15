@@ -322,6 +322,8 @@ function background(work: Promise<unknown>): void {
 let toolsReady: Promise<void> | null = null;
 /** Node.js being fetched: the setup screen says so. */
 let fetchingNode = false;
+/** Why the tool check failed, when it did: the setup screen says so instead of "Checking…". */
+let checksFailed: string | null = null;
 
 /**
  * Node.js and the GitHub CLI, for Clodable, the preview and Claude's own commands. The builder's
@@ -336,6 +338,19 @@ function ensureTools($: EngineInterface): Promise<void> {
   return toolsReady;
 }
 
+/**
+ * The tools before a command: never a wait without end. Past 20 seconds, the command goes ahead
+ * with what the session has, unless Node.js is downloading (then it waits for it).
+ */
+async function toolsFirst($: EngineInterface): Promise<void> {
+  const tools = ensureTools($);
+  const done = await Promise.race([
+    tools.then(() => true),
+    new Promise<boolean>((later) => $.clock.after(20_000, () => later(false))),
+  ]);
+  if (!done && fetchingNode) await tools;
+}
+
 async function prepareTools($: EngineInterface) {
   const home = await $.env.get("HOME");
   const uname = await $.process.run(["uname", "-sm"], { timeoutMs: 10_000 }).catch(() => null);
@@ -348,8 +363,13 @@ async function prepareTools($: EngineInterface) {
   if (!cache) return;
   const bin = `${cache}/bin`;
   const path = (await $.env.get("PATH")) ?? "";
+  // A PATH that can't be read is left alone: replacing it would lose every tool on it.
+  if (!path) {
+    note($, "tools: the session's PATH couldn't be read; left as it is");
+    return;
+  }
   if (await runsNode($, "node")) {
-    await $.env.set("PATH", pathWith(path, bin, false));
+    await setPath($, path, pathWith(path, bin, false));
     return;
   }
   if (!(await runsNode($, `${bin}/node`))) {
@@ -377,7 +397,15 @@ async function prepareTools($: EngineInterface) {
       $.ui.invalidate("ui.render");
     }
   }
-  await $.env.set("PATH", pathWith(path, bin, true));
+  await setPath($, path, pathWith(path, bin, true));
+}
+
+/** The session's PATH changed, then checked: if Node.js no longer runs with it, the old one is back. */
+async function setPath($: EngineInterface, before: string, after: string) {
+  await $.env.set("PATH", after);
+  if (await runsNode($, "node")) return;
+  await $.env.set("PATH", before);
+  note($, "tools: Node.js didn't run with Clodable's PATH; the session's own is back");
 }
 
 /** Whether this Node.js runs, and is recent enough for Clodable. */
@@ -403,7 +431,7 @@ async function cli(
   timeoutMs = 120_000,
   input?: string,
 ): Promise<Result> {
-  await ensureTools($);
+  await toolsFirst($);
   try {
     const out = await $.process.run(argv($, args), {
       cwd,
@@ -437,7 +465,7 @@ async function streamCli(
   onStep: (step: Step) => unknown,
   input?: string,
 ): Promise<{ result?: Result; failure?: unknown }> {
-  await ensureTools($);
+  await toolsFirst($);
   const read = eventReader();
   let result: Result | undefined;
   try {
@@ -523,6 +551,11 @@ async function refreshStatus($: EngineInterface) {
 
 async function refreshChecks($: EngineInterface) {
   const result = await cli($, ["doctor"], 60_000);
+  const failed = result.ok ? null : (result.error?.message ?? "The check didn't finish.");
+  if (failed !== checksFailed) {
+    checksFailed = failed;
+    $.ui.invalidate("ui.render");
+  }
   if (result.ok && Array.isArray(result.data))
     if (!same(await read($, checks), result.data)) {
       await update<ClodableCheck[]>($, checks, () => result.data as ClodableCheck[]);
@@ -2194,6 +2227,15 @@ function setupPane(
       {section(ui, "1 · Tools")}
       {fetchingNode ? (
         <Text dimColor>Getting Node.js ready for your app: about a minute, once.</Text>
+      ) : tools.length === 0 && (checksFailed || s?.reason === "unknown") ? (
+        <Box flexDirection="column" rowGap={1}>
+          <Text color="error">
+            {checksFailed ?? s?.message ?? "Clodable couldn't check your tools."}
+          </Text>
+          <Button key="check-again" variant="secondary" onPress={() => background(checkAgain($))}>
+            Check again
+          </Button>
+        </Box>
       ) : tools.length === 0 ? (
         <Text dimColor>Checking…</Text>
       ) : null}
@@ -2208,7 +2250,7 @@ function setupPane(
               <Button key="install-git" variant="primary" onPress={() => background(installGit($))}>
                 Install Git
               </Button>
-              <Button key="check-again" plain onPress={() => background(refreshChecks($))}>
+              <Button key="git-check-again" plain onPress={() => background(refreshChecks($))}>
                 Check again
               </Button>
             </Box>
@@ -4716,7 +4758,7 @@ function settingsFields($: EngineInterface, ui: PaneUi, key: string, fromLovable
 // ── Setup helpers (top level, so they can use $) ─────────────────────────────
 
 async function loadRepos($: EngineInterface) {
-  await ensureTools($);
+  await toolsFirst($);
   const out = await $.process.run(
     ["gh", "repo", "list", "--limit", "50", "--json", "nameWithOwner,updatedAt", "--source"],
     { cwd, timeoutMs: 30_000 },
@@ -4783,6 +4825,11 @@ async function setUpHere($: EngineInterface) {
   await refreshChecks($);
 }
 
+/** The setup screen's Check again: the tools and where this folder stands, looked at once more. */
+async function checkAgain($: EngineInterface) {
+  await Promise.all([refreshChecks($), refreshStatus($)]);
+}
+
 /** Apple's installer for its command line developer tools, Git among them: its own window. */
 async function installGit($: EngineInterface) {
   await $.process.run(["xcode-select", "--install"], { timeoutMs: 30_000 }).catch(() => null);
@@ -4792,7 +4839,7 @@ async function installGit($: EngineInterface) {
 async function connectGitHub($: EngineInterface) {
   deviceCode = "";
   $.ui.invalidate("ui.render");
-  await ensureTools($);
+  await toolsFirst($);
   for await (const chunk of $.process.spawn({
     argv: ["gh", "auth", "login", "--web", "--git-protocol", "https", "--hostname", "github.com"],
     cwd,

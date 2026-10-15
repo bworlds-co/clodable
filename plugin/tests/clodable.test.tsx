@@ -3313,8 +3313,12 @@ describe("the tools Clodable needs", () => {
   });
 
   /** A Mac whose own Node.js is `own` (none: undefined), and what Clodable did about it. */
-  function computer(on: any, own: string | undefined) {
-    const env: Record<string, string> = { HOME: "/Users/ada", PATH: "/opt/homebrew/bin:/usr/bin" };
+  function computer(
+    on: any,
+    own: string | undefined,
+    { path = "/opt/homebrew/bin:/usr/bin", fragile = false } = {},
+  ) {
+    const env: Record<string, string> = { HOME: "/Users/ada", ...(path ? { PATH: path } : {}) };
     on("env.get", (_$: unknown, e: { name: string }) => ({ value: env[e.name] }));
     on("env.set", (_$: unknown, e: { name: string; value?: string }) => {
       if (e.value === undefined) delete env[e.name];
@@ -3329,6 +3333,10 @@ describe("the tools Clodable needs", () => {
       if (command === "uname") return ran("Darwin arm64\n");
       if (flag === "-e") {
         if (command === `${BIN}/node`) return seen.fetched ? ran("24.21.0") : ran("", 127);
+        // `node` is whichever comes first on the PATH: Clodable's, once fetched and put first.
+        if (env.PATH?.startsWith(`${BIN}:`) && seen.fetched) return ran("24.21.0");
+        // A fragile Node.js only runs with the PATH the session had.
+        if (fragile && env.PATH !== path) return ran("", 127);
         return own ? ran(own) : ran("", 127);
       }
       if (command === "/bin/sh") {
@@ -3435,10 +3443,64 @@ describe("the tools Clodable needs", () => {
     for (let i = 0; i < 30 && ran.length === 0; i++) await Promise.resolve();
     expect(ran).toEqual([["xcode-select", "--install"]]);
     const before = calls.filter((c) => c[0] === "doctor").length;
+    await pane.press({ key: "git-check-again" });
+    for (let i = 0; i < 30 && calls.filter((c) => c[0] === "doctor").length === before; i++)
+      await Promise.resolve();
+    expect(calls.filter((c) => c[0] === "doctor").length).toBe(before + 1);
+    await pane.unmount();
+  });
+
+  test("a PATH that can't be read is left alone", async ($, on) => {
+    const { env, seen, first } = computer(on, "22.11.0", { path: "" });
+    harness(on, STATUS, true, {}, first);
+    await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+    for (let i = 0; i < 5000 && seen.cliAt < 0; i++) await Promise.resolve();
+    expect(env.PATH).toBeUndefined();
+  });
+
+  test("if Node.js stops running with Clodable's PATH, the session's own comes back", async ($, on) => {
+    const { env, seen, first } = computer(on, "22.11.0", { fragile: true });
+    harness(on, STATUS, true, {}, first);
+    await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+    for (let i = 0; i < 5000 && seen.cliAt < 0; i++) await Promise.resolve();
+    expect(env.PATH).toBe("/opt/homebrew/bin:/usr/bin");
+  });
+
+  test("a tool check that fails says why, with Check again, never Checking… for good", async ($, on) => {
+    const why = "Clodable couldn't run that: spawn node ENOENT";
+    const calls = harness(on, { code: "unknown", message: why }, false, {
+      doctor: out({ code: "unknown", message: why }, false),
+    });
+    on("ui.open", () => ({ value: { isOpen: true } }) as never);
+    await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+    await $.command.run({ command: "clodable", args: "" } as never);
+    const pane = await $.ui.mount({
+      plugin: "clodable",
+      surface: "desktop",
+      component: "Pane",
+      requestId: "clodable",
+      props: {
+        title: "Clodable",
+        isFocused: true,
+        bodyColumns: 80,
+        placement: "dock",
+        scroll: { offset: 0, bodyRows: 80 },
+        view: {},
+      },
+    } as never);
+    let shown: any;
+    for (let i = 0; i < 30 && !shown; i++) {
+      shown = await pane.find({ type: "Text", text: why });
+      if (!shown) await pane.redraw();
+    }
+    expect(shown).toBeDefined();
+    expect(await pane.find({ type: "Text", text: "Checking…" })).toBeUndefined();
+    const before = calls.filter((c) => c[0] === "doctor").length;
     await pane.press({ key: "check-again" });
     for (let i = 0; i < 30 && calls.filter((c) => c[0] === "doctor").length === before; i++)
       await Promise.resolve();
     expect(calls.filter((c) => c[0] === "doctor").length).toBe(before + 1);
+    expect(calls.filter((c) => c[0] === "status").length).toBeGreaterThan(1);
     await pane.unmount();
   });
 
