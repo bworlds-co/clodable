@@ -333,8 +333,9 @@ export function saveMessage(request: string): string {
   // Point & ask: what the builder asked, without what they pointed at.
   const asked = request.match(POINTED_AT)?.[1];
   if (asked) return saveMessage(asked);
-  if (request.startsWith("Saving stopped: ")) return "Moved a secret key out of the code";
-  if (request.startsWith("Publishing stopped: ")) return "Fixed what stopped publishing";
+  if (request === FIX_TEXT.secret) return "Moved a secret key out of the code";
+  if (request === FIX_TEXT.publish) return "Fixed what stopped publishing";
+  if (request === FIX_TEXT.conflict) return "Combined the draft with the live site";
   // A step of the move, as the panel asked Claude: what it did, not the command.
   if (/^(Moving off Lovable: |Switch my preview )/.test(request)) {
     const what = request
@@ -374,38 +375,57 @@ export function shortReason(error: { code: string; message: string }): string {
     .replace(/\.$/, "");
 }
 
-/** The message Claude gets when the builder presses "Fix it" after a failed publish. */
-export function fixPrompt(error: {
+/** Fix it's requests, in the builder's words: one per kind of stop, the same each time. */
+export const FIX_TEXT = {
+  conflict: "Combine my draft with the changes on the live site, so I can publish again.",
+  secret: "Move the secret key out of my code, so my changes can be saved.",
+  publish: "Fix what stopped my publish, so I can publish again.",
+} as const;
+
+/**
+ * What "Fix it" sends after a stop: the builder's words, and what stopped (the error, the files,
+ * the build's output), which reaches Claude beside their message.
+ */
+export function fixRequest(error: {
   code: string;
   message: string;
   details?: string;
   files?: string[];
-}): string {
+}): { text: string; details: string } {
   if (error.code === "conflict") {
-    return [
-      "Publishing stopped: my draft and the live site both changed the same files.",
-      error.files?.length ? `Files: ${error.files.join(", ")}.` : "",
-      "Please combine both versions (keep both changes where you can), finish the merge so nothing is left unresolved, and check the app still builds. Then tell me it's ready to publish.",
-    ]
-      .filter(Boolean)
-      .join("\n");
+    return {
+      text: FIX_TEXT.conflict,
+      details: [
+        "From Clodable's Fix it: publishing stopped because the builder's draft and the live site both changed the same files.",
+        error.files?.length ? `Files: ${error.files.join(", ")}.` : "",
+        "Combine both versions (keep both changes where you can), finish the merge so nothing is left unresolved, and check the app still builds. Then tell them it's ready to publish.",
+      ]
+        .filter(Boolean)
+        .join("\n"),
+    };
   }
   if (error.code === "secret-found") {
-    return [
-      `Saving stopped: ${error.message}. Nothing went to GitHub.`,
+    return {
+      text: FIX_TEXT.secret,
+      details: [
+        `From Clodable's Fix it: saving stopped. ${error.message}. Nothing went to GitHub.`,
+        error.files?.length ? `Where: ${error.files.join(", ")}` : "",
+        error.details ? `What the check found (masked):\n${error.details}` : "",
+        "Move it out of the code. Anything in the app's files reaches visitors' browsers and GitHub, so a secret key belongs on the server: for example a Supabase Edge Function secret, used from that function. If this key was ever shared or published before, tell them to replace it with its provider. Don't save or commit yourself: Clodable saves when you're done.",
+      ]
+        .filter(Boolean)
+        .join("\n\n"),
+    };
+  }
+  return {
+    text: FIX_TEXT.publish,
+    details: [
+      `From Clodable's Fix it: publishing stopped. ${error.message}`,
       error.files?.length ? `Where: ${error.files.join(", ")}` : "",
-      error.details ? `What the check found (masked):\n${error.details}` : "",
-      "Please move it out of the code. Anything in the app's files reaches visitors' browsers and GitHub, so a secret key belongs on the server: for example a Supabase Edge Function secret, used from that function. If this key was ever shared or published before, tell me to replace it with its provider. Don't save or commit yourself: Clodable saves when you're done.",
+      error.details ? `Details:\n${error.details.slice(0, 3000)}` : "",
+      "Fix it so they can publish again. Don't publish yourself: they'll click Publish.",
     ]
       .filter(Boolean)
-      .join("\n\n");
-  }
-  return [
-    `Publishing stopped: ${error.message}`,
-    error.files?.length ? `Where: ${error.files.join(", ")}` : "",
-    error.details ? `Details:\n${error.details.slice(0, 3000)}` : "",
-    "Please fix it so I can publish again. Don't publish yourself; I'll click Publish.",
-  ]
-    .filter(Boolean)
-    .join("\n\n");
+      .join("\n\n"),
+  };
 }
