@@ -25,7 +25,31 @@
   <img src="docs/assets/hero.png" alt="A bakery website running locally with Clodable's preview toolbar: the headline is highlighted for editing, and a phone preview sits beside it." width="100%">
 </p>
 
-**Why Clodable.** AI app builders like Lovable showed that anyone can build an app by describing it. Claude Code showed how much an AI can do when it works right in your code. Clodable brings the two together on your own computer: Lovable's simple way of building, the full power of Claude Code, and every account in your name.
+## Get started
+
+**You'll need** a Mac with [Claude Desktop](https://claude.com/download), signed in with a paid Claude plan, and your app on GitHub. Lovable [pushes it there in one click](https://docs.lovable.dev/integrations/github). Windows hasn't been tested yet.
+
+1. **Install the tools Clodable uses.** You only do this once.
+   - [Node.js](https://nodejs.org/en/download): the LTS version, as the macOS Installer (.pkg).
+   - [GitHub CLI](https://github.com/cli/cli/releases/latest): the file ending in `macOS_universal.pkg`.
+   - Git: open Terminal and type `git --version`. If your Mac offers to install the command line developer tools, click **Install**.
+2. **Sign in to GitHub.** In Terminal, type `gh auth login --web`, then press Enter at each question and follow the browser.
+3. **Add Clodable to Claude.** Paste these lines in Terminal. The first two install Claude Code's command line, which Claude Desktop doesn't include; skip them if `claude --version` already works.
+   ```
+   curl -fsSL https://claude.ai/install.sh | bash
+   export PATH="$HOME/.local/bin:$PATH"
+   claude plugin marketplace add bworlds-co/clodable
+   claude plugin install clodable@clodable
+   ```
+4. **Open an empty folder** in Claude Desktop's **Code** tab and type `/clodable`. If Claude Desktop was open, quit it (⌘Q) and open it again first. The setup checks your tools, brings your app in from GitHub and adds a few plain files. Then ask for your first change.
+
+Moving off Lovable, putting your site online, adding a backend: Clodable sets up Netlify and Supabase in your name when you need them (both free to start). On Lovable Cloud, type `/move-off-lovable` to open **Move off Lovable** in the panel ([how it goes](#move-off-lovable-to-a-stack-you-own)). Helping a client? Follow the [onboarding playbook](docs/ONBOARDING.md).
+
+> **About Claude plans.** Pro and Max are personal plans. For your company's app, use **Claude Team or Enterprise**. Anthropic's consumer terms don't allow business use of personal plans in the EU.
+
+## Why Clodable
+
+AI app builders like Lovable showed that anyone can build an app by describing it. Claude Code showed how much an AI can do when it works right in your code. Clodable brings the two together on your own computer: Lovable's simple way of building, the full power of Claude Code, and every account in your name.
 
 **For builders who aren't developers.** If you can say what you want, you can shape your app: Claude makes the change, you see it in the preview beside the chat, and you publish when you're happy.
 
@@ -69,26 +93,6 @@ Clodable is built and tested with apps made with **Lovable**:
 - **Your computer:** a Mac with Claude Desktop. Windows hasn't been tested yet, and the move off Lovable doesn't run there yet.
 
 Apps from other AI app builders aren't supported yet. A React app built with Vite may already work, since that's what Clodable's preview runs, but none has been tested. Apps built with Next.js don't work yet.
-
-## Get started
-
-**You'll need:**
-- [Claude Desktop](https://claude.com/download).
-- A GitHub account with your app on it. Your AI app builder can push your project there in one click:
-  - [Lovable](https://docs.lovable.dev/integrations/github)
-- Nothing else. Moving off Lovable, putting your site online, adding a backend: Clodable sets up Netlify and Supabase in your name when you need them (both free to start).
-
-> **About Claude plans.** Pro and Max are personal plans. For your company's app, use **Claude Team or Enterprise**. Anthropic's consumer terms don't allow business use of personal plans in the EU.
-
-1. **Add Clodable to Claude.** Run this once in Terminal. Claude Desktop picks it up too.
-   ```
-   claude plugin install clodable --marketplace bworlds-co/clodable
-   ```
-   Already in a Claude Code session in the terminal? Type `/plugin install clodable --marketplace bworlds-co/clodable` there instead.
-2. **Open an empty folder** in Claude Desktop's Code tab, and type `/clodable`.
-3. **Follow the setup.** It connects GitHub, brings your app in, and adds a few plain files. Then ask for your first change.
-
-On Lovable Cloud, type `/move-off-lovable` to open **Move off Lovable** in the panel ([how it goes](#move-off-lovable-to-a-stack-you-own)). Once the move has started, the panel opens on it. Helping a client? Follow the [onboarding playbook](docs/ONBOARDING.md).
 
 ## Move off Lovable, to a stack you own
 

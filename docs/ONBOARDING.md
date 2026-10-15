@@ -21,13 +21,18 @@ In Lovable, connect the project to GitHub, in the client's own account or organi
 
 ## 2. Install, on the client's computer
 
+Follow [Get started](../README.md#get-started) in the README with them. In short:
 1. Install [Claude Desktop](https://claude.com/download) and sign in with the right plan.
-2. Install Node.js 20.19 or newer, Git, and the [GitHub CLI](https://cli.github.com). Clodable's setup checks each one and says what's missing.
-3. Add Clodable to Claude:
+2. Install [Node.js](https://nodejs.org/en/download) (LTS, macOS Installer), the [GitHub CLI](https://github.com/cli/cli/releases/latest) (`macOS_universal.pkg`) and Git (`git --version` offers the developer tools). Clodable's setup checks each one and says what's missing.
+3. Sign in to GitHub: `gh auth login --web`, on its own, since it asks questions.
+4. Add Clodable to Claude, in Terminal. Claude Desktop doesn't include Claude Code's command line, and can't add a marketplace itself, so the first two lines install it (skip them if `claude --version` works):
    ```
-   /plugin marketplace add bworlds-co/clodable
-   /plugin install clodable@clodable
+   curl -fsSL https://claude.ai/install.sh | bash
+   export PATH="$HOME/.local/bin:$PATH"
+   claude plugin marketplace add bworlds-co/clodable
+   claude plugin install clodable@clodable
    ```
+   The installer puts `claude` in `~/.local/bin`, which a new Mac's Terminal doesn't search: the `export` line covers this window.
 
 ## 3. Bring the app in
 
