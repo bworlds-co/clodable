@@ -85,7 +85,7 @@ The inbox is git-ignored.
 
 ## Apps still on Lovable
 
-`.clodable/config.json` records two facts that setup asks once (the panel asks apps set up before): `backend` (`lovable-cloud`, `supabase` or `none`) and `hosting` (`lovable` or `github`). `clodable config <key> <value>` changes one and refreshes the files that depend on it.
+`.clodable/config.json` records two facts that setup asks once (the panel asks apps set up before): `backend` (`lovable-cloud`, `supabase` or `none`) and `hosting` (`lovable`, `github` or `none`, not online yet). `clodable config <key> <value>` changes one and refreshes the files that depend on it.
 - **Lovable Cloud:** Lovable owns the database and backend. AGENTS.md tells Claude it can't change them from here, the mod refuses Supabase writes with that reason, `.mcp.json` gets no Supabase server, and Publish skips backend functions.
 - **Lovable hosting:** Lovable only puts live what was published in Lovable. Publish ends at "Published on GitHub" (`deploy: "lovable"`, with `lovableUrl`), and the bar points to Lovable for the last click.
 - **Moving off Lovable:** `clodable move check` reads the code and says what the move involves, who does each part (`clodable`, `you`, `help`), and how hard it is overall (`simple`, `some-steps`, `needs-help`). The guided move itself is built in steps; see DECISIONS Q5.
@@ -144,6 +144,18 @@ The live app moves over, with a pause as short as the last export takes. Claude 
 - **Checks** (`verify.ts`), against the export, never against the copy itself: rows per table, people and password hashes, policies and protected tables per schema, triggers and foreign keys, the app's triggers on Supabase's tables, the API roles' grants, counters, nothing calling Lovable Cloud, extensions, buckets and file counts.
 - **Copying again** (a newer export): the copy's app objects and people are emptied first (`emptyCopy`), buckets and files kept. Only ever on a copy.
 - **Tests.** `packages/core/test/move.test.ts` copies a Lovable-like export into a local PostgreSQL 18 (skipped where none is installed; `CLODABLE_TEST_FETCHED_TOOLS=1` uses the fetched tools). `packages/cli/test/move.test.ts` drives every step through the CLI against a fake Supabase, Netlify and Resend (`core/test/fake-*.ts`), the switch included: the pause applied to the source, a stale export refused, the final copy's writes and jobs, going live. `scripts/e2e-move.mts` does the whole move on a real local Supabase stack, then signs people in with their original passwords.
+
+## Apps not online yet, or without a backend
+
+`packages/core/src/online.ts`, with the move's own pieces (DECISIONS Q17). Claude runs the two commands when the builder presses the panel's button (the command reaches it beside their request); the tokens are pasted in the panel and go to the CLI on stdin.
+
+| CLI | What happens |
+|---|---|
+| `clodable connect supabase\|netlify` (token on stdin) | The token, checked, kept in this computer's secret store. The plugin never lets Claude run it. |
+| `clodable site`, `clodable site create [--team]` | The Netlify teams; then a site named after the app, the backend's address and keys (service key kept secret) and the settings pasted here, `netlify.toml` and the move's workflow, the two GitHub secrets. `.clodable/config.json` records `netlify` (site id, name, address, team: nothing secret), `hosting: github` and `liveUrl`; sign-in links on the app's own Supabase come back to the site. A second run finds the same site. The next Publish puts it online (`siteLiveAt` in the local state, `site.live` in `clodable status`). |
+| `clodable backend`, `clodable backend create [--org] [--region]` | The organizations with what a project costs and the free projects left; then a project (its ref recorded at once, so a second run waits for it instead of making another), its public address and key in `.env`, its server keys in the app's settings on this computer (and on the site, if there is one), sign-in for the preview and the site with no confirmation email (Supabase's mailer only writes to the team), `backend: supabase` and the kit refreshed: AGENTS.md's database rules, `.mcp.json`. |
+
+`clodable status` reports `netlify.connected` when `hosting` is `none`, `database.connected` when there's no backend yet too, and `site` once Clodable made one. A Publish that no host reports, on a repository that never had a GitHub deployment, ends with `noHost: true` ("Published on GitHub"), kept in `lastPublish`, so the bar says "Not on the web yet" and offers **Put it online**.
 
 ## The app's database (own Supabase)
 

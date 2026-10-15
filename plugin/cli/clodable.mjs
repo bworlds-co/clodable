@@ -580,6 +580,11 @@ async function exec2(command, args, options) {
     };
   }
 }
+async function commandPath(command, cwd2 = process.cwd()) {
+  const probe = process.platform === "win32" ? await exec2("where", [command], { cwd: cwd2, timeout: 1e4 }) : await exec2("sh", ["-c", `command -v ${command}`], { cwd: cwd2, timeout: 1e4 });
+  const path2 = probe.stdout.split(/\r?\n/)[0]?.trim();
+  return probe.exitCode === 0 && path2 ? path2 : void 0;
+}
 async function hasCommand(command, cwd2 = process.cwd()) {
   const probe = process.platform === "win32" ? await exec2("where", [command], { cwd: cwd2, timeout: 1e4 }) : await exec2("sh", ["-c", `command -v ${command}`], { cwd: cwd2, timeout: 1e4 });
   return probe.exitCode === 0 && probe.stdout.trim().length > 0;
@@ -20935,8 +20940,22 @@ var ProjectConfigSchema = external_exports.object({
    * Clodable shapes the pages, and the move to the builder's own Supabase is a guided step.
    */
   backend: external_exports.enum(["unknown", "lovable-cloud", "supabase", "none"]).default("unknown"),
-  /** Who puts the site live: a host that deploys from GitHub, or Lovable (only on its Publish click). */
-  hosting: external_exports.enum(["unknown", "github", "lovable"]).default("unknown"),
+  /**
+   * Who puts the site live: a host that deploys from GitHub, Lovable (only on its Publish click), or
+   * nobody yet (`none`: the builder can put it online on their own Netlify from Clodable).
+   */
+  hosting: external_exports.enum(["unknown", "github", "lovable", "none"]).default("unknown"),
+  /**
+   * The site Clodable put on the builder's own Netlify: each Publish goes live there through a
+   * GitHub Actions workflow. Nothing secret: the token that reaches it stays on each computer.
+   */
+  netlify: external_exports.object({
+    siteId: external_exports.string(),
+    name: external_exports.string(),
+    url: external_exports.string(),
+    admin: external_exports.string(),
+    account: external_exports.string()
+  }).optional(),
   checks: external_exports.object({
     build: external_exports.boolean().default(true),
     packages: external_exports.boolean().default(true),
@@ -20958,8 +20977,14 @@ var LocalStateSchema = external_exports.object({
     title: external_exports.string(),
     at: external_exports.string(),
     url: external_exports.string().optional(),
-    prNumber: external_exports.number().optional()
-  }).optional()
+    prNumber: external_exports.number().optional(),
+    /** No host ever reported putting the app online: this publish is on GitHub only. */
+    noHost: external_exports.boolean().optional()
+  }).optional(),
+  /** When a Publish was first seen live on the site Clodable put on Netlify. */
+  siteLiveAt: external_exports.string().optional(),
+  /** The app's settings set on that site (names only). */
+  siteSettings: external_exports.array(external_exports.string()).optional()
 });
 var CONFIG_PATH = ".clodable/config.json";
 var STATE_PATH = ".clodable/local/state.json";
@@ -22401,9 +22426,14 @@ async function* createHome(ws, options) {
     "Creating your new backend",
     "Starting it up: about 2 minutes"
   );
+  await waitUntilUp(api, created.ref);
+  yield step("move:create", "done", "Your new backend is ready", home.name);
+  return home;
+}
+async function waitUntilUp(api, ref) {
   const started = Date.now();
   while (true) {
-    const project = await api.project(created.ref).catch(() => void 0);
+    const project = await api.project(ref).catch(() => void 0);
     if (project?.status === "INIT_FAILED") {
       throw new ClodableError({
         code: "supabase-failed",
@@ -22412,8 +22442,8 @@ async function* createHome(ws, options) {
       });
     }
     if (project?.status === "ACTIVE_HEALTHY") {
-      const health = await api.health(created.ref, ["db", "auth", "rest", "storage"]).catch(() => []);
-      if (health.length > 0 && health.every((s) => s.healthy)) break;
+      const health = await api.health(ref, ["db", "auth", "rest", "storage"]).catch(() => []);
+      if (health.length > 0 && health.every((s) => s.healthy)) return;
     }
     if (Date.now() - started > 15 * 6e4)
       throw new ClodableError({
@@ -22423,8 +22453,6 @@ async function* createHome(ws, options) {
       });
     await new Promise((done) => setTimeout(done, 5e3));
   }
-  yield step("move:create", "done", "Your new backend is ready", home.name);
-  return home;
 }
 async function homeKeys(api, ref) {
   let keys = await api.apiKeys(ref);
@@ -22589,7 +22617,7 @@ async function applyMigration(ws, file3) {
   const text2 = await readFile5(path2, "utf8").catch(() => {
     throw new ClodableError({ code: "not-found", message: `There's no ${file3}.` });
   });
-  const { sql: db } = await database(ws);
+  const { api, ref, sql: db } = await database(ws);
   const [history2] = await db.rows(
     "select to_regclass('supabase_migrations.schema_migrations') is not null as present"
   );
@@ -22610,7 +22638,29 @@ async function applyMigration(ws, file3) {
       "commit;"
     ].join("\n")
   );
+  await untilTheApiSees(api, ref, newTables(text2));
   return { version: version3, name, applied: true };
+}
+function newTables(sql) {
+  const found2 = sql.matchAll(
+    /create\s+table\s+(?:if\s+not\s+exists\s+)?(?:"?(\w+)"?\.)?"?(\w+)"?/gi
+  );
+  return [...found2].filter((m) => !m[1] || m[1] === "public").map((m) => m[2]);
+}
+async function untilTheApiSees(api, ref, tables) {
+  if (tables.length === 0 || localTarget()) return;
+  const keys = await homeKeys(api, ref).catch(() => void 0);
+  if (!keys) return;
+  const deadline = Date.now() + 15e3;
+  for (const table of tables) {
+    while (Date.now() < deadline) {
+      const answer = await fetch(`${projectUrl(ref)}/rest/v1/${table}?limit=0`, {
+        headers: { apikey: keys.publishable }
+      }).then((response) => response.text()).catch(() => "");
+      if (!answer.includes("PGRST205")) break;
+      await new Promise((done) => setTimeout(done, 1e3));
+    }
+  }
 }
 
 // ../core/src/kit/index.ts
@@ -23001,16 +23051,50 @@ async function localSettings(root) {
     return {};
   }
 }
+async function siteOf(ws) {
+  const add = (names2, name) => [.../* @__PURE__ */ new Set([...names2 ?? [], name])].sort();
+  if (ws.config.netlify) {
+    const state = await ws.state();
+    return {
+      account: ws.config.netlify.account,
+      id: ws.config.netlify.siteId,
+      names: state.siteSettings ?? [],
+      record: async (name) => {
+        await ws.updateState({ siteSettings: add((await ws.state()).siteSettings, name) });
+      }
+    };
+  }
+  const move = await loadMove(ws.root);
+  if (!move.site) return void 0;
+  return {
+    account: move.site.account,
+    id: move.site.id,
+    names: move.siteSettings ?? [],
+    record: async (name) => {
+      await updateMove(ws.root, (s) => {
+        s.siteSettings = add(s.siteSettings, name);
+      });
+    }
+  };
+}
 async function settingsStatus(ws) {
   const { wanted, lovable } = await appSettings(ws.root);
   const values = await localSettings(ws.root);
-  const move = await loadMove(ws.root);
+  const site = await siteOf(ws);
   return {
     wanted,
     local: wanted.filter((name) => values[name] !== void 0),
     lovable,
-    ...move.site ? { site: wanted.filter((name) => (move.siteSettings ?? []).includes(name)) } : {}
+    ...site ? { site: wanted.filter((name) => site.names.includes(name)) } : {}
   };
+}
+async function rememberSettings(root, add) {
+  const values = { ...await localSettings(root), ...add };
+  await storeSecret(storeKey(root), JSON.stringify(values));
+  await writeJsonFile(join11(root, SETTINGS_PATH), {
+    names: Object.keys(values).sort(),
+    at: (/* @__PURE__ */ new Date()).toISOString()
+  });
 }
 async function setSetting(ws, name, value) {
   if (!name || !/^[A-Z][A-Z0-9_]*$/.test(name)) {
@@ -23031,16 +23115,14 @@ async function setSetting(ws, name, value) {
     names: Object.keys(values).sort(),
     at: (/* @__PURE__ */ new Date()).toISOString()
   });
-  const move = await loadMove(ws.root);
-  if (move.site) {
+  const site = await siteOf(ws);
+  if (site) {
     const netlify = await NetlifyApi.onThisComputer();
     if (netlify) {
-      await netlify.setEnv(move.site.account, move.site.id, name, clean2, {
+      await netlify.setEnv(site.account, site.id, name, clean2, {
         secret: !name.startsWith("VITE_")
       });
-      await updateMove(ws.root, (s) => {
-        s.siteSettings = [.../* @__PURE__ */ new Set([...s.siteSettings ?? [], name])].sort();
-      });
+      await site.record(name);
     }
   }
   return settingsStatus(ws);
@@ -23072,6 +23154,20 @@ function backendEnv(b) {
 var BACKEND_ENV = Object.keys(
   backendEnv({ ref: "", url: "", publishable: "", anon: "", serviceRole: "" })
 );
+function envWith(text2, values) {
+  const seen = /* @__PURE__ */ new Set();
+  const lines = text2.split("\n").map((line) => {
+    const match = line.match(/^(\s*(?:export\s+)?)([A-Z0-9_]+)(\s*=\s*)(["']?)(.*?)\4\s*$/);
+    if (!match || !(match[2] in values)) return line;
+    seen.add(match[2]);
+    return `${match[1]}${match[2]}${match[3]}${match[4]}${values[match[2]]}${match[4]}`;
+  });
+  const missing = Object.entries(values).filter(([key2]) => !seen.has(key2));
+  if (missing.length === 0) return lines.join("\n");
+  while (lines.length > 0 && lines.at(-1) === "") lines.pop();
+  return `${[...lines, ...missing.map(([key2, value]) => `${key2}="${value}"`)].join("\n")}
+`;
+}
 
 // ../core/src/move/site.ts
 var NETLIFY_CLI = "netlify-cli@27.12.0";
@@ -23160,7 +23256,7 @@ function installSteps(pm, lockfile) {
   }
 }
 var gha = (expression) => ["$", "{{ ", expression, " }}"].join("");
-function netlifyWorkflow(project, liveBranch, siteUrl) {
+function netlifyWorkflow(project, liveBranch, siteUrl2) {
   const lockfile = lockfileOf(project.root);
   const repoApi = `repos/${gha("github.repository")}/deployments`;
   return [
@@ -23204,7 +23300,7 @@ function netlifyWorkflow(project, liveBranch, siteUrl) {
     "        if: success()",
     "        env:",
     `          GH_TOKEN: ${gha("github.token")}`,
-    `        run: gh api ${repoApi}/${gha("steps.start.outputs.id")}/statuses -f state=success -f environment_url=${siteUrl} -f log_url=${gha("github.server_url")}/${gha("github.repository")}/actions/runs/${gha("github.run_id")} > /dev/null`,
+    `        run: gh api ${repoApi}/${gha("steps.start.outputs.id")}/statuses -f state=success -f environment_url=${siteUrl2} -f log_url=${gha("github.server_url")}/${gha("github.repository")}/actions/runs/${gha("github.run_id")} > /dev/null`,
     "      - name: Tell GitHub it didn't go live",
     "        if: failure() && steps.start.outputs.id",
     "        env:",
@@ -23227,34 +23323,8 @@ async function* putSiteOnNetlify(ws, options = {}) {
   const supabase = await SupabaseApi.required();
   const token = await readSecret(NETLIFY_TOKEN);
   yield step("move:site", "running", "Putting your site on Netlify", "Creating the site");
-  let site = state.site ? await netlify.site(state.site.id).catch(() => void 0) : void 0;
-  if (!site) {
-    const accounts = await netlify.accounts();
-    const account = accounts.find((a2) => a2.slug === options.account) ?? (accounts.length === 1 ? accounts[0] : void 0);
-    if (!account) {
-      throw new ClodableError({
-        code: "move-not-ready",
-        message: "Which Netlify team should the site go in?",
-        hint: `Pick one: ${accounts.map((a2) => `${a2.name} (${a2.slug})`).join(", ")}.`
-      });
-    }
-    const base = siteName(ws.project.name);
-    for (const name of [base, `${base}-${Math.random().toString(36).slice(2, 6)}`]) {
-      site = await netlify.createSite(account.slug, name).catch((error62) => {
-        if (error62 instanceof ClodableError && /422/.test(error62.details ?? "")) return void 0;
-        throw error62;
-      });
-      if (site) break;
-    }
-    if (!site) {
-      throw new ClodableError({
-        code: "netlify-failed",
-        message: "Netlify didn't accept a name for your site.",
-        hint: "Try again: Clodable picks another name."
-      });
-    }
-  }
-  const url2 = site.ssl_url || site.url;
+  const site = (state.site ? await netlify.site(state.site.id).catch(() => void 0) : void 0) ?? await createNetlifySite(netlify, ws.project.name, options.account);
+  const url2 = siteUrl(site);
   await updateMove(ws.root, (s) => {
     s.site = {
       id: site.id,
@@ -23271,15 +23341,53 @@ async function* putSiteOnNetlify(ws, options = {}) {
     "Pointing it at your new backend"
   );
   const backend = backendOf(state.home.ref, await homeKeys(supabase, state.home.ref));
+  const carried = await setSiteEnv(netlify, site, ws.root, backend);
+  if (carried.length > 0) {
+    await updateMove(ws.root, (s) => {
+      s.siteSettings = withNames(s.siteSettings, carried);
+    });
+  }
+  yield step("move:site", "running", "Putting your site on Netlify", "Setting up Publish");
+  const files = await setUpPublish(ws, site, token);
+  const settings2 = await siteSettingsOf(netlify, site.account_slug, site.id, ws.root);
+  yield step("move:site", "done", "Your site is ready on Netlify", `Publish to see it at ${url2}`);
+  return { site: { name: site.name, url: url2, admin: site.admin_url }, files, settings: settings2 };
+}
+var siteUrl = (site) => site.ssl_url || site.url;
+async function createNetlifySite(netlify, appName, team) {
+  const accounts = await netlify.accounts();
+  const account = accounts.find((a2) => a2.slug === team) ?? (accounts.length === 1 ? accounts[0] : void 0);
+  if (!account) {
+    throw new ClodableError({
+      code: "needs-choice",
+      message: "Which Netlify team should the site go in?",
+      hint: `Pick one: ${accounts.map((a2) => `${a2.name} (${a2.slug})`).join(", ")}.`
+    });
+  }
+  const base = siteName(appName);
+  for (const name of [base, `${base}-${Math.random().toString(36).slice(2, 6)}`]) {
+    const site = await netlify.createSite(account.slug, name).catch((error62) => {
+      if (error62 instanceof ClodableError && /422/.test(error62.details ?? "")) return void 0;
+      throw error62;
+    });
+    if (site) return site;
+  }
+  throw new ClodableError({
+    code: "netlify-failed",
+    message: "Netlify didn't accept a name for your site.",
+    hint: "Try again: Clodable picks another name."
+  });
+}
+async function setSiteEnv(netlify, site, root, backend) {
   const existing = await netlify.envKeys(site.account_slug, site.id);
-  for (const [key2, value] of Object.entries(backendEnv(backend))) {
+  for (const [key2, value] of Object.entries(backend ? backendEnv(backend) : {})) {
     await netlify.setEnv(site.account_slug, site.id, key2, value, {
       secret: key2 === "SUPABASE_SERVICE_ROLE_KEY",
       existing
     });
   }
-  const { wanted } = await appSettings(ws.root);
-  const mine = await localSettings(ws.root);
+  const { wanted } = await appSettings(root);
+  const mine = await localSettings(root);
   const carried = wanted.filter((name) => mine[name] !== void 0);
   for (const name of carried) {
     await netlify.setEnv(site.account_slug, site.id, name, mine[name], {
@@ -23287,12 +23395,9 @@ async function* putSiteOnNetlify(ws, options = {}) {
       existing
     });
   }
-  if (carried.length > 0) {
-    await updateMove(ws.root, (s) => {
-      s.siteSettings = withNames(s.siteSettings, carried);
-    });
-  }
-  yield step("move:site", "running", "Putting your site on Netlify", "Setting up Publish");
+  return carried;
+}
+async function setUpPublish(ws, site, token) {
   const files = [];
   if (!existsSync8(join12(ws.root, NETLIFY_TOML))) {
     await writeFile5(
@@ -23301,7 +23406,7 @@ async function* putSiteOnNetlify(ws, options = {}) {
     );
     files.push(NETLIFY_TOML);
   }
-  const workflow = netlifyWorkflow(ws.project, ws.config.liveBranch, url2);
+  const workflow = netlifyWorkflow(ws.project, ws.config.liveBranch, siteUrl(site));
   const workflowPath = join12(ws.root, WORKFLOW_PATH);
   const before = existsSync8(workflowPath) ? await readFile7(workflowPath, "utf8") : "";
   if (before !== workflow) {
@@ -23311,9 +23416,7 @@ async function* putSiteOnNetlify(ws, options = {}) {
   }
   await ws.github.setSecret("NETLIFY_AUTH_TOKEN", token);
   await ws.github.setSecret("NETLIFY_SITE_ID", site.id);
-  const settings2 = await siteSettingsOf(netlify, site.account_slug, site.id, ws.root);
-  yield step("move:site", "done", "Your site is ready on Netlify", `Publish to see it at ${url2}`);
-  return { site: { name: site.name, url: url2, admin: site.admin_url }, files, settings: settings2 };
+  return files;
 }
 async function siteSettingsOf(netlify, account, siteId, root) {
   const { wanted, lovable } = await appSettings(root);
@@ -23338,6 +23441,11 @@ var LOVABLE_CLOUD = `## Database and backend: on Lovable Cloud
 - If the builder asks for something that needs a database or backend change, say so plainly and offer the two ways forward: make that change in Lovable, or first move the app to their own Supabase (**Move off Lovable** in the Clodable panel, a guided step).
 - Never write migration files, or code that relies on a database change that hasn't happened: the live app would break after Publish.
 - Changes to backend functions (\`supabase/functions/\`) only reach Lovable Cloud through Lovable. Avoid them, and if one is needed, tell the builder to make it in Lovable.`;
+var NO_BACKEND = `## Database and backend: none yet
+- This app has no database, no sign-in and no backend yet.
+- When the builder asks for something that needs one (accounts and sign-in, saving data people enter, uploads), say so in one plain sentence and ask them to click **Add a backend** in the Clodable panel (type \`/clodable\`). Clodable creates it on their own Supabase (free to start) and connects the app; then ask them to tell you when it's there.
+- Don't set up a database or a sign-in service any other way, and don't fake one in the browser's storage for things that must last.
+- Once the backend is there, these instructions change to say how to work with it.`;
 function supabaseSection(ref) {
   return `## Database: live data, handle with care
 ${ref ? `- The app uses Supabase project \`${ref}\`. The preview uses **live data**: real customers, real orders.` : "- If the app uses a database, the preview uses **live data**: real customers, real orders."}
@@ -23370,7 +23478,7 @@ The person you're working with is a **builder**: they know their product deeply,
 
 ## How changes reach the live site
 - Every reply is **saved** automatically to the builder's draft (\`draft/<their GitHub login>\`). You don't need to commit, push or open pull requests.
-${input2.hosting === "lovable" ? `- **Publish** is the builder's decision. They click Publish in Clodable, which checks the app and merges the draft into \`${input2.liveBranch}\`. The site is hosted by Lovable, so it goes live once they click **Publish \u2192 Publish changes** in Lovable. Clodable reminds them.` : `- **Publish** is the builder's decision. They click Publish in Clodable, which checks the app, merges the draft into \`${input2.liveBranch}\`, and the host puts it live.`}
+${input2.hosting === "lovable" ? `- **Publish** is the builder's decision. They click Publish in Clodable, which checks the app and merges the draft into \`${input2.liveBranch}\`. The site is hosted by Lovable, so it goes live once they click **Publish \u2192 Publish changes** in Lovable. Clodable reminds them.` : input2.hosting === "none" ? `- **Publish** is the builder's decision. They click Publish in Clodable, which checks the app and merges the draft into \`${input2.liveBranch}\`. The app isn't online yet: to put it on the web, they click **Put your site online** in the Clodable panel (their own Netlify, free to start), and each Publish updates it from then on.` : `- **Publish** is the builder's decision. They click Publish in Clodable, which checks the app, merges the draft into \`${input2.liveBranch}\`, and the host puts it live.`}
 - Never push to \`${input2.liveBranch}\`, never force-push, and never merge pull requests yourself.
 - If asked to "publish" or "put it live", tell them to click **Publish** in the Clodable bar above the message box.
 
@@ -23381,7 +23489,7 @@ ${input2.hosting === "lovable" ? `- **Publish** is the builder's decision. They 
 - The preview toolbar at the bottom of the page belongs to Clodable. It's not part of the app. Don't edit or remove it.
 - Requests from the preview arrive as messages that start with "From the preview". Treat them like requests from the builder.
 
-${input2.backend === "lovable-cloud" ? LOVABLE_CLOUD : supabaseSection(input2.supabaseRef)}
+${input2.backend === "lovable-cloud" ? LOVABLE_CLOUD : input2.backend === "none" ? NO_BACKEND : supabaseSection(input2.supabaseRef)}
 
 ## Secrets
 - Never put API keys or passwords in code. Public keys (the Supabase URL and anon key) are fine.
@@ -23405,7 +23513,8 @@ var CLODABLE_FILES = [
   "AGENTS.md",
   "CLAUDE.md",
   ".mcp.json",
-  WORKFLOW_PATH
+  WORKFLOW_PATH,
+  NETLIFY_TOML
 ];
 function clodableFile(path2) {
   return CLODABLE_FILES.some((own2) => path2 === own2 || path2.startsWith(`${own2}/`));
@@ -23920,7 +24029,15 @@ async function status(ws, options = {}) {
     ...state.lastPublish ? { lastPublish: state.lastPublish } : {},
     ...state.pullRequest ? { pullRequest: state.pullRequest } : {},
     ...await whereTheMoveIs(ws.root),
-    ...ws.config.backend === "supabase" ? { database: { connected: Boolean(await readSecret(SUPABASE_TOKEN)) } } : {}
+    ...ws.config.backend === "supabase" || ws.config.backend === "none" ? { database: { connected: Boolean(await readSecret(SUPABASE_TOKEN)) } } : {},
+    ...ws.config.netlify ? {
+      site: {
+        url: ws.config.netlify.url,
+        admin: ws.config.netlify.admin,
+        live: Boolean(state.siteLiveAt)
+      }
+    } : {},
+    ...ws.config.hosting === "none" ? { netlify: { connected: Boolean(await readSecret(NETLIFY_TOKEN)) } } : {}
   };
 }
 async function history(ws, options = {}) {
@@ -24357,6 +24474,7 @@ var FakeGitHub = class _FakeGitHub {
   static persistent(bareRepo, stateFile = `${bareRepo}/clodable-fake-github.json`) {
     const fake = new _FakeGitHub(bareRepo);
     fake.stateFile = stateFile;
+    if (process.env.CLODABLE_FAKE_HOST === "none") fake.deploymentFor = () => [];
     if (existsSync11(stateFile)) {
       fake.pullRequests.push(...JSON.parse(readFileSync(stateFile, "utf8")));
     }
@@ -24440,6 +24558,9 @@ ${input2.body}`]);
   async deploymentsFor(sha) {
     return this.deploymentFor(sha);
   }
+  async hasDeployments() {
+    return this.deploymentFor("HEAD").length > 0;
+  }
   /** Decides what a commit's GitHub build is doing. By default, none: the host builds elsewhere. */
   buildFor = () => void 0;
   async buildProgress(sha) {
@@ -24509,8 +24630,43 @@ ${result.stdout}`.trim()
     return repos.map((r2) => ({ name: r2.nameWithOwner, description: r2.description }));
   }
   /** Bring a repository onto this computer, into `target`. */
+  /**
+   * Clone over HTTPS, signed in as the GitHub CLI's account whatever protocol gh is set to: an SSH
+   * key on this computer may belong to another account, or have no access. The clone keeps gh as
+   * its sign-in for github.com, so Clodable's fetches and pushes there are that account too (what
+   * `gh auth setup-git` does, for this folder only).
+   */
   async clone(repo, target) {
-    await this.gh(["repo", "clone", repo, target], 10 * 6e4);
+    const gh = await commandPath("gh", this.cwd) ?? "gh";
+    const helper = `!'${gh}' auth git-credential`;
+    const cloned = await exec2(
+      "git",
+      [
+        "-c",
+        "credential.helper=",
+        "-c",
+        `credential.helper=${helper}`,
+        "clone",
+        `https://github.com/${repo}.git`,
+        target
+      ],
+      { cwd: this.cwd, timeout: 10 * 6e4, env: { GIT_TERMINAL_PROMPT: "0" } }
+    );
+    if (cloned.exitCode !== 0) {
+      throw ghError(cloned, {
+        code: "unknown",
+        message: "GitHub didn't accept a request.",
+        details: `git clone https://github.com/${repo}.git
+${cloned.stderr}`.trim()
+      });
+    }
+    const key2 = "credential.https://github.com.helper";
+    for (const value of ["", helper]) {
+      await exec2("git", ["config", "--local", "--add", key2, value], {
+        cwd: target,
+        timeout: 1e4
+      });
+    }
   }
   async viewer() {
     const user = await this.json([
@@ -24664,6 +24820,14 @@ ${result.stdout}`.trim()
     const lastSeconds = this.lastBuild.get(run2.workflow_id);
     const doing = step2?.name ?? (run2.status === "completed" ? "Complete" : void 0);
     return { ...doing ? { step: doing } : {}, ...lastSeconds ? { lastSeconds } : {} };
+  }
+  async hasDeployments() {
+    const { owner, name } = await this.repo();
+    const deployments = await this.json([
+      "api",
+      `repos/${owner}/${name}/deployments?per_page=1`
+    ]);
+    return deployments.length > 0;
   }
   async deploymentsFor(sha) {
     const { owner, name } = await this.repo();
@@ -25454,6 +25618,17 @@ async function liveSignIn(api, ref, url2, confirmEmail, signUp) {
 }
 var backToPreview = (auth) => String(auth.uri_allow_list ?? "").includes("http://localhost:*");
 var backToSite = (auth, site) => auth.site_url === site && String(auth.uri_allow_list ?? "").includes(`${site}/**`);
+async function newBackendSignIn(api, ref, site) {
+  const current = await api.authConfig(ref);
+  await api.updateAuthConfig(ref, {
+    site_url: site ?? PREVIEW_ORIGIN,
+    uri_allow_list: allowList(current.uri_allow_list, [
+      ...PREVIEW_REDIRECTS,
+      ...site ? [`${site}/**`] : []
+    ]),
+    mailer_autoconfirm: true
+  });
+}
 
 // ../core/src/move/switch.ts
 import { existsSync as existsSync14 } from "node:fs";
@@ -27765,15 +27940,208 @@ async function moveProgress(ws) {
   };
 }
 
+// ../core/src/online.ts
+import { existsSync as existsSync18 } from "node:fs";
+import { readFile as readFile14, writeFile as writeFile9 } from "node:fs/promises";
+import { join as join23 } from "node:path";
+async function siteChoices(ws) {
+  const netlify = await NetlifyApi.onThisComputer();
+  const teams = netlify ? await netlify.accounts() : [];
+  return {
+    connected: Boolean(netlify),
+    teams: teams.map((t2) => ({ slug: t2.slug, name: t2.name })),
+    ...ws.config.netlify ? { site: ws.config.netlify } : {}
+  };
+}
+async function backendChoices() {
+  if (!await SupabaseApi.onThisComputer()) return { connected: false };
+  const choices = await homeChoices();
+  return {
+    connected: true,
+    ...choices,
+    costs: Object.fromEntries(choices.organizations.map((o) => [o.slug, costOf(o)]))
+  };
+}
+async function* putSiteOnline(ws, options = {}) {
+  const move = await loadMove(ws.root);
+  if (move.site || move.home) {
+    throw new ClodableError({
+      code: "already-there",
+      message: "Your move off Lovable puts your site on Netlify.",
+      hint: "Go on with the move: its website step does this, pointed at your new backend."
+    });
+  }
+  const netlify = await NetlifyApi.required();
+  const token = await readSecret(NETLIFY_TOKEN);
+  yield step("site", "running", "Putting your site online", "Creating your site on Netlify");
+  const known = ws.config.netlify ? await netlify.site(ws.config.netlify.siteId).catch(() => void 0) : void 0;
+  const site = known ?? await createNetlifySite(netlify, ws.project.name, options.team);
+  const url2 = siteUrl(site);
+  const online = {
+    name: site.name,
+    url: url2,
+    admin: site.admin_url,
+    account: site.account_slug
+  };
+  await saveConfig(ws.root, {
+    ...ws.config,
+    netlify: { siteId: site.id, ...online }
+  });
+  yield step("site", "running", "Putting your site online", "Giving it your app's settings");
+  const backend = await ownBackend(ws.config);
+  const carried = await setSiteEnv(netlify, site, ws.root, backend?.keys);
+  if (carried.length > 0) {
+    const state = await ws.state();
+    await ws.updateState({
+      siteSettings: [.../* @__PURE__ */ new Set([...state.siteSettings ?? [], ...carried])].sort()
+    });
+  }
+  if (backend) await liveSignIn(backend.api, backend.keys.ref, url2);
+  yield step("site", "running", "Putting your site online", "Setting up Publish");
+  const files = await setUpPublish(ws, site, token);
+  const config2 = {
+    ...ws.config,
+    hosting: "github",
+    liveUrl: url2,
+    netlify: { siteId: site.id, ...online }
+  };
+  await saveConfig(ws.root, config2);
+  await applyKit(ws.root, await planKit(await detectProject(ws.root), config2));
+  const settings2 = await siteSettingsOf(netlify, site.account_slug, site.id, ws.root);
+  yield step("site", "done", "Your site is ready", `Publish to put it online at ${url2}`);
+  return { site: online, files, settings: settings2 };
+}
+async function ownBackend(config2) {
+  const ref = config2.supabase.projectRef;
+  if (config2.backend !== "supabase" || !ref) return void 0;
+  const api = await SupabaseApi.onThisComputer();
+  if (!api) return void 0;
+  return { api, keys: backendOf(ref, await homeKeys(api, ref)) };
+}
+var ENV_FILE = ".env";
+async function* createBackend(ws, options = {}) {
+  if (ws.config.backend === "lovable-cloud") {
+    throw new ClodableError({
+      code: "already-there",
+      message: "Your app's data is on Lovable Cloud.",
+      hint: "Moving off Lovable gives your app its own Supabase, with your data and your people."
+    });
+  }
+  if (ws.config.backend === "supabase" && ws.config.supabase.projectRef) {
+    throw new ClodableError({
+      code: "already-there",
+      message: "Your app already has its own backend on Supabase."
+    });
+  }
+  const api = await SupabaseApi.required();
+  yield step("backend", "running", "Creating your backend");
+  const earlier = ws.config.supabase.projectRef;
+  const started = earlier ? await api.project(earlier).catch(() => void 0) : void 0;
+  let ref;
+  if (started) {
+    ref = started.ref;
+  } else {
+    const { organizations, freeProjects } = await homeChoices();
+    const org = pickOrganization(organizations, options.org);
+    if (org.plan === "free" && org.freeLeft === 0) {
+      throw new ClodableError({
+        code: "supabase-limit",
+        message: "Your Supabase account already runs its 2 free projects.",
+        hint: `Pause one in Supabase (${freeProjects.map((p) => p.name).join(", ")}), or pick an organization on a paid plan, then try again.`
+      });
+    }
+    const region = options.region ?? (await api.regions(org.slug).catch(() => void 0))?.recommended?.code;
+    if (!region) {
+      throw new ClodableError({
+        code: "needs-choice",
+        message: "Which part of the world should your backend run in?",
+        hint: "Pick the region closest to the people who use your app."
+      });
+    }
+    const password2 = newPassword();
+    const created = await api.createProject({
+      name: ws.project.name.slice(0, 60),
+      org: org.slug,
+      password: password2,
+      region
+    });
+    await storeSecret(passwordKey(created.ref), password2);
+    ref = created.ref;
+    await saveConfig(ws.root, {
+      ...ws.config,
+      supabase: { ...ws.config.supabase, projectRef: ref }
+    });
+  }
+  yield step("backend", "running", "Creating your backend", "Starting it up: about 2 minutes");
+  await waitUntilUp(api, ref);
+  const project = await api.project(ref);
+  yield step("backend", "running", "Creating your backend", "Connecting your app to it");
+  const backend = backendOf(ref, await homeKeys(api, ref));
+  const files = [];
+  const envPath = join23(ws.root, ENV_FILE);
+  const before = existsSync18(envPath) ? await readFile14(envPath, "utf8") : "";
+  const after = envWith(before, {
+    VITE_SUPABASE_PROJECT_ID: ref,
+    VITE_SUPABASE_PUBLISHABLE_KEY: backend.publishable,
+    VITE_SUPABASE_URL: backend.url
+  });
+  if (after !== before) {
+    await writeFile9(envPath, after);
+    files.push(ENV_FILE);
+  }
+  await rememberSettings(ws.root, {
+    SUPABASE_URL: backend.url,
+    SUPABASE_PUBLISHABLE_KEY: backend.publishable,
+    SUPABASE_SERVICE_ROLE_KEY: backend.serviceRole
+  });
+  await newBackendSignIn(api, ref, ws.config.netlify?.url ?? ws.config.liveUrl);
+  const netlify = ws.config.netlify ? await NetlifyApi.onThisComputer() : void 0;
+  if (ws.config.netlify && netlify) {
+    await setSiteEnv(
+      netlify,
+      { id: ws.config.netlify.siteId, account_slug: ws.config.netlify.account },
+      ws.root,
+      backend
+    );
+  }
+  const config2 = {
+    ...ws.config,
+    backend: "supabase",
+    supabase: { ...ws.config.supabase, projectRef: ref }
+  };
+  await saveConfig(ws.root, config2);
+  await applyKit(ws.root, await planKit(await detectProject(ws.root), config2));
+  yield step("backend", "done", "Your backend is ready", project.name);
+  return {
+    ref,
+    name: project.name,
+    region: project.region,
+    url: projectUrl(ref),
+    dashboard: `https://supabase.com/dashboard/project/${ref}`,
+    files
+  };
+}
+function pickOrganization(organizations, slug) {
+  const org = organizations.find((o) => o.slug === slug) ?? (organizations.length === 1 ? organizations[0] : void 0);
+  if (!org) {
+    throw new ClodableError({
+      code: "needs-choice",
+      message: "Which Supabase organization should your backend go in?",
+      hint: `Pick one: ${organizations.map((o) => `${o.name} (${costOf(o)})`).join(", ")}.`
+    });
+  }
+  return org;
+}
+
 // ../core/src/publish.ts
 import { mkdtemp as mkdtemp6, rm as rm10 } from "node:fs/promises";
 import { tmpdir as tmpdir4 } from "node:os";
-import { join as join25 } from "node:path";
+import { join as join26 } from "node:path";
 
 // ../core/src/publish-functions.ts
-import { existsSync as existsSync18 } from "node:fs";
+import { existsSync as existsSync19 } from "node:fs";
 import { readdir as readdir7 } from "node:fs/promises";
-import { join as join23 } from "node:path";
+import { join as join24 } from "node:path";
 async function changedFunctions(ws, sha) {
   const files = await ws.git.diffNames(`${sha}^..${sha}`);
   const names2 = /* @__PURE__ */ new Set();
@@ -27785,8 +28153,8 @@ async function changedFunctions(ws, sha) {
     else names2.add(match[1]);
   }
   if (shared) {
-    const dir = join23(ws.root, "supabase", "functions");
-    if (existsSync18(dir)) {
+    const dir = join24(ws.root, "supabase", "functions");
+    if (existsSync19(dir)) {
       for (const entry of await readdir7(dir, { withFileTypes: true })) {
         if (entry.isDirectory() && !entry.name.startsWith("_")) names2.add(entry.name);
       }
@@ -27859,9 +28227,9 @@ async function* deployThroughCli(ref, root, names2, outcome) {
 }
 
 // ../core/src/waits.ts
-import { existsSync as existsSync19 } from "node:fs";
-import { readdir as readdir8, readFile as readFile14 } from "node:fs/promises";
-import { join as join24 } from "node:path";
+import { existsSync as existsSync20 } from "node:fs";
+import { readdir as readdir8, readFile as readFile15 } from "node:fs/promises";
+import { join as join25 } from "node:path";
 function timing(options) {
   return {
     sleep: options.sleep ?? ((ms) => new Promise((resolve9) => setTimeout(resolve9, ms))),
@@ -27870,11 +28238,11 @@ function timing(options) {
   };
 }
 async function runsChecksOnPullRequests(root) {
-  const dir = join24(root, ".github", "workflows");
-  if (!existsSync19(dir)) return false;
+  const dir = join25(root, ".github", "workflows");
+  if (!existsSync20(dir)) return false;
   for (const name of await readdir8(dir)) {
     if (!/\.ya?ml$/.test(name)) continue;
-    const text2 = await readFile14(join24(dir, name), "utf8").catch(() => "");
+    const text2 = await readFile15(join25(dir, name), "utf8").catch(() => "");
     if (/\bpull_request(_target)?\b/.test(text2)) return true;
   }
   return false;
@@ -28002,9 +28370,19 @@ async function* waitForDeploy(ws, sha, o) {
         hint: "Your previous version is still live. Ask Claude to look at the host's report.",
         ...end.deployment.logUrl ? { details: end.deployment.logUrl } : {}
       });
-    case "unreported":
+    case "unreported": {
+      if (await ws.github.hasDeployments?.().catch(() => void 0) === false) {
+        yield step(
+          "deploy",
+          "done",
+          "Published on GitHub",
+          "No host puts it online from there yet"
+        );
+        return { state: "unknown", noHost: true };
+      }
       yield step("deploy", "done", "Published", "Your host will put it live in a moment");
       return { state: "unknown", ...liveUrl };
+    }
     case "late":
       yield step("deploy", "warning", "Still going live", "Your host is taking longer than usual");
       return { state: "pending", ...liveUrl };
@@ -28018,9 +28396,9 @@ async function* followSite(ws, sha, o, url2) {
     unreportedAfterMs: 12e4
   });
   if (end.state === "success") {
-    const siteUrl = end.deployment.url ?? url2;
-    yield step("move:site", "done", "Your site on Netlify is up to date", siteUrl);
-    return { url: siteUrl, state: "live" };
+    const siteUrl2 = end.deployment.url ?? url2;
+    yield step("move:site", "done", "Your site on Netlify is up to date", siteUrl2);
+    return { url: siteUrl2, state: "live" };
   }
   if (end.state === "failed") {
     const { logUrl } = end.deployment;
@@ -28175,7 +28553,14 @@ async function* publish(ws, options = {}) {
   const at = wait2.now().toISOString();
   const url2 = deployed.url ?? ws.config.liveUrl;
   await ws.updateState({
-    lastPublish: { sha, title, at, ...url2 ? { url: url2 } : {}, prNumber: pr.number },
+    lastPublish: {
+      sha,
+      title,
+      at,
+      ...url2 ? { url: url2 } : {},
+      prNumber: pr.number,
+      ...deployed.noHost ? { noHost: true } : {}
+    },
     pullRequest: void 0
   });
   yield step("fresh-draft", "done", "Fresh draft ready");
@@ -28183,6 +28568,9 @@ async function* publish(ws, options = {}) {
     await updateMove(ws.root, (s) => {
       if (s.site) s.site.liveAt = at;
     });
+  }
+  if (deployed.state === "live" && ws.config.netlify && !(await ws.state()).siteLiveAt) {
+    await ws.updateState({ siteLiveAt: at });
   }
   return {
     sha,
@@ -28192,6 +28580,7 @@ async function* publish(ws, options = {}) {
     deploy: deployed.state,
     ...lovableLink(ws, deployed.state),
     ...deployed.site ? { site: deployed.site } : {},
+    ...deployed.noHost ? { noHost: true } : {},
     pullRequest: { number: pr.number, url: pr.url },
     warnings,
     functions
@@ -28208,7 +28597,7 @@ async function* undoPublish(ws, options = {}) {
   const [target] = options.sha ? await ws.git.log(`${options.sha}^!`) : await ws.git.log(ws.liveRef, { firstParent: true, limit: 1 });
   if (!target)
     throw new ClodableError({ code: "not-found", message: "There's no publish to undo yet." });
-  const dir = await mkdtemp6(join25(tmpdir4(), "clodable-undo-"));
+  const dir = await mkdtemp6(join26(tmpdir4(), "clodable-undo-"));
   const branch = `undo/${target.sha.slice(0, 7)}`;
   try {
     const side = await ws.git.worktreeAdd(dir, branch, ws.liveRef);
@@ -30363,18 +30752,18 @@ async function dbCommand(ctx2, options) {
 }
 
 // src/commands/dev.ts
-import { existsSync as existsSync23 } from "node:fs";
-import { dirname as dirname8, join as join27, resolve as resolve7 } from "node:path";
+import { existsSync as existsSync24 } from "node:fs";
+import { dirname as dirname8, join as join28, resolve as resolve7 } from "node:path";
 
 // ../preview/src/dev-server.ts
-import { existsSync as existsSync22, readFileSync as readFileSync3, statSync as statSync2 } from "node:fs";
-import { dirname as dirname7, join as join26 } from "node:path";
+import { existsSync as existsSync23, readFileSync as readFileSync3, statSync as statSync2 } from "node:fs";
+import { dirname as dirname7, join as join27 } from "node:path";
 import { pathToFileURL } from "node:url";
 
 // ../preview/src/plugin.ts
 import { randomBytes as randomBytes3 } from "node:crypto";
-import { existsSync as existsSync21, readFileSync as readFileSync2, realpathSync as realpathSync4 } from "node:fs";
-import { readFile as readFile16, writeFile as writeFile9 } from "node:fs/promises";
+import { existsSync as existsSync22, readFileSync as readFileSync2, realpathSync as realpathSync4 } from "node:fs";
+import { readFile as readFile17, writeFile as writeFile10 } from "node:fs/promises";
 import { isAbsolute, relative as relative4, resolve as resolve6, sep as sep4 } from "node:path";
 import { stripVTControlCharacters as stripVTControlCharacters2 } from "node:util";
 
@@ -47119,8 +47508,8 @@ function editText(code2, file3, location, before, after) {
 }
 
 // ../preview/src/toolbar-source.ts
-import { existsSync as existsSync20 } from "node:fs";
-import { readFile as readFile15 } from "node:fs/promises";
+import { existsSync as existsSync21 } from "node:fs";
+import { readFile as readFile16 } from "node:fs/promises";
 import { fileURLToPath as fileURLToPath2 } from "node:url";
 var cached2;
 async function toolbarSource() {
@@ -47128,8 +47517,8 @@ async function toolbarSource() {
   const live = Boolean(process.env.CLODABLE_TOOLBAR_DEV);
   if (cached2 && !live) return cached2;
   const dist = fileURLToPath2(new URL("../dist/toolbar.js", import.meta.url));
-  if (!live && existsSync20(dist)) {
-    cached2 = await readFile15(dist, "utf8");
+  if (!live && existsSync21(dist)) {
+    cached2 = await readFile16(dist, "utf8");
     return cached2;
   }
   const esbuild = await import("esbuild");
@@ -47257,10 +47646,10 @@ ${await toolbarSource()}
     const location = parseSourceAttr(String(body.src ?? ""));
     const rel = location && inside(root, location.file);
     const full = rel && resolve6(root, rel);
-    if (!location || !full || !EDITABLE.test(full) || !tagged.has(full) || !existsSync21(full)) {
+    if (!location || !full || !EDITABLE.test(full) || !tagged.has(full) || !existsSync22(full)) {
       return { ok: false, editable: false, reason: "not-found" };
     }
-    const code2 = await readFile16(full, "utf8");
+    const code2 = await readFile17(full, "utf8");
     if (probe) {
       return probeText(
         code2,
@@ -47275,7 +47664,7 @@ ${await toolbarSource()}
     if (!after.trim()) return { ok: false, reason: "empty" };
     const result = editText(code2, location.file, location, before, after);
     if (!result.ok) return result;
-    await writeFile9(full, result.code);
+    await writeFile10(full, result.code);
     await writeInbox(root, {
       kind: "edit",
       page: toolbarPage(body.page) ?? { url: "", path: "/" },
@@ -47457,8 +47846,8 @@ function backendPlugin(current) {
 function resolveProjectVite(root) {
   let dir = root;
   while (true) {
-    const pkgPath = join26(dir, "node_modules", "vite", "package.json");
-    if (existsSync22(pkgPath)) {
+    const pkgPath = join27(dir, "node_modules", "vite", "package.json");
+    if (existsSync23(pkgPath)) {
       const pkg = JSON.parse(readFileSync3(pkgPath, "utf8"));
       const dot = pkg.exports?.["."];
       const pick2 = (entry2) => {
@@ -47470,7 +47859,7 @@ function resolveProjectVite(root) {
         return void 0;
       };
       const entry = pick2(dot) ?? pkg.module ?? pkg.main ?? "dist/node/index.js";
-      return join26(dirname7(pkgPath), entry);
+      return join27(dirname7(pkgPath), entry);
     }
     const parent = dirname7(dir);
     if (parent === dir) break;
@@ -47583,7 +47972,7 @@ var import_picocolors2 = __toESM(require_picocolors(), 1);
 function findAppRoot(start) {
   let dir = resolve7(start);
   while (true) {
-    if (existsSync23(join27(dir, "package.json"))) return dir;
+    if (existsSync24(join28(dir, "package.json"))) return dir;
     const parent = dirname8(dir);
     if (parent === dir) return resolve7(start);
     dir = parent;
@@ -47591,7 +47980,7 @@ function findAppRoot(start) {
 }
 async function devCommand(ctx2, options) {
   const root = findAppRoot(ctx2.cwd);
-  if (!existsSync23(join27(root, "node_modules")) && existsSync23(join27(root, "package.json"))) {
+  if (!existsSync24(join28(root, "node_modules")) && existsSync24(join28(root, "package.json"))) {
     const pm = detectPackageManager(root);
     process.stdout.write(
       `
@@ -47631,10 +48020,10 @@ async function devCommand(ctx2, options) {
           if (fresh) known.set(move.home.ref, fresh);
           return fresh;
         },
-        watch: join27(root, MOVE_PATH)
+        watch: join28(root, MOVE_PATH)
       },
       // The settings the app's server code reads, from Clodable's private store on this computer.
-      settings: { current: () => localSettings(root), watch: join27(root, SETTINGS_PATH) }
+      settings: { current: () => localSettings(root), watch: join28(root, SETTINGS_PATH) }
     });
     process.stdout.write(
       `
@@ -47671,7 +48060,7 @@ async function devCommand(ctx2, options) {
 // src/commands/move.ts
 var SETTINGS = {
   backend: ["lovable-cloud", "supabase", "none"],
-  hosting: ["lovable", "github"]
+  hosting: ["lovable", "github", "none"]
 };
 async function configCommand(ctx2, options) {
   await run(
@@ -48282,6 +48671,135 @@ async function moveCommand(ctx2, options) {
   return COMMANDS[options.step].run(ctx2, options);
 }
 
+// src/commands/online.ts
+async function connectCommand(ctx2, service) {
+  if (service === "supabase") {
+    await run(
+      ctx2,
+      async () => {
+        await ctx2.workspace();
+        return connectSupabase(
+          await secretInput(ctx2, `Your Supabase access token (create one at ${TOKENS_PAGE})`)
+        );
+      },
+      (data) => {
+        ctx2.out.line(`${celadon("\u2713")} Supabase is connected on this computer.`);
+        for (const org of data.organizations) ctx2.out.line(ash(`  ${org.name} \xB7 ${org.plan} plan`));
+      }
+    );
+    return;
+  }
+  if (service === "netlify") {
+    await run(
+      ctx2,
+      async () => {
+        await ctx2.workspace();
+        return connectNetlify(
+          await secretInput(
+            ctx2,
+            `Your Netlify access token (create one at ${NETLIFY_TOKENS_PAGE})`
+          )
+        );
+      },
+      (data) => {
+        ctx2.out.line(`${celadon("\u2713")} Netlify is connected on this computer.`);
+        for (const account of data.accounts)
+          ctx2.out.line(ash(`  ${account.name} (${account.slug})`));
+      }
+    );
+    return;
+  }
+  await run(ctx2, async () => {
+    throw new ClodableError({
+      code: "invalid-config",
+      message: `Clodable can't connect \u201C${service}\u201D.`,
+      hint: "Use supabase or netlify."
+    });
+  });
+}
+async function siteCommand(ctx2, options) {
+  if (options.action === "create") {
+    await run(
+      ctx2,
+      async () => drive(
+        ctx2,
+        putSiteOnline(await ctx2.workspace(), options.team ? { team: options.team } : {})
+      ),
+      (outcome) => {
+        ctx2.out.line(`  ${link(outcome.site.url)} ${ash("\xB7 goes online at your next Publish")}`);
+        if (outcome.files.length > 0) ctx2.out.line(ash(`  Added: ${outcome.files.join(", ")}`));
+        const missing = outcome.settings.wanted.filter((n4) => !outcome.settings.set.includes(n4));
+        if (missing.length > 0) {
+          ctx2.out.line(ash(`  Settings your app reads, to fill in: ${missing.join(", ")}`));
+        }
+      }
+    );
+    return;
+  }
+  await run(
+    ctx2,
+    async () => {
+      if (options.action) {
+        throw new ClodableError({
+          code: "invalid-config",
+          message: `\u201C${options.action}\u201D isn't something site does.`,
+          hint: "Use clodable site to see where it stands, or clodable site create."
+        });
+      }
+      return siteChoices(await ctx2.workspace());
+    },
+    (choices) => {
+      if (choices.site) ctx2.out.line(`${celadon("\u25CF")} Your site: ${link(choices.site.url)}`);
+      else ctx2.out.line(ash("Your site isn't online with Clodable yet."));
+      if (!choices.connected) ctx2.out.line(ash("Netlify isn't connected on this computer."));
+      for (const team of choices.teams) ctx2.out.line(`${team.name} ${ash(`(${team.slug})`)}`);
+    }
+  );
+}
+async function backendCommand(ctx2, options) {
+  if (options.action === "create") {
+    await run(
+      ctx2,
+      async () => drive(
+        ctx2,
+        createBackend(await ctx2.workspace(), {
+          ...options.org ? { org: options.org } : {},
+          ...options.region ? { region: options.region } : {}
+        })
+      ),
+      (outcome) => {
+        ctx2.out.line(ash(`  ${outcome.name} \xB7 ${outcome.region}`));
+        ctx2.out.line(`  ${link(outcome.dashboard)}`);
+      }
+    );
+    return;
+  }
+  await run(
+    ctx2,
+    async () => {
+      if (options.action) {
+        throw new ClodableError({
+          code: "invalid-config",
+          message: `\u201C${options.action}\u201D isn't something backend does.`,
+          hint: "Use clodable backend to see your choices, or clodable backend create."
+        });
+      }
+      await ctx2.workspace();
+      return backendChoices();
+    },
+    (choices) => {
+      if (!choices.connected) {
+        ctx2.out.line(ash("Supabase isn't connected on this computer."));
+        return;
+      }
+      for (const org of choices.organizations ?? []) {
+        ctx2.out.line(`${org.name} ${ash(`(${org.slug}) \xB7 ${choices.costs?.[org.slug] ?? ""}`)}`);
+      }
+      if (choices.region) ctx2.out.line(ash(`Suggested region: ${choices.region.name}`));
+    }
+  );
+}
+
 // src/commands/publish.ts
 var import_picocolors3 = __toESM(require_picocolors(), 1);
 async function publishCommand(ctx2, options) {
@@ -48417,8 +48935,8 @@ async function settingsCommand(ctx2, options) {
 }
 
 // src/commands/setup.ts
-import { existsSync as existsSync24, readdirSync } from "node:fs";
-import { join as join28, resolve as resolve8 } from "node:path";
+import { existsSync as existsSync25, readdirSync } from "node:fs";
+import { join as join29, resolve as resolve8 } from "node:path";
 var import_picocolors4 = __toESM(require_picocolors(), 1);
 var MIN_NODE = [20, 19];
 var REQUIRED = ["node", "git", "gh", "github"];
@@ -48506,7 +49024,7 @@ async function appChecks(git) {
     status: project.appType === "unknown" ? "warn" : "ok",
     detail: `${typeLabel}${project.lovable.generated ? ", made with Lovable" : ""}`
   });
-  const installed = existsSync24(join28(root, "node_modules"));
+  const installed = existsSync25(join29(root, "node_modules"));
   items.push({
     id: "deps",
     label: "App dependencies",
@@ -48675,6 +49193,11 @@ async function whereItRuns(project, current) {
           value: "github",
           label: "Elsewhere (Netlify, Vercel\u2026)",
           hint: "it updates when GitHub changes"
+        },
+        {
+          value: "none",
+          label: "Not online yet",
+          hint: "Clodable can put it on your own Netlify"
         }
       ]
     });
@@ -48713,7 +49236,7 @@ async function pickRepo(ctx2, given, interactive) {
 }
 async function bringIn(ctx2, repo, interactive) {
   const empty = readdirSync(ctx2.cwd).filter((n4) => !n4.startsWith(".")).length === 0;
-  const target = empty ? ctx2.cwd : join28(ctx2.cwd, repo.split("/")[1]);
+  const target = empty ? ctx2.cwd : join29(ctx2.cwd, repo.split("/")[1]);
   const s = interactive ? spinner() : void 0;
   s?.start(`Bringing in ${repo}`);
   try {
@@ -48764,7 +49287,7 @@ async function setupCommand(ctx2, options) {
           });
       }
       await applyKit(root, changes);
-      if (!existsSync24(join28(root, "node_modules"))) {
+      if (!existsSync25(join29(root, "node_modules"))) {
         const s = interactive ? spinner() : void 0;
         s?.start("Installing your app's packages (a minute or two)");
         const installed = await exec2(project.packageManager, ["install"], {
@@ -48961,19 +49484,19 @@ cli.command("history", "Your saves and publishes").option("--limit <n>", "How ma
   (options) => historyCommand(ctx(options), { limit: options.limit ? Number(options.limit) : void 0 })
 );
 cli.command("check", "Run the publish checks without publishing").action((options) => checkCommand(ctx(options)));
-cli.command("setup", "Bring your app home: connect GitHub, add Clodable's files").option("--repo <owner/name>", "The GitHub repository of your app").option("-y, --yes", "Don't ask questions").option("--publish", "Publish the setup right away").option("--backend <where>", "Where the data lives: lovable-cloud, supabase or none").option("--hosting <where>", "Where the site is live: lovable or github").action(
+cli.command("setup", "Bring your app home: connect GitHub, add Clodable's files").option("--repo <owner/name>", "The GitHub repository of your app").option("-y, --yes", "Don't ask questions").option("--publish", "Publish the setup right away").option("--backend <where>", "Where the data lives: lovable-cloud, supabase or none").option("--hosting <where>", "Where the site is live: lovable, github or none (not online yet)").action(
   (options) => setupCommand(ctx(options), {
     repo: options.repo,
     yes: options.yes,
     publish: options.publish,
     ...["lovable-cloud", "supabase", "none"].includes(options.backend) ? { backend: options.backend } : {},
-    ...["lovable", "github"].includes(options.hosting) ? { hosting: options.hosting } : {}
+    ...["lovable", "github", "none"].includes(options.hosting) ? { hosting: options.hosting } : {}
   })
 );
 cli.command("doctor", "Check that everything Clodable needs is in place").action((options) => doctorCommand(ctx(options)));
 cli.command(
   "config [key] [value]",
-  "Read or change where your app runs: backend (lovable-cloud, supabase, none), hosting (lovable, github)"
+  "Read or change where your app runs: backend (lovable-cloud, supabase, none), hosting (lovable, github, none)"
 ).action((key2, value, options) => configCommand(ctx(options), { key: key2, value }));
 cli.command(
   "settings",
@@ -48985,6 +49508,29 @@ cli.command(
   `Your app's Supabase database: query "select \u2026" (reads), run "update \u2026" (changes data), apply <migration file>, check (Supabase's security advice)`
 ).action(
   (action, arg, options) => dbCommand(ctx(options), { action: String(action), ...arg ? { arg: String(arg) } : {} })
+);
+cli.command(
+  "connect <service>",
+  "Connect supabase or netlify on this computer, the token piped in (for a new backend or site)"
+).action((service, options) => connectCommand(ctx(options), String(service)));
+cli.command(
+  "site [action]",
+  "Your app's site: where it stands, or create: put it online on your own Netlify"
+).option("--team <slug>", "create: the Netlify team the site goes in").action(
+  (action, options) => siteCommand(ctx(options), {
+    ...action ? { action: String(action) } : {},
+    ...options.team ? { team: String(options.team) } : {}
+  })
+);
+cli.command(
+  "backend [action]",
+  "Your app's backend: the choices, or create: a new one on your own Supabase"
+).option("--org <slug>", "create: the Supabase organization").option("--region <code>", "create: where it runs (eu-central-1\u2026)").action(
+  (action, options) => backendCommand(ctx(options), {
+    ...action ? { action: String(action) } : {},
+    ...options.org ? { org: String(options.org) } : {},
+    ...options.region ? { region: String(options.region) } : {}
+  })
 );
 var text = (value) => value === void 0 || value === false || value === "" ? void 0 : String(value);
 var yes = (value) => value === void 0 ? void 0 : !/^(no|false|0)$/i.test(String(value));

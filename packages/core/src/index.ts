@@ -226,6 +226,17 @@ export {
 export { parseToc, planRestore } from "./move/toc.js";
 export { verifyCopy } from "./move/verify.js";
 export {
+  type BackendChoices,
+  type BackendOutcome,
+  backendChoices,
+  createBackend,
+  type OnlineSite,
+  putSiteOnline,
+  type SiteChoices,
+  type SiteOnlineOutcome,
+  siteChoices,
+} from "./online.js";
+export {
   type AppType,
   detectPackageManager,
   detectProject,

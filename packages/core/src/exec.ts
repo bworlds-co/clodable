@@ -55,6 +55,19 @@ export async function exec(
 }
 
 /** Is a program available on PATH? */
+/** Where a command is on this computer's PATH, or undefined. */
+export async function commandPath(
+  command: string,
+  cwd = process.cwd(),
+): Promise<string | undefined> {
+  const probe =
+    process.platform === "win32"
+      ? await exec("where", [command], { cwd, timeout: 10_000 })
+      : await exec("sh", ["-c", `command -v ${command}`], { cwd, timeout: 10_000 });
+  const path = probe.stdout.split(/\r?\n/)[0]?.trim();
+  return probe.exitCode === 0 && path ? path : undefined;
+}
+
 export async function hasCommand(command: string, cwd = process.cwd()): Promise<boolean> {
   const probe =
     process.platform === "win32"

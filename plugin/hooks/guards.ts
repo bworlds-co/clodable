@@ -13,9 +13,12 @@ export const PRIVATE_FOLDER =
   /Library\/Application Support\/clodable|\.config\/clodable|AppData[\\/]Roaming[\\/]clodable|clodable[\\/]secrets\.json/i;
 export const PRIVATE_FOLDER_DENY =
   "That folder holds Clodable's keys and the people's data from the Lovable export, so it stays out of the conversation. Use `clodable move status` or `clodable move diagnose` instead: they report what's safe to see.";
-/** Move steps that take a secret: the builder types those in the Clodable panel, never in the chat. */
+/**
+ * Steps that take a secret (a token, a key): the builder types those in the Clodable panel, never
+ * in the chat.
+ */
 export const SECRET_STEP =
-  /clodable(?:\.mjs"?)?\s+move\s+(connect|secret|vault-secret|disconnect|forget|netlify|setting|resend|ai|google)\b|clodable(?:\.mjs"?)?\s+move\s+files\b.*--private/;
+  /clodable(?:\.mjs"?)?\s+move\s+(connect|secret|vault-secret|disconnect|forget|netlify|setting|resend|ai|google)\b|clodable(?:\.mjs"?)?\s+move\s+files\b.*--private|clodable(?:\.mjs"?)?\s+connect\b/;
 
 /** Whether a tool's file or path is inside Clodable's private folder. */
 export function inPrivateFolder(input: unknown): boolean {
@@ -58,6 +61,18 @@ export function moveCommandLine(root: string, args: string[]): string {
 export function isMoveStep(root: string, command: string): boolean {
   return new RegExp(
     `^node "${escapeRegExp(root)}/cli/clodable\\.mjs" move (status|check|facts|choices|create|export|copy|verify|diagnose|files|functions|secrets|preview|teams|site|settings|emails|pause|golive|domain|services|app-emails)( --?[\\w-]+| [\\w.:@-]+)*$`,
+  ).test(command);
+}
+
+/** How Claude puts the site online or creates the backend: Clodable's own command line. */
+export function onlineCommandLine(root: string, args: string[]): string {
+  return `node "${root}/cli/clodable.mjs" ${args.join(" ")}`;
+}
+
+/** Claude's own runs of those, exactly as the panel's requests spell them. */
+export function isOnlineStep(root: string, command: string): boolean {
+  return new RegExp(
+    `^node "${escapeRegExp(root)}/cli/clodable\\.mjs" (site|backend)( create)?( --(team|org|region) [\\w.-]+)*$`,
   ).test(command);
 }
 

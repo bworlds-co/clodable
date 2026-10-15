@@ -8,7 +8,7 @@ import {
   ProjectConfigSchema,
   supabaseRef,
 } from "../config.js";
-import { WORKFLOW_PATH } from "../move/site.js";
+import { NETLIFY_TOML, WORKFLOW_PATH } from "../move/site.js";
 import type { ProjectInfo } from "../project.js";
 import { agentsMd } from "./agents-md.js";
 
@@ -37,9 +37,10 @@ export interface KitChange {
 
 /**
  * Clodable's own files in a project: its settings and this computer's state, how Claude works here,
- * and the workflow that publishes to Netlify. Restoring an earlier version of the app leaves them
- * as they are now. `.gitignore` is the app's: it's restored, then keepIgnored() puts Clodable's
- * lines back.
+ * and what publishes the site to Netlify (the workflow, and how Netlify builds the app). Restoring
+ * or undoing an earlier version of the app leaves them as they are now: going back past the day
+ * the site went online mustn't stop it updating. `.gitignore` is the app's: it's restored, then
+ * keepIgnored() puts Clodable's lines back.
  */
 export const CLODABLE_FILES = [
   ".clodable",
@@ -48,6 +49,7 @@ export const CLODABLE_FILES = [
   "CLAUDE.md",
   ".mcp.json",
   WORKFLOW_PATH,
+  NETLIFY_TOML,
 ];
 
 /** One of Clodable's own files, or a file inside one of its folders (a path from the top). */

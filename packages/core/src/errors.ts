@@ -26,6 +26,8 @@ export type ErrorCode =
   | "supabase-limit"
   | "supabase-failed"
   | "move-not-ready"
+  | "needs-choice"
+  | "already-there"
   | "export-not-found"
   | "export-unreadable"
   | "tools-unavailable"

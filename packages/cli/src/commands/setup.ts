@@ -389,6 +389,11 @@ async function whereItRuns(
           label: "Elsewhere (Netlify, Vercel…)",
           hint: "it updates when GitHub changes",
         },
+        {
+          value: "none" as const,
+          label: "Not online yet",
+          hint: "Clodable can put it on your own Netlify",
+        },
       ],
     });
     if (!isCancel(choice)) hosting = choice;

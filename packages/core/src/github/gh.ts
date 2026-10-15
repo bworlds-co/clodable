@@ -1,5 +1,5 @@
 import { ClodableError, type ErrorInfo } from "../errors.js";
-import { type ExecResult, exec, hasCommand } from "../exec.js";
+import { commandPath, type ExecResult, exec, hasCommand } from "../exec.js";
 import type {
   BuildProgress,
   CheckSummary,
@@ -65,8 +65,42 @@ export class GhCli implements GitHubAdapter {
   }
 
   /** Bring a repository onto this computer, into `target`. */
+  /**
+   * Clone over HTTPS, signed in as the GitHub CLI's account whatever protocol gh is set to: an SSH
+   * key on this computer may belong to another account, or have no access. The clone keeps gh as
+   * its sign-in for github.com, so Clodable's fetches and pushes there are that account too (what
+   * `gh auth setup-git` does, for this folder only).
+   */
   async clone(repo: string, target: string): Promise<void> {
-    await this.gh(["repo", "clone", repo, target], 10 * 60_000);
+    const gh = (await commandPath("gh", this.cwd)) ?? "gh";
+    const helper = `!'${gh}' auth git-credential`;
+    const cloned = await exec(
+      "git",
+      [
+        "-c",
+        "credential.helper=",
+        "-c",
+        `credential.helper=${helper}`,
+        "clone",
+        `https://github.com/${repo}.git`,
+        target,
+      ],
+      { cwd: this.cwd, timeout: 10 * 60_000, env: { GIT_TERMINAL_PROMPT: "0" } },
+    );
+    if (cloned.exitCode !== 0) {
+      throw ghError(cloned, {
+        code: "unknown",
+        message: "GitHub didn't accept a request.",
+        details: `git clone https://github.com/${repo}.git\n${cloned.stderr}`.trim(),
+      });
+    }
+    const key = "credential.https://github.com.helper";
+    for (const value of ["", helper]) {
+      await exec("git", ["config", "--local", "--add", key, value], {
+        cwd: target,
+        timeout: 10_000,
+      });
+    }
   }
 
   async viewer(): Promise<Viewer> {
@@ -253,6 +287,15 @@ export class GhCli implements GitHubAdapter {
     // A finished run waits only for its deployment to say so: it's finishing, not starting.
     const doing = step?.name ?? (run.status === "completed" ? "Complete" : undefined);
     return { ...(doing ? { step: doing } : {}), ...(lastSeconds ? { lastSeconds } : {}) };
+  }
+
+  async hasDeployments(): Promise<boolean> {
+    const { owner, name } = await this.repo();
+    const deployments = await this.json<unknown[]>([
+      "api",
+      `repos/${owner}/${name}/deployments?per_page=1`,
+    ]);
+    return deployments.length > 0;
   }
 
   async deploymentsFor(sha: string): Promise<Deployment[]> {

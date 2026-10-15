@@ -11,7 +11,7 @@ export interface AgentsMdInput {
   /** Where the data lives. On Lovable Cloud, the database and backend can't be changed from here. */
   backend?: "unknown" | "lovable-cloud" | "supabase" | "none";
   /** Who puts the site live. Lovable's hosting needs a click in Lovable after Publish. */
-  hosting?: "unknown" | "github" | "lovable";
+  hosting?: "unknown" | "github" | "lovable" | "none";
 }
 
 const LOVABLE_CLOUD = `## Database and backend: on Lovable Cloud
@@ -20,6 +20,12 @@ const LOVABLE_CLOUD = `## Database and backend: on Lovable Cloud
 - If the builder asks for something that needs a database or backend change, say so plainly and offer the two ways forward: make that change in Lovable, or first move the app to their own Supabase (**Move off Lovable** in the Clodable panel, a guided step).
 - Never write migration files, or code that relies on a database change that hasn't happened: the live app would break after Publish.
 - Changes to backend functions (\`supabase/functions/\`) only reach Lovable Cloud through Lovable. Avoid them, and if one is needed, tell the builder to make it in Lovable.`;
+
+const NO_BACKEND = `## Database and backend: none yet
+- This app has no database, no sign-in and no backend yet.
+- When the builder asks for something that needs one (accounts and sign-in, saving data people enter, uploads), say so in one plain sentence and ask them to click **Add a backend** in the Clodable panel (type \`/clodable\`). Clodable creates it on their own Supabase (free to start) and connects the app; then ask them to tell you when it's there.
+- Don't set up a database or a sign-in service any other way, and don't fake one in the browser's storage for things that must last.
+- Once the backend is there, these instructions change to say how to work with it.`;
 
 /** The database rules when the app talks to a Supabase project the builder can reach. */
 function supabaseSection(ref: string | undefined): string {
@@ -67,7 +73,9 @@ The person you're working with is a **builder**: they know their product deeply,
 ${
   input.hosting === "lovable"
     ? `- **Publish** is the builder's decision. They click Publish in Clodable, which checks the app and merges the draft into \`${input.liveBranch}\`. The site is hosted by Lovable, so it goes live once they click **Publish → Publish changes** in Lovable. Clodable reminds them.`
-    : `- **Publish** is the builder's decision. They click Publish in Clodable, which checks the app, merges the draft into \`${input.liveBranch}\`, and the host puts it live.`
+    : input.hosting === "none"
+      ? `- **Publish** is the builder's decision. They click Publish in Clodable, which checks the app and merges the draft into \`${input.liveBranch}\`. The app isn't online yet: to put it on the web, they click **Put your site online** in the Clodable panel (their own Netlify, free to start), and each Publish updates it from then on.`
+      : `- **Publish** is the builder's decision. They click Publish in Clodable, which checks the app, merges the draft into \`${input.liveBranch}\`, and the host puts it live.`
 }
 - Never push to \`${input.liveBranch}\`, never force-push, and never merge pull requests yourself.
 - If asked to "publish" or "put it live", tell them to click **Publish** in the Clodable bar above the message box.
@@ -79,7 +87,13 @@ ${
 - The preview toolbar at the bottom of the page belongs to Clodable. It's not part of the app. Don't edit or remove it.
 - Requests from the preview arrive as messages that start with "From the preview". Treat them like requests from the builder.
 
-${input.backend === "lovable-cloud" ? LOVABLE_CLOUD : supabaseSection(input.supabaseRef)}
+${
+  input.backend === "lovable-cloud"
+    ? LOVABLE_CLOUD
+    : input.backend === "none"
+      ? NO_BACKEND
+      : supabaseSection(input.supabaseRef)
+}
 
 ## Secrets
 - Never put API keys or passwords in code. Public keys (the Supabase URL and anon key) are fine.

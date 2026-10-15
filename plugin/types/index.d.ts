@@ -8,12 +8,22 @@ export interface ClodableStatus {
   merging: boolean;
   conflicts: string[];
   liveUrl: string | null;
-  lastPublish: { sha: string; title: string; at: string; url: string | null } | null;
+  lastPublish: {
+    sha: string;
+    title: string;
+    at: string;
+    url: string | null;
+    /** No host ever reported putting the app online: it's on GitHub only. */
+    noHost?: boolean;
+  } | null;
   pullRequest: { number: number; url: string } | null;
   /** Where the data lives. On Lovable Cloud, the database and backend can't be changed from here. */
   backend: "unknown" | "lovable-cloud" | "supabase" | "none";
-  /** Who puts the site live. Lovable's hosting needs a click in Lovable after Publish. */
-  hosting: "unknown" | "github" | "lovable";
+  /**
+   * Who puts the site live. Lovable's hosting needs a click in Lovable after Publish; `none`: not
+   * online yet, and Clodable can put it on the builder's own Netlify.
+   */
+  hosting: "unknown" | "github" | "lovable" | "none";
   /** The project in Lovable's editor, when known. */
   lovableUrl: string | null;
   /** The app was made with Lovable: where its data and site are matter, so the panel asks. */
@@ -24,8 +34,15 @@ export interface ClodableStatus {
   finishingMove: boolean;
   /** When the move off Lovable ended. */
   movedAt: string | null;
-  /** On its own Supabase: whether Claude can change the database through Clodable here. */
+  /**
+   * On its own Supabase, or with no backend yet: whether Supabase is connected here (Claude's
+   * database changes, a new backend).
+   */
   databaseConnected: boolean | null;
+  /** The site Clodable put on the builder's Netlify, and whether a Publish put it online yet. */
+  site: { url: string; admin: string; live: boolean } | null;
+  /** Not online yet: whether Netlify is connected here, to put the site online. */
+  netlifyConnected: boolean | null;
 }
 
 /** Why the bar shows "set up" instead of the draft. */
@@ -65,6 +82,8 @@ export interface ClodableActivity {
   lovableUrl?: string | null;
   /** Moving off Lovable: the new site on Netlify, which this Publish updated (or tried to). */
   site?: { url: string; state: "live" | "failed" | "pending"; logUrl?: string } | null;
+  /** Published, but no host ever reported putting this app online: it's on GitHub only. */
+  noHost?: boolean;
 }
 
 /** One line of `clodable doctor`. */

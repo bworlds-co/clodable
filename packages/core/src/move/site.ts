@@ -7,9 +7,9 @@ import { readSecret, storeSecret } from "../local-secrets.js";
 import { type PackageManager, type ProjectInfo, runScriptCommand } from "../project.js";
 import { appSettings, localSettings } from "../settings.js";
 import type { Workspace } from "../workspace.js";
-import { backendEnv, backendOf } from "./backend.js";
+import { type Backend, backendEnv, backendOf } from "./backend.js";
 import { homeKeys } from "./home.js";
-import { NETLIFY_TOKEN, type NetlifyAccount, NetlifyApi } from "./netlify-api.js";
+import { NETLIFY_TOKEN, type NetlifyAccount, NetlifyApi, type NetlifySite } from "./netlify-api.js";
 import { loadMove, updateMove, withNames } from "./state.js";
 import { SupabaseApi } from "./supabase-api.js";
 
@@ -216,36 +216,10 @@ export async function* putSiteOnNetlify(
   const token = (await readSecret(NETLIFY_TOKEN))!;
 
   yield step("move:site", "running", "Putting your site on Netlify", "Creating the site");
-  let site = state.site ? await netlify.site(state.site.id).catch(() => undefined) : undefined;
-  if (!site) {
-    const accounts = await netlify.accounts();
-    const account =
-      accounts.find((a) => a.slug === options.account) ??
-      (accounts.length === 1 ? accounts[0] : undefined);
-    if (!account) {
-      throw new ClodableError({
-        code: "move-not-ready",
-        message: "Which Netlify team should the site go in?",
-        hint: `Pick one: ${accounts.map((a) => `${a.name} (${a.slug})`).join(", ")}.`,
-      });
-    }
-    const base = siteName(ws.project.name);
-    for (const name of [base, `${base}-${Math.random().toString(36).slice(2, 6)}`]) {
-      site = await netlify.createSite(account.slug, name).catch((error: unknown) => {
-        if (error instanceof ClodableError && /422/.test(error.details ?? "")) return undefined;
-        throw error;
-      });
-      if (site) break;
-    }
-    if (!site) {
-      throw new ClodableError({
-        code: "netlify-failed",
-        message: "Netlify didn't accept a name for your site.",
-        hint: "Try again: Clodable picks another name.",
-      });
-    }
-  }
-  const url = site.ssl_url || site.url;
+  const site =
+    (state.site ? await netlify.site(state.site.id).catch(() => undefined) : undefined) ??
+    (await createNetlifySite(netlify, ws.project.name, options.account));
+  const url = siteUrl(site);
   await updateMove(ws.root, (s) => {
     s.site = {
       id: site!.id,
@@ -263,25 +237,7 @@ export async function* putSiteOnNetlify(
     "Pointing it at your new backend",
   );
   const backend = backendOf(state.home.ref, await homeKeys(supabase, state.home.ref));
-  const existing = await netlify.envKeys(site.account_slug, site.id);
-  for (const [key, value] of Object.entries(backendEnv(backend))) {
-    await netlify.setEnv(site.account_slug, site.id, key, value, {
-      secret: key === "SUPABASE_SERVICE_ROLE_KEY",
-      existing,
-    });
-  }
-  // Settings already pasted on this computer (for the preview) go to the site too. VITE_ ones are
-  // built into the page on purpose: kept as secrets, Netlify's scan for leaked secrets would stop
-  // the deploy.
-  const { wanted } = await appSettings(ws.root);
-  const mine = await localSettings(ws.root);
-  const carried = wanted.filter((name) => mine[name] !== undefined);
-  for (const name of carried) {
-    await netlify.setEnv(site.account_slug, site.id, name, mine[name]!, {
-      secret: !name.startsWith("VITE_"),
-      existing,
-    });
-  }
+  const carried = await setSiteEnv(netlify, site, ws.root, backend);
   if (carried.length > 0) {
     await updateMove(ws.root, (s) => {
       s.siteSettings = withNames(s.siteSettings, carried);
@@ -289,6 +245,91 @@ export async function* putSiteOnNetlify(
   }
 
   yield step("move:site", "running", "Putting your site on Netlify", "Setting up Publish");
+  const files = await setUpPublish(ws, site, token);
+
+  const settings = await siteSettingsOf(netlify, site.account_slug, site.id, ws.root);
+  yield step("move:site", "done", "Your site is ready on Netlify", `Publish to see it at ${url}`);
+  return { site: { name: site.name, url, admin: site.admin_url }, files, settings };
+}
+
+/** The site's address, https when Netlify has it. */
+export const siteUrl = (site: NetlifySite) => site.ssl_url || site.url;
+
+/**
+ * A new site in the builder's Netlify team, named after the app (with a few letters added when
+ * the name is taken: Netlify's names are unique across all of Netlify).
+ */
+export async function createNetlifySite(
+  netlify: NetlifyApi,
+  appName: string,
+  team: string | undefined,
+): Promise<NetlifySite> {
+  const accounts = await netlify.accounts();
+  const account =
+    accounts.find((a) => a.slug === team) ?? (accounts.length === 1 ? accounts[0] : undefined);
+  if (!account) {
+    throw new ClodableError({
+      code: "needs-choice",
+      message: "Which Netlify team should the site go in?",
+      hint: `Pick one: ${accounts.map((a) => `${a.name} (${a.slug})`).join(", ")}.`,
+    });
+  }
+  const base = siteName(appName);
+  for (const name of [base, `${base}-${Math.random().toString(36).slice(2, 6)}`]) {
+    const site = await netlify.createSite(account.slug, name).catch((error: unknown) => {
+      if (error instanceof ClodableError && /422/.test(error.details ?? "")) return undefined;
+      throw error;
+    });
+    if (site) return site;
+  }
+  throw new ClodableError({
+    code: "netlify-failed",
+    message: "Netlify didn't accept a name for your site.",
+    hint: "Try again: Clodable picks another name.",
+  });
+}
+
+/**
+ * What the site's build and server code read: the backend's address and keys (the service key
+ * kept secret), and the settings already pasted on this computer for the preview. Returns the
+ * settings it carried over.
+ */
+export async function setSiteEnv(
+  netlify: NetlifyApi,
+  site: Pick<NetlifySite, "id" | "account_slug">,
+  root: string,
+  backend: Backend | undefined,
+): Promise<string[]> {
+  const existing = await netlify.envKeys(site.account_slug, site.id);
+  for (const [key, value] of Object.entries(backend ? backendEnv(backend) : {})) {
+    await netlify.setEnv(site.account_slug, site.id, key, value, {
+      secret: key === "SUPABASE_SERVICE_ROLE_KEY",
+      existing,
+    });
+  }
+  // VITE_ settings are built into the page on purpose: kept as secrets, Netlify's scan for leaked
+  // secrets would stop the deploy.
+  const { wanted } = await appSettings(root);
+  const mine = await localSettings(root);
+  const carried = wanted.filter((name) => mine[name] !== undefined);
+  for (const name of carried) {
+    await netlify.setEnv(site.account_slug, site.id, name, mine[name]!, {
+      secret: !name.startsWith("VITE_"),
+      existing,
+    });
+  }
+  return carried;
+}
+
+/**
+ * What lets each Publish put the site live: netlify.toml (unless the app has one), the workflow,
+ * and the two GitHub secrets it reads. Returns the files written.
+ */
+export async function setUpPublish(
+  ws: Workspace,
+  site: Pick<NetlifySite, "id" | "url" | "ssl_url">,
+  token: string,
+): Promise<string[]> {
   const files: string[] = [];
   if (!existsSync(join(ws.root, NETLIFY_TOML))) {
     await writeFile(
@@ -297,7 +338,7 @@ export async function* putSiteOnNetlify(
     );
     files.push(NETLIFY_TOML);
   }
-  const workflow = netlifyWorkflow(ws.project, ws.config.liveBranch, url);
+  const workflow = netlifyWorkflow(ws.project, ws.config.liveBranch, siteUrl(site as NetlifySite));
   const workflowPath = join(ws.root, WORKFLOW_PATH);
   const before = existsSync(workflowPath) ? await readFile(workflowPath, "utf8") : "";
   if (before !== workflow) {
@@ -307,13 +348,15 @@ export async function* putSiteOnNetlify(
   }
   await ws.github.setSecret("NETLIFY_AUTH_TOKEN", token);
   await ws.github.setSecret("NETLIFY_SITE_ID", site.id);
-
-  const settings = await siteSettingsOf(netlify, site.account_slug, site.id, ws.root);
-  yield step("move:site", "done", "Your site is ready on Netlify", `Publish to see it at ${url}`);
-  return { site: { name: site.name, url, admin: site.admin_url }, files, settings };
+  return files;
 }
 
-async function siteSettingsOf(netlify: NetlifyApi, account: string, siteId: string, root: string) {
+export async function siteSettingsOf(
+  netlify: NetlifyApi,
+  account: string,
+  siteId: string,
+  root: string,
+) {
   const { wanted, lovable } = await appSettings(root);
   const have = new Set(await netlify.envKeys(account, siteId));
   return { wanted, set: wanted.filter((n) => have.has(n)), lovable };

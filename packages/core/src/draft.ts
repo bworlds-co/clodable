@@ -6,6 +6,7 @@ import type { Commit, CommitKind } from "./git.js";
 import type { PullRequest } from "./github/types.js";
 import { CLODABLE_FILES, clodableFile, keepIgnored } from "./kit/index.js";
 import { readSecret } from "./local-secrets.js";
+import { NETLIFY_TOKEN } from "./move/netlify-api.js";
 import { loadMove } from "./move/state.js";
 import { SUPABASE_TOKEN } from "./move/supabase-api.js";
 import { formatAbsolute } from "./time.js";
@@ -53,15 +54,22 @@ export interface Status {
   merging: boolean;
   conflicts: string[];
   pullRequest?: { number: number; url: string };
-  lastPublish?: { sha: string; title: string; at: string; url?: string };
+  lastPublish?: { sha: string; title: string; at: string; url?: string; noHost?: boolean };
   /** A move off Lovable has started (Claude looked at the app, or a way to move was chosen) and isn't over. */
   movingOffLovable?: true;
   /** Moving off Lovable: live on the new backend, with the last clicks in Lovable still to do. */
   finishingMove?: true;
   /** When the move off Lovable ended: from then on, the app is changed here. */
   movedAt?: string;
-  /** On its own Supabase: whether Clodable can reach the database here, for Claude's changes. */
+  /**
+   * On its own Supabase, or with no backend yet: whether Supabase is connected on this computer
+   * (Claude's database changes, a new backend).
+   */
   database?: { connected: boolean };
+  /** The site Clodable put on the builder's Netlify, and whether a Publish put it online yet. */
+  site?: { url: string; admin: string; live: boolean };
+  /** Not online yet: whether Netlify is connected on this computer, to put the site online. */
+  netlify?: { connected: boolean };
 }
 
 /** Make sure we're on the person's draft, creating it from the current position if needed. */
@@ -375,8 +383,20 @@ export async function status(ws: Workspace, options: { fetch?: boolean } = {}): 
     ...(state.lastPublish ? { lastPublish: state.lastPublish } : {}),
     ...(state.pullRequest ? { pullRequest: state.pullRequest } : {}),
     ...(await whereTheMoveIs(ws.root)),
-    ...(ws.config.backend === "supabase"
+    ...(ws.config.backend === "supabase" || ws.config.backend === "none"
       ? { database: { connected: Boolean(await readSecret(SUPABASE_TOKEN)) } }
+      : {}),
+    ...(ws.config.netlify
+      ? {
+          site: {
+            url: ws.config.netlify.url,
+            admin: ws.config.netlify.admin,
+            live: Boolean(state.siteLiveAt),
+          },
+        }
+      : {}),
+    ...(ws.config.hosting === "none"
+      ? { netlify: { connected: Boolean(await readSecret(NETLIFY_TOKEN)) } }
       : {}),
   };
 }

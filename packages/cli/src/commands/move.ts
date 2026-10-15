@@ -63,7 +63,7 @@ import { ash, celadon, clay, link, ochre } from "../ui.js";
 
 const SETTINGS = {
   backend: ["lovable-cloud", "supabase", "none"],
-  hosting: ["lovable", "github"],
+  hosting: ["lovable", "github", "none"],
 } as const;
 type Setting = keyof typeof SETTINGS;
 

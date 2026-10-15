@@ -43,6 +43,8 @@ export class FakeGitHub implements GitHubAdapter {
   ): FakeGitHub {
     const fake = new FakeGitHub(bareRepo);
     fake.stateFile = stateFile;
+    // A repository nothing puts online yet: no host reports a deployment.
+    if (process.env.CLODABLE_FAKE_HOST === "none") fake.deploymentFor = () => [];
     if (existsSync(stateFile)) {
       fake.pullRequests.push(...(JSON.parse(readFileSync(stateFile, "utf8")) as PullRequest[]));
     }
@@ -146,6 +148,10 @@ export class FakeGitHub implements GitHubAdapter {
 
   async deploymentsFor(sha: string) {
     return this.deploymentFor(sha);
+  }
+
+  async hasDeployments() {
+    return this.deploymentFor("HEAD").length > 0;
   }
 
   /** Decides what a commit's GitHub build is doing. By default, none: the host builds elsewhere. */

@@ -44,9 +44,11 @@ import {
   insideProject,
   isFactsRecord,
   isMoveStep,
+  isOnlineStep,
   LEAVE_DRAFT,
   moveCommandLine,
   OUR_PUBLISH,
+  onlineCommandLine,
   PRIVATE_FOLDER,
   PRIVATE_FOLDER_DENY,
   PUSH_OR_REWRITE,
@@ -235,6 +237,22 @@ const isPiloting = () => piloting !== null && Date.now() - piloting.at < 30 * 60
 let showPermissions = false;
 /** Answers saving in the background: shown as chosen at once, so nothing gets pressed twice. */
 const savingWhere: Partial<Record<"backend" | "hosting", string>> = {};
+/** "Add a backend", opened from its quiet line in the app's view. */
+let addingBackend = false;
+/** A token on its way to Supabase or Netlify, checked by the CLI. */
+let connecting: "supabase" | "netlify" | null = null;
+/** What Netlify offers for a new site, once connected: its teams. */
+let siteOptions: { teams: Array<{ slug: string; name: string }> } | null = null;
+let siteTeam = "";
+/** What Supabase offers for a new backend, once connected. */
+let backendOptions: {
+  organizations: Array<{ slug: string; name: string; plan: string; freeLeft?: number }>;
+  costs: Record<string, string>;
+  freeProjects: Array<{ name: string }>;
+  region?: { code: string; name: string };
+} | null = null;
+let backendOrg = "";
+let loadingOptions = false;
 /** Setup running: its button gives way to a note until it's done. */
 let settingUp = false;
 const isFixing = () => fixing !== null && Date.now() - fixing.at < 10 * 60_000;
@@ -479,14 +497,17 @@ async function publishNow($: EngineInterface) {
       at,
       ...(onLovable ? { onLovable, lovableUrl: data.lovableUrl ?? null } : {}),
       ...(data.site ? { site: data.site } : {}),
+      ...(data.noHost ? { noHost: true } : {}),
     }));
     sayDoneUntil($, at);
     $.ui.toast(
       onLovable
         ? "Published on GitHub. Click Publish in Lovable to put it live."
-        : data.url
-          ? `You're live! ${data.url}`
-          : "Published!",
+        : data.noHost
+          ? "Published on GitHub. No host has put your app on the web yet."
+          : data.url
+            ? `You're live! ${data.url}`
+            : "Published!",
     );
     const pending: string[] = data.functions?.pending ?? [];
     if (pending.length > 0) {
@@ -802,6 +823,60 @@ async function connectDatabase($: EngineInterface, token: string) {
   const result = await cli($, ["move", "connect"], 60_000, text);
   if (!result.ok) $.ui.toast(result.error?.message ?? "Supabase didn't accept that token.");
   await refreshStatus($);
+}
+
+/** Netlify or Supabase, connected here for a new site or backend: the token goes to the CLI's stdin. */
+async function connectService($: EngineInterface, service: "supabase" | "netlify", token: string) {
+  const text = token.trim();
+  if (!text || connecting) return;
+  connecting = service;
+  $.ui.invalidate("ui.render");
+  const result = await cli($, ["connect", service], 60_000, text);
+  connecting = null;
+  if (!result.ok) {
+    $.ui.toast(
+      result.error?.message ??
+        `${service === "netlify" ? "Netlify" : "Supabase"} didn't accept that token.`,
+    );
+  }
+  if (service === "netlify") siteOptions = null;
+  else backendOptions = null;
+  await refreshStatus($);
+}
+
+/** The Netlify teams, or the Supabase organizations, a new site or backend can go in. */
+async function loadOptions($: EngineInterface, kind: "site" | "backend") {
+  if (loadingOptions) return;
+  loadingOptions = true;
+  try {
+    const result = await cli($, [kind]);
+    const data = result.ok ? result.data : null;
+    if (kind === "site") {
+      siteOptions = { teams: data?.teams ?? [] };
+      if (!siteTeam && siteOptions.teams[0]) siteTeam = siteOptions.teams[0].slug;
+    } else {
+      backendOptions = {
+        organizations: data?.organizations ?? [],
+        costs: data?.costs ?? {},
+        freeProjects: data?.freeProjects ?? [],
+        ...(data?.region ? { region: data.region } : {}),
+      };
+      // A free organization with room first: a backend that costs nothing.
+      const free = backendOptions.organizations.find(
+        (o) => o.plan === "free" && (o.freeLeft ?? 0) > 0,
+      );
+      if (!backendOrg) backendOrg = (free ?? backendOptions.organizations[0])?.slug ?? "";
+    }
+  } finally {
+    loadingOptions = false;
+  }
+  $.ui.invalidate("ui.render");
+}
+
+/** The app isn't on the web after all: say so, and open the panel on putting it online. */
+async function goOnline($: EngineInterface) {
+  await setWhere($, "hosting", "none");
+  await openPane($);
 }
 
 /** The builder says they signed in on the new site: look again, and say so if nothing is seen. */
@@ -1280,7 +1355,7 @@ export const register: Register = (on) => {
     if (!(await isApp())) return next(e);
     if (SECRET_STEP.test(command)) {
       return {
-        deny: "This step takes a secret (a token, a key, a password), so the builder does it in the Clodable panel (Move off Lovable), never through the chat. Ask them to use the panel, then carry on.",
+        deny: "This step takes a secret (a token, a key, a password), so the builder does it in the Clodable panel, never through the chat. Ask them to use the panel (type /clodable), then carry on.",
       };
     }
     if (OUR_PUBLISH.test(command)) {
@@ -1408,6 +1483,7 @@ export const register: Register = (on) => {
     if (
       e.tool === "Bash" &&
       (isMoveStep($.plugin.root, String(input.command ?? "").trim()) ||
+        isOnlineStep($.plugin.root, String(input.command ?? "").trim()) ||
         isFactsRecord($.plugin.root, String(input.command ?? "").trim()))
     )
       return { ...verdict, decision: "allow" };
@@ -1537,6 +1613,8 @@ export const register: Register = (on) => {
         </Box>
         {appQuestions($, ui, s)}
         {movedOffCard($, ui, s, desktop)}
+        {siteCard($, ui, s)}
+        {backendCard($, ui, s)}
         {databaseCard($, ui, s)}
         {settingsCard($, ui, s)}
         {stateCard($, ui, s, a, now, desktop)}
@@ -1735,6 +1813,23 @@ function barSides(
             </Button>,
           ]
         : [];
+    if (a.noHost) {
+      return {
+        left: [
+          dot("warning"),
+          <Text bold>Published on GitHub</Text>,
+          <Text dimColor wrap="truncate-end">
+            Not on the web yet
+          </Text>,
+        ],
+        right: [
+          <Button key="go-online" variant="primary" onPress={() => background(goOnline($))}>
+            Put it online
+          </Button>,
+          ...undo,
+        ],
+      };
+    }
     if (!a.onLovable) {
       return {
         left: [
@@ -1835,15 +1930,44 @@ function barSides(
       ],
     };
   }
+  // The site Clodable put on Netlify, waiting for its first Publish.
+  if (s.site && !s.site.live) {
+    return {
+      left: [dot("warning"), <Text>Your site is ready to go online</Text>],
+      right: [
+        history,
+        preview,
+        <Button key="publish" variant="primary" onPress={() => background(publishNow($))}>
+          Publish
+        </Button>,
+      ],
+    };
+  }
   const url = s.lastPublish?.url ?? s.liveUrl;
+  // Nothing puts the app on the web yet: published means on GitHub, and nothing more.
+  const offline = s.hosting === "none" || Boolean(s.lastPublish?.noHost && !s.site);
   return {
     left: [
-      dot("success"),
+      dot(offline ? "warning" : "success"),
       // Lovable's hosting only shows what was last published in Lovable: say what's certain.
-      <Text>{s.hosting === "lovable" ? "Everything is published" : "Everything is live"}</Text>,
-      url ? siteLink(ui, url) : null,
+      <Text>
+        {offline
+          ? "Not on the web yet"
+          : s.hosting === "lovable"
+            ? "Everything is published"
+            : "Everything is live"}
+      </Text>,
+      url && !offline ? siteLink(ui, url) : null,
     ],
-    right: [history, preview],
+    right: offline
+      ? [
+          history,
+          preview,
+          <Button key="go-online" variant="secondary" onPress={() => background(goOnline($))}>
+            Put it online
+          </Button>,
+        ]
+      : [history, preview],
   };
 }
 
@@ -2095,7 +2219,7 @@ function stateCard(
   a: ClodableActivity,
   now: number,
   desktop: boolean,
-): RenderElement {
+): RenderElement | null {
   const { Box, Text, Button, Link, Code } = ui;
   const steps = <Box flexDirection="column">{a.steps.map((step) => stepLine(ui, step))}</Box>;
   if (confirming?.kind === "undo" && a.kind !== "publishing" && a.kind !== "undoing") {
@@ -2145,6 +2269,24 @@ function stateCard(
           <Code source={error.details.slice(0, 6000)} wrap="wrap" />
         ) : null}
       </Box>,
+    );
+  }
+  if (justDone(a, now) && a.noHost) {
+    return card(
+      ui,
+      <Text bold>Published on GitHub</Text>,
+      <Text dimColor>
+        Clodable didn't see a host put it on the web. If your site didn't change, Clodable can put
+        it online on your own Netlify.
+      </Text>,
+      [
+        <Button key="go-online" variant="primary" onPress={() => background(goOnline($))}>
+          Put my site online
+        </Button>,
+        <Button key="undo" variant="secondary" onPress={() => background(askUndo($))}>
+          Undo
+        </Button>,
+      ],
     );
   }
   if (justDone(a, now)) {
@@ -2200,9 +2342,25 @@ function stateCard(
       ],
     );
   }
+  // Waiting for its first Publish: the site's own card says so, with the button.
+  if (s.site && !s.site.live) return null;
+  if (s.lastPublish?.noHost && !s.site && s.hosting !== "none") {
+    return card(
+      ui,
+      <Text bold>Published on GitHub</Text>,
+      <Text dimColor>
+        {`Published ${ago(s.lastPublish.at, now)}, but Clodable didn't see a host put it on the web. If your site didn't change, Clodable can put it online.`}
+      </Text>,
+      [
+        <Button key="go-online" variant="secondary" onPress={() => background(goOnline($))}>
+          Put my site online
+        </Button>,
+      ],
+    );
+  }
   return card(
     ui,
-    <Text bold>Everything is live</Text>,
+    <Text bold>{s.hosting === "none" ? "Everything is saved" : "Everything is live"}</Text>,
     <Text dimColor>
       {s.lastPublish
         ? `Published ${ago(s.lastPublish.at, now)}: “${s.lastPublish.title}”`
@@ -2313,6 +2471,244 @@ function databaseCard($: EngineInterface, ui: PaneUi, s: ClodableStatus) {
   );
 }
 
+/** Netlify's page for personal access tokens. */
+const NETLIFY_TOKENS = "https://app.netlify.com/user/applications#personal-access-tokens";
+
+/** While Claude runs a request from the panel, its button gives way to this. */
+function claudeOnIt(ui: PaneUi) {
+  const { Text } = ui;
+  return <Text dimColor>Claude is on it, in the conversation.</Text>;
+}
+
+/**
+ * Not online yet: Netlify connected here, then Claude puts the site online (the builder's request)
+ * and the next Publish makes it public. Once it's there, until that Publish, the card says so.
+ */
+function siteCard($: EngineInterface, ui: PaneUi, s: ClodableStatus) {
+  const { Box, Text, Button, Link, Select } = ui;
+  if (s.movingOffLovable || s.finishingMove) return null;
+  if (s.site && !s.site.live) {
+    return card(
+      ui,
+      <Text bold>Your site is ready to go online</Text>,
+      <Box flexDirection="column" rowGap={1}>
+        <Text dimColor>Publish puts it online, and each Publish after that updates it.</Text>
+        {siteLink(ui, s.site.url)}
+      </Box>,
+      [
+        <Button key="site-publish" variant="primary" onPress={() => background(publishNow($))}>
+          Publish
+        </Button>,
+      ],
+    );
+  }
+  if (s.hosting !== "none") return null;
+  const about = (
+    <Text dimColor>
+      Your app isn't on the web yet. Clodable puts it on Netlify, under your own account (free to
+      start), and each Publish updates it.
+    </Text>
+  );
+  if (!s.netlifyConnected) {
+    return card(
+      ui,
+      <Text bold>Put your site online</Text>,
+      <Box flexDirection="column" rowGap={1}>
+        {about}
+        {numbered(ui, [
+          "Sign in to Netlify, or sign up (it's free).",
+          "Open Netlify's token page and create a personal access token named Clodable.",
+          "Paste it here. It stays on this computer.",
+        ])}
+        <Link href={NETLIFY_TOKENS} label="Open Netlify's token page ↗" />
+        {connecting === "netlify" ? (
+          <Text dimColor>Connecting to Netlify…</Text>
+        ) : (
+          field(ui, "site-netlify-token", "Netlify token", "Connect", (value) =>
+            background(connectService($, "netlify", value)),
+          )
+        )}
+      </Box>,
+    );
+  }
+  if (siteOptions === null) background(loadOptions($, "site"));
+  const teams = siteOptions?.teams ?? [];
+  return card(
+    ui,
+    <Text bold>Put your site online</Text>,
+    <Box flexDirection="column" rowGap={1}>
+      {about}
+      {teams.length > 1 && Select ? (
+        <Select
+          key="site-team"
+          label="Netlify team"
+          options={teams.map((t) => ({ value: t.slug, label: t.name }))}
+          value={siteTeam}
+          onSelect={(value: string) => {
+            siteTeam = value;
+            $.ui.invalidate("ui.render");
+          }}
+        />
+      ) : null}
+    </Box>,
+    isPiloting()
+      ? [claudeOnIt(ui)]
+      : [pilotButton($, ui, "site-create", "Put my site online", siteRequest($, siteTeam))],
+  );
+}
+
+/** Putting the site online, in the builder's words, with the command beside for Claude. */
+function siteRequest($: EngineInterface, team: string): Ask {
+  const command = onlineCommandLine($.plugin.root, [
+    "site",
+    "create",
+    ...(team ? ["--team", team] : []),
+  ]);
+  return {
+    text: "Put my site online, then tell me what's left before people can see it.",
+    details: `From Clodable: run \`${command}\`. It creates the site on the builder's own Netlify, gives it the app's settings and backend keys, and sets up Publish (netlify.toml and a GitHub Actions workflow). Then tell them in plain words: their site's address, and that it goes online when they press Publish. If the app's server code reads settings with no value yet, say which ones to paste in the panel. If it stops, find out why and fix what you can.`,
+  };
+}
+
+/**
+ * No backend yet: one quiet line. Asked, Supabase connected here, then Claude creates the backend
+ * (the builder's request) and connects the app to it.
+ */
+function backendCard($: EngineInterface, ui: PaneUi, s: ClodableStatus) {
+  const { Box, Text, Button, Link, Select } = ui;
+  if (s.backend !== "none" || s.movingOffLovable || s.finishingMove) return null;
+  if (!addingBackend) {
+    return (
+      <Box flexDirection="row" columnGap={2} alignItems="center">
+        <Text dimColor>No backend yet: add one when your app needs sign-in or saved data.</Text>
+        <Button
+          key="add-backend"
+          plain
+          onPress={() => {
+            addingBackend = true;
+            $.ui.invalidate("ui.render");
+          }}
+        >
+          Add a backend
+        </Button>
+      </Box>
+    );
+  }
+  const notNow = (
+    <Button
+      key="backend-not-now"
+      variant="secondary"
+      onPress={() => {
+        addingBackend = false;
+        $.ui.invalidate("ui.render");
+      }}
+    >
+      Not now
+    </Button>
+  );
+  const about = (
+    <Text dimColor>
+      Your app gets its own database, sign-in and file storage on Supabase, under your own account
+      (free to start). Claude then adds what you ask for: accounts, saved data, uploads.
+    </Text>
+  );
+  if (!s.databaseConnected) {
+    return card(
+      ui,
+      <Text bold>Add a backend</Text>,
+      <Box flexDirection="column" rowGap={1}>
+        {about}
+        {numbered(ui, [
+          "Open Supabase's token page (sign up first if you need to).",
+          "Click “Create legacy token”: the full-access kind.",
+          "Name it Clodable, choose the longest expiry it offers, and generate it.",
+          "Paste it here. It stays on this computer.",
+        ])}
+        <Link
+          href="https://supabase.com/dashboard/account/tokens"
+          label="Open Supabase's token page ↗"
+        />
+        {connecting === "supabase" ? (
+          <Text dimColor>Connecting to Supabase…</Text>
+        ) : (
+          field(ui, "backend-supabase-token", "sbp_…", "Connect", (value) =>
+            background(connectService($, "supabase", value)),
+          )
+        )}
+      </Box>,
+      [notNow],
+    );
+  }
+  if (backendOptions === null) background(loadOptions($, "backend"));
+  const orgs = backendOptions?.organizations ?? [];
+  const org = orgs.find((o) => o.slug === backendOrg) ?? orgs[0];
+  const cost = org ? backendOptions?.costs[org.slug] : undefined;
+  const full = org?.plan === "free" && org.freeLeft === 0;
+  const running = (backendOptions?.freeProjects ?? []).map((p) => p.name).join(", ");
+  return card(
+    ui,
+    <Text bold>Add a backend</Text>,
+    <Box flexDirection="column" rowGap={1}>
+      {about}
+      {orgs.length > 1 && Select ? (
+        <Select
+          key="backend-org"
+          label="Supabase organization"
+          options={orgs.map((o) => ({
+            value: o.slug,
+            label: `${o.name} · ${backendOptions?.costs[o.slug] ?? o.plan}`,
+          }))}
+          value={org?.slug ?? ""}
+          onSelect={(value: string) => {
+            backendOrg = value;
+            $.ui.invalidate("ui.render");
+          }}
+        />
+      ) : org && cost ? (
+        <Text dimColor>{`In ${org.name}: ${cost.charAt(0).toLowerCase()}${cost.slice(1)}.`}</Text>
+      ) : null}
+      {full ? (
+        <Text color="warning">
+          Your Supabase account already runs its 2 free projects{running ? ` (${running})` : ""}.
+          Pause one in Supabase, or pick an organization on a paid plan.
+        </Text>
+      ) : null}
+    </Box>,
+    isPiloting()
+      ? [claudeOnIt(ui)]
+      : full
+        ? [notNow]
+        : [
+            notNow,
+            pilotButton(
+              $,
+              ui,
+              "backend-create",
+              "Create my backend",
+              backendRequest($, org, backendOptions?.region?.code),
+            ),
+          ],
+  );
+}
+
+/** Creating the backend, in the builder's words, with the command beside for Claude. */
+function backendRequest(
+  $: EngineInterface,
+  org: { slug: string; name: string } | undefined,
+  region: string | undefined,
+): Ask {
+  const command = onlineCommandLine($.plugin.root, [
+    "backend",
+    "create",
+    ...(org ? ["--org", org.slug] : []),
+    ...(region ? ["--region", region] : []),
+  ]);
+  return {
+    text: `Add a backend to my app${org ? ` in my Supabase organization “${org.name}”` : ""}, then tell me what it lets me do.`,
+    details: `From Clodable: run \`${command}\`. It creates a project on the builder's own Supabase (about 2 minutes), writes its public address and key in .env (VITE_SUPABASE_URL, VITE_SUPABASE_PUBLISHABLE_KEY), keeps its server keys for the preview on this computer, and turns on your database commands (AGENTS.md now says how). If the app has no Supabase client yet, add one the way Lovable's templates do: install @supabase/supabase-js and create src/integrations/supabase/client.ts exporting \`supabase = createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY)\`. Don't build any feature yet. Then tell them in plain words that their app has a backend, and what it lets them add (sign-in, saving data, uploads). If it stops, find out why and fix what you can.`,
+  };
+}
+
 /** The settings the app's server code reads, missing on this computer or on the site. */
 function settingsCard($: EngineInterface, ui: PaneUi, s: ClodableStatus) {
   const { Text } = ui;
@@ -2321,12 +2717,11 @@ function settingsCard($: EngineInterface, ui: PaneUi, s: ClodableStatus) {
 }
 
 /**
- * Where the data and the live site are, asked in the app's view only for an app made with Lovable:
- * there they decide what Clodable can do (change the database, the last click after Publish).
+ * Where the data and the live site are, asked once in the app's view: they decide what Clodable can
+ * do (change the database, put the site online, the last click in Lovable after Publish).
  */
 function appQuestions($: EngineInterface, ui: PaneUi, s: ClodableStatus) {
   const { Box, Text } = ui;
-  if (!s.madeWithLovable) return null;
   const questions = whereQuestions($, ui, s);
   if (questions.length === 0) return null;
   return (
@@ -2595,12 +2990,19 @@ function whereQuestions($: EngineInterface, ui: PaneUi, s: ClodableStatus): Rend
         ui,
         "backend",
         "Where does your app's data live?",
-        [
-          ["lovable-cloud", "On Lovable Cloud"],
-          ["supabase", "In my own Supabase"],
-          ["none", "No database"],
-        ],
-        "Not sure? If your project in Lovable has Cloud (Database, Users…), it's Lovable Cloud.",
+        s.madeWithLovable
+          ? [
+              ["lovable-cloud", "On Lovable Cloud"],
+              ["supabase", "In my own Supabase"],
+              ["none", "No database yet"],
+            ]
+          : [
+              ["supabase", "In my own Supabase"],
+              ["none", "No database yet"],
+            ],
+        s.madeWithLovable
+          ? "Not sure? If your project in Lovable has Cloud (Database, Users…), it's Lovable Cloud."
+          : "No sign-in and nothing saved for people yet? Then there's no database yet.",
       ),
     );
   }
@@ -2611,11 +3013,19 @@ function whereQuestions($: EngineInterface, ui: PaneUi, s: ClodableStatus): Rend
         ui,
         "hosting",
         "Where is your site live?",
-        [
-          ["lovable", "On Lovable"],
-          ["github", "Elsewhere (Netlify, Vercel…)"],
-        ],
-        "If you click Publish in Lovable to update your site, it's on Lovable.",
+        s.madeWithLovable
+          ? [
+              ["lovable", "On Lovable"],
+              ["github", "Elsewhere (Netlify, Vercel…)"],
+              ["none", "Not online yet"],
+            ]
+          : [
+              ["github", "Online already (Netlify, Vercel…)"],
+              ["none", "Not online yet"],
+            ],
+        s.madeWithLovable
+          ? "If you click Publish in Lovable to update your site, it's on Lovable."
+          : "If people can visit it at a web address, it's online.",
       ),
     );
   }

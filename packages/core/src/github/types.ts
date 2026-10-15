@@ -71,6 +71,11 @@ export interface GitHubAdapter {
    * the host builds outside GitHub.
    */
   buildProgress?(sha: string): Promise<BuildProgress | undefined>;
+  /**
+   * Whether any host ever reported a deployment to this repository: none means nothing puts it
+   * online from GitHub (yet).
+   */
+  hasDeployments?(): Promise<boolean>;
   /** Set a repository secret for GitHub Actions; the value goes on stdin, never on a command line. */
   setSecret(name: string, value: string): Promise<void>;
 }

@@ -858,3 +858,14 @@ describe("GitHub through gh", () => {
     await expect(withGh("offline", clone)).rejects.toMatchObject({ code: "offline" });
   });
 });
+
+describe("a migration's new tables", () => {
+  it("are the ones it creates in the app's own schema, so the API is waited for", async () => {
+    const { newTables } = await import("../src/database.js");
+    expect(
+      newTables(
+        'create table public.notes (id int);\nCREATE TABLE IF NOT EXISTS "orders" (id int);\ncreate table private.audit (id int);\nalter table notes add column x int;',
+      ),
+    ).toEqual(["notes", "orders"]);
+  });
+});

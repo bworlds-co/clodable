@@ -68,3 +68,24 @@ export const backToPreview = (auth: Auth) =>
 /** Sign-in links come back to the live site. */
 export const backToSite = (auth: Auth, site: string) =>
   auth.site_url === site && String(auth.uri_allow_list ?? "").includes(`${site}/**`);
+
+/**
+ * Sign-in on a backend Clodable just made for the app: links come back to the preview, and to the
+ * live site when there is one. New people don't wait for a confirmation email: Supabase's built-in
+ * mailer only writes to the project's own team.
+ */
+export async function newBackendSignIn(
+  api: SupabaseApi,
+  ref: string,
+  site: string | undefined,
+): Promise<void> {
+  const current = await api.authConfig(ref);
+  await api.updateAuthConfig(ref, {
+    site_url: site ?? PREVIEW_ORIGIN,
+    uri_allow_list: allowList(current.uri_allow_list, [
+      ...PREVIEW_REDIRECTS,
+      ...(site ? [`${site}/**`] : []),
+    ]),
+    mailer_autoconfirm: true,
+  });
+}
