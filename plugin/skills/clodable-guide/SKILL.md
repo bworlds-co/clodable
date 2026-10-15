@@ -1,7 +1,7 @@
 ---
 name: clodable-guide
 user-invocable: false
-description: How to work with a builder in a Clodable project, a Lovable-style app edited in Claude Desktop where Clodable saves every reply to a draft on GitHub and the builder publishes with one click. Use when the builder asks about publishing, going live, undoing a publish, restoring an earlier version, what's live versus not yet, their draft, setup, seeing the preview or its toolbar, or changing their live database.
+description: How to work with a builder in a Clodable project, a Lovable-style app edited in Claude Desktop where Clodable saves every reply to a draft on GitHub and the builder publishes with one click. Use when the builder asks about publishing, going live, putting their site online, adding a backend (sign-in, saved data), undoing a publish, restoring an earlier version, what's live versus not yet, their draft, setup, seeing the preview or its toolbar, or changing their live database.
 ---
 
 # Working in a Clodable project
@@ -31,6 +31,8 @@ Talk about **the preview**, never an address: no `localhost`, no port numbers. T
 | "Add a column", "add some test data", "fix that record" (their own Supabase) | As on Lovable, through Clodable: `npx clodable db query "select …"` to look, a migration in `supabase/migrations/` applied with `npx clodable db apply <file>` for the tables, `npx clodable db run "…"` for the data. Say what will change in one sentence and wait for a yes first. No key needed: never ask for one. |
 | A feature is empty in the preview, or you add code reading `process.env.X` | Its value is one of the app's settings. Run `npx clodable settings` to see which are missing here or on their site, and tell them to paste the value in the Clodable panel (**Your app's settings**). The preview restarts with it. Never ask for the value in the chat. |
 | "Leave Lovable", "move off Lovable Cloud" | Ask them to type `/move-off-lovable`: it opens the move in the Clodable panel. Each step they press comes to you, and the `clodable-move` skill says how to run it. |
+| "Put my site online" (from the panel: the command reaches you beside the message), "how do people see my app?" | When it comes from the panel, run the command given, then tell them their site's address and that it goes online when they press **Publish**. Asked in the chat, with no site yet: ask them to type `/clodable`; the panel's **Put your site online** connects their own Netlify (a token they paste there, never in the chat). |
+| "Add a backend" (from the panel, with the command beside), or a feature that needs sign-in or saved data when the app has none | From the panel: run the command (it takes about 2 minutes), add the Supabase client if the app has none, and say what it lets them add. Asked in the chat: say in one sentence that the app needs a backend first, and ask them to click **Add a backend** in the Clodable panel (`/clodable`). Don't set one up any other way. |
 
 ## The preview toolbar
 

@@ -2,8 +2,8 @@ import { readFile } from "node:fs/promises";
 import { basename, relative, resolve } from "node:path";
 import { ClodableError } from "./errors.js";
 import { literal } from "./move/fixes.js";
-import { homeSql } from "./move/home.js";
-import { SupabaseApi } from "./move/supabase-api.js";
+import { homeKeys, homeSql, localTarget } from "./move/home.js";
+import { projectUrl, SupabaseApi } from "./move/supabase-api.js";
 import type { Workspace } from "./workspace.js";
 
 /**
@@ -132,7 +132,7 @@ export async function applyMigration(
   const text = await readFile(path, "utf8").catch(() => {
     throw new ClodableError({ code: "not-found", message: `There's no ${file}.` });
   });
-  const { sql: db } = await database(ws);
+  const { api, ref, sql: db } = await database(ws);
   const [history] = await db.rows<{ present: boolean }>(
     "select to_regclass('supabase_migrations.schema_migrations') is not null as present",
   );
@@ -153,5 +153,37 @@ export async function applyMigration(
       "commit;",
     ].join("\n"),
   );
+  await untilTheApiSees(api, ref, newTables(text));
   return { version, name, applied: true };
+}
+
+/** The tables a migration creates in the app's own schema (public), by name. */
+export function newTables(sql: string): string[] {
+  const found = sql.matchAll(
+    /create\s+table\s+(?:if\s+not\s+exists\s+)?(?:"?(\w+)"?\.)?"?(\w+)"?/gi,
+  );
+  return [...found].filter((m) => !m[1] || m[1] === "public").map((m) => m[2]!);
+}
+
+/**
+ * New tables reach the app's API a moment after the schema reload. Wait until it sees them (15 s
+ * at most), so the app, and Claude trying it, find them straight away.
+ */
+async function untilTheApiSees(api: SupabaseApi, ref: string, tables: string[]): Promise<void> {
+  if (tables.length === 0 || localTarget()) return;
+  const keys = await homeKeys(api, ref).catch(() => undefined);
+  if (!keys) return;
+  const deadline = Date.now() + 15_000;
+  for (const table of tables) {
+    while (Date.now() < deadline) {
+      const answer = await fetch(`${projectUrl(ref)}/rest/v1/${table}?limit=0`, {
+        headers: { apikey: keys.publishable },
+      })
+        .then((response) => response.text())
+        .catch(() => "");
+      // PGRST205: "not in the schema cache". Anything else means the API knows the table now.
+      if (!answer.includes("PGRST205")) break;
+      await new Promise((done) => setTimeout(done, 1000));
+    }
+  }
 }

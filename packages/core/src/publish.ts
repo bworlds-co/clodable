@@ -40,6 +40,8 @@ export interface PublishResult {
    * app still runs on Lovable. "live", "failed", or "pending" (still building, or not reported).
    */
   site?: { url: string; state: "live" | "failed" | "pending"; logUrl?: string };
+  /** No host ever reported putting this repository online: it's on GitHub, not on the web. */
+  noHost?: true;
   pullRequest: { number: number; url: string };
   warnings: string[];
   functions: FunctionsOutcome;
@@ -224,7 +226,14 @@ export async function* publish(ws: Workspace, options: PublishOptions = {}): Flo
   const at = wait.now().toISOString();
   const url = deployed.url ?? ws.config.liveUrl;
   await ws.updateState({
-    lastPublish: { sha, title, at, ...(url ? { url } : {}), prNumber: pr.number },
+    lastPublish: {
+      sha,
+      title,
+      at,
+      ...(url ? { url } : {}),
+      prNumber: pr.number,
+      ...(deployed.noHost ? { noHost: true } : {}),
+    },
     pullRequest: undefined,
   });
   yield step("fresh-draft", "done", "Fresh draft ready");
@@ -237,6 +246,10 @@ export async function* publish(ws: Workspace, options: PublishOptions = {}): Flo
       if (s.site) s.site.liveAt = at;
     });
   }
+  // The site Clodable put on Netlify: online from its first Publish on.
+  if (deployed.state === "live" && ws.config.netlify && !(await ws.state()).siteLiveAt) {
+    await ws.updateState({ siteLiveAt: at });
+  }
 
   return {
     sha,
@@ -246,6 +259,7 @@ export async function* publish(ws: Workspace, options: PublishOptions = {}): Flo
     deploy: deployed.state,
     ...lovableLink(ws, deployed.state),
     ...(deployed.site ? { site: deployed.site } : {}),
+    ...(deployed.noHost ? { noHost: true as const } : {}),
     pullRequest: { number: pr.number, url: pr.url },
     warnings,
     functions,

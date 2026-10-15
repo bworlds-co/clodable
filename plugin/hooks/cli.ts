@@ -81,6 +81,7 @@ export function toStatus(data: any): ClodableStatus {
           title: data.lastPublish.title,
           at: data.lastPublish.at,
           url: data.lastPublish.url ?? null,
+          ...(data.lastPublish.noHost ? { noHost: true } : {}),
         }
       : null,
     pullRequest: data?.pullRequest ?? null,
@@ -93,6 +94,10 @@ export function toStatus(data: any): ClodableStatus {
     movedAt: data?.movedAt ?? null,
     databaseConnected:
       typeof data?.database?.connected === "boolean" ? data.database.connected : null,
+    site: data?.site?.url
+      ? { url: data.site.url, admin: data.site.admin ?? "", live: Boolean(data.site.live) }
+      : null,
+    netlifyConnected: typeof data?.netlify?.connected === "boolean" ? data.netlify.connected : null,
   };
 }
 

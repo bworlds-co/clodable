@@ -85,18 +85,69 @@ export interface SettingsStatus {
   site?: string[];
 }
 
+/**
+ * The app's site on Netlify, put there by Clodable (on its own, or moving off Lovable), with the
+ * names of the settings set there and how to record a new one.
+ */
+async function siteOf(ws: Workspace): Promise<
+  | {
+      account: string;
+      id: string;
+      names: string[];
+      record(name: string): Promise<void>;
+    }
+  | undefined
+> {
+  const add = (names: string[] | undefined, name: string) =>
+    [...new Set([...(names ?? []), name])].sort();
+  if (ws.config.netlify) {
+    const state = await ws.state();
+    return {
+      account: ws.config.netlify.account,
+      id: ws.config.netlify.siteId,
+      names: state.siteSettings ?? [],
+      record: async (name) => {
+        await ws.updateState({ siteSettings: add((await ws.state()).siteSettings, name) });
+      },
+    };
+  }
+  const move = await loadMove(ws.root);
+  if (!move.site) return undefined;
+  return {
+    account: move.site.account,
+    id: move.site.id,
+    names: move.siteSettings ?? [],
+    record: async (name) => {
+      await updateMove(ws.root, (s) => {
+        s.siteSettings = add(s.siteSettings, name);
+      });
+    },
+  };
+}
+
 export async function settingsStatus(ws: Workspace): Promise<SettingsStatus> {
   const { wanted, lovable } = await appSettings(ws.root);
   const values = await localSettings(ws.root);
-  const move = await loadMove(ws.root);
+  const site = await siteOf(ws);
   return {
     wanted,
     local: wanted.filter((name) => values[name] !== undefined),
     lovable,
-    ...(move.site
-      ? { site: wanted.filter((name) => (move.siteSettings ?? []).includes(name)) }
-      : {}),
+    ...(site ? { site: wanted.filter((name) => site.names.includes(name)) } : {}),
   };
+}
+
+/**
+ * Values the preview's server code gets on this computer, set by Clodable itself (a new backend's
+ * address and keys): never in the project, never shown.
+ */
+export async function rememberSettings(root: string, add: Record<string, string>): Promise<void> {
+  const values = { ...(await localSettings(root)), ...add };
+  await storeSecret(storeKey(root), JSON.stringify(values));
+  await writeJsonFile(join(root, SETTINGS_PATH), {
+    names: Object.keys(values).sort(),
+    at: new Date().toISOString(),
+  });
 }
 
 /** Set one setting: on this computer, and on the site on Netlify when the app has one. */
@@ -123,18 +174,16 @@ export async function setSetting(
     names: Object.keys(values).sort(),
     at: new Date().toISOString(),
   });
-  const move = await loadMove(ws.root);
-  if (move.site) {
+  const site = await siteOf(ws);
+  if (site) {
     const netlify = await NetlifyApi.onThisComputer();
     if (netlify) {
       // VITE_ settings are built into the page on purpose: kept as secrets, Netlify's scan for
       // leaked secrets would stop the deploy.
-      await netlify.setEnv(move.site.account, move.site.id, name, clean, {
+      await netlify.setEnv(site.account, site.id, name, clean, {
         secret: !name.startsWith("VITE_"),
       });
-      await updateMove(ws.root, (s) => {
-        s.siteSettings = [...new Set([...(s.siteSettings ?? []), name])].sort();
-      });
+      await site.record(name);
     }
   }
   return settingsStatus(ws);

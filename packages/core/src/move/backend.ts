@@ -51,3 +51,21 @@ export function backendEnv(b: Backend) {
 export const BACKEND_ENV = Object.keys(
   backendEnv({ ref: "", url: "", publishable: "", anon: "", serviceRole: "" }),
 ) as Array<keyof ReturnType<typeof backendEnv>>;
+
+/**
+ * `.env` text with these values: lines that name them are rewritten in place (quotes kept), and
+ * the ones missing are added at the end.
+ */
+export function envWith(text: string, values: Record<string, string>): string {
+  const seen = new Set<string>();
+  const lines = text.split("\n").map((line) => {
+    const match = line.match(/^(\s*(?:export\s+)?)([A-Z0-9_]+)(\s*=\s*)(["']?)(.*?)\4\s*$/);
+    if (!match || !(match[2]! in values)) return line;
+    seen.add(match[2]!);
+    return `${match[1]}${match[2]}${match[3]}${match[4]}${values[match[2]!]}${match[4]}`;
+  });
+  const missing = Object.entries(values).filter(([key]) => !seen.has(key));
+  if (missing.length === 0) return lines.join("\n");
+  while (lines.length > 0 && lines.at(-1) === "") lines.pop();
+  return `${[...lines, ...missing.map(([key, value]) => `${key}="${value}"`)].join("\n")}\n`;
+}

@@ -174,7 +174,12 @@ export async function* waitForDeploy(
   ws: Workspace,
   sha: string,
   o: Timing,
-): Flow<{ state: PublishResult["deploy"]; url?: string; site?: PublishResult["site"] }> {
+): Flow<{
+  state: PublishResult["deploy"];
+  url?: string;
+  site?: PublishResult["site"];
+  noHost?: true;
+}> {
   // Lovable's hosting serves the version last published in Lovable, whatever GitHub holds. Say so
   // instead of waiting for a host that will never report.
   if (ws.config.hosting === "lovable") {
@@ -211,9 +216,20 @@ export async function* waitForDeploy(
         hint: "Your previous version is still live. Ask Claude to look at the host's report.",
         ...(end.deployment.logUrl ? { details: end.deployment.logUrl } : {}),
       });
-    case "unreported":
+    case "unreported": {
+      // Nothing ever reported a deployment here: no host puts this app online from GitHub.
+      if ((await ws.github.hasDeployments?.().catch(() => undefined)) === false) {
+        yield step(
+          "deploy",
+          "done",
+          "Published on GitHub",
+          "No host puts it online from there yet",
+        );
+        return { state: "unknown", noHost: true };
+      }
       yield step("deploy", "done", "Published", "Your host will put it live in a moment");
       return { state: "unknown", ...liveUrl };
+    }
     case "late":
       yield step("deploy", "warning", "Still going live", "Your host is taking longer than usual");
       return { state: "pending", ...liveUrl };

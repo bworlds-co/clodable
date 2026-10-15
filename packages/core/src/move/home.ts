@@ -14,9 +14,9 @@ import { SupabaseApi } from "./supabase-api.js";
  * reaches its database (Supabase's API for SQL, its pooler for Postgres's tools).
  */
 
-const passwordKey = (ref: string) => `db-password:${ref}`;
+export const passwordKey = (ref: string) => `db-password:${ref}`;
 
-function newPassword(): string {
+export function newPassword(): string {
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
   return Array.from({ length: 32 }, () => alphabet[randomInt(alphabet.length)]).join("");
 }
@@ -79,9 +79,16 @@ export async function* createHome(
     "Creating your new backend",
     "Starting it up: about 2 minutes",
   );
+  await waitUntilUp(api, created.ref);
+  yield step("move:create", "done", "Your new backend is ready", home.name);
+  return home;
+}
+
+/** Wait until a new project is up: its database, sign-in, API and files all answer. */
+export async function waitUntilUp(api: SupabaseApi, ref: string): Promise<void> {
   const started = Date.now();
   while (true) {
-    const project = await api.project(created.ref).catch(() => undefined);
+    const project = await api.project(ref).catch(() => undefined);
     if (project?.status === "INIT_FAILED") {
       throw new ClodableError({
         code: "supabase-failed",
@@ -90,10 +97,8 @@ export async function* createHome(
       });
     }
     if (project?.status === "ACTIVE_HEALTHY") {
-      const health = await api
-        .health(created.ref, ["db", "auth", "rest", "storage"])
-        .catch(() => []);
-      if (health.length > 0 && health.every((s) => s.healthy)) break;
+      const health = await api.health(ref, ["db", "auth", "rest", "storage"]).catch(() => []);
+      if (health.length > 0 && health.every((s) => s.healthy)) return;
     }
     if (Date.now() - started > 15 * 60_000)
       throw new ClodableError({
@@ -103,8 +108,6 @@ export async function* createHome(
       });
     await new Promise((done) => setTimeout(done, 5000));
   }
-  yield step("move:create", "done", "Your new backend is ready", home.name);
-  return home;
 }
 
 /** The new project's keys: publishable for the app, secret for copying files, legacy for old code. */

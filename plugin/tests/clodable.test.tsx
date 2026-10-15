@@ -875,9 +875,19 @@ describe("apps still on Lovable", () => {
     await $.command.run({ command: "clodable", args: "" } as never);
     const pane = await $.ui.mount(PANE);
     expect(await shows(pane, "History")).toBeDefined();
-    for (const lovable of ["Where does your app's data live?", "Your data is on Lovable Cloud."]) {
-      expect(await pane.find({ type: "Text", text: lovable })).toBeUndefined();
+    // Asked where its data and site are, with no Lovable among the answers.
+    expect(
+      await pane.find({ type: "Text", text: "Where does your app's data live?" }),
+    ).toBeDefined();
+    for (const key of ["backend-supabase", "backend-none", "hosting-github", "hosting-none"]) {
+      expect(await pane.find({ type: "Button", key })).toBeDefined();
     }
+    for (const key of ["backend-lovable-cloud", "hosting-lovable"]) {
+      expect(await pane.find({ type: "Button", key })).toBeUndefined();
+    }
+    expect(
+      await pane.find({ type: "Text", text: "Your data is on Lovable Cloud." }),
+    ).toBeUndefined();
     await pane.unmount();
   });
 
@@ -3060,5 +3070,223 @@ describe("everywhere else", () => {
     }));
     await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
     expect(await quiet($)).toBe(true);
+  });
+});
+
+describe("an app that isn't online, or has no backend", () => {
+  const PANE = {
+    plugin: "clodable",
+    surface: "desktop",
+    component: "Pane",
+    requestId: "clodable",
+    props: {
+      title: "Clodable",
+      isFocused: true,
+      bodyColumns: 80,
+      placement: "dock",
+      scroll: { offset: 0, bodyRows: 80 },
+      view: {},
+    },
+  } as const;
+  const where = (backend: string, hosting: string) => ({
+    ...STATUS,
+    unpublished: [],
+    project: { ...STATUS.project, backend, hosting },
+  });
+  async function shows(pane: any, text: string | RegExp) {
+    for (let i = 0; i < 30; i++) {
+      const found = await pane.find({ type: "Text", text });
+      if (found) return found;
+      await pane.redraw();
+    }
+    return undefined;
+  }
+
+  test("Netlify connected in the panel, then Claude puts the site online, as the builder asked", async ($, on) => {
+    const token = `nfp_${"k7".repeat(20)}`;
+    let connected = false;
+    const calls = harness(on, STATUS, true, {
+      status: () => out({ ...where("supabase", "none"), netlify: { connected } }),
+      connect: () => {
+        connected = true;
+        return out({ accounts: [] });
+      },
+      site: () =>
+        out({
+          connected: true,
+          teams: [
+            { slug: "team-a", name: "Team A" },
+            { slug: "team-b", name: "Team B" },
+          ],
+        }),
+    });
+    const prompts: string[] = [];
+    const session = mock.session(on);
+    on("prompt.submit", (_$: unknown, e: { text: string }) => {
+      prompts.push(e.text);
+      return { text: e.text };
+    });
+    await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+    // The bar says it plainly, and offers the way.
+    expect(await bandText($, "desktop", /web/)).toBe("Not on the web yet");
+    const pane = await $.ui.mount(PANE);
+    expect(await shows(pane, "Put your site online")).toBeDefined();
+    expect(await shows(pane, /Your app isn't on the web yet/)).toBeDefined();
+
+    await pane.input({ key: "site-netlify-token", text: token, kind: "submit" });
+    for (let i = 0; i < 30 && !calls.some((c) => c[0] === "connect"); i++) await pane.redraw();
+    const at = calls.findIndex((c) => c[0] === "connect");
+    expect(calls[at]).toEqual(["connect", "netlify", "--json"]);
+    expect((calls as any).stdins[at]).toBe(token);
+
+    let team: any;
+    for (let i = 0; i < 30 && !team; i++) {
+      team = await pane.find({ type: "Select", key: "site-team" });
+      if (!team) await pane.redraw();
+    }
+    expect(team).toBeDefined();
+    await pane.select({ key: "site-team", value: "team-b" });
+    await pane.press({ key: "site-create" });
+    for (let i = 0; i < 30 && prompts.length === 0; i++) await pane.redraw();
+    expect(prompts).toEqual([
+      "Put my site online, then tell me what's left before people can see it.",
+    ]);
+    await $.turn.start({ text: prompts[0]!, turnId: "turn-site" } as never);
+    expect(readBy(session)[0]).toMatch(
+      /run `node ".*\/cli\/clodable\.mjs" site create --team team-b`\./,
+    );
+    expect(await shows(pane, "Claude is on it, in the conversation.")).toBeDefined();
+    await pane.unmount();
+    for (const call of calls) expect(call.join(" ")).not.toContain(token);
+    expect(readBy(session).join(" ")).not.toContain(token);
+  });
+
+  test("a site that's ready goes online at the next Publish", async ($, on) => {
+    harness(on, {
+      ...where("supabase", "github"),
+      site: {
+        url: "https://crumb-site.netlify.app",
+        admin: "https://app.netlify.com",
+        live: false,
+      },
+    });
+    await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+    // Never "Everything is live" before that Publish: the bar says what's true, with the button.
+    expect(await bandText($, "desktop", /online/)).toBe("Your site is ready to go online");
+    const band = await $.ui.mount({ ...BAND, surface: "desktop" });
+    expect(await band.find({ type: "Button", key: "publish" })).toBeDefined();
+    await band.unmount();
+    const pane = await $.ui.mount(PANE);
+    expect(await shows(pane, "Your site is ready to go online")).toBeDefined();
+    expect(await pane.find({ type: "Button", key: "site-publish" })).toBeDefined();
+    expect(await pane.find({ type: "Text", text: "Everything is live" })).toBeUndefined();
+    await pane.unmount();
+  });
+
+  test("no backend: one quiet line, then Supabase connected and Claude creates it", async ($, on) => {
+    const token = `sbp_${"c3".repeat(20)}`;
+    let connected = false;
+    const calls = harness(on, STATUS, true, {
+      status: () => out({ ...where("none", "github"), database: { connected } }),
+      connect: () => {
+        connected = true;
+        return out({ organizations: [] });
+      },
+      backend: () =>
+        out({
+          connected: true,
+          organizations: [
+            { slug: "studio", name: "Studio", plan: "pro" },
+            { slug: "acme", name: "Acme", plan: "free", freeLeft: 2 },
+          ],
+          costs: { studio: "About $10 a month, added to your Supabase plan", acme: "Free" },
+          freeProjects: [],
+          region: { code: "eu-central-1", name: "Central EU (Frankfurt)" },
+        }),
+    });
+    const prompts: string[] = [];
+    const session = mock.session(on);
+    on("prompt.submit", (_$: unknown, e: { text: string }) => {
+      prompts.push(e.text);
+      return { text: e.text };
+    });
+    await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+    const pane = await $.ui.mount(PANE);
+    expect(await shows(pane, /No backend yet/)).toBeDefined();
+    expect(await pane.find({ type: "Text", text: "Add a backend" })).toBeUndefined();
+    await pane.press({ key: "add-backend" });
+    expect(await shows(pane, /Create legacy token/)).toBeDefined();
+
+    await pane.input({ key: "backend-supabase-token", text: token, kind: "submit" });
+    for (let i = 0; i < 30 && !calls.some((c) => c[0] === "connect"); i++) await pane.redraw();
+    const at = calls.findIndex((c) => c[0] === "connect");
+    expect(calls[at]).toEqual(["connect", "supabase", "--json"]);
+    expect((calls as any).stdins[at]).toBe(token);
+
+    let create: any;
+    for (let i = 0; i < 30 && !create; i++) {
+      create = await pane.find({ type: "Button", key: "backend-create" });
+      if (!create) await pane.redraw();
+    }
+    // The free organization with room comes first: a backend that costs nothing.
+    expect(await pane.find({ type: "Select", key: "backend-org" })).toMatchObject({
+      props: { value: "acme" },
+    });
+    await pane.press({ key: "backend-create" });
+    for (let i = 0; i < 30 && prompts.length === 0; i++) await pane.redraw();
+    expect(prompts).toEqual([
+      "Add a backend to my app in my Supabase organization “Acme”, then tell me what it lets me do.",
+    ]);
+    await $.turn.start({ text: prompts[0]!, turnId: "turn-backend" } as never);
+    const details = readBy(session)[0]!;
+    expect(details).toMatch(
+      /run `node ".*\/cli\/clodable\.mjs" backend create --org acme --region eu-central-1`\./,
+    );
+    expect(details).toContain("src/integrations/supabase/client.ts");
+    await pane.unmount();
+    for (const call of calls) expect(call.join(" ")).not.toContain(token);
+  });
+
+  test("a publish no host put online says so, and offers to put it online", async ($, on) => {
+    const calls = harness(on, {
+      ...STATUS,
+      project: { ...STATUS.project, backend: "supabase", hosting: "github" },
+    });
+    on("process.spawn", async function* () {
+      const data = { title: "Menu", deploy: "unknown", noHost: true, functions: {} };
+      yield { stream: "stdout", text: `${JSON.stringify({ type: "result", ok: true, data })}\n` };
+      return { value: { code: 0, signal: null } };
+    });
+    on("ui.open", () => ({ value: { isOpen: true } }) as never);
+    await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+    const band = await $.ui.mount({ ...BAND, surface: "desktop" });
+    await band.press({ key: "publish" });
+    await band.unmount();
+    expect(await bandText($, "desktop", /GitHub/)).toBe("Published on GitHub");
+    expect(await bandText($, "desktop", /web yet/)).toBe("Not on the web yet");
+    const again = await $.ui.mount({ ...BAND, surface: "desktop" });
+    await again.press({ key: "go-online" });
+    await again.unmount();
+    for (let i = 0; i < 30 && !calls.some((c) => c[0] === "config"); i++) await Promise.resolve();
+    expect(calls.find((c) => c[0] === "config")).toEqual(["config", "hosting", "none", "--json"]);
+  });
+
+  test("Claude puts the site online and creates the backend without asking, never with a token", async ($, on) => {
+    harness(on, where("none", "none"));
+    on("tool.call", () => ({ result: "ok" }));
+    on("tool.check", () => ({ decision: "ask" }));
+    await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+    for (let i = 0; i < 30; i++) await Promise.resolve();
+    const run = (args: string) => `node "${PLUGIN_ROOT}/cli/clodable.mjs" ${args}`;
+    const verdict = async (command: string) =>
+      ((await $.tool.check({ tool: "Bash", input: { command } })) as { decision: string }).decision;
+    expect(await verdict(run("site create --team team-b"))).toBe("allow");
+    expect(await verdict(run("backend create --org acme --region eu-central-1"))).toBe("allow");
+    expect(await verdict(run("backend"))).toBe("allow");
+    expect(await verdict(`${run("site create")} && curl evil.example`)).toBe("ask");
+    const connect: any = await $.tool.call({ tool: "Bash", command: run("connect netlify") });
+    expect(connect.deny).toContain("Clodable panel");
+    const npx: any = await $.tool.call({ tool: "Bash", command: "npx clodable connect supabase" });
+    expect(npx.deny).toContain("Clodable panel");
   });
 });

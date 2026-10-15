@@ -20,6 +20,9 @@ export type StepId =
   | "functions"
   | "fresh-draft"
   | "revert"
+  // An app that isn't online, or has no backend, gets one
+  | "site"
+  | "backend"
   // Moving off Lovable
   | "move:connect"
   | "move:create"

@@ -152,6 +152,21 @@ describe("publishing", () => {
     expect(await readFile(join(sb.work, "src/menu.txt"), "utf8")).toBe("Sourdough\n");
   });
 
+  it("says when nothing puts the app online: it's on GitHub, not on the web", async () => {
+    sb.github.deploymentFor = () => [];
+    await sb.write("src/app.txt", "Hello\n");
+    await save(await sb.ws(), { message: "Hello" });
+    const events: ClodableEvent[] = [];
+
+    const result = await publishAll(events);
+
+    expect(result).toMatchObject({ deploy: "unknown", noHost: true });
+    expect(events.filter((e) => e.type === "step" && e.id === "deploy").at(-1)).toMatchObject({
+      state: "done",
+      title: "Published on GitHub",
+    });
+  });
+
   it("refuses when there's nothing to publish", async () => {
     await expectError(publishAll(), "nothing-to-publish");
   });
@@ -651,6 +666,7 @@ describe("undo and restore", () => {
     await sb.write(".clodable/config.json", answered);
     await sb.write("AGENTS.md", "Your data is on your own Supabase.\n");
     await sb.write(".github/workflows/clodable-netlify.yml", "name: Publish to Netlify\n");
+    await sb.write("netlify.toml", '[build]\n  publish = "dist"\n');
     await sb.write("src/app.txt", "Brand new welcome\n");
     await save(ws, { message: "New welcome" });
     await publishAll();
@@ -664,6 +680,7 @@ describe("undo and restore", () => {
     expect(await live(".clodable/config.json")).toBe(answered);
     expect(await live("AGENTS.md")).toBe("Your data is on your own Supabase.\n");
     expect(await live(".github/workflows/clodable-netlify.yml")).toBe("name: Publish to Netlify\n");
+    expect(await live("netlify.toml")).toBe('[build]\n  publish = "dist"\n');
     // The builder's files follow what's live: the app is back, Clodable's answers are kept.
     expect(await readFile(join(sb.work, "src/app.txt"), "utf8")).toBe(before);
     expect(await readFile(join(sb.work, ".clodable/config.json"), "utf8")).toBe(answered);

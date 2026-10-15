@@ -34,8 +34,24 @@ export const ProjectConfigSchema = z.object({
    * Clodable shapes the pages, and the move to the builder's own Supabase is a guided step.
    */
   backend: z.enum(["unknown", "lovable-cloud", "supabase", "none"]).default("unknown"),
-  /** Who puts the site live: a host that deploys from GitHub, or Lovable (only on its Publish click). */
-  hosting: z.enum(["unknown", "github", "lovable"]).default("unknown"),
+  /**
+   * Who puts the site live: a host that deploys from GitHub, Lovable (only on its Publish click), or
+   * nobody yet (`none`: the builder can put it online on their own Netlify from Clodable).
+   */
+  hosting: z.enum(["unknown", "github", "lovable", "none"]).default("unknown"),
+  /**
+   * The site Clodable put on the builder's own Netlify: each Publish goes live there through a
+   * GitHub Actions workflow. Nothing secret: the token that reaches it stays on each computer.
+   */
+  netlify: z
+    .object({
+      siteId: z.string(),
+      name: z.string(),
+      url: z.string(),
+      admin: z.string(),
+      account: z.string(),
+    })
+    .optional(),
   checks: z
     .object({
       build: z.boolean().default(true),
@@ -67,8 +83,14 @@ export const LocalStateSchema = z.object({
       at: z.string(),
       url: z.string().optional(),
       prNumber: z.number().optional(),
+      /** No host ever reported putting the app online: this publish is on GitHub only. */
+      noHost: z.boolean().optional(),
     })
     .optional(),
+  /** When a Publish was first seen live on the site Clodable put on Netlify. */
+  siteLiveAt: z.string().optional(),
+  /** The app's settings set on that site (names only). */
+  siteSettings: z.array(z.string()).optional(),
 });
 
 export type LocalState = z.infer<typeof LocalStateSchema>;

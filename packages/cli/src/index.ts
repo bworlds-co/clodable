@@ -3,6 +3,7 @@ import { cac } from "cac";
 import { dbCommand } from "./commands/db.js";
 import { devCommand } from "./commands/dev.js";
 import { configCommand, MOVE_HELP, moveCommand } from "./commands/move.js";
+import { backendCommand, connectCommand, siteCommand } from "./commands/online.js";
 import { checkCommand, publishCommand, undoCommand } from "./commands/publish.js";
 import { settingsCommand } from "./commands/settings.js";
 import { doctorCommand, kitCommand, setupCommand } from "./commands/setup.js";
@@ -82,7 +83,7 @@ cli
   .option("-y, --yes", "Don't ask questions")
   .option("--publish", "Publish the setup right away")
   .option("--backend <where>", "Where the data lives: lovable-cloud, supabase or none")
-  .option("--hosting <where>", "Where the site is live: lovable or github")
+  .option("--hosting <where>", "Where the site is live: lovable, github or none (not online yet)")
   .action((options) =>
     setupCommand(ctx(options), {
       repo: options.repo,
@@ -91,7 +92,9 @@ cli
       ...(["lovable-cloud", "supabase", "none"].includes(options.backend)
         ? { backend: options.backend }
         : {}),
-      ...(["lovable", "github"].includes(options.hosting) ? { hosting: options.hosting } : {}),
+      ...(["lovable", "github", "none"].includes(options.hosting)
+        ? { hosting: options.hosting }
+        : {}),
     }),
   );
 
@@ -102,7 +105,7 @@ cli
 cli
   .command(
     "config [key] [value]",
-    "Read or change where your app runs: backend (lovable-cloud, supabase, none), hosting (lovable, github)",
+    "Read or change where your app runs: backend (lovable-cloud, supabase, none), hosting (lovable, github, none)",
   )
   .action((key, value, options) => configCommand(ctx(options), { key, value }));
 
@@ -124,6 +127,41 @@ cli
   )
   .action((action, arg, options) =>
     dbCommand(ctx(options), { action: String(action), ...(arg ? { arg: String(arg) } : {}) }),
+  );
+
+cli
+  .command(
+    "connect <service>",
+    "Connect supabase or netlify on this computer, the token piped in (for a new backend or site)",
+  )
+  .action((service, options) => connectCommand(ctx(options), String(service)));
+
+cli
+  .command(
+    "site [action]",
+    "Your app's site: where it stands, or create: put it online on your own Netlify",
+  )
+  .option("--team <slug>", "create: the Netlify team the site goes in")
+  .action((action, options) =>
+    siteCommand(ctx(options), {
+      ...(action ? { action: String(action) } : {}),
+      ...(options.team ? { team: String(options.team) } : {}),
+    }),
+  );
+
+cli
+  .command(
+    "backend [action]",
+    "Your app's backend: the choices, or create: a new one on your own Supabase",
+  )
+  .option("--org <slug>", "create: the Supabase organization")
+  .option("--region <code>", "create: where it runs (eu-central-1…)")
+  .action((action, options) =>
+    backendCommand(ctx(options), {
+      ...(action ? { action: String(action) } : {}),
+      ...(options.org ? { org: String(options.org) } : {}),
+      ...(options.region ? { region: String(options.region) } : {}),
+    }),
   );
 
 /** An option given as text, or nothing when it wasn't given. */

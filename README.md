@@ -35,7 +35,7 @@
 
 **Coming from Lovable?** Clodable moves your app, your data and your users to accounts you own, step by step, while your live app keeps running. See [how the move goes](#move-off-lovable-to-a-stack-you-own).
 
-**Still early.** Clodable is v0.1: it works end to end, but it isn't perfect yet, and it changes fast. [Tell us what breaks](https://github.com/bworlds-co/clodable/issues).
+**Still early.** Clodable is v0.2: it works end to end, but it isn't perfect yet, and it changes fast. [Tell us what breaks](https://github.com/bworlds-co/clodable/issues).
 
 <p align="center">
   <a href="#get-started">Get started</a> · <a href="#how-it-works">How it works</a> · <a href="docs/ARCHITECTURE.md">Architecture</a> · <a href="docs/DECISIONS.md">Decisions</a> · <a href="CONTRIBUTING.md">Contributing</a>
@@ -64,8 +64,8 @@ You never see git, branches or deploy logs. Your developer, if you have one, see
 Clodable is built and tested with apps made with **Lovable**:
 
 - **Your app:** either kind Lovable makes, a React app built with Vite or a TanStack Start app.
-- **Your database:** your own Supabase project, or Lovable Cloud, which Clodable moves to a Supabase project in your name.
-- **Your site:** still on Lovable's hosting, on Netlify after the move, or on any host that deploys from GitHub, such as Vercel, Netlify or Cloudflare.
+- **Your database:** your own Supabase project, or Lovable Cloud, which Clodable moves to a Supabase project in your name. No database yet? Clodable adds one on your own Supabase when your app needs sign-in or saved data.
+- **Your site:** still on Lovable's hosting, on Netlify after the move, or on any host that deploys from GitHub, such as Vercel, Netlify or Cloudflare. Not online yet? Clodable puts it on your own Netlify, and each Publish updates it.
 - **Your computer:** a Mac with Claude Desktop. Windows hasn't been tested yet, and the move off Lovable doesn't run there yet.
 
 Apps from other AI app builders aren't supported yet. A React app built with Vite may already work, since that's what Clodable's preview runs, but none has been tested. Apps built with Next.js don't work yet.
@@ -76,7 +76,7 @@ Apps from other AI app builders aren't supported yet. A React app built with Vit
 - [Claude Desktop](https://claude.com/download).
 - A GitHub account with your app on it. Your AI app builder can push your project there in one click:
   - [Lovable](https://docs.lovable.dev/integrations/github)
-- Moving off Lovable? Nothing else: Clodable sets up Supabase, Netlify and the rest with you during the move. Already off Lovable? A host that deploys from GitHub, such as Vercel, Netlify or Cloudflare.
+- Nothing else. Moving off Lovable, putting your site online, adding a backend: Clodable sets up Netlify and Supabase in your name when you need them (both free to start).
 
 > **About Claude plans.** Pro and Max are personal plans. For your company's app, use **Claude Team or Enterprise**. Anthropic's consumer terms don't allow business use of personal plans in the EU.
 
@@ -233,7 +233,7 @@ Clodable is built for Claude: Claude reads your app and decides, and the CLI doe
   <img src="docs/assets/mascot/still-shaping.png" alt="The mascot lying flat, still being shaped, waving" width="177">
 </p>
 
-Clodable is **v0.1**: early, working end to end, and moving fast. The move off Lovable has run end to end on test apps; Google sign-in, your own domain and the careful switch haven't yet run against real accounts. The design decisions are recorded in [docs/DECISIONS.md](docs/DECISIONS.md). Coming next:
+Clodable is **v0.2**: early, working end to end, and moving fast. The move off Lovable has run end to end on test apps; Google sign-in, your own domain and the careful switch haven't yet run against real accounts. The design decisions are recorded in [docs/DECISIONS.md](docs/DECISIONS.md). Coming next:
 - a local staging database;
 - a "wait for my developer" mode;
 - a secure form for your production keys.
