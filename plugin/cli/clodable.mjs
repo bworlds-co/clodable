@@ -1103,8 +1103,8 @@ function summarizeBuildOutput(output2, root) {
   for (const prefix2 of root ? /* @__PURE__ */ new Set([root, realRoot(root)]) : []) {
     clean2 = clean2.replaceAll(`${prefix2}${sep2}`, "");
   }
-  const lines = clean2.split("\n").map((l2) => l2.trimEnd());
-  const firstError = lines.findIndex((l2) => ERROR_LINE.test(l2));
+  const lines = clean2.split("\n").map((l) => l.trimEnd());
+  const firstError = lines.findIndex((l) => ERROR_LINE.test(l));
   const start = Math.max(0, firstError >= 0 ? firstError - 1 : lines.length - 12);
   const excerpt = lines.slice(start, start + 12).join("\n").trim();
   const locationMatch = clean2.match(LOCATION);
@@ -1233,7 +1233,7 @@ function checksFailed(failed, hint) {
     details: failed.map((f) => `${f.summary}
 ${f.details ?? ""}`).join("\n\n").trim(),
     files: failed.flatMap(
-      (f) => f.locations?.map((l2) => l2.line ? `${l2.file}:${l2.line}` : l2.file) ?? []
+      (f) => f.locations?.map((l) => l.line ? `${l.file}:${l.line}` : l.file) ?? []
     )
   });
 }
@@ -22573,11 +22573,11 @@ function statement(sql) {
 async function checkDatabase(ws) {
   const { api, ref } = await database(ws);
   const lints = await api.advisors(ref, "security");
-  const findings = lints.filter((l2) => l2.level === "ERROR" || l2.level === "WARN").map((l2) => ({
-    level: l2.level === "ERROR" ? "error" : "warning",
-    title: l2.title,
-    ...l2.detail ? { detail: l2.detail } : {},
-    ...l2.remediation ? { fix: l2.remediation } : {}
+  const findings = lints.filter((l) => l.level === "ERROR" || l.level === "WARN").map((l) => ({
+    level: l.level === "ERROR" ? "error" : "warning",
+    title: l.title,
+    ...l.detail ? { detail: l.detail } : {},
+    ...l.remediation ? { fix: l.remediation } : {}
   }));
   return { ok: !findings.some((f) => f.level === "error"), findings };
 }
@@ -23755,7 +23755,7 @@ async function gitignorePlan(root) {
   const before = await read(root, ".gitignore");
   const wanted = [".clodable/local/", ".clodable/inbox/"];
   const missing = wanted.filter(
-    (line) => !(before ?? "").split("\n").some((l2) => l2.trim() === line)
+    (line) => !(before ?? "").split("\n").some((l) => l.trim() === line)
   );
   return change(
     ".gitignore",
@@ -24442,7 +24442,7 @@ ${kindTrailer(options.kind)}`
   }
 };
 function cleanSubject(text2) {
-  const firstLine = text2.split("\n").map((l2) => l2.trim()).find(Boolean) ?? "Update";
+  const firstLine = text2.split("\n").map((l) => l.trim()).find(Boolean) ?? "Update";
   const singleSpaced = firstLine.replace(/\s+/g, " ").replace(/[.\s]+$/, "");
   const capitalized = singleSpaced.charAt(0).toUpperCase() + singleSpaced.slice(1);
   return capitalized.length <= 72 ? capitalized : `${capitalized.slice(0, 71).trimEnd()}\u2026`;
@@ -29501,7 +29501,6 @@ import { resolve as resolve4 } from "node:path";
 // ../../node_modules/.pnpm/@clack+core@1.5.1/node_modules/@clack/core/dist/index.mjs
 import { styleText } from "node:util";
 import { stdout, stdin } from "node:process";
-import * as l from "node:readline";
 import l__default from "node:readline";
 
 // ../../node_modules/.pnpm/fast-string-truncated-width@3.0.3/node_modules/fast-string-truncated-width/dist/utils.js
@@ -29590,7 +29589,7 @@ var getStringTruncatedWidth = (input2, truncationOptions = {}, widthOptions = {}
     if (index >= length) {
       break outer;
     }
-    for (let i2 = 0, l2 = PARSE_BLOCKS.length; i2 < l2; i2++) {
+    for (let i2 = 0, l = PARSE_BLOCKS.length; i2 < l; i2++) {
       const [BLOCK_RE, BLOCK_WIDTH] = PARSE_BLOCKS[i2];
       BLOCK_RE.lastIndex = index;
       if (BLOCK_RE.test(input2)) {
@@ -29842,12 +29841,11 @@ function wrapAnsi(string4, columns, options) {
 
 // ../../node_modules/.pnpm/@clack+core@1.5.1/node_modules/@clack/core/dist/index.mjs
 var import_sisteransi = __toESM(require_src(), 1);
-import { ReadStream } from "node:tty";
-function findCursor(s, o, l2) {
-  if (!l2.some((r2) => !r2.disabled))
+function findCursor(s, o, l) {
+  if (!l.some((r2) => !r2.disabled))
     return s;
-  const t2 = s + o, n4 = Math.max(l2.length - 1, 0), e = t2 < 0 ? n4 : t2 > n4 ? 0 : t2;
-  return l2[e]?.disabled ? findCursor(e, o < 0 ? -1 : 1, l2) : e;
+  const t2 = s + o, n4 = Math.max(l.length - 1, 0), e = t2 < 0 ? n4 : t2 > n4 ? 0 : t2;
+  return l[e]?.disabled ? findCursor(e, o < 0 ? -1 : 1, l) : e;
 }
 var a$1 = ["up", "down", "left", "right", "space", "enter", "cancel"];
 var t = [
@@ -29929,37 +29927,6 @@ function isCancel(e) {
 function setRawMode(e, r2) {
   const o = e;
   o.isTTY && o.setRawMode(r2);
-}
-function block({
-  input: e = stdin,
-  output: r2 = stdout,
-  overwrite: o = true,
-  hideCursor: n4 = true
-} = {}) {
-  const s = l.createInterface({
-    input: e,
-    output: r2,
-    prompt: "",
-    tabSize: 1
-  });
-  l.emitKeypressEvents(e, s), e instanceof ReadStream && e.isTTY && e.setRawMode(true);
-  const t2 = (f, { name: a2, sequence: w }) => {
-    const c2 = String(f);
-    if (isActionKey([c2, a2, w], "cancel")) {
-      n4 && r2.write(import_sisteransi.cursor.show), process.exit(0);
-      return;
-    }
-    if (!o) return;
-    const i2 = a2 === "return" ? 0 : -1, m = a2 === "return" ? -1 : 0;
-    l.moveCursor(r2, i2, m, () => {
-      l.clearLine(r2, 1, () => {
-        e.once("keypress", t2);
-      });
-    });
-  };
-  return n4 && r2.write(import_sisteransi.cursor.hide), e.once("keypress", t2), () => {
-    e.off("keypress", t2), n4 && r2.write(import_sisteransi.cursor.show), e instanceof ReadStream && e.isTTY && !R && e.setRawMode(false), s.terminal = false, s.close();
-  };
 }
 var getColumns = (e) => "columns" in e && typeof e.columns == "number" ? e.columns : 80;
 var getRows = (e) => "rows" in e && typeof e.rows == "number" ? e.rows : 20;
@@ -30243,7 +30210,6 @@ function isUnicodeSupported() {
   return Boolean(process$1.env.CI) || Boolean(process$1.env.WT_SESSION) || Boolean(process$1.env.TERMINUS_SUBLIME) || process$1.env.ConEmuTask === "{cmd::Cmder}" || process$1.env.TERM_PROGRAM === "Terminus-Sublime" || process$1.env.TERM_PROGRAM === "vscode" || process$1.env.TERM === "xterm-256color" || process$1.env.TERM === "alacritty" || process$1.env.TERMINAL_EMULATOR === "JetBrains-JediTerm";
 }
 var unicode = isUnicodeSupported();
-var isCI = () => process.env.CI === "true";
 var unicodeOr = (o, e) => unicode ? o : e;
 var S_STEP_ACTIVE = unicodeOr("\u25C6", "*");
 var S_STEP_CANCEL = unicodeOr("\u25A0", "x");
@@ -30302,22 +30268,22 @@ function formatInstructionFooter(o, e) {
   const r2 = [`${e ? `${styleText2("cyan", S_BAR)}  ` : ""}${o.join(" \u2022 ")}`];
   return e && r2.push(styleText2("cyan", S_BAR_END)), r2;
 }
-var I = (l2, e, w, p, b, C = false) => {
+var I = (l, e, w, p, b, C = false) => {
   let r2 = e, O = 0;
   if (C)
     for (let i2 = p - 1; i2 >= w; i2--) {
-      const m = l2[i2];
+      const m = l[i2];
       if (m && (r2 -= m.length), O++, r2 <= b) break;
     }
   else
     for (let i2 = w; i2 < p; i2++) {
-      const m = l2[i2];
+      const m = l[i2];
       if (m && (r2 -= m.length), O++, r2 <= b) break;
     }
   return { lineCount: r2, removals: O };
 };
 var limitOptions = ({
-  cursor: l2,
+  cursor: l,
   options: e,
   style: w,
   output: p = process.stdout,
@@ -30327,20 +30293,20 @@ var limitOptions = ({
 }) => {
   const i2 = getColumns(p) - C, m = getRows(p), M = styleText2("dim", "..."), v = Math.max(m - r2, 0), a2 = Math.max(Math.min(b, v), 5);
   let f = 0;
-  l2 >= a2 - 3 && (f = Math.max(
-    Math.min(l2 - a2 + 3, e.length - a2),
+  l >= a2 - 3 && (f = Math.max(
+    Math.min(l - a2 + 3, e.length - a2),
     0
   ));
   let d = a2 < e.length && f > 0, c2 = a2 < e.length && f + a2 < e.length;
-  const W2 = Math.min(
+  const W = Math.min(
     f + a2,
     e.length
   ), s = [];
   let g = 0;
   d && g++, c2 && g++;
-  const T = f + (d ? 1 : 0), y2 = W2 - (c2 ? 1 : 0);
+  const T = f + (d ? 1 : 0), y2 = W - (c2 ? 1 : 0);
   for (let t2 = T; t2 < y2; t2++) {
-    const n4 = e[t2], o = n4 ? w(n4, t2 === l2) : "", h2 = wrapAnsi(o, i2, {
+    const n4 = e[t2], o = n4 ? w(n4, t2 === l) : "", h2 = wrapAnsi(o, i2, {
       hard: true,
       trim: false
     }).split(`
@@ -30349,7 +30315,7 @@ var limitOptions = ({
   }
   if (g > v) {
     let t2 = 0, n4 = 0, o = g;
-    const h2 = l2 - T;
+    const h2 = l - T;
     let u4 = v;
     const L = () => I(s, o, 0, h2, u4), E = () => I(
       s,
@@ -30378,10 +30344,10 @@ var confirm = (e) => {
     output: e.output,
     initialValue: e.initialValue ?? true,
     render() {
-      const i2 = e.withGuide ?? settings.withGuide, u4 = `${symbol2(this.state)}  `, l2 = i2 ? `${styleText2("gray", S_BAR)}  ` : "", f = wrapTextWithPrefix(
+      const i2 = e.withGuide ?? settings.withGuide, u4 = `${symbol2(this.state)}  `, l = i2 ? `${styleText2("gray", S_BAR)}  ` : "", f = wrapTextWithPrefix(
         e.output,
         e.message,
-        l2,
+        l,
         u4
       ), s = `${i2 ? `${styleText2("gray", S_BAR)}
 ` : ""}${f}
@@ -30449,86 +30415,6 @@ ${n4}
     }
   }
 }).prompt();
-var W = (l2) => styleText2("magenta", l2);
-var spinner = ({
-  indicator: l2 = "dots",
-  onCancel: h2,
-  output: n4 = process.stdout,
-  cancelMessage: G,
-  errorMessage: O,
-  frames: E = unicode ? ["\u25D2", "\u25D0", "\u25D3", "\u25D1"] : ["\u2022", "o", "O", "0"],
-  delay: F = unicode ? 80 : 120,
-  signal: m,
-  ...I2
-} = {}) => {
-  const u4 = isCI();
-  let M, T, d = false, S = false, s = "", p, w = performance.now();
-  const x2 = getColumns(n4), k = I2?.styleFrame ?? W, g = (e) => {
-    const r2 = e > 1 ? O ?? settings.messages.error : G ?? settings.messages.cancel;
-    S = e === 1, d && (a2(r2, e), S && typeof h2 == "function" && h2());
-  }, f = () => g(2), i2 = () => g(1), A = () => {
-    process.on("uncaughtExceptionMonitor", f), process.on("unhandledRejection", f), process.on("SIGINT", i2), process.on("SIGTERM", i2), process.on("exit", g), m && m.addEventListener("abort", i2);
-  }, H = () => {
-    process.removeListener("uncaughtExceptionMonitor", f), process.removeListener("unhandledRejection", f), process.removeListener("SIGINT", i2), process.removeListener("SIGTERM", i2), process.removeListener("exit", g), m && m.removeEventListener("abort", i2);
-  }, y2 = () => {
-    if (p === void 0) return;
-    u4 && n4.write(`
-`);
-    const r2 = wrapAnsi(p, x2, {
-      hard: true,
-      trim: false
-    }).split(`
-`);
-    r2.length > 1 && n4.write(import_sisteransi2.cursor.up(r2.length - 1)), n4.write(import_sisteransi2.cursor.to(0)), n4.write(import_sisteransi2.erase.down());
-  }, C = (e) => e.replace(/\.+$/, ""), _ = (e) => {
-    const r2 = (performance.now() - e) / 1e3, t2 = Math.floor(r2 / 60), o = Math.floor(r2 % 60);
-    return t2 > 0 ? `[${t2}m ${o}s]` : `[${o}s]`;
-  }, N = I2.withGuide ?? settings.withGuide, P = (e = "") => {
-    d = true, M = block({ output: n4 }), s = C(e), w = performance.now(), N && n4.write(`${styleText2("gray", S_BAR)}
-`);
-    let r2 = 0, t2 = 0;
-    A(), T = setInterval(() => {
-      if (u4 && s === p)
-        return;
-      y2(), p = s;
-      const o = k(E[r2]);
-      let v;
-      if (u4)
-        v = `${o}  ${s}...`;
-      else if (l2 === "timer")
-        v = `${o}  ${s} ${_(w)}`;
-      else {
-        const B = ".".repeat(Math.floor(t2)).slice(0, 3);
-        v = `${o}  ${s}${B}`;
-      }
-      const j = wrapAnsi(v, x2, {
-        hard: true,
-        trim: false
-      });
-      n4.write(j), r2 = r2 + 1 < E.length ? r2 + 1 : 0, t2 = t2 < 4 ? t2 + 0.125 : 0;
-    }, F);
-  }, a2 = (e = "", r2 = 0, t2 = false) => {
-    if (!d) return;
-    d = false, clearInterval(T), y2();
-    const o = r2 === 0 ? styleText2("green", S_STEP_SUBMIT) : r2 === 1 ? styleText2("red", S_STEP_CANCEL) : styleText2("red", S_STEP_ERROR);
-    s = e ?? s, t2 || (l2 === "timer" ? n4.write(`${o}  ${s} ${_(w)}
-`) : n4.write(`${o}  ${s}
-`)), H(), M();
-  };
-  return {
-    start: P,
-    stop: (e = "") => a2(e, 0),
-    message: (e = "") => {
-      s = C(e ?? s);
-    },
-    cancel: (e = "") => a2(e, 1),
-    error: (e = "") => a2(e, 2),
-    clear: () => a2("", 0, true),
-    get isCancelled() {
-      return S;
-    }
-  };
-};
 var u3 = {
   light: unicodeOr("\u2500", "-"),
   heavy: unicodeOr("\u2501", "="),
@@ -30760,7 +30646,7 @@ ${ash(indent(error62.details, 4))}
 }
 function indent(text2, spaces) {
   const pad = " ".repeat(spaces);
-  return text2.split("\n").map((l2) => pad + l2).join("\n");
+  return text2.split("\n").map((l) => pad + l).join("\n");
 }
 var label = (text2) => ash(text2.padEnd(11));
 var link = (url2) => color ? import_picocolors.default.underline(url2) : url2;
@@ -32056,8 +31942,8 @@ var MappingsEncoder = class {
   drain(trailing) {
     const lines = this.lines;
     const lineCount = lines.length;
-    for (let l2 = 0; l2 <= lineCount; l2++) {
-      const line = l2 < lineCount ? lines[l2] : trailing;
+    for (let l = 0; l <= lineCount; l++) {
+      const line = l < lineCount ? lines[l] : trailing;
       if (line === null) break;
       for (let i2 = 0; i2 < line.length; i2++) {
         if (this.pos > FLUSH_THRESHOLD) this.flush();
@@ -32077,7 +31963,7 @@ var MappingsEncoder = class {
           this.prevNameIndex = segment[4];
         }
       }
-      if (l2 < lineCount) {
+      if (l < lineCount) {
         if (this.pos > FLUSH_THRESHOLD) this.flush();
         scratch[this.pos++] = SEMICOLON;
         this.needsComma = false;
@@ -49324,10 +49210,20 @@ async function whereItRuns(project, current) {
   }
   return { backend, hosting };
 }
+function panelStep(ctx2, id, state, title) {
+  if (ctx2.out.json) ctx2.out.event(step(id, state, title));
+}
 async function requireTools(ctx2) {
+  panelStep(ctx2, "setup:tools", "running", "Checking your tools");
   const tools = (await toolChecks(ctx2.cwd)).filter((t2) => REQUIRED.includes(t2.id));
   if (!ctx2.out.json) for (const tool2 of tools) doctorLine(ctx2, tool2);
   const blocking = tools.filter((t2) => t2.status === "fail");
+  panelStep(
+    ctx2,
+    "setup:tools",
+    blocking.length > 0 ? "failed" : "done",
+    blocking.length > 0 ? "A few tools are needed first" : "Your tools are ready"
+  );
   if (blocking.length > 0) {
     throw new ClodableError({
       code: blocking.some((b) => b.id === "github") ? "gh-auth" : "gh-missing",
@@ -49353,15 +49249,14 @@ async function pickRepo(ctx2, given, interactive) {
     hint: "Run `clodable setup --repo owner/name`."
   });
 }
-async function bringIn(ctx2, repo, interactive) {
+async function bringIn(ctx2, repo) {
   const empty = readdirSync(ctx2.cwd).filter((n4) => !n4.startsWith(".")).length === 0;
   const target = empty ? ctx2.cwd : join30(ctx2.cwd, repo.split("/")[1]);
-  const s = interactive ? spinner() : void 0;
-  s?.start(`Bringing in ${repo}`);
+  ctx2.out.event(step("setup:app", "running", `Bringing in ${repo}`));
   try {
     await new GhCli(ctx2.cwd).clone(repo, target);
   } catch (error62) {
-    s?.error(`Couldn't bring in ${repo}`);
+    ctx2.out.event(step("setup:app", "failed", `Couldn't bring in ${repo}`));
     if (error62 instanceof ClodableError && error62.code !== "unknown") throw error62;
     throw new ClodableError({
       code: "not-found",
@@ -49369,7 +49264,7 @@ async function bringIn(ctx2, repo, interactive) {
       details: error62 instanceof ClodableError ? error62.details : messageOf(error62)
     });
   }
-  s?.stop(`Brought in ${repo}`);
+  ctx2.out.event(step("setup:app", "done", `Brought in ${repo}`));
   return target;
 }
 async function setupCommand(ctx2, options) {
@@ -49380,7 +49275,7 @@ async function setupCommand(ctx2, options) {
       ctx2.out.header("let's bring your app home");
       await requireTools(ctx2);
       const git = new Git(ctx2.cwd);
-      const root = await git.isRepo() ? await git.root() : await bringIn(ctx2, await pickRepo(ctx2, options.repo, interactive), interactive);
+      const root = await git.isRepo() ? await git.root() : await bringIn(ctx2, await pickRepo(ctx2, options.repo, interactive));
       const project = await detectProject(root);
       const loaded = await loadConfig(root);
       const config2 = {
@@ -49405,19 +49300,37 @@ async function setupCommand(ctx2, options) {
             message: "Setup cancelled. Nothing was changed."
           });
       }
+      panelStep(ctx2, "setup:files", "running", "Adding Clodable's files");
       await applyKit(root, changes);
+      panelStep(ctx2, "setup:files", "done", "Added Clodable's files");
       if (!existsSync26(join30(root, "node_modules"))) {
-        const s = interactive ? spinner() : void 0;
-        s?.start("Installing your app's packages (a minute or two)");
+        ctx2.out.event(
+          step("setup:packages", "running", "Installing your app's packages", "a minute or two")
+        );
         const installed = await exec2(await packageManagerHere(project), ["install"], {
           cwd: root,
           timeout: 15 * 6e4
         });
-        if (installed.exitCode === 0) s?.stop("Packages installed");
-        else s?.error("Packages couldn't be installed. You can retry later with npm install.");
+        ctx2.out.event(
+          installed.exitCode === 0 ? step("setup:packages", "done", "Installed your app's packages") : step(
+            "setup:packages",
+            "warning",
+            "Your app's packages didn't install",
+            "ask Claude to install them"
+          )
+        );
       }
+      ctx2.out.event(step("setup:save", "running", "Saving it to your draft on GitHub"));
       const ws = await Workspace.open({ cwd: root, ...ctx2.github ? { github: ctx2.github } : {} });
       const saved = await save2(ws, { message: "Set up Clodable", kind: "setup" });
+      ctx2.out.event(
+        !saved.saved ? step("setup:save", "skipped", "Nothing new to save") : saved.pushed ? step("setup:save", "done", "Saved to your draft on GitHub") : step(
+          "setup:save",
+          "warning",
+          "Saved on this computer",
+          saved.unscanned ? "it goes to GitHub once it's checked for secret keys" : "it goes to GitHub once you're online"
+        )
+      );
       let published = false;
       if (saved.saved && (options.publish || interactive && await confirmPublish())) {
         await drive(ctx2, publish(ws, { message: "Set up Clodable" }));
