@@ -263,8 +263,10 @@ let backendOptions: {
 } | null = null;
 let backendOrg = "";
 let loadingOptions = false;
-/** Setup running: its button gives way to a note until it's done. */
+/** Setup running: its button gives way to its steps until it's done. */
 let settingUp = false;
+/** The setup's steps as they come in; kept after one that stopped, to show where. */
+let setupSteps: ClodableStep[] = [];
 const isFixing = () => fixing !== null && Date.now() - fixing.at < 10 * 60_000;
 /** Edge functions Claude may deploy right now: only the ones a Publish just put live. */
 let deployable: string[] = [];
@@ -2209,7 +2211,17 @@ function card(
   );
 }
 
-/** One step of a publish or an undo, as it went. */
+/**
+ * The setup's steps as they go, each on one line: done, the one running, or where it stopped.
+ * Before the first one comes in, `starting` says it has begun.
+ */
+function setupProgress(ui: PaneUi, starting: string) {
+  const { Box, Text } = ui;
+  if (setupSteps.length === 0) return settingUp ? <Text dimColor>{starting}</Text> : null;
+  return <Box flexDirection="column">{setupSteps.map((x) => stepLine(ui, x))}</Box>;
+}
+
+/** One step of a publish, an undo or the setup, as it went. */
 function stepLine(ui: PaneUi, step: ClodableStep) {
   const { Text } = ui;
   const mark =
@@ -2370,9 +2382,8 @@ function setupPane(
       ) : s?.reason === "no-kit" ? (
         <Box flexDirection="column" rowGap={1}>
           <Text>This folder already holds an app. Clodable can set itself up right here.</Text>
-          {settingUp ? (
-            <Text dimColor>Setting up Clodable… it takes about a minute.</Text>
-          ) : (
+          {setupProgress(ui, "Setting up Clodable…")}
+          {settingUp ? null : (
             <Button key="set-up-here" variant="primary" onPress={() => background(setUpHere($))}>
               Set up Clodable here
             </Button>
@@ -2390,9 +2401,8 @@ function setupPane(
               $.ui.invalidate("ui.render");
             }}
           />
-          {settingUp ? (
-            <Text dimColor>Bringing in your app… a minute or two.</Text>
-          ) : (
+          {setupProgress(ui, "Bringing in your app…")}
+          {settingUp ? null : (
             <Button key="bring-in" variant="primary" onPress={() => background(bringIn($))}>
               Bring it in
             </Button>
@@ -4857,24 +4867,38 @@ async function loadRepos($: EngineInterface) {
 }
 
 /**
- * `clodable setup` from the panel: its button gives way to a note meanwhile, and a setup that
- * didn't finish says why. Its result when it did.
+ * `clodable setup` from the panel: its button gives way to its steps as they come (the packages
+ * alone can take a minute or two), and a setup that didn't finish says why. Its result when it did.
  */
 async function runSetup($: EngineInterface, args: string[]): Promise<Result | undefined> {
   if (settingUp) return undefined;
   settingUp = true;
+  setupSteps = [];
   $.ui.invalidate("ui.render");
-  let result: Result;
+  let outcome: { result?: Result; failure?: unknown } = {};
   try {
-    result = await cli($, ["setup", ...args, "--yes"], MAX_RUN_MS);
+    outcome = await streamCli($, ["setup", ...args, "--yes"], (event) => {
+      const next: ClodableStep = {
+        id: event.id,
+        state: event.state,
+        title: event.title,
+        ...(event.detail ? { detail: event.detail } : {}),
+      };
+      const at = setupSteps.findIndex((x) => x.id === event.id);
+      setupSteps = at >= 0 ? setupSteps.with(at, next) : [...setupSteps, next];
+      $.ui.invalidate("ui.render");
+    });
   } finally {
     settingUp = false;
     $.ui.invalidate("ui.render");
   }
-  if (!result.ok) {
-    $.ui.toast(result.error?.message ?? "Setup didn't finish.");
+  const { result, failure } = outcome;
+  if (!result?.ok) {
+    if (failure !== undefined) note($, `setup didn't run: ${String(failure)}`.slice(0, 400));
+    $.ui.toast(result?.error?.message ?? "Setup didn't finish.");
     return undefined;
   }
+  setupSteps = [];
   return result;
 }
 

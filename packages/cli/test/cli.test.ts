@@ -204,17 +204,32 @@ describe("clodable --json", () => {
     await writeFile(join(bin, "gh"), gh, { mode: 0o755 });
     const PATH = `${bin}:${process.env.PATH}`;
     try {
+      // Each step as it goes, for the panel: the last word on each is how it ended.
+      const stepsOf = (events: Array<{ type: string; [key: string]: unknown }>) => {
+        const last = new Map<unknown, unknown>();
+        for (const e of events) if (e.type === "step") last.set(e.id, `${e.state}: ${e.title}`);
+        return [...last.entries()];
+      };
       const signedOut = clodableWith({ PATH }, "setup", "--yes");
       expect(signedOut.code).toBe(1);
       expect(signedOut.result.error).toMatchObject({
         code: "gh-auth",
         hint: "Run `gh auth login --web` to connect your account",
       });
+      expect(stepsOf(signedOut.events)).toEqual([
+        ["setup:tools", "failed: A few tools are needed first"],
+      ]);
 
       const setup = clodableWith({ PATH, FAKE_GH: "signed-in" }, "setup", "--yes");
       expect(setup.code).toBe(0);
       expect(setup.result.data).toMatchObject({ saved: true, published: false });
       expect(setup.result.data.files).toContain("AGENTS.md");
+      expect(setup.events[0]).toMatchObject({ type: "step", id: "setup:tools", state: "running" });
+      expect(stepsOf(setup.events).filter(([id]) => id !== "setup:packages")).toEqual([
+        ["setup:tools", "done: Your tools are ready"],
+        ["setup:files", "done: Added Clodable's files"],
+        ["setup:save", "done: Saved to your draft on GitHub"],
+      ]);
       expect(readFileSync(join(sb.work, "AGENTS.md"), "utf8")).toContain("clodable:begin");
     } finally {
       await rm(bin, { recursive: true, force: true });

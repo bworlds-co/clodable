@@ -23,6 +23,12 @@ export type StepId =
   // An app that isn't online, or has no backend, gets one
   | "site"
   | "backend"
+  // Setting Clodable up in an app
+  | "setup:tools"
+  | "setup:app"
+  | "setup:files"
+  | "setup:packages"
+  | "setup:save"
   // Moving off Lovable
   | "move:connect"
   | "move:create"

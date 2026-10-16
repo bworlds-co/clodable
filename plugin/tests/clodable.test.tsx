@@ -65,6 +65,22 @@ const HISTORY = {
   published: [{ sha: "p9", subject: "Opening hours", date: "2026-10-09T09:00:00Z", kind: null }],
 };
 
+/** The Clodable panel, docked in Desktop. */
+const PANE_PROPS = {
+  plugin: "clodable",
+  surface: "desktop",
+  component: "Pane",
+  requestId: "clodable",
+  props: {
+    title: "Clodable",
+    isFocused: true,
+    bodyColumns: 80,
+    placement: "dock",
+    scroll: { offset: 0, bodyRows: 80 },
+    view: {},
+  },
+} as const;
+
 /** Answer every question `$.ui.ask` puts (an AskUserQuestion call) with `label`; returns them. */
 function answerQuestions(on: any, label: string) {
   const asked: string[] = [];
@@ -3008,41 +3024,88 @@ describe("everywhere else", () => {
     return ours === undefined;
   };
 
-  test("Set up Clodable here runs the setup, within the engine's ten-minute limit", async ($, on) => {
-    const calls = harness(
-      on,
-      { code: "not-set-up", message: "Clodable isn't set up in this project." },
-      false,
-      { setup: out({ root: CWD, saved: true, files: [".clodable/config.json"] }) },
-    );
+  test("Set up Clodable here shows each step as it goes, the packages' minute included", async ($, on) => {
+    harness(on, { code: "not-set-up", message: "Clodable isn't set up in this project." }, false);
     const toasts: string[] = [];
     on("ui.toast", (_$: unknown, e: { text: string }) => {
       toasts.push(e.text);
       return { value: undefined };
     });
+    let installed!: () => void;
+    const installing = new Promise<void>((done) => {
+      installed = done;
+    });
+    const ran: string[][] = [];
+    const line = (event: unknown) => ({
+      stream: "stdout" as const,
+      text: `${JSON.stringify(event)}\n`,
+    });
+    const said = (id: string, state: string, title: string) =>
+      line({ type: "step", id, state, title });
+    on("process.spawn", async function* (_$: unknown, e: { argv: readonly string[] }) {
+      ran.push(e.argv.slice(2));
+      yield said("setup:tools", "done", "Your tools are ready");
+      yield said("setup:files", "done", "Added Clodable's files");
+      yield said("setup:packages", "running", "Installing your app's packages");
+      await installing;
+      yield said("setup:packages", "done", "Installed your app's packages");
+      yield said("setup:save", "done", "Saved to your draft on GitHub");
+      yield line({ type: "result", ok: true, data: { root: CWD, saved: true, files: [] } });
+      return { value: { code: 0, signal: null } };
+    });
     await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
-    const pane = await $.ui.mount({
-      plugin: "clodable",
-      surface: "desktop",
-      component: "Pane",
-      requestId: "clodable",
-      props: {
-        title: "Clodable",
-        isFocused: true,
-        bodyColumns: 80,
-        placement: "dock",
-        scroll: { offset: 0, bodyRows: 80 },
-        view: {},
-      },
-    } as never);
+    const pane = await $.ui.mount(PANE_PROPS as never);
     for (let i = 0; i < 30 && !(await pane.find({ key: "set-up-here" })); i++) await pane.redraw();
     await pane.press({ key: "set-up-here" });
-    for (let i = 0; i < 30 && !calls.some((c) => c[0] === "setup"); i++) await pane.redraw();
+    // While the packages install, the panel says so, under what's done, and the button waits.
+    let running: any;
+    for (let i = 0; i < 30 && !running; i++) {
+      running = await pane.find({ type: "Text", text: /Installing your app's packages…/ });
+      if (!running) await pane.redraw();
+    }
+    expect(running).toBeDefined();
+    expect(await pane.find({ type: "Text", text: /✓ Your tools are ready/ })).toBeDefined();
+    expect(await pane.find({ type: "Text", text: /✓ Added Clodable's files/ })).toBeDefined();
+    expect(await pane.find({ key: "set-up-here" })).toBeUndefined();
+    installed();
+    for (let i = 0; i < 30 && !toasts.some((t) => t.includes("ready")); i++) await pane.redraw();
     await pane.unmount();
-    const at = calls.findIndex((c) => c[0] === "setup");
-    expect(calls[at]).toEqual(["setup", "--yes", "--json"]);
-    expect((calls as any).timeouts[at]).toBeLessThanOrEqual(10 * 60_000);
-    expect(toasts.join(" ")).not.toContain("couldn't start");
+    expect(ran[0]).toEqual(["setup", "--yes", "--json"]);
+    expect(toasts).toContain("Your app is ready. Ask Claude for any change.");
+  });
+
+  test("a setup that stopped shows where, and Set up Clodable here comes back", async ($, on) => {
+    harness(on, { code: "not-set-up", message: "Clodable isn't set up in this project." }, false);
+    const toasts: string[] = [];
+    on("ui.toast", (_$: unknown, e: { text: string }) => {
+      toasts.push(e.text);
+      return { value: undefined };
+    });
+    const line = (event: unknown) => ({
+      stream: "stdout" as const,
+      text: `${JSON.stringify(event)}\n`,
+    });
+    on("process.spawn", async function* () {
+      yield line({
+        type: "step",
+        id: "setup:tools",
+        state: "failed",
+        title: "A few tools are needed first",
+      });
+      const error = { code: "gh-auth", message: "A few tools are needed first." };
+      yield line({ type: "result", ok: false, error });
+      return { value: { code: 1, signal: null } };
+    });
+    await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+    const pane = await $.ui.mount(PANE_PROPS as never);
+    for (let i = 0; i < 30 && !(await pane.find({ key: "set-up-here" })); i++) await pane.redraw();
+    await pane.press({ key: "set-up-here" });
+    for (let i = 0; i < 30 && toasts.length === 0; i++) await pane.redraw();
+    await pane.redraw();
+    expect(await pane.find({ type: "Text", text: /✕ A few tools are needed first/ })).toBeDefined();
+    expect(await pane.find({ key: "set-up-here" })).toBeDefined();
+    expect(toasts).toEqual(["A few tools are needed first."]);
+    await pane.unmount();
   });
 
   test("a project Clodable wasn't set up in stays Claude's own", async ($, on) => {

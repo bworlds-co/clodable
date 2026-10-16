@@ -1,6 +1,6 @@
 import { existsSync, readdirSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { confirm, isCancel, select, spinner } from "@clack/prompts";
+import { confirm, isCancel, select } from "@clack/prompts";
 import {
   applyKit,
   ClodableError,
@@ -24,7 +24,10 @@ import {
   parseGitHubRemote,
   planKit,
   publish,
+  type StepId,
+  type StepState,
   save,
+  step,
   supabaseRef,
   Workspace,
 } from "@clodable/core";
@@ -411,11 +414,26 @@ async function whereItRuns(
   return { backend, hosting };
 }
 
+/**
+ * A step of the setup, for the Clodable panel. The terminal shows the tools and the files in full
+ * instead, so these two are the panel's only.
+ */
+function panelStep(ctx: Context, id: StepId, state: StepState, title: string) {
+  if (ctx.out.json) ctx.out.event(step(id, state, title));
+}
+
 /** Node, Git and GitHub, shown as they stand; without any of them, setup stops here. */
 async function requireTools(ctx: Context): Promise<void> {
+  panelStep(ctx, "setup:tools", "running", "Checking your tools");
   const tools = (await toolChecks(ctx.cwd)).filter((t) => REQUIRED.includes(t.id));
   if (!ctx.out.json) for (const tool of tools) doctorLine(ctx, tool);
   const blocking = tools.filter((t) => t.status === "fail");
+  panelStep(
+    ctx,
+    "setup:tools",
+    blocking.length > 0 ? "failed" : "done",
+    blocking.length > 0 ? "A few tools are needed first" : "Your tools are ready",
+  );
   if (blocking.length > 0) {
     throw new ClodableError({
       code: blocking.some((b) => b.id === "github") ? "gh-auth" : "gh-missing",
@@ -448,15 +466,14 @@ async function pickRepo(ctx: Context, given: string | undefined, interactive: bo
 }
 
 /** Bring the app onto this computer: into this folder if it's empty, else into a folder of its own. */
-async function bringIn(ctx: Context, repo: string, interactive: boolean): Promise<string> {
+async function bringIn(ctx: Context, repo: string): Promise<string> {
   const empty = readdirSync(ctx.cwd).filter((n) => !n.startsWith(".")).length === 0;
   const target = empty ? ctx.cwd : join(ctx.cwd, repo.split("/")[1]!);
-  const s = interactive ? spinner() : undefined;
-  s?.start(`Bringing in ${repo}`);
+  ctx.out.event(step("setup:app", "running", `Bringing in ${repo}`));
   try {
     await new GhCli(ctx.cwd).clone(repo, target);
   } catch (error) {
-    s?.error(`Couldn't bring in ${repo}`);
+    ctx.out.event(step("setup:app", "failed", `Couldn't bring in ${repo}`));
     // Not connected or offline says so; anything else is about this repository.
     if (error instanceof ClodableError && error.code !== "unknown") throw error;
     throw new ClodableError({
@@ -465,7 +482,7 @@ async function bringIn(ctx: Context, repo: string, interactive: boolean): Promis
       details: error instanceof ClodableError ? error.details : messageOf(error),
     });
   }
-  s?.stop(`Brought in ${repo}`);
+  ctx.out.event(step("setup:app", "done", `Brought in ${repo}`));
   return target;
 }
 
@@ -489,7 +506,7 @@ export async function setupCommand(
       const git = new Git(ctx.cwd);
       const root = (await git.isRepo())
         ? await git.root()
-        : await bringIn(ctx, await pickRepo(ctx, options.repo, interactive), interactive);
+        : await bringIn(ctx, await pickRepo(ctx, options.repo, interactive));
 
       const project = await detectProject(root);
       const loaded = await loadConfig(root);
@@ -516,21 +533,47 @@ export async function setupCommand(
             message: "Setup cancelled. Nothing was changed.",
           });
       }
+      panelStep(ctx, "setup:files", "running", "Adding Clodable's files");
       await applyKit(root, changes);
+      panelStep(ctx, "setup:files", "done", "Added Clodable's files");
 
       if (!existsSync(join(root, "node_modules"))) {
-        const s = interactive ? spinner() : undefined;
-        s?.start("Installing your app's packages (a minute or two)");
+        ctx.out.event(
+          step("setup:packages", "running", "Installing your app's packages", "a minute or two"),
+        );
         const installed = await exec(await packageManagerHere(project), ["install"], {
           cwd: root,
           timeout: 15 * 60_000,
         });
-        if (installed.exitCode === 0) s?.stop("Packages installed");
-        else s?.error("Packages couldn't be installed. You can retry later with npm install.");
+        ctx.out.event(
+          installed.exitCode === 0
+            ? step("setup:packages", "done", "Installed your app's packages")
+            : step(
+                "setup:packages",
+                "warning",
+                "Your app's packages didn't install",
+                "ask Claude to install them",
+              ),
+        );
       }
 
+      ctx.out.event(step("setup:save", "running", "Saving it to your draft on GitHub"));
       const ws = await Workspace.open({ cwd: root, ...(ctx.github ? { github: ctx.github } : {}) });
       const saved = await save(ws, { message: "Set up Clodable", kind: "setup" });
+      ctx.out.event(
+        !saved.saved
+          ? step("setup:save", "skipped", "Nothing new to save")
+          : saved.pushed
+            ? step("setup:save", "done", "Saved to your draft on GitHub")
+            : step(
+                "setup:save",
+                "warning",
+                "Saved on this computer",
+                saved.unscanned
+                  ? "it goes to GitHub once it's checked for secret keys"
+                  : "it goes to GitHub once you're online",
+              ),
+      );
       let published = false;
       if (saved.saved && (options.publish || (interactive && (await confirmPublish())))) {
         await drive(ctx, publish(ws, { message: "Set up Clodable" }));
