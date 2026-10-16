@@ -336,11 +336,15 @@ export function saveMessage(request: string): string {
   if (request === FIX_TEXT.secret) return "Moved a secret key out of the code";
   if (request === FIX_TEXT.publish) return "Fixed what stopped publishing";
   if (request === FIX_TEXT.conflict) return "Combined the draft with the live site";
-  // A step of the move, as the panel asked Claude: what it did, not the command.
-  if (/^(Moving off Lovable: |Switch my preview )/.test(request)) {
+  // A step of the move, or the panel's own request: what it did, not the command or the rest.
+  if (
+    /^(Moving off Lovable: |Switch my preview |Put my site online|Add a backend to my app)/.test(
+      request,
+    )
+  ) {
     const what = request
       .replace(/^Moving off Lovable: /, "")
-      .split(/ with `|\. Run `|\. Start from `|, then | \(|\. /)[0]!
+      .split(/ with `|\. Run `|\. Start from `|, then | \(|\. | in my Supabase organization/)[0]!
       .replace(/^I've /, "")
       .replace(/[.!\s]+$/, "");
     return what.charAt(0).toUpperCase() + what.slice(1);

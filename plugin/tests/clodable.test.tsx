@@ -199,6 +199,20 @@ describe("save names", () => {
       ),
     ).toBe("Switch my preview back to my live data");
     expect(saveMessage("make the header blue")).toBe("Make the header blue");
+    // The panel's own requests, by what they did.
+    expect(
+      saveMessage("Put my site online, then tell me what's left before people can see it."),
+    ).toBe("Put my site online");
+    expect(
+      saveMessage(
+        "Add a backend to my app in my Supabase organization “Acme”, then tell me what it lets me do.",
+      ),
+    ).toBe("Add a backend to my app");
+    expect(
+      saveMessage(
+        "Moving off Lovable: create my new backend in my Supabase organization “Acme”, in Frankfurt, then tell me how it went.",
+      ),
+    ).toBe("Create my new backend");
     // The move's requests, in the builder's words now: the command goes to Claude apart.
     expect(
       saveMessage(
