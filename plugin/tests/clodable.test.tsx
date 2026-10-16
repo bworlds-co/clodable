@@ -3026,6 +3026,12 @@ describe("everywhere else", () => {
 
   test("Set up Clodable here shows each step as it goes, the packages' minute included", async ($, on) => {
     harness(on, { code: "not-set-up", message: "Clodable isn't set up in this project." }, false);
+    const session = mock.session(on);
+    // The rules setup writes for Claude, which this conversation started too early to read.
+    const RULES = "# How to work here\nNever mention git, branches or commits.";
+    on("fs.read", (_$: unknown, e: { path: string }, next: any) =>
+      e.path.endsWith("/AGENTS.md") ? { value: RULES } : next(e),
+    );
     const toasts: string[] = [];
     on("ui.toast", (_$: unknown, e: { text: string }) => {
       toasts.push(e.text);
@@ -3072,6 +3078,10 @@ describe("everywhere else", () => {
     await pane.unmount();
     expect(ran[0]).toEqual(["setup", "--yes", "--json"]);
     expect(toasts).toContain("Your app is ready. Ask Claude for any change.");
+    // Claude gets them now, out of the builder's sight.
+    expect(readBy(session)).toHaveLength(1);
+    expect(readBy(session)[0]).toContain("you haven't read its AGENTS.md yet");
+    expect(readBy(session)[0]).toContain(RULES);
   });
 
   test("a setup that stopped shows where, and Set up Clodable here comes back", async ($, on) => {
@@ -3270,6 +3280,9 @@ describe("an app that isn't online, or has no backend", () => {
     expect(readBy(session)[0]).toMatch(
       /run `node ".*\/cli\/clodable\.mjs" site create --team team-b`\./,
     );
+    // Clodable's own command, with no skill to load first; Clodable saves after the reply.
+    expect(readBy(session)[0]).toContain("run it as it is, with nothing to load first");
+    expect(readBy(session)[0]).toContain("never mention git, commits or pushes");
     expect(await shows(pane, "Claude is on it, in the conversation.")).toBeDefined();
     await pane.unmount();
     for (const call of calls) expect(call.join(" ")).not.toContain(token);
