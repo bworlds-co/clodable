@@ -88,11 +88,13 @@ import {
 } from "./tools.ts";
 import {
   ago,
+  appRules,
   describeGroup,
   describeTool,
   doneTitle,
   fixRequest,
   hostOf,
+  OWN_COMMAND,
   pageName,
   plural,
   pointedAt,
@@ -2792,7 +2794,7 @@ function siteRequest($: EngineInterface, team: string): Ask {
   ]);
   return {
     text: "Put my site online, then tell me what's left before people can see it.",
-    details: `From Clodable: run \`${command}\`. It creates the site on the builder's own Netlify, gives it the app's settings and backend keys, and sets up Publish (netlify.toml and a GitHub Actions workflow). Then tell them in plain words: their site's address, and that it goes online when they press Publish. If the app's server code reads settings with no value yet, say which ones to paste in the panel. If it stops, find out why and fix what you can.`,
+    details: `From Clodable: run \`${command}\`. ${OWN_COMMAND} It creates the site on the builder's own Netlify, gives it the app's settings and backend keys, and sets up Publish (netlify.toml and a GitHub Actions workflow). Then tell them in plain words: their site's address, and that it goes online when they press Publish. If the app's server code reads settings with no value yet, say which ones to paste in the panel. If it stops, find out why and fix what you can.`,
   };
 }
 
@@ -2931,7 +2933,7 @@ function backendRequest(
   ]);
   return {
     text: `Add a backend to my app${org ? ` in my Supabase organization “${org.name}”` : ""}, then tell me what it lets me do.`,
-    details: `From Clodable: run \`${command}\`. It creates a project on the builder's own Supabase (about 2 minutes), writes its public address and key in .env (VITE_SUPABASE_URL, VITE_SUPABASE_PUBLISHABLE_KEY), keeps its server keys for the preview on this computer, and turns on your database commands (AGENTS.md now says how). If the app has no Supabase client yet, add one the way Lovable's templates do: install @supabase/supabase-js and create src/integrations/supabase/client.ts exporting \`supabase = createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY)\`. Don't build any feature yet. Then tell them in plain words that their app has a backend, and what it lets them add (sign-in, saving data, uploads). If it stops, find out why and fix what you can.`,
+    details: `From Clodable: run \`${command}\`. ${OWN_COMMAND} It creates a project on the builder's own Supabase (about 2 minutes), writes its public address and key in .env (VITE_SUPABASE_URL, VITE_SUPABASE_PUBLISHABLE_KEY), keeps its server keys for the preview on this computer, and turns on your database commands (AGENTS.md now says how). If the app has no Supabase client yet, add one the way Lovable's templates do: install @supabase/supabase-js and create src/integrations/supabase/client.ts exporting \`supabase = createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY)\`. Don't build any feature yet. Then tell them in plain words that their app has a backend, and what it lets them add (sign-in, saving data, uploads). If it stops, find out why and fix what you can.`,
   };
 }
 
@@ -4919,14 +4921,28 @@ async function bringIn($: EngineInterface) {
       )
       .catch(() => "");
   } else {
+    await shareAppRules($);
     $.ui.toast("Your app is ready. Ask Claude for any change.");
   }
   await refreshStatus($);
   await refreshChecks($);
 }
 
+/**
+ * The app's rules for Claude (its AGENTS.md, which setup just wrote), for this conversation:
+ * Claude reads them when a conversation starts, and this one started before them.
+ */
+async function shareAppRules($: EngineInterface) {
+  const rules = await $.fs.read("AGENTS.md").catch(() => "");
+  if (!rules.trim()) return;
+  await $.session
+    .append({ message: { type: "user", content: [{ type: "text", text: appRules(rules) }] } })
+    .catch(() => {});
+}
+
 async function setUpHere($: EngineInterface) {
   if (!(await runSetup($, []))) return;
+  await shareAppRules($);
   $.ui.toast("Your app is ready. Ask Claude for any change.");
   await refreshStatus($);
   await refreshChecks($);

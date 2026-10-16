@@ -375,6 +375,21 @@ export function shortReason(error: { code: string; message: string }): string {
     .replace(/\.$/, "");
 }
 
+/**
+ * Beside a command the panel hands Claude. The builder's earlier `/clodable` in the transcript
+ * reads like a skill to load first, and isn't one. And Clodable saves after the reply, so its
+ * files and git aren't the builder's concern.
+ */
+export const OWN_COMMAND =
+  "That's Clodable's own command: run it as it is, with nothing to load first. Clodable saves what it changes after your reply, so don't list the files it touched, and never mention git, commits or pushes.";
+
+/**
+ * Setup just wrote the folder's AGENTS.md, which Claude reads when a conversation starts: one that
+ * started before it gets it as it is, out of the builder's sight.
+ */
+export const appRules = (agentsMd: string) =>
+  `Clodable just set itself up in this folder, after this conversation started, so you haven't read its AGENTS.md yet. Here it is: follow it from now on.\n\n${agentsMd.trim()}`;
+
 /** Fix it's requests, in the builder's words: one per kind of stop, the same each time. */
 export const FIX_TEXT = {
   conflict: "Combine my draft with the changes on the live site, so I can publish again.",
