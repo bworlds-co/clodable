@@ -12,6 +12,7 @@ export interface AgentsMdInput {
   backend?: "unknown" | "lovable-cloud" | "supabase" | "none";
   /** Who puts the site live. Lovable's hosting needs a click in Lovable after Publish. */
   hosting?: "unknown" | "github" | "lovable" | "none";
+  cliCommand?: string;
 }
 
 const LOVABLE_CLOUD = `## Database and backend: on Lovable Cloud
@@ -28,7 +29,7 @@ const NO_BACKEND = `## Database and backend: none yet
 - Once the backend is there, these instructions change to say how to work with it.`;
 
 /** The database rules when the app talks to a Supabase project the builder can reach. */
-function supabaseSection(ref: string | undefined): string {
+function supabaseSection(ref: string | undefined, cli: string): string {
   return `## Database: live data, handle with care
 ${
   ref
@@ -36,18 +37,19 @@ ${
     : "- If the app uses a database, the preview uses **live data**: real customers, real orders."
 }
 - You can read and change it, as on Lovable, through Clodable's commands (no key needed; never ask for one):
-  - Read: \`npx clodable db query "select …"\`.
-  - Change the tables (a migration): write \`supabase/migrations/<timestamp>_<what>.sql\`, then \`npx clodable db apply supabase/migrations/<that file>\`. It runs once, in one transaction, and goes in Supabase's migration history.
-  - Change the data (insert, update, delete): \`npx clodable db run "update …"\`. Data that belongs to a person (their notes, their orders) needs their account: look it up with a query first.
+  - Read: \`${cli} db query "select …"\`.
+  - Change the tables (a migration): write \`supabase/migrations/<timestamp>_<what>.sql\`, then \`${cli} db apply supabase/migrations/<that file>\`. It runs once, in one transaction, and goes in Supabase's migration history.
+  - Change the data (insert, update, delete): \`${cli} db run "update …"\`. Data that belongs to a person (their notes, their orders) needs their account: look it up with a query first.
 - **Before any database change**, tell the builder in one plain sentence what will change and ask for confirmation, for example "I'll add a 'phone' column to Customers. This changes your live database. OK?" Wait for a yes.
 - Prefer **additive** changes: add columns and tables, and don't rename or drop them. The live site keeps running the old code until the next Publish, so it must keep working. Clean up only after the builder has published.
 - If something can't be undone (deleting a table or column, mass-deleting rows, turning off row-level security), say so explicitly: "This deletes 214 orders and can't be undone." Wait for an explicit yes.
 - Every schema change is a migration file, so the history stays in the project. Never change the tables any other way.
-- Every new table gets row-level security turned on, with policies for who may read and write it. After every schema change, run \`npx clodable db check\` (Supabase's security advice) and fix what it reports.
+- Every new table gets row-level security turned on, with policies for who may read and write it. After every schema change, run \`${cli} db check\` (Supabase's security advice) and fix what it reports.
 - **Edge functions** (\`supabase/functions/\`) go live only when the builder publishes. Edit them freely, but never deploy them yourself.`;
 }
 
 export function agentsMd(input: AgentsMdInput): string {
+  const cli = input.cliCommand ?? "npx clodable";
   const stack =
     input.appType === "tanstack-start"
       ? "TanStack Start (React 19, server-side rendering) with Tailwind CSS and shadcn/ui"
@@ -81,7 +83,7 @@ ${
 - If asked to "publish" or "put it live", tell them to click **Publish** in the Clodable bar above the message box.
 
 ## The preview
-- The app runs locally in the preview, from \`npx clodable dev\` (configured in \`.claude/launch.json\`). Don't start another dev server.
+- The app runs locally in the preview, configured in \`.claude/launch.json\`. Use that configuration; don't start another dev server.
 - When they ask to see the preview, open Desktop's Browser pane at its address: \`preview_start\` with \`{"url": "http://localhost:<port>"}\`. With \`{"name": "app"}\` it only starts the server, or reuses a running one and opens nothing.
 - After visible changes, check the preview yourself (take a screenshot, click through) before saying you're done.
 - The preview toolbar at the bottom of the page belongs to Clodable. It's not part of the app. Don't edit or remove it.
@@ -92,8 +94,11 @@ ${
     ? LOVABLE_CLOUD
     : input.backend === "none"
       ? NO_BACKEND
-      : supabaseSection(input.supabaseRef)
+      : supabaseSection(input.supabaseRef, cli)
 }
+
+## Clodable commands
+- Run \`${cli} <command>\` for status, history, restore and other Clodable commands.${input.cliCommand ? " This is the installed copy. Don't fetch a different version with npx." : ""}
 
 ## Secrets
 - Never put API keys or passwords in code. Public keys (the Supabase URL and anon key) are fine.
