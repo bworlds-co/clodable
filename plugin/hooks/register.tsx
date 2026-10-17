@@ -39,6 +39,7 @@ import {
   type Version,
 } from "./cli.ts";
 import {
+  commandInApp,
   dbCommandIn,
   inPrivateFolder,
   insideProject,
@@ -1675,11 +1676,12 @@ export const register: Register = (on) => {
       LABEL_SCRIPT.test(String(input.text ?? ""))
     )
       return { ...verdict, decision: "allow" };
+    const ownCommand = commandInApp(String(input.command ?? ""), cwd);
     if (
       e.tool === "Bash" &&
-      (isMoveStep($.plugin.root, String(input.command ?? "").trim()) ||
-        isOnlineStep($.plugin.root, String(input.command ?? "").trim()) ||
-        isFactsRecord($.plugin.root, String(input.command ?? "").trim()))
+      (isMoveStep($.plugin.root, ownCommand) ||
+        isOnlineStep($.plugin.root, ownCommand) ||
+        isFactsRecord($.plugin.root, ownCommand))
     )
       return { ...verdict, decision: "allow" };
     // The app's database through Clodable: reading is quiet, every change is the builder's to allow.
