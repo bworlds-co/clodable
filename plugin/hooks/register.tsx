@@ -2338,7 +2338,11 @@ function setupPane(
   return (
     <Box flexDirection="column" rowGap={1} paddingX={1}>
       {header}
-      <Text>Let's bring your app home. It takes a minute, once.</Text>
+      <Text>
+        {s?.reason === "not-a-repo" && !emptyFolder
+          ? "Keep shaping your local app with Claude."
+          : "Let's bring your app home. It takes a minute, once."}
+      </Text>
       {section(ui, "1 · Tools")}
       {fetchingNode ? (
         <Text dimColor>Getting Node.js ready for your app: about a minute, once.</Text>
