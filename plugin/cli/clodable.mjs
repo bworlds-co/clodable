@@ -23485,7 +23485,7 @@ The person you're working with is a **builder**: they know their product deeply,
 
 ## How changes reach the live site
 - Every reply is **saved** automatically to the builder's draft (\`draft/<their GitHub login>\`). You don't need to commit, push or open pull requests.
-${input2.hosting === "lovable" ? `- **Publish** is the builder's decision. They click Publish in Clodable, which checks the app and merges the draft into \`${input2.liveBranch}\`. The site is hosted by Lovable, so it goes live once they click **Publish \u2192 Publish changes** in Lovable. Clodable reminds them.` : input2.hosting === "none" ? `- **Publish** is the builder's decision. They click Publish in Clodable, which checks the app and merges the draft into \`${input2.liveBranch}\`. The app isn't online yet: to put it on the web, they click **Put your site online** in the Clodable panel (their own Netlify, free to start), and each Publish updates it from then on.` : `- **Publish** is the builder's decision. They click Publish in Clodable, which checks the app, merges the draft into \`${input2.liveBranch}\`, and the host puts it live.`}
+${input2.hosting === "lovable" ? `- **Publish** is the builder's decision. They click Publish in Clodable, which checks the app and merges the draft into \`${input2.liveBranch}\`. The site is hosted by Lovable, so it goes live once they click **Publish \u2192 Publish changes** in Lovable. Clodable reminds them.` : input2.hosting === "none" ? `- **Publish** is the builder's decision. They click Publish in Clodable, which checks the app and merges the draft into \`${input2.liveBranch}\`. The app isn't online yet: they first click **Set up hosting** in the Clodable panel (their own Netlify, free to start). This prepares a web address; it does not publish. Run the setup command supplied by the panel. Their first **Publish** makes the app public, and each Publish updates it after that.` : `- **Publish** is the builder's decision. They click Publish in Clodable, which checks the app, merges the draft into \`${input2.liveBranch}\`, and the host puts it live.`}
 - Never push to \`${input2.liveBranch}\`, never force-push, and never merge pull requests yourself.
 - If asked to "publish" or "put it live", tell them to click **Publish** in the Clodable bar above the message box.
 
@@ -28090,7 +28090,7 @@ async function* putSiteOnline(ws, options = {}) {
   }
   const netlify = await NetlifyApi.required();
   const token = await readSecret(NETLIFY_TOKEN);
-  yield step("site", "running", "Putting your site online", "Creating your site on Netlify");
+  yield step("site", "running", "Setting up hosting", "Creating your site on Netlify");
   const known = ws.config.netlify ? await netlify.site(ws.config.netlify.siteId).catch(() => void 0) : void 0;
   const site = known ?? await createNetlifySite(netlify, ws.project.name, options.team);
   const url2 = siteUrl(site);
@@ -28104,7 +28104,7 @@ async function* putSiteOnline(ws, options = {}) {
     ...ws.config,
     netlify: { siteId: site.id, ...online }
   });
-  yield step("site", "running", "Putting your site online", "Giving it your app's settings");
+  yield step("site", "running", "Setting up hosting", "Giving it your app's settings");
   const backend = await ownBackend(ws.config);
   const carried = await setSiteEnv(netlify, site, ws.root, backend?.keys);
   if (carried.length > 0) {
@@ -28114,7 +28114,7 @@ async function* putSiteOnline(ws, options = {}) {
     });
   }
   if (backend) await liveSignIn(backend.api, backend.keys.ref, url2);
-  yield step("site", "running", "Putting your site online", "Setting up Publish");
+  yield step("site", "running", "Setting up hosting", "Setting up Publish");
   const files = await setUpPublish(ws, site, token);
   const config2 = {
     ...ws.config,
