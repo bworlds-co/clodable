@@ -95,7 +95,12 @@ export function toStatus(data: any): ClodableStatus {
     databaseConnected:
       typeof data?.database?.connected === "boolean" ? data.database.connected : null,
     site: data?.site?.url
-      ? { url: data.site.url, admin: data.site.admin ?? "", live: Boolean(data.site.live) }
+      ? {
+          url: data.site.url,
+          admin: data.site.admin ?? "",
+          live: Boolean(data.site.live),
+          ...(data.site.statusKnown === false ? { statusKnown: false } : {}),
+        }
       : null,
     netlifyConnected: typeof data?.netlify?.connected === "boolean" ? data.netlify.connected : null,
   };

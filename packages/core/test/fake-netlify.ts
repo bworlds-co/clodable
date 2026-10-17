@@ -4,7 +4,16 @@ import { createServer, type IncomingMessage } from "node:http";
 
 export interface FakeNetlify {
   url: string;
-  sites: Map<string, { id: string; name: string; account: string; custom_domain?: string }>;
+  sites: Map<
+    string,
+    {
+      id: string;
+      name: string;
+      account: string;
+      custom_domain?: string;
+      published_deploy?: { state: string; published_at?: string };
+    }
+  >;
   /** Sites whose certificate was asked for. */
   certificates: Set<string>;
   /** site id → key → value. */
@@ -26,7 +35,13 @@ const read = (req: IncomingMessage) =>
 export async function startFakeNetlify(options: { token: string }): Promise<FakeNetlify> {
   const sites = new Map<
     string,
-    { id: string; name: string; account: string; custom_domain?: string }
+    {
+      id: string;
+      name: string;
+      account: string;
+      custom_domain?: string;
+      published_deploy?: { state: string; published_at?: string };
+    }
   >();
   const certificates = new Set<string>();
   const env = new Map<string, Map<string, { value: string; secret: boolean }>>();
@@ -42,13 +57,19 @@ export async function startFakeNetlify(options: { token: string }): Promise<Fake
       return send(401, { message: "Access Denied" });
     }
     const path = url.pathname.replace(/^\/api\/v1/, "");
-    const site = (s: { id: string; name: string; account: string }) => ({
+    const site = (s: {
+      id: string;
+      name: string;
+      account: string;
+      published_deploy?: { state: string; published_at?: string };
+    }) => ({
       id: s.id,
       name: s.name,
       url: `http://${s.name}.netlify.app`,
       ssl_url: `https://${s.name}.netlify.app`,
       admin_url: `https://app.netlify.com/sites/${s.name}`,
       account_slug: s.account,
+      published_deploy: s.published_deploy,
     });
     if (path === "/user") return send(200, { id: "u1", email: "builder@example.com" });
     if (path === "/accounts") {

@@ -40,7 +40,7 @@ export interface ClodableStatus {
    */
   databaseConnected: boolean | null;
   /** The site Clodable put on the builder's Netlify, and whether a Publish put it online yet. */
-  site: { url: string; admin: string; live: boolean } | null;
+  site: { url: string; admin: string; live: boolean; statusKnown?: boolean } | null;
   /** Not online yet: whether Netlify is connected here, to put the site online. */
   netlifyConnected: boolean | null;
 }
