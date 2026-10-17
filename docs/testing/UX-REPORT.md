@@ -1,6 +1,6 @@
 # Clodable in Claude Desktop: UX review
 
-**2026-10-17 · Desktop UX review, with explicit limits to sign-off.** Sixteen focused fixes are merged. Sam’s full journey passed twice; Tom’s main editing and recovery actions passed in two fresh fixtures. Léa’s remaining copy work needs owner permission, and Nadia’s complete from-idea route needs a product decision. This is not a claim that all four journeys ran end to end twice. Evidence and retained test resources are in [FINDINGS.md](FINDINGS.md).
+**2026-10-17–18 · Desktop UX review, with explicit limits to sign-off.** Seventeen focused fixes are merged. Sam’s full journey passed twice; Tom’s main editing and recovery actions passed in two fresh fixtures. Léa’s remaining copy work needs owner permission, and Nadia’s complete from-idea route needs a product decision. This is not a claim that all four journeys ran end to end twice. Evidence and retained test resources are in [FINDINGS.md](FINDINGS.md).
 
 ## Judgment
 
@@ -23,7 +23,7 @@ Desktop currently labels the brief's Ask mode **Manual**. I exercised it during 
 
 ## What changed
 
-Sixteen focused fixes were merged as separate pull requests after CI:
+Seventeen focused fixes were merged as separate pull requests after CI:
 
 | Fix | Result | Evidence |
 |---|---|---|
@@ -43,8 +43,9 @@ Sixteen focused fixes were merged as separate pull requests after CI:
 | [#60](https://github.com/bworlds-co/clodable/pull/60) · Imported live site | A new copy checks Netlify rather than assuming its absent local record means offline. Unavailable status remains neutral. | Real imported app shows Everything is live; screenshot 33. Automated unavailable-host and JSON contract cases. |
 | [#61](https://github.com/bworlds-co/clodable/pull/61) · Conflict check | Checks in a temporary copy so a stopped Publish leaves the preview intact. | Real-git regression and two fresh Desktop conflicts, both recovered and published with the chosen heading. Screenshot 35 shows the working preview during the choice. |
 | [#62](https://github.com/bworlds-co/clodable/pull/62) · Preview confirmation | Keeps local addresses and unsolicited page tours out of Claude’s reply. | Two independent model replays and a fresh Desktop reply: “Your preview is open beside this conversation.” Screenshot 36. |
+| [#63](https://github.com/bworlds-co/clodable/pull/63) · One installed runtime | The panel, Claude and the default preview use the installed plugin’s CLI. Fresh conversations prepare the ignored local copy automatically. | Two fresh Desktop fixtures, matching bundle hashes, natural-language status checks without extra prompts, and functioning previews. Inline editing and broken-page recovery passed through the new launcher. Screenshots 37 and 38. |
 
-Lint and typecheck pass. The package suite passed **185 tests**; the latest plugin suite passed **127 tests**. Inline-edit, broken-page recovery, and isolated migration scripts passed. The migration script used its own ports and did not use the owner's other Supabase stack. The updated plugin was built and copied into Desktop's cache; existing conversations retain their earlier code.
+Lint and typecheck pass. The package suite passed **186 tests**; the latest plugin suite passed **129 tests**. The 12 CLI contract tests also passed after adding preview-port preservation and failed-copy checks. Inline-edit, broken-page recovery, and isolated migration scripts passed; the first two were repeated through the installed runtime’s launcher. The migration script used its own ports and did not use the owner's other Supabase stack. The updated plugin was built and copied into Desktop's cache; existing conversations retain their earlier code.
 
 ## Where each moment belongs
 
@@ -83,15 +84,9 @@ The first `/clodable` message can produce Desktop's “isn't a command here” e
 
 This revisits **Q5f's command-led navigation**. Desktop owns the misleading error and its repository/branch labels; Clodable cannot fix those surfaces. Any proposal must use the plugin APIs Desktop actually offers.
 
-### 5. Give all three surfaces one release source
-
-The panel uses its bundled CLI, while model instructions and the default preview command resolve npm independently. Local fixes therefore need a preview override, and an installed plugin can lag behind the npm command it runs. The two successful installation passes used the actual 0.2.2 tag; the modified cache used for this review is not that release.
-
-Choose one runtime/version policy for the panel, preview and model commands, then verify it through a released install. This is **K3/F11**, still an engineering limitation, and release/tagging remains the owner’s decision. I have not hidden it behind the successful local tests or published anything to close it.
-
 ## Remaining risks and completion work
 
-- **Version consistency (K3):** the three execution paths are not yet unified. The source fixes and local cache do not establish a corrected released experience. A release requires owner approval; aligning runtime resolution also remains engineering work.
+- **Release validation:** K3 is fixed and retested locally. The two installation passes verified the existing 0.2.2 release; these fixes have not been released. Shipping and testing a new tagged release requires owner approval. Existing conversations and preview servers need a fresh start to load an update.
 - **Conflict recovery:** the final sequence passed twice with fresh fixtures and both choices. This is bounded evidence for these cases, not a promise that every simultaneous edit can be combined automatically.
 - **Token onboarding:** accounts were already connected. Finding and pasting a new token was not tested; no sign-out or token creation was attempted.
 - **Léa:** permission is still pending to inspect/reuse the pre-existing destination and to request/download the Lovable export. Her copied data, people, files, functions and sign-in rehearsal remain untested in Desktop. The isolated migration test is not a substitute.
