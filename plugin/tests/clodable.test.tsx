@@ -3272,6 +3272,7 @@ describe("everywhere else", () => {
         Boolean(await pane.find({ type: "Text", text: /Clodable isn't saving them yet/ })),
       ).toBe(hasLocalPage);
       if (hasLocalPage) {
+        expect(await pane.find({ type: "Text", text: /It takes a minute/ })).toBeUndefined();
         expect(
           await pane.find({
             type: "Text",
