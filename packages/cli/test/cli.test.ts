@@ -43,6 +43,29 @@ function clodableWith(env: Record<string, string>, ...args: string[]) {
 }
 
 describe("clodable --json", () => {
+  it("keeps site.live boolean and marks an unavailable imported site's status unknown", async () => {
+    const privateDir = await mkdtemp(join(tmpdir(), "clodable-status-contract-"));
+    try {
+      const config = JSON.parse(readFileSync(join(sb.work, ".clodable/config.json"), "utf8"));
+      config.netlify = {
+        siteId: "fixture-site",
+        name: "fixture",
+        url: "https://fixture.example",
+        admin: "https://app.netlify.com/sites/fixture",
+        account: "fixture-team",
+      };
+      await sb.write(".clodable/config.json", JSON.stringify(config));
+      const result = clodableWith({ CLODABLE_CONFIG_DIR: privateDir }, "status").result;
+      expect(result).toMatchObject({
+        type: "result",
+        ok: true,
+        data: { site: { url: "https://fixture.example", live: false, statusKnown: false } },
+      });
+    } finally {
+      await rm(privateDir, { recursive: true, force: true });
+    }
+  });
+
   it("prints only JSON events, ending with the result", async () => {
     await sb.write("src/app.txt", "Hello\n");
     const save = clodable("save", "-m", "warmer welcome");

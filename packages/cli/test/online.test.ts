@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -209,5 +209,24 @@ describe("an app with no backend and no site", () => {
     const set = await clodable(["setting", "GREETING"], "Bonjour");
     expect(set.result.ok).toBe(true);
     expect(netlify.env.get("site-1")?.get("GREETING")).toEqual({ value: "Bonjour", secret: true });
+  });
+
+  it("recognizes an existing live site without this computer's publish record", async () => {
+    const statePath = join(sb.work, ".clodable/local/state.json");
+    const state = JSON.parse(file(".clodable/local/state.json"));
+    delete state.siteLiveAt;
+    delete state.lastPublish;
+    writeFileSync(statePath, JSON.stringify(state));
+    const site = netlify.sites.get("site-1")!;
+    // A failed host lookup must not invite a first Publish or claim the site is live.
+    netlify.sites.delete("site-1");
+    expect((await clodable(["status"])).result.data.site).toMatchObject({
+      live: false,
+      statusKnown: false,
+    });
+    site.published_deploy = { state: "ready", published_at: "2026-10-17T10:00:00Z" };
+    netlify.sites.set("site-1", site);
+    expect((await clodable(["status"])).result.data.site).toMatchObject({ live: true });
+    expect(JSON.parse(file(".clodable/local/state.json")).siteLiveAt).toBe("2026-10-17T10:00:00Z");
   });
 });

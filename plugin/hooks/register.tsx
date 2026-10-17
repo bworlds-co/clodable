@@ -2155,7 +2155,7 @@ function barSides(
     };
   }
   // The site Clodable put on Netlify, waiting for its first Publish.
-  if (s.site && !s.site.live) {
+  if (s.site && !s.site.live && s.site.statusKnown !== false) {
     return {
       left: [dot("warning"), <Text>Your site is ready to go online</Text>],
       right: [
@@ -2514,9 +2514,11 @@ function stateCard(
       ui,
       <Text bold>{a.kind === "publishing" ? "Publishing…" : "Undoing…"}</Text>,
       <Text dimColor>
-        {s.site && !s.site.live
-          ? "Your app goes online when these checks finish."
-          : "Your live site keeps working meanwhile."}
+        {s.site?.statusKnown === false
+          ? "Checking your app before putting these changes online."
+          : s.site && !s.site.live
+            ? "Your app goes online when these checks finish."
+            : "Your live site keeps working meanwhile."}
       </Text>,
       [],
       steps,
@@ -2626,7 +2628,7 @@ function stateCard(
     );
   }
   // Waiting for its first Publish: the site's own card says so, with the button.
-  if (s.site && !s.site.live) return null;
+  if (s.site && !s.site.live && s.site.statusKnown !== false) return null;
   if (s.lastPublish?.noHost && !s.site && s.hosting !== "none") {
     return card(
       ui,
@@ -2776,7 +2778,7 @@ function claudeOnIt(ui: PaneUi) {
 function siteCard($: EngineInterface, ui: PaneUi, s: ClodableStatus) {
   const { Box, Text, Button, Link, Select } = ui;
   if (s.movingOffLovable || s.finishingMove) return null;
-  if (s.site && !s.site.live) {
+  if (s.site && !s.site.live && s.site.statusKnown !== false) {
     return card(
       ui,
       <Text bold>Your site is ready to go online</Text>,

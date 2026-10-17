@@ -3542,6 +3542,26 @@ describe("an app that isn't online, or has no backend", () => {
     await pane.unmount();
   });
 
+  test("an unverified imported site offers neither a first Publish nor a Live claim", async ($, on) => {
+    harness(on, {
+      ...where("supabase", "github"),
+      site: {
+        url: "https://crumb-site.netlify.app",
+        admin: "https://app.netlify.com",
+        live: false,
+        statusKnown: false,
+      },
+    });
+    await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+    expect(await bandText($, "desktop", /Everything/)).toBe("Everything is saved");
+    const pane = await $.ui.mount(PANE);
+    expect(await shows(pane, "Saved versions")).toBeDefined();
+    expect(await shows(pane, "Your site is ready to go online")).toBeUndefined();
+    expect(await pane.find({ type: "Button", key: "site-publish" })).toBeUndefined();
+    expect(await pane.find({ type: "Text", text: "Live" })).toBeUndefined();
+    await pane.unmount();
+  });
+
   test("no backend: one quiet line, then Supabase connected and Claude creates it", async ($, on) => {
     const token = `sbp_${"c3".repeat(20)}`;
     let connected = false;

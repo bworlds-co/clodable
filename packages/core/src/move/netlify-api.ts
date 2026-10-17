@@ -26,6 +26,7 @@ export interface NetlifySite {
   ssl_url?: string;
   admin_url: string;
   account_slug: string;
+  published_deploy?: { state: string; published_at?: string } | null;
 }
 
 export class NetlifyApi {

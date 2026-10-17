@@ -6,7 +6,7 @@ import type { Commit, CommitKind } from "./git.js";
 import type { PullRequest } from "./github/types.js";
 import { CLODABLE_FILES, clodableFile, keepIgnored } from "./kit/index.js";
 import { readSecret } from "./local-secrets.js";
-import { NETLIFY_TOKEN } from "./move/netlify-api.js";
+import { NETLIFY_TOKEN, NetlifyApi } from "./move/netlify-api.js";
 import { loadMove } from "./move/state.js";
 import { SUPABASE_TOKEN } from "./move/supabase-api.js";
 import { formatAbsolute } from "./time.js";
@@ -67,7 +67,7 @@ export interface Status {
    */
   database?: { connected: boolean };
   /** The site Clodable put on the builder's Netlify, and whether a Publish put it online yet. */
-  site?: { url: string; admin: string; live: boolean };
+  site?: { url: string; admin: string; live: boolean; statusKnown?: boolean };
   /** Not online yet: whether Netlify is connected on this computer, to put the site online. */
   netlify?: { connected: boolean };
 }
@@ -362,6 +362,7 @@ export async function status(ws: Workspace, options: { fetch?: boolean } = {}): 
   const hasLive = Boolean(await ws.git.revParse(ws.liveRef));
   const unpublished = branch === ws.liveBranch ? [] : await waitingSaves(ws);
   const behindLive = hasLive ? await ws.git.count(`HEAD..${ws.liveRef}`, { noMerges: true }) : 0;
+  const site = await siteStatus(ws, state.siteLiveAt);
   return {
     project: {
       name: ws.project.name,
@@ -386,19 +387,35 @@ export async function status(ws: Workspace, options: { fetch?: boolean } = {}): 
     ...(ws.config.backend === "supabase" || ws.config.backend === "none"
       ? { database: { connected: Boolean(await readSecret(SUPABASE_TOKEN)) } }
       : {}),
-    ...(ws.config.netlify
-      ? {
-          site: {
-            url: ws.config.netlify.url,
-            admin: ws.config.netlify.admin,
-            live: Boolean(state.siteLiveAt),
-          },
-        }
-      : {}),
+    ...(site ? { site } : {}),
     ...(ws.config.hosting === "none"
       ? { netlify: { connected: Boolean(await readSecret(NETLIFY_TOKEN)) } }
       : {}),
   };
+}
+
+/** A new checkout has no local publish record. Ask the host before calling its site offline. */
+async function siteStatus(ws: Workspace, liveAt?: string): Promise<Status["site"]> {
+  const configured = ws.config.netlify;
+  if (!configured) return undefined;
+  const base = { url: configured.url, admin: configured.admin };
+  if (liveAt) return { ...base, live: true };
+  try {
+    const api = await NetlifyApi.onThisComputer();
+    const remote = await api?.site(configured.siteId);
+    if (!remote || remote.id !== configured.siteId || remote.account_slug !== configured.account)
+      return { ...base, live: false, statusKnown: false };
+    const live = remote.published_deploy?.state === "ready";
+    if (live) {
+      await ws.updateState({
+        siteLiveAt: remote.published_deploy?.published_at ?? new Date().toISOString(),
+      });
+    }
+    return { ...base, live };
+  } catch {
+    // A missing connection or unavailable host is not evidence that a site is offline.
+    return { ...base, live: false, statusKnown: false };
+  }
 }
 
 export interface History {
