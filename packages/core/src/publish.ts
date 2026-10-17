@@ -120,6 +120,16 @@ export async function* publish(ws: Workspace, options: PublishOptions = {}): Flo
   await ws.git.fetch(ws.remote, ws.liveBranch);
   const behind = await ws.git.count(`HEAD..${ws.liveRef}`, { noMerges: true });
   if (behind > 0) {
+    const compared = await ws.git.checkMerge(ws.liveRef);
+    if (!compared.ok) {
+      yield step("sync", "failed", "Your draft and the live site changed the same thing");
+      throw new ClodableError({
+        code: "conflict",
+        message: "Your draft and the live site both changed the same thing.",
+        hint: "Ask Claude to review both versions with you. Your preview is unchanged.",
+        files: compared.conflicts,
+      });
+    }
     const merged = await ws.git.merge(ws.liveRef, "Caught up with the live site");
     if (!merged.ok) {
       yield step("sync", "failed", "Your draft and the live site changed the same thing");

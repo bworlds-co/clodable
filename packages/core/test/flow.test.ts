@@ -203,7 +203,7 @@ describe("publishing", () => {
     expect(await readFile(join(sb.work, "src/about.txt"), "utf8")).toBe("Our story\n");
   });
 
-  it("stops on an overlap with the live site and leaves it for Claude to combine", async () => {
+  it("stops on an overlap with the live site without breaking the builder's preview", async () => {
     const grace = await sb.teammate();
     await sb.write("src/app.txt", "Grace's welcome\n", grace.cwd);
     await grace.ok(["commit", "--quiet", "-am", "Grace's welcome"]);
@@ -215,8 +215,12 @@ describe("publishing", () => {
     const error = await expectError(publishAll(), "conflict");
     expect(error.files).toEqual(["src/app.txt"]);
     const s = await status(await sb.ws());
-    expect(s.merging).toBe(true);
-    expect(s.conflicts).toEqual(["src/app.txt"]);
+    expect(s.merging).toBe(false);
+    expect(s.conflicts).toEqual([]);
+    expect(await readFile(join(sb.work, "src/app.txt"), "utf8")).toBe("Ada's welcome\n");
+    expect(await (await sb.ws()).git.changedFiles()).toEqual([]);
+    const worktrees = await (await sb.ws()).git.ok(["worktree", "list", "--porcelain"]);
+    expect(worktrees).not.toContain("clodable-combine-");
     expect(await sb.remoteLog("main")).toEqual(["Grace's welcome", "Initial app"]);
   });
 
