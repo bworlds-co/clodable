@@ -407,6 +407,9 @@ export const FIX_TEXT = {
   publish: "Fix what stopped my publish, so I can publish again.",
 } as const;
 
+const RECOVERY_VOICE =
+  "Keep the builder's progress updates and final reply in plain words, including while you work: Saved, Publish, Live, Undo, Restore. The technical instructions here are for you only. Never tell the builder about commits, pushes, branches, merges, pull requests or deploys. For example: 'The key stayed on this computer' and 'I kept both changes. Publish when you're ready'. Explain what changed and their next step briefly.";
+
 /**
  * What "Fix it" sends after a stop: the builder's words, and what stopped (the error, the files,
  * the build's output), which reaches Claude beside their message.
@@ -422,6 +425,7 @@ export function fixRequest(error: {
       text: FIX_TEXT.conflict,
       details: [
         "From Clodable's Fix it: publishing stopped because the builder's draft and the live site both changed the same files.",
+        RECOVERY_VOICE,
         error.files?.length ? `Files: ${error.files.join(", ")}.` : "",
         "Combine both versions (keep both changes where you can), finish the merge so nothing is left unresolved, and check the app still builds. Then tell them it's ready to publish.",
       ]
@@ -434,6 +438,7 @@ export function fixRequest(error: {
       text: FIX_TEXT.secret,
       details: [
         `From Clodable's Fix it: saving stopped. ${error.message}. Nothing went to GitHub.`,
+        RECOVERY_VOICE,
         error.files?.length ? `Where: ${error.files.join(", ")}` : "",
         error.details ? `What the check found (masked):\n${error.details}` : "",
         "Move it out of the code. Anything in the app's files reaches visitors' browsers and GitHub, so a secret key belongs on the server: for example a Supabase Edge Function secret, used from that function. If this key was ever shared or published before, tell them to replace it with its provider. Don't save or commit yourself: Clodable saves when you're done.",
@@ -446,6 +451,7 @@ export function fixRequest(error: {
     text: FIX_TEXT.publish,
     details: [
       `From Clodable's Fix it: publishing stopped. ${error.message}`,
+      RECOVERY_VOICE,
       error.files?.length ? `Where: ${error.files.join(", ")}` : "",
       error.details ? `Details:\n${error.details.slice(0, 3000)}` : "",
       "Fix it so they can publish again. Don't publish yourself: they'll click Publish.",
