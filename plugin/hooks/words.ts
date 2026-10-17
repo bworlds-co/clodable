@@ -125,7 +125,7 @@ const MOVE_WORDS: Record<string, [string, string, FriendlyRow["tone"]]> = {
   export: ["Reading your export", "Read your export", "look"],
   copy: ["Copying your data", "Copied your data", "work"],
   files: ["Copying your files", "Copied your files", "work"],
-  functions: ["Deploying your backend functions", "Deployed your backend functions", "work"],
+  functions: ["Setting up your backend functions", "Set up your backend functions", "work"],
   preview: ["Switching the preview", "Switched the preview", "work"],
   diagnose: ["Checking your new backend", "Checked your new backend", "look"],
   status: ["Checking the move", "Checked the move", "look"],
@@ -168,6 +168,11 @@ export function describeCommand(command: string, running: boolean): FriendlyRow 
           tone: "work",
         };
   }
+  const site = c.match(/clodable(?:\.mjs")?\s+site\s+create\b/);
+  if (site) return { text: verb(running, "Setting up hosting", "Set up hosting"), tone: "work" };
+  const backend = c.match(/clodable(?:\.mjs")?\s+backend\s+create\b/);
+  if (backend)
+    return { text: verb(running, "Creating your backend", "Created your backend"), tone: "work" };
   const move = c.match(/clodable(?:\.mjs")?\s+move\s+(\w+)/);
   if (move) {
     const words = MOVE_WORDS[move[1]!] ?? MOVE_WORDS.status!;
@@ -336,9 +341,10 @@ export function saveMessage(request: string): string {
   if (request === FIX_TEXT.secret) return "Moved a secret key out of the code";
   if (request === FIX_TEXT.publish) return "Fixed what stopped publishing";
   if (request === FIX_TEXT.conflict) return "Combined the draft with the live site";
+  if (request.startsWith("Prepare a web address for my app.")) return "Set up hosting";
   // A step of the move, or the panel's own request: what it did, not the command or the rest.
   if (
-    /^(Moving off Lovable: |Switch my preview |Put my site online|Add a backend to my app)/.test(
+    /^(Moving off Lovable: |Switch my preview |Put my site online|Prepare a web address for my app|Add a backend to my app)/.test(
       request,
     )
   ) {

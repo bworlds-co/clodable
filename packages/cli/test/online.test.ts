@@ -89,7 +89,7 @@ describe("an app with no backend and no site", () => {
     expect(status.site).toBeUndefined();
     // Claude's instructions say where a backend and a site come from.
     expect(file("AGENTS.md")).toContain("click **Add a backend** in the Clodable panel");
-    expect(file("AGENTS.md")).toContain("**Put your site online**");
+    expect(file("AGENTS.md")).toContain("**Set up hosting**");
   });
 
   it("needs Supabase connected first, then offers its organizations with what it costs", async () => {
@@ -182,7 +182,7 @@ describe("an app with no backend and no site", () => {
     });
     // Sign-in links come back to the site.
     expect(fake.projects.get(REF)?.auth).toMatchObject({ site_url: url });
-    expect(file("AGENTS.md")).not.toContain("**Put your site online**");
+    expect(file("AGENTS.md")).not.toContain("**Set up hosting**");
 
     const status = (await clodable(["status"])).result.data;
     expect(status.site).toEqual({

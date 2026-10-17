@@ -106,7 +106,7 @@ export async function* putSiteOnline(
   const netlify = await NetlifyApi.required();
   const token = (await readSecret(NETLIFY_TOKEN))!;
 
-  yield step("site", "running", "Putting your site online", "Creating your site on Netlify");
+  yield step("site", "running", "Setting up hosting", "Creating your site on Netlify");
   const known = ws.config.netlify
     ? await netlify.site(ws.config.netlify.siteId).catch(() => undefined)
     : undefined;
@@ -124,7 +124,7 @@ export async function* putSiteOnline(
     netlify: { siteId: site.id, ...online },
   });
 
-  yield step("site", "running", "Putting your site online", "Giving it your app's settings");
+  yield step("site", "running", "Setting up hosting", "Giving it your app's settings");
   const backend = await ownBackend(ws.config);
   const carried = await setSiteEnv(netlify, site, ws.root, backend?.keys);
   if (carried.length > 0) {
@@ -136,7 +136,7 @@ export async function* putSiteOnline(
   // Sign-in links in emails come back to the site.
   if (backend) await liveSignIn(backend.api, backend.keys.ref, url);
 
-  yield step("site", "running", "Putting your site online", "Setting up Publish");
+  yield step("site", "running", "Setting up hosting", "Setting up Publish");
   const files = await setUpPublish(ws, site, token);
   const config: ProjectConfig = {
     ...ws.config,
