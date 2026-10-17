@@ -3,6 +3,7 @@ import { eventReader, lastResult } from "../hooks/cli.ts";
 import {
   commandInApp,
   dbCommandIn,
+  githubRepo,
   insideProject,
   isFactsRecord,
   isMoveStep,
@@ -16,6 +17,38 @@ import { nodeFrom, nodeOk, pathWith, pluginDataFolder, toolsFolder } from "../ho
 import { FIX_TEXT, hostOf, pageName, pointedAt, saveMessage, versionName } from "../hooks/words.ts";
 
 const CWD = "/work/crumb";
+
+describe("GitHub import addresses", () => {
+  test("accepts copied app addresses and owner/name", () => {
+    for (const input of [
+      "acme/website",
+      "  acme/website  ",
+      "https://github.com/acme/website",
+      "https://github.com/acme/website/",
+      "https://github.com/acme/website.git",
+      "https://github.com/acme/website.git/",
+    ])
+      expect(githubRepo(input)).toBe("acme/website");
+  });
+
+  test("rejects other hosts, credentials, page paths and invalid names", () => {
+    for (const input of [
+      "",
+      "website",
+      "acme/..",
+      "acme/.",
+      "https://example.com/acme/website",
+      "https://github.com.example.com/acme/website",
+      "https://user:password@github.com/acme/website",
+      "https://github.com:8080/acme/website",
+      "https://github.com/acme/website/tree/main",
+      "https://github.com/acme/website?token=private",
+      "https://github.com/acme/website#readme",
+      "acme/website && echo extra",
+    ])
+      expect(githubRepo(input)).toBeUndefined();
+  });
+});
 /** Where the plugin is loaded from: Claude's runs of Clodable name its CLI there. */
 const PLUGIN_ROOT = new URL("..", (import.meta as unknown as { url: string }).url).pathname.replace(
   /\/$/,
@@ -3076,65 +3109,88 @@ describe("everywhere else", () => {
     return ours === undefined;
   };
 
-  test("Set up Clodable here shows each step as it goes, the packages' minute included", async ($, on) => {
-    harness(on, { code: "not-set-up", message: "Clodable isn't set up in this project." }, false);
-    const session = mock.session(on);
-    // The rules setup writes for Claude, which this conversation started too early to read.
-    const RULES = "# How to work here\nNever mention git, branches or commits.";
-    on("fs.read", (_$: unknown, e: { path: string }, next: any) =>
-      e.path.endsWith("/AGENTS.md") ? { value: RULES } : next(e),
-    );
-    const toasts: string[] = [];
-    on("ui.toast", (_$: unknown, e: { text: string }) => {
-      toasts.push(e.text);
-      return { value: undefined };
+  for (const importing of [false, true]) {
+    test(`${importing ? "Import" : "Set up Clodable here"} shows each step as it goes, the packages' minute included`, async ($, on) => {
+      harness(
+        on,
+        {
+          code: importing ? "not-a-repo" : "not-set-up",
+          message: "Clodable isn't set up in this project.",
+        },
+        false,
+      );
+      if (importing) on("fs.list", () => ({ value: [] }));
+      const session = mock.session(on);
+      // The rules setup writes for Claude, which this conversation started too early to read.
+      const RULES = "# How to work here\nNever mention git, branches or commits.";
+      on("fs.read", (_$: unknown, e: { path: string }, next: any) =>
+        e.path.endsWith("/AGENTS.md") ? { value: RULES } : next(e),
+      );
+      const toasts: string[] = [];
+      on("ui.toast", (_$: unknown, e: { text: string }) => {
+        toasts.push(e.text);
+        return { value: undefined };
+      });
+      let installed!: () => void;
+      const installing = new Promise<void>((done) => {
+        installed = done;
+      });
+      const ran: string[][] = [];
+      const line = (event: unknown) => ({
+        stream: "stdout" as const,
+        text: `${JSON.stringify(event)}\n`,
+      });
+      const said = (id: string, state: string, title: string) =>
+        line({ type: "step", id, state, title });
+      on("process.spawn", async function* (_$: unknown, e: { argv: readonly string[] }) {
+        ran.push(e.argv.slice(2));
+        yield said("setup:tools", "done", "Your tools are ready");
+        yield said("setup:files", "done", "Added Clodable's files");
+        yield said("setup:packages", "running", "Installing your app's packages");
+        await installing;
+        yield said("setup:packages", "done", "Installed your app's packages");
+        yield said("setup:save", "done", "Saved to your draft on GitHub");
+        yield line({ type: "result", ok: true, data: { root: CWD, saved: true, files: [] } });
+        return { value: { code: 0, signal: null } };
+      });
+      await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+      const pane = await $.ui.mount(PANE_PROPS as never);
+      const control = importing ? "repo-name" : "set-up-here";
+      for (let i = 0; i < 30 && !(await pane.find({ key: control })); i++) await pane.redraw();
+      if (importing)
+        await $.ui.input({
+          plugin: "clodable",
+          key: control,
+          text: "https://github.com/acme/website",
+        });
+      else await pane.press({ key: control });
+      // While the packages install, the panel says so, under what's done, and the button waits.
+      let running: any;
+      for (let i = 0; i < 30 && !running; i++) {
+        running = await pane.find({ type: "Text", text: /Installing your app's packages…/ });
+        if (!running) await pane.redraw();
+      }
+      expect(running).toBeDefined();
+      expect(await pane.find({ type: "Text", text: /✓ Your tools are ready/ })).toBeDefined();
+      expect(await pane.find({ type: "Text", text: /✓ Added Clodable's files/ })).toBeDefined();
+      expect(await pane.find({ key: control })).toBeUndefined();
+      if (importing) expect(await pane.find({ key: "list-repos" })).toBeUndefined();
+      installed();
+      for (let i = 0; i < 30 && !toasts.some((t) => t.includes("ready")); i++) await pane.redraw();
+      await pane.unmount();
+      expect(ran[0]).toEqual([
+        "setup",
+        ...(importing ? ["--repo", "acme/website"] : []),
+        "--yes",
+        "--json",
+      ]);
+      expect(toasts).toContain("Your app is ready. Ask Claude for any change.");
+      // Claude gets them now, out of the builder's sight.
+      expect(readBy(session)).toHaveLength(1);
+      expect(readBy(session)[0]).toContain("you haven't read its AGENTS.md yet");
+      expect(readBy(session)[0]).toContain(RULES);
     });
-    let installed!: () => void;
-    const installing = new Promise<void>((done) => {
-      installed = done;
-    });
-    const ran: string[][] = [];
-    const line = (event: unknown) => ({
-      stream: "stdout" as const,
-      text: `${JSON.stringify(event)}\n`,
-    });
-    const said = (id: string, state: string, title: string) =>
-      line({ type: "step", id, state, title });
-    on("process.spawn", async function* (_$: unknown, e: { argv: readonly string[] }) {
-      ran.push(e.argv.slice(2));
-      yield said("setup:tools", "done", "Your tools are ready");
-      yield said("setup:files", "done", "Added Clodable's files");
-      yield said("setup:packages", "running", "Installing your app's packages");
-      await installing;
-      yield said("setup:packages", "done", "Installed your app's packages");
-      yield said("setup:save", "done", "Saved to your draft on GitHub");
-      yield line({ type: "result", ok: true, data: { root: CWD, saved: true, files: [] } });
-      return { value: { code: 0, signal: null } };
-    });
-    await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
-    const pane = await $.ui.mount(PANE_PROPS as never);
-    for (let i = 0; i < 30 && !(await pane.find({ key: "set-up-here" })); i++) await pane.redraw();
-    await pane.press({ key: "set-up-here" });
-    // While the packages install, the panel says so, under what's done, and the button waits.
-    let running: any;
-    for (let i = 0; i < 30 && !running; i++) {
-      running = await pane.find({ type: "Text", text: /Installing your app's packages…/ });
-      if (!running) await pane.redraw();
-    }
-    expect(running).toBeDefined();
-    expect(await pane.find({ type: "Text", text: /✓ Your tools are ready/ })).toBeDefined();
-    expect(await pane.find({ type: "Text", text: /✓ Added Clodable's files/ })).toBeDefined();
-    expect(await pane.find({ key: "set-up-here" })).toBeUndefined();
-    installed();
-    for (let i = 0; i < 30 && !toasts.some((t) => t.includes("ready")); i++) await pane.redraw();
-    await pane.unmount();
-    expect(ran[0]).toEqual(["setup", "--yes", "--json"]);
-    expect(toasts).toContain("Your app is ready. Ask Claude for any change.");
-    // Claude gets them now, out of the builder's sight.
-    expect(readBy(session)).toHaveLength(1);
-    expect(readBy(session)[0]).toContain("you haven't read its AGENTS.md yet");
-    expect(readBy(session)[0]).toContain(RULES);
-  });
+  }
 
   test("a setup that stopped shows where, and Set up Clodable here comes back", async ($, on) => {
     harness(on, { code: "not-set-up", message: "Clodable isn't set up in this project." }, false);
