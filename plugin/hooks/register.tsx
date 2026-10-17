@@ -2409,6 +2409,15 @@ function setupPane(
             </Button>
           )}
         </Box>
+      ) : s?.reason === "not-a-repo" && !emptyFolder ? (
+        <Box flexDirection="column" rowGap={1}>
+          <Text>Your files are on this computer. Clodable isn't saving them yet.</Text>
+          <Text dimColor>
+            Clodable currently needs an app on GitHub to save and publish. You can keep shaping this
+            local version with Claude. To bring in an app from GitHub, open an empty folder and type
+            /clodable there.
+          </Text>
+        </Box>
       ) : repoChoices.length > 0 && Select ? (
         <Box flexDirection="column" rowGap={1}>
           <Select
@@ -2451,7 +2460,9 @@ function setupPane(
       <Text dimColor>
         {s?.reason === "no-kit"
           ? "Clodable adds a few plain files and saves them, with any changes in progress, to your draft on GitHub. Nothing goes live."
-          : "Clodable copies your app from GitHub into this folder and adds a few plain files. Nothing goes live."}
+          : s?.reason === "not-a-repo" && !emptyFolder
+            ? "Your local files stay as they are. Nothing goes live."
+            : "Clodable copies your app from GitHub into this folder and adds a few plain files. Nothing goes live."}
       </Text>
     </Box>
   );

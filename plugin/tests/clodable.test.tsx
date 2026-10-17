@@ -3248,6 +3248,40 @@ describe("everywhere else", () => {
     await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
     expect(await quiet($)).toBe(true);
   });
+
+  for (const hasLocalPage of [false, true]) {
+    test(`opening Clodable in ${hasLocalPage ? "a local prototype explains its limits" : "an empty folder still offers import"}`, async ($, on) => {
+      harness(
+        on,
+        { code: "not-a-repo", message: "This folder isn't connected to GitHub yet." },
+        false,
+      );
+      on("fs.list", () => ({
+        value: hasLocalPage
+          ? [{ name: "index.html", kind: "file", size: 100, mtimeMs: 0, isLink: false }]
+          : [],
+      }));
+      on("ui.open", () => ({ value: { isOpen: true } }) as never);
+      await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+      await $.command.run({ command: "clodable", args: "" } as never);
+      const pane = await $.ui.mount(PANE_PROPS as never);
+      expect(Boolean(await pane.find({ key: "repo-name" }))).toBe(!hasLocalPage);
+      expect(Boolean(await pane.find({ key: "list-repos" }))).toBe(!hasLocalPage);
+      expect(await pane.find({ key: "set-up-here" })).toBeUndefined();
+      expect(
+        Boolean(await pane.find({ type: "Text", text: /Clodable isn't saving them yet/ })),
+      ).toBe(hasLocalPage);
+      if (hasLocalPage) {
+        expect(
+          await pane.find({
+            type: "Text",
+            text: "Your local files stay as they are. Nothing goes live.",
+          }),
+        ).toBeDefined();
+      }
+      await pane.unmount();
+    });
+  }
 });
 
 describe("an app that isn't online, or has no backend", () => {
