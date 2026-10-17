@@ -316,6 +316,14 @@ async function folderIsEmpty($: EngineInterface): Promise<boolean> {
   }
 }
 
+/** A local prototype can appear during a reply, before Clodable has an app it can save. */
+async function refreshEmptyFolder($: EngineInterface) {
+  const empty = await folderIsEmpty($);
+  if (empty === emptyFolder) return;
+  emptyFolder = empty;
+  $.ui.invalidate("ui.render");
+}
+
 /**
  * The session's folder, read again: Desktop starts a conversation's engine ahead of time in a
  * folder of its own (`~/.claude/spares/…`, gone once used) and moves it into the project when the
@@ -630,7 +638,7 @@ async function refreshStatus($: EngineInterface) {
   // Any other problem comes after the setup check, so this is an app with a problem to show.
   // "unknown" (the CLI didn't run) keeps what the quick look at the folder found.
   else if (code !== "unknown") inApp = true;
-  if (code === "not-a-repo") emptyFolder = await folderIsEmpty($);
+  if (code === "not-a-repo") await refreshEmptyFolder($);
   // Sites drawn before Clodable knew where it is draw again.
   if (inApp !== before) $.ui.invalidate("ui.render");
   if (versions && inApp === true) background(refreshVersions($));
@@ -1545,7 +1553,11 @@ export const register: Register = (on) => {
       const subject = saveMessage(asked ?? "");
       background(
         isApp().then(async (yes) => {
-          if (!yes) return;
+          if (!yes) {
+            const s = await read($, status);
+            if (s?.ready === false && s.reason === "not-a-repo") await refreshEmptyFolder($);
+            return;
+          }
           const sha = await saveNow($, subject);
           // The code changed: so may what's worth a look, and the settings it reads.
           if (sha) {

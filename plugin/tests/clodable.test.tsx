@@ -3339,6 +3339,42 @@ describe("everywhere else", () => {
       await pane.unmount();
     });
   }
+
+  test("an open import panel updates after Claude makes a local prototype", async ($, on) => {
+    const calls = harness(
+      on,
+      { code: "not-a-repo", message: "This folder isn't connected to GitHub yet." },
+      false,
+    );
+    let madePage = false;
+    on("fs.list", () => ({
+      value: madePage
+        ? [{ name: "index.html", kind: "file", size: 100, mtimeMs: 0, isLink: false }]
+        : [],
+    }));
+    await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+    const pane = await $.ui.mount(PANE_PROPS as never);
+    for (let i = 0; i < 30 && !(await pane.find({ key: "repo-name" })); i++) await pane.redraw();
+    expect(await pane.find({ key: "repo-name" })).toBeDefined();
+    await $.turn.start({ text: "Make a book-swap page", turnId: "local-page" } as never);
+    madePage = true;
+    await $.turn.complete({
+      turnId: "local-page",
+      answer: "Your local page is ready.",
+      durationMs: 10,
+      isAborted: false,
+      usage: null,
+    } as never);
+    for (let i = 0; i < 30 && (await pane.find({ key: "repo-name" })); i++) await pane.redraw();
+    expect(await pane.find({ key: "repo-name" })).toBeUndefined();
+    expect(await pane.find({ key: "list-repos" })).toBeUndefined();
+    expect(
+      await pane.find({ type: "Text", text: "Keep shaping your local app with Claude." }),
+    ).toBeDefined();
+    expect(await pane.find({ type: "Text", text: /Clodable isn't saving them yet/ })).toBeDefined();
+    expect(calls.some((c) => c[0] === "save")).toBe(false);
+    await pane.unmount();
+  });
 });
 
 describe("an app that isn't online, or has no backend", () => {
