@@ -74,7 +74,7 @@ ${
   input.hosting === "lovable"
     ? `- **Publish** is the builder's decision. They click Publish in Clodable, which checks the app and merges the draft into \`${input.liveBranch}\`. The site is hosted by Lovable, so it goes live once they click **Publish → Publish changes** in Lovable. Clodable reminds them.`
     : input.hosting === "none"
-      ? `- **Publish** is the builder's decision. They click Publish in Clodable, which checks the app and merges the draft into \`${input.liveBranch}\`. The app isn't online yet: to put it on the web, they click **Put your site online** in the Clodable panel (their own Netlify, free to start), and each Publish updates it from then on.`
+      ? `- **Publish** is the builder's decision. They click Publish in Clodable, which checks the app and merges the draft into \`${input.liveBranch}\`. The app isn't online yet: they first click **Set up hosting** in the Clodable panel (their own Netlify, free to start). This prepares a web address; it does not publish. Run the setup command supplied by the panel. Their first **Publish** makes the app public, and each Publish updates it after that.`
       : `- **Publish** is the builder's decision. They click Publish in Clodable, which checks the app, merges the draft into \`${input.liveBranch}\`, and the host puts it live.`
 }
 - Never push to \`${input.liveBranch}\`, never force-push, and never merge pull requests yourself.

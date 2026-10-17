@@ -203,8 +203,10 @@ describe("save names", () => {
     expect(saveMessage("make the header blue")).toBe("Make the header blue");
     // The panel's own requests, by what they did.
     expect(
-      saveMessage("Put my site online, then tell me what's left before people can see it."),
-    ).toBe("Put my site online");
+      saveMessage(
+        "Prepare a web address for my app. I’ll press Publish when I’m ready to make it public.",
+      ),
+    ).toBe("Set up hosting");
     expect(
       saveMessage(
         "Add a backend to my app in my Supabase organization “Acme”, then tell me what it lets me do.",
@@ -3297,8 +3299,8 @@ describe("an app that isn't online, or has no backend", () => {
     // The bar says it plainly, and offers the way.
     expect(await bandText($, "desktop", /web/)).toBe("Not on the web yet");
     const pane = await $.ui.mount(PANE);
-    expect(await shows(pane, "Put your site online")).toBeDefined();
-    expect(await shows(pane, /Your app isn't on the web yet/)).toBeDefined();
+    expect(await shows(pane, "Set up hosting")).toBeDefined();
+    expect(await shows(pane, /Your app becomes public when you press Publish/)).toBeDefined();
 
     await pane.input({ key: "site-netlify-token", text: token, kind: "submit" });
     for (let i = 0; i < 30 && !calls.some((c) => c[0] === "connect"); i++) await pane.redraw();
@@ -3316,7 +3318,7 @@ describe("an app that isn't online, or has no backend", () => {
     await pane.press({ key: "site-create" });
     for (let i = 0; i < 30 && prompts.length === 0; i++) await pane.redraw();
     expect(prompts).toEqual([
-      "Put my site online, then tell me what's left before people can see it.",
+      "Prepare a web address for my app. I’ll press Publish when I’m ready to make it public.",
     ]);
     await $.turn.start({ text: prompts[0]!, turnId: "turn-site" } as never);
     expect(readBy(session)[0]).toMatch(

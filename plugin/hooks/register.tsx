@@ -2021,7 +2021,7 @@ function barSides(
         ],
         right: [
           <Button key="go-online" variant="primary" onPress={() => background(goOnline($))}>
-            Put it online
+            Set up hosting
           </Button>,
           ...undo,
         ],
@@ -2161,7 +2161,7 @@ function barSides(
           history,
           preview,
           <Button key="go-online" variant="secondary" onPress={() => background(goOnline($))}>
-            Put it online
+            Set up hosting
           </Button>,
         ]
       : [history, preview],
@@ -2511,7 +2511,7 @@ function stateCard(
       </Text>,
       [
         <Button key="go-online" variant="primary" onPress={() => background(goOnline($))}>
-          Put my site online
+          Set up hosting
         </Button>,
         <Button key="undo" variant="secondary" onPress={() => background(askUndo($))}>
           Undo
@@ -2583,7 +2583,7 @@ function stateCard(
       </Text>,
       [
         <Button key="go-online" variant="secondary" onPress={() => background(goOnline($))}>
-          Put my site online
+          Set up hosting
         </Button>,
       ],
     );
@@ -2735,14 +2735,14 @@ function siteCard($: EngineInterface, ui: PaneUi, s: ClodableStatus) {
   if (s.hosting !== "none") return null;
   const about = (
     <Text dimColor>
-      Your app isn't on the web yet. Clodable puts it on Netlify, under your own account (free to
-      start), and each Publish updates it.
+      Give your app a web address on Netlify, under your own account (free to start). Your app
+      becomes public when you press Publish.
     </Text>
   );
   if (!s.netlifyConnected) {
     return card(
       ui,
-      <Text bold>Put your site online</Text>,
+      <Text bold>Set up hosting</Text>,
       <Box flexDirection="column" rowGap={1}>
         {about}
         {numbered(ui, [
@@ -2765,7 +2765,7 @@ function siteCard($: EngineInterface, ui: PaneUi, s: ClodableStatus) {
   const teams = siteOptions?.teams ?? [];
   return card(
     ui,
-    <Text bold>Put your site online</Text>,
+    <Text bold>Set up hosting</Text>,
     <Box flexDirection="column" rowGap={1}>
       {about}
       {teams.length > 1 && Select ? (
@@ -2783,7 +2783,7 @@ function siteCard($: EngineInterface, ui: PaneUi, s: ClodableStatus) {
     </Box>,
     isPiloting()
       ? [claudeOnIt(ui)]
-      : [pilotButton($, ui, "site-create", "Put my site online", siteRequest($, siteTeam))],
+      : [pilotButton($, ui, "site-create", "Set up hosting", siteRequest($, siteTeam))],
   );
 }
 
@@ -2795,8 +2795,8 @@ function siteRequest($: EngineInterface, team: string): Ask {
     ...(team ? ["--team", team] : []),
   ]);
   return {
-    text: "Put my site online, then tell me what's left before people can see it.",
-    details: `From Clodable: run \`${command}\`. ${OWN_COMMAND} It creates the site on the builder's own Netlify, gives it the app's settings and backend keys, and sets up Publish (netlify.toml and a GitHub Actions workflow). Then tell them in plain words: their site's address, and that it goes online when they press Publish. If the app's server code reads settings with no value yet, say which ones to paste in the panel. If it stops, find out why and fix what you can.`,
+    text: "Prepare a web address for my app. I’ll press Publish when I’m ready to make it public.",
+    details: `From Clodable: run \`${command}\`. ${OWN_COMMAND} This is hosting setup, which the builder just requested. It does not publish. Create the empty site now; the builder presses Publish later. It creates the site on the builder's own Netlify, gives it the app's settings and backend keys, and sets up Publish (netlify.toml and a GitHub Actions workflow). Then tell them in plain words: their site's address, and that it goes online when they press Publish. If the app's server code reads settings with no value yet, say which ones to paste in the panel. If it stops, find out why and fix what you can.`,
   };
 }
 
