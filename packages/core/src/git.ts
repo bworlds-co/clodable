@@ -1,4 +1,6 @@
 import { existsSync } from "node:fs";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ClodableError } from "./errors.js";
 import { type ExecResult, exec } from "./exec.js";
@@ -208,6 +210,27 @@ export class Git {
       timeout: 120_000,
     });
     return result.exitCode === 0;
+  }
+
+  /** Check a merge away from the preview; never put conflict markers in the builder's files. */
+  async checkMerge(ref: string): Promise<{ ok: boolean; conflicts: string[] }> {
+    const dir = await mkdtemp(join(tmpdir(), "clodable-combine-"));
+    try {
+      await this.ok(["worktree", "add", "--quiet", "--detach", dir, "HEAD"]);
+      const side = new Git(dir);
+      const result = await side.run(["merge", "--no-commit", "--no-ff", ref]);
+      if (result.exitCode === 0) return { ok: true, conflicts: [] };
+      const conflicts = await side.conflictedFiles();
+      if (conflicts.length > 0) return { ok: false, conflicts };
+      throw new ClodableError({
+        code: "unknown",
+        message: "Your draft couldn't be compared with the live site.",
+        details: result.stderr || result.stdout,
+      });
+    } finally {
+      await this.worktreeRemove(dir);
+      await rm(dir, { recursive: true, force: true });
+    }
   }
 
   /** Merge `ref` into the current branch. Leaves conflicts in place for someone to resolve. */
