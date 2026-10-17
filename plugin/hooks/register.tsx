@@ -1819,7 +1819,7 @@ export const register: Register = (on) => {
         {moveLine($, ui, s)}
         {historySection($, ui, desktop, now)}
         {warningsSection($, ui, doctor)}
-        <Box flexDirection="row" columnGap={1} alignItems="center">
+        <Box flexDirection="column" rowGap={1} alignItems="flex-start">
           <Text dimColor>
             Saved to GitHub after every reply. Only Publish changes your live site.
           </Text>
@@ -2201,15 +2201,15 @@ function card(
       paddingX={2}
       paddingY={1}
     >
-      <Box flexDirection="row" justifyContent="space-between" alignItems="center" columnGap={2}>
-        <Box flexDirection="column" flexShrink={1}>
-          {title}
-          {subtitle}
-        </Box>
-        <Box flexDirection="row" columnGap={1} alignItems="center" flexShrink={0}>
+      <Box flexDirection="column" rowGap={1}>
+        {title}
+        {subtitle}
+      </Box>
+      {actions.length > 0 ? (
+        <Box flexDirection="row" flexWrap="wrap" columnGap={1} rowGap={1} alignItems="center">
           {actions}
         </Box>
-      </Box>
+      ) : null}
       {below}
     </Box>
   );
@@ -2809,7 +2809,7 @@ function backendCard($: EngineInterface, ui: PaneUi, s: ClodableStatus) {
   if (s.backend !== "none" || s.movingOffLovable || s.finishingMove) return null;
   if (!addingBackend) {
     return (
-      <Box flexDirection="row" columnGap={2} alignItems="center">
+      <Box flexDirection="column" rowGap={1} alignItems="flex-start">
         <Text dimColor>No backend yet: add one when your app needs sign-in or saved data.</Text>
         <Button
           key="add-backend"
@@ -3120,33 +3120,22 @@ function versionRow($: EngineInterface, ui: PaneUi, v: Version, desktop: boolean
   return (
     <Box
       key={`version-${v.sha}`}
-      flexDirection="row"
-      justifyContent="space-between"
-      alignItems="center"
-      columnGap={2}
+      flexDirection="column"
+      rowGap={1}
       paddingX={1}
+      paddingY={1}
       {...(desktop ? { hover: { backgroundColor: "#8080801f" } } : {})}
     >
-      <Box flexDirection="row" columnGap={1} alignItems="center" flexShrink={1}>
-        <Text wrap="truncate-end">{name}</Text>
+      <Text>{name}</Text>
+      <Box flexDirection="row" flexWrap="wrap" columnGap={1} rowGap={1} alignItems="center">
         {live ? (
           <Text color="success" bold>
             Live
           </Text>
         ) : null}
         {current ? <Text dimColor>Current</Text> : null}
-      </Box>
-      <Box flexDirection="row" columnGap={2} alignItems="center" flexShrink={0}>
         <Text dimColor>{ago(v.date, now)}</Text>
-        <Box width={11} justifyContent="flex-end">
-          {current ? null : desktop ? (
-            <Box display="none" hover={{ display: "flex" }}>
-              {restore}
-            </Box>
-          ) : (
-            restore
-          )}
-        </Box>
+        {current ? null : restore}
       </Box>
     </Box>
   );
