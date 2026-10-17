@@ -27,5 +27,8 @@ export const LABEL_SCRIPT =
  * even for a press. So the press becomes the builder's request, and Claude opens it.
  */
 export function previewRequest(url: string | null): string {
-  return url ? `Open my app's preview here (${url}).` : "Start my app's preview and open it here.";
+  const action = url
+    ? `Open my app's preview here (${url}).`
+    : "Start my app's preview and open it here.";
+  return `The address is for your tool call only. Open Desktop's Browser pane, then confirm in one short sentence: "Your preview is open beside this conversation." Never put localhost, a port number, a local URL or a link to it in the builder's progress or final reply. Don't tour the page unless asked.\n${action}`;
 }
