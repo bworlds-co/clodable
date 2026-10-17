@@ -1817,7 +1817,7 @@ export const register: Register = (on) => {
         {stateCard($, ui, s, a, now, desktop)}
         {lovableHostingCard(ui, s)}
         {moveLine($, ui, s)}
-        {historySection($, ui, desktop, now)}
+        {historySection($, ui, s, desktop, now)}
         {warningsSection($, ui, doctor)}
         <Box flexDirection="column" rowGap={1} alignItems="flex-start">
           <Text dimColor>
@@ -2145,14 +2145,16 @@ function barSides(
   const offline = s.hosting === "none" || Boolean(s.lastPublish?.noHost && !s.site);
   return {
     left: [
-      dot(offline ? "warning" : "success"),
+      dot(offline ? "warning" : siteIsLive(s) ? "success" : "text"),
       // Lovable's hosting only shows what was last published in Lovable: say what's certain.
       <Text>
         {offline
           ? "Not on the web yet"
           : s.hosting === "lovable"
             ? "Everything is published"
-            : "Everything is live"}
+            : siteIsLive(s)
+              ? "Everything is live"
+              : "Everything is saved"}
       </Text>,
       url && !offline ? siteLink(ui, url) : null,
     ],
@@ -2590,7 +2592,13 @@ function stateCard(
   }
   return card(
     ui,
-    <Text bold>{s.hosting === "none" ? "Everything is saved" : "Everything is live"}</Text>,
+    <Text bold>
+      {s.hosting === "lovable"
+        ? "Everything is published"
+        : siteIsLive(s)
+          ? "Everything is live"
+          : "Everything is saved"}
+    </Text>,
     <Text dimColor>
       {s.lastPublish
         ? `Published ${ago(s.lastPublish.at, now)}: “${s.lastPublish.title}”`
@@ -2994,8 +3002,20 @@ function lovableHostingCard(ui: PaneUi, s: ClodableStatus) {
   );
 }
 
+/** An unknown host, a pending site or a publish with no host is never evidence of being live. */
+function siteIsLive(s: ClodableStatus): boolean {
+  if (s.site) return s.site.live;
+  return s.hosting === "github" && !s.lastPublish?.noHost;
+}
+
 /** Every version, newest first: what's not live yet, then what was published. */
-function historySection($: EngineInterface, ui: PaneUi, desktop: boolean, now: number) {
+function historySection(
+  $: EngineInterface,
+  ui: PaneUi,
+  s: ClodableStatus,
+  desktop: boolean,
+  now: number,
+) {
   const { Box, Text } = ui;
   const draftRows = (versions?.draft ?? []).slice(0, 10);
   const publishedRows = (versions?.published ?? []).slice(0, Math.max(3, 12 - draftRows.length));
@@ -3017,9 +3037,11 @@ function historySection($: EngineInterface, ui: PaneUi, desktop: boolean, now: n
             // Saves that cancel out aren't waiting: the live site already looks like this.
             <Text dimColor>{versions.sameAsLive ? "Since your last publish" : "Not live yet"}</Text>
           ) : null}
-          {draftRows.map((v) => versionRow($, ui, v, desktop, now))}
-          {publishedRows.length > 0 ? <Text dimColor>Published</Text> : null}
-          {publishedRows.map((v) => versionRow($, ui, v, desktop, now))}
+          {draftRows.map((v) => versionRow($, ui, v, desktop, now, siteIsLive(s)))}
+          {publishedRows.length > 0 ? (
+            <Text dimColor>{siteIsLive(s) ? "Published" : "Saved versions"}</Text>
+          ) : null}
+          {publishedRows.map((v) => versionRow($, ui, v, desktop, now, siteIsLive(s)))}
           {older > 0 ? <Text dimColor>and {plural(older, "older version")}</Text> : null}
         </Box>
       )}
@@ -3095,10 +3117,17 @@ function warningsSection($: EngineInterface, ui: PaneUi, doctor: ClodableCheck[]
  * One line of history. The newest saved version is what the files hold now ("Current"); the
  * newest publish is what visitors see ("Live"). Restore shows on the line under the pointer.
  */
-function versionRow($: EngineInterface, ui: PaneUi, v: Version, desktop: boolean, now: number) {
+function versionRow(
+  $: EngineInterface,
+  ui: PaneUi,
+  v: Version,
+  desktop: boolean,
+  now: number,
+  liveSite: boolean,
+) {
   const { Box, Text, Button } = ui;
   const current = v.sha === (versions?.draft[0]?.sha ?? versions?.published[0]?.sha);
-  const live = v.sha === versions?.published[0]?.sha;
+  const live = liveSite && v.sha === versions?.published[0]?.sha;
   const name = versionName(v.subject);
   const restore = (
     <Button
