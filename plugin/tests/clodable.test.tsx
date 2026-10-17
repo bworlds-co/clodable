@@ -23,7 +23,12 @@ const PLUGIN_ROOT = new URL("..", (import.meta as unknown as { url: string }).ur
 );
 
 const STATUS = {
-  project: { name: "crumb-site", appType: "vite-spa", liveUrl: "https://crumb.example" },
+  project: {
+    name: "crumb-site",
+    appType: "vite-spa",
+    liveUrl: "https://crumb.example",
+    hosting: "github",
+  },
   branch: "draft/ada",
   draftBranch: "draft/ada",
   onDraft: true,
@@ -3333,6 +3338,20 @@ describe("an app that isn't online, or has no backend", () => {
     expect(readBy(session).join(" ")).not.toContain(token);
   });
 
+  for (const hosting of ["none", "unknown", "lovable"]) {
+    test(`history does not claim a version is live with ${hosting} hosting`, async ($, on) => {
+      harness(on, where("none", hosting));
+      await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+      const pane = await $.ui.mount(PANE);
+      expect(await shows(pane, "Saved versions")).toBeDefined();
+      expect(await pane.find({ type: "Text", text: "Live" })).toBeUndefined();
+      expect(await pane.find({ type: "Text", text: "Everything is live" })).toBeUndefined();
+      await pane.unmount();
+      if (hosting === "unknown")
+        expect(await bandText($, "desktop", /Everything/)).toBe("Everything is saved");
+    });
+  }
+
   test("a site that's ready goes online at the next Publish", async ($, on) => {
     harness(on, {
       ...where("supabase", "github"),
@@ -3352,6 +3371,7 @@ describe("an app that isn't online, or has no backend", () => {
     expect(await shows(pane, "Your site is ready to go online")).toBeDefined();
     expect(await pane.find({ type: "Button", key: "site-publish" })).toBeDefined();
     expect(await pane.find({ type: "Text", text: "Everything is live" })).toBeUndefined();
+    expect(await pane.find({ type: "Text", text: "Live" })).toBeUndefined();
     await pane.unmount();
   });
 
