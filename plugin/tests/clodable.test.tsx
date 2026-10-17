@@ -1930,7 +1930,10 @@ describe("apps still on Lovable", () => {
     // The builder's words in their message; the address, for Claude only.
     expect(prompts).toEqual(["Show me my app's preview."]);
     await $.turn.start({ text: prompts[0]!, turnId: "turn-preview" } as never);
-    expect(readBy(session)).toEqual(["Open my app's preview here (http://localhost:8080)."]);
+    expect(readBy(session).join("\n")).toContain(
+      "Open my app's preview here (http://localhost:8080).",
+    );
+    expect(readBy(session).join("\n")).toContain("The address is for your tool call only");
   });
 
   test("on its own Supabase with no connection here, the panel offers it, for Claude's database changes", async ($, on) => {
@@ -2972,7 +2975,10 @@ describe("the preview", () => {
     // The builder's words in their message; the address, for Claude only.
     expect(prompts).toEqual(["Show me my app's preview."]);
     await $.turn.start({ text: prompts[0]!, turnId: "turn-preview" } as never);
-    expect(readBy(session)).toEqual(["Open my app's preview here (http://localhost:62235)."]);
+    expect(readBy(session).join("\n")).toContain(
+      "Open my app's preview here (http://localhost:62235).",
+    );
+    expect(readBy(session).join("\n")).toContain("The address is for your tool call only");
   });
 });
 
@@ -3085,7 +3091,10 @@ describe("the preview, when Claude starts it", () => {
     // The builder's words in their message; the address, for Claude only.
     expect(prompts).toEqual(["Show me my app's preview."]);
     await $.turn.start({ text: prompts[0]!, turnId: "turn-preview" } as never);
-    expect(readBy(session)).toEqual(["Open my app's preview here (http://localhost:7001)."]);
+    expect(readBy(session).join("\n")).toContain(
+      "Open my app's preview here (http://localhost:7001).",
+    );
+    expect(readBy(session).join("\n")).toContain("The address is for your tool call only");
 
     // Labelled inside that call (Desktop refuses a plugin's own call outside one), once per tab.
     const labels = asked.filter((a) => a.tool === "javascript_tool");
