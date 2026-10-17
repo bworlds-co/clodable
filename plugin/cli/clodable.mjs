@@ -22671,9 +22671,9 @@ async function untilTheApiSees(api, ref, tables) {
 }
 
 // ../core/src/kit/index.ts
-import { existsSync as existsSync9 } from "node:fs";
-import { mkdir as mkdir6, readFile as readFile8, writeFile as writeFile6 } from "node:fs/promises";
-import { dirname as dirname5, join as join13 } from "node:path";
+import { existsSync as existsSync10 } from "node:fs";
+import { mkdir as mkdir7, readFile as readFile9, writeFile as writeFile7 } from "node:fs/promises";
+import { dirname as dirname6, join as join14 } from "node:path";
 
 // ../core/src/move/site.ts
 import { existsSync as existsSync8 } from "node:fs";
@@ -23453,21 +23453,22 @@ var NO_BACKEND = `## Database and backend: none yet
 - When the builder asks for something that needs one (accounts and sign-in, saving data people enter, uploads), say so in one plain sentence and ask them to click **Add a backend** in the Clodable panel (type \`/clodable\`). Clodable creates it on their own Supabase (free to start) and connects the app; then ask them to tell you when it's there.
 - Don't set up a database or a sign-in service any other way, and don't fake one in the browser's storage for things that must last.
 - Once the backend is there, these instructions change to say how to work with it.`;
-function supabaseSection(ref) {
+function supabaseSection(ref, cli2) {
   return `## Database: live data, handle with care
 ${ref ? `- The app uses Supabase project \`${ref}\`. The preview uses **live data**: real customers, real orders.` : "- If the app uses a database, the preview uses **live data**: real customers, real orders."}
 - You can read and change it, as on Lovable, through Clodable's commands (no key needed; never ask for one):
-  - Read: \`npx clodable db query "select \u2026"\`.
-  - Change the tables (a migration): write \`supabase/migrations/<timestamp>_<what>.sql\`, then \`npx clodable db apply supabase/migrations/<that file>\`. It runs once, in one transaction, and goes in Supabase's migration history.
-  - Change the data (insert, update, delete): \`npx clodable db run "update \u2026"\`. Data that belongs to a person (their notes, their orders) needs their account: look it up with a query first.
+  - Read: \`${cli2} db query "select \u2026"\`.
+  - Change the tables (a migration): write \`supabase/migrations/<timestamp>_<what>.sql\`, then \`${cli2} db apply supabase/migrations/<that file>\`. It runs once, in one transaction, and goes in Supabase's migration history.
+  - Change the data (insert, update, delete): \`${cli2} db run "update \u2026"\`. Data that belongs to a person (their notes, their orders) needs their account: look it up with a query first.
 - **Before any database change**, tell the builder in one plain sentence what will change and ask for confirmation, for example "I'll add a 'phone' column to Customers. This changes your live database. OK?" Wait for a yes.
 - Prefer **additive** changes: add columns and tables, and don't rename or drop them. The live site keeps running the old code until the next Publish, so it must keep working. Clean up only after the builder has published.
 - If something can't be undone (deleting a table or column, mass-deleting rows, turning off row-level security), say so explicitly: "This deletes 214 orders and can't be undone." Wait for an explicit yes.
 - Every schema change is a migration file, so the history stays in the project. Never change the tables any other way.
-- Every new table gets row-level security turned on, with policies for who may read and write it. After every schema change, run \`npx clodable db check\` (Supabase's security advice) and fix what it reports.
+- Every new table gets row-level security turned on, with policies for who may read and write it. After every schema change, run \`${cli2} db check\` (Supabase's security advice) and fix what it reports.
 - **Edge functions** (\`supabase/functions/\`) go live only when the builder publishes. Edit them freely, but never deploy them yourself.`;
 }
 function agentsMd(input2) {
+  const cli2 = input2.cliCommand ?? "npx clodable";
   const stack = input2.appType === "tanstack-start" ? "TanStack Start (React 19, server-side rendering) with Tailwind CSS and shadcn/ui" : input2.appType === "vite-spa" ? "Vite + React + TypeScript, with Tailwind CSS and shadcn/ui" : "a web app";
   return `# Working on ${input2.appName}
 
@@ -23490,13 +23491,16 @@ ${input2.hosting === "lovable" ? `- **Publish** is the builder's decision. They 
 - If asked to "publish" or "put it live", tell them to click **Publish** in the Clodable bar above the message box.
 
 ## The preview
-- The app runs locally in the preview, from \`npx clodable dev\` (configured in \`.claude/launch.json\`). Don't start another dev server.
+- The app runs locally in the preview, configured in \`.claude/launch.json\`. Use that configuration; don't start another dev server.
 - When they ask to see the preview, open Desktop's Browser pane at its address: \`preview_start\` with \`{"url": "http://localhost:<port>"}\`. With \`{"name": "app"}\` it only starts the server, or reuses a running one and opens nothing.
 - After visible changes, check the preview yourself (take a screenshot, click through) before saying you're done.
 - The preview toolbar at the bottom of the page belongs to Clodable. It's not part of the app. Don't edit or remove it.
 - Requests from the preview arrive as messages that start with "From the preview". Treat them like requests from the builder.
 
-${input2.backend === "lovable-cloud" ? LOVABLE_CLOUD : input2.backend === "none" ? NO_BACKEND : supabaseSection(input2.supabaseRef)}
+${input2.backend === "lovable-cloud" ? LOVABLE_CLOUD : input2.backend === "none" ? NO_BACKEND : supabaseSection(input2.supabaseRef, cli2)}
+
+## Clodable commands
+- Run \`${cli2} <command>\` for status, history, restore and other Clodable commands.${input2.cliCommand ? " This is the installed copy. Don't fetch a different version with npx." : ""}
 
 ## Secrets
 - Never put API keys or passwords in code. Public keys (the Supabase URL and anon key) are fine.
@@ -23511,6 +23515,42 @@ ${input2.backend === "lovable-cloud" ? LOVABLE_CLOUD : input2.backend === "none"
 
 <!-- clodable:end -->
 `;
+}
+
+// ../core/src/kit/runtime.ts
+import { randomUUID } from "node:crypto";
+import { existsSync as existsSync9 } from "node:fs";
+import { mkdir as mkdir6, readFile as readFile8, rename as rename4, rm as rm5, writeFile as writeFile6 } from "node:fs/promises";
+import { dirname as dirname5, join as join13 } from "node:path";
+var LOCAL_CLI = ".clodable/local/clodable.mjs";
+var LOCAL_PREVIEW = ".clodable/local/preview.sh";
+function hasLocalRuntime(root) {
+  return Boolean(process.env.CLODABLE_RUNTIME_SOURCE) || existsSync9(join13(root, LOCAL_CLI));
+}
+var shellQuote = (value) => `'${value.replaceAll("'", "'\\''")}'`;
+async function replaceIfChanged(path2, content) {
+  const bytes = Buffer.from(content);
+  const before = await readFile8(path2).catch(() => void 0);
+  if (before?.equals(bytes)) return;
+  await mkdir6(dirname5(path2), { recursive: true });
+  const temporary = `${path2}.${randomUUID()}.tmp`;
+  try {
+    await writeFile6(temporary, bytes);
+    await rename4(temporary, path2);
+  } finally {
+    await rm5(temporary, { force: true });
+  }
+}
+async function installRuntime(root) {
+  const source = process.env.CLODABLE_RUNTIME_SOURCE;
+  if (!source) return;
+  await replaceIfChanged(join13(root, LOCAL_CLI), await readFile8(source));
+  await replaceIfChanged(
+    join13(root, LOCAL_PREVIEW),
+    `#!/bin/sh
+exec ${shellQuote(process.execPath)} "$(dirname "$0")/clodable.mjs" dev "$@"
+`
+  );
 }
 
 // ../core/src/kit/index.ts
@@ -23532,8 +23572,8 @@ async function keepIgnored(root) {
 var BEGIN = "<!-- clodable:begin";
 var END = "<!-- clodable:end -->";
 async function read(root, path2) {
-  const full = join13(root, path2);
-  return existsSync9(full) ? readFile8(full, "utf8") : void 0;
+  const full = join14(root, path2);
+  return existsSync10(full) ? readFile9(full, "utf8") : void 0;
 }
 function json2(value) {
   return `${JSON.stringify(value, null, 2)}
@@ -23566,6 +23606,13 @@ ${block2}
 async function planKit(project, config2, options = {}) {
   const root = project.root;
   const ref = supabaseRef(config2, project);
+  if (options.runtimeOnly) {
+    return [
+      await agentsPlan(root, project, config2, ref),
+      await launchPlan(root, options),
+      await gitignorePlan(root)
+    ];
+  }
   const planned = [
     await agentsPlan(root, project, config2, ref),
     await claudePlan(root),
@@ -23599,7 +23646,8 @@ async function agentsPlan(root, project, config2, ref) {
         liveBranch: config2.liveBranch,
         supabaseRef: ref,
         backend: config2.backend,
-        hosting: config2.hosting
+        hosting: config2.hosting,
+        cliCommand: hasLocalRuntime(root) ? `node "${LOCAL_CLI}"` : void 0
       })
     )
   );
@@ -23618,14 +23666,24 @@ async function launchPlan(root, options) {
     before,
     {}
   );
-  const dev = options.devCommand ?? clodableDev(launch.configurations ?? []) ?? previewCommand();
+  const existing = launch.configurations?.find((configuration) => configuration.name === "app");
+  const override = clodableDev(launch.configurations ?? []);
+  if (options.runtimeOnly && override && before) {
+    return change(
+      ".claude/launch.json",
+      "Keeps your explicit Clodable preview command",
+      before,
+      before
+    );
+  }
+  const dev = options.devCommand ?? override ?? (hasLocalRuntime(root) ? installedPreviewCommand() : previewCommand());
   const ours2 = {
     name: "app",
     runtimeExecutable: dev.executable,
     runtimeArgs: dev.args,
     // Lovable's templates, classic and TanStack Start, both serve on 8080.
-    port: options.port ?? 8080,
-    autoPort: true
+    port: options.port ?? (options.runtimeOnly && typeof existing?.port === "number" ? existing.port : 8080),
+    autoPort: options.runtimeOnly && typeof existing?.autoPort === "boolean" ? existing.autoPort : true
   };
   const others = (launch.configurations ?? []).filter(
     (c2) => !(Array.isArray(c2.runtimeArgs) && c2.runtimeArgs.includes("clodable")) && c2.name !== "app"
@@ -23638,6 +23696,9 @@ async function launchPlan(root, options) {
   );
 }
 var TOOLS_PATH = "$HOME/.claude/plugins/data/clodable-clodable/tools/bin";
+function installedPreviewCommand() {
+  return process.platform === "win32" ? { executable: "node", args: [LOCAL_CLI, "dev"] } : { executable: "/bin/sh", args: [LOCAL_PREVIEW] };
+}
 function previewCommand(platform = process.platform) {
   if (platform === "win32") return { executable: "npx", args: ["clodable", "dev"] };
   return {
@@ -23652,6 +23713,7 @@ function clodableDev(configurations) {
   if (typeof executable3 !== "string" || !Array.isArray(args)) return void 0;
   const words = [executable3, ...args].map(String);
   const command = words.join(" ");
+  if (args.includes(LOCAL_PREVIEW) || args.includes(LOCAL_CLI)) return void 0;
   if (command === "npx clodable dev") return void 0;
   if (/^\/bin\/sh -c PATH="\$PATH:[^"]*" exec npx clodable dev$/.test(command)) return void 0;
   return words.some((w) => w.includes("clodable")) && words.includes("dev") ? { executable: executable3, args: args.map(String) } : void 0;
@@ -23767,12 +23829,13 @@ ${missing.join("\n")}
   );
 }
 async function applyKit(root, changes) {
+  if (changes.some((change2) => change2.path === ".claude/launch.json")) await installRuntime(root);
   const written = [];
   for (const change2 of changes) {
     if (change2.action === "unchanged") continue;
-    const full = join13(root, change2.path);
-    await mkdir6(dirname5(full), { recursive: true });
-    await writeFile6(full, change2.content);
+    const full = join14(root, change2.path);
+    await mkdir7(dirname6(full), { recursive: true });
+    await writeFile7(full, change2.content);
     written.push(change2);
   }
   return written;
@@ -24026,6 +24089,7 @@ async function status(ws, options = {}) {
   const hasLive = Boolean(await ws.git.revParse(ws.liveRef));
   const unpublished = branch === ws.liveBranch ? [] : await waitingSaves(ws);
   const behindLive = hasLive ? await ws.git.count(`HEAD..${ws.liveRef}`, { noMerges: true }) : 0;
+  const site = await siteStatus(ws, state.siteLiveAt);
   return {
     project: {
       name: ws.project.name,
@@ -24048,15 +24112,30 @@ async function status(ws, options = {}) {
     ...state.pullRequest ? { pullRequest: state.pullRequest } : {},
     ...await whereTheMoveIs(ws.root),
     ...ws.config.backend === "supabase" || ws.config.backend === "none" ? { database: { connected: Boolean(await readSecret(SUPABASE_TOKEN)) } } : {},
-    ...ws.config.netlify ? {
-      site: {
-        url: ws.config.netlify.url,
-        admin: ws.config.netlify.admin,
-        live: Boolean(state.siteLiveAt)
-      }
-    } : {},
+    ...site ? { site } : {},
     ...ws.config.hosting === "none" ? { netlify: { connected: Boolean(await readSecret(NETLIFY_TOKEN)) } } : {}
   };
+}
+async function siteStatus(ws, liveAt) {
+  const configured = ws.config.netlify;
+  if (!configured) return void 0;
+  const base = { url: configured.url, admin: configured.admin };
+  if (liveAt) return { ...base, live: true };
+  try {
+    const api = await NetlifyApi.onThisComputer();
+    const remote = await api?.site(configured.siteId);
+    if (!remote || remote.id !== configured.siteId || remote.account_slug !== configured.account)
+      return { ...base, live: false, statusKnown: false };
+    const live = remote.published_deploy?.state === "ready";
+    if (live) {
+      await ws.updateState({
+        siteLiveAt: remote.published_deploy?.published_at ?? (/* @__PURE__ */ new Date()).toISOString()
+      });
+    }
+    return { ...base, live };
+  } catch {
+    return { ...base, live: false, statusKnown: false };
+  }
 }
 async function history(ws, options = {}) {
   const live = await liveBase(ws) ?? ws.liveBranch;
@@ -24093,8 +24172,10 @@ async function whereTheMoveIs(root) {
 }
 
 // ../core/src/git.ts
-import { existsSync as existsSync10 } from "node:fs";
-import { join as join14 } from "node:path";
+import { existsSync as existsSync11 } from "node:fs";
+import { mkdtemp as mkdtemp4, rm as rm6 } from "node:fs/promises";
+import { tmpdir as tmpdir3 } from "node:os";
+import { join as join15 } from "node:path";
 var COMMIT_KINDS = ["save", "restore", "sync", "publish", "undo", "setup"];
 var KIND_KEY = "Clodable-Kind";
 var kindTrailer = (kind) => `${KIND_KEY}: ${kind}`;
@@ -24252,6 +24333,26 @@ ${kindTrailer(options.kind)}`
       timeout: 12e4
     });
     return result.exitCode === 0;
+  }
+  /** Check a merge away from the preview; never put conflict markers in the builder's files. */
+  async checkMerge(ref) {
+    const dir = await mkdtemp4(join15(tmpdir3(), "clodable-combine-"));
+    try {
+      await this.ok(["worktree", "add", "--quiet", "--detach", dir, "HEAD"]);
+      const side = new _Git(dir);
+      const result = await side.run(["merge", "--no-commit", "--no-ff", ref]);
+      if (result.exitCode === 0) return { ok: true, conflicts: [] };
+      const conflicts = await side.conflictedFiles();
+      if (conflicts.length > 0) return { ok: false, conflicts };
+      throw new ClodableError({
+        code: "unknown",
+        message: "Your draft couldn't be compared with the live site.",
+        details: result.stderr || result.stdout
+      });
+    } finally {
+      await this.worktreeRemove(dir);
+      await rm6(dir, { recursive: true, force: true });
+    }
   }
   /** Merge `ref` into the current branch. Leaves conflicts in place for someone to resolve. */
   async merge(ref, message) {
@@ -24435,10 +24536,10 @@ ${kindTrailer(options.kind)}`
     await this.run(["worktree", "prune"]);
   }
   gitDir() {
-    return join14(this.cwd, ".git");
+    return join15(this.cwd, ".git");
   }
   hasGitDir() {
-    return existsSync10(this.gitDir());
+    return existsSync11(this.gitDir());
   }
 };
 function cleanSubject(text2) {
@@ -24453,10 +24554,10 @@ function parseGitHubRemote(url2) {
 }
 
 // ../core/src/github/fake.ts
-import { existsSync as existsSync11, readFileSync, writeFileSync } from "node:fs";
-import { mkdtemp as mkdtemp4, rm as rm5 } from "node:fs/promises";
-import { tmpdir as tmpdir3 } from "node:os";
-import { join as join15 } from "node:path";
+import { existsSync as existsSync12, readFileSync, writeFileSync } from "node:fs";
+import { mkdtemp as mkdtemp5, rm as rm7 } from "node:fs/promises";
+import { tmpdir as tmpdir4 } from "node:os";
+import { join as join16 } from "node:path";
 var FakeGitHub = class _FakeGitHub {
   constructor(bareRepo, user = { login: "ada", name: "Ada", email: "1+ada@users.noreply.github.com" }, info = {
     owner: "crumb",
@@ -24493,7 +24594,7 @@ var FakeGitHub = class _FakeGitHub {
     const fake = new _FakeGitHub(bareRepo);
     fake.stateFile = stateFile;
     if (process.env.CLODABLE_FAKE_HOST === "none") fake.deploymentFor = () => [];
-    if (existsSync11(stateFile)) {
+    if (existsSync12(stateFile)) {
       fake.pullRequests.push(...JSON.parse(readFileSync(stateFile, "utf8")));
     }
     return fake;
@@ -24545,7 +24646,7 @@ var FakeGitHub = class _FakeGitHub {
     if (pr?.state !== "open") {
       throw new ClodableError({ code: "not-found", message: "That draft isn't open any more." });
     }
-    const dir = await mkdtemp4(join15(tmpdir3(), "clodable-fake-merge-"));
+    const dir = await mkdtemp5(join16(tmpdir4(), "clodable-fake-merge-"));
     try {
       const git = new Git(dir);
       await git.ok(["clone", "--quiet", this.bareRepo, "."]);
@@ -24570,7 +24671,7 @@ ${input2.body}`]);
       this.persist();
       return { sha };
     } finally {
-      await rm5(dir, { recursive: true, force: true });
+      await rm7(dir, { recursive: true, force: true });
     }
   }
   async deploymentsFor(sha) {
@@ -24588,7 +24689,7 @@ ${input2.body}`]);
   secrets = {};
   async setSecret(name, value) {
     const file3 = `${this.bareRepo}/clodable-fake-secrets.json`;
-    const all = existsSync11(file3) ? JSON.parse(readFileSync(file3, "utf8")) : {};
+    const all = existsSync12(file3) ? JSON.parse(readFileSync(file3, "utf8")) : {};
     all[name] = value;
     this.secrets[name] = value;
     writeFileSync(file3, JSON.stringify(all, null, 2));
@@ -24597,9 +24698,9 @@ ${input2.body}`]);
 
 // ../core/src/github/gh-binary.ts
 import { createHash as createHash5 } from "node:crypto";
-import { existsSync as existsSync12 } from "node:fs";
-import { chmod as chmod5, mkdir as mkdir7, mkdtemp as mkdtemp5, rename as rename4, rm as rm6, symlink, unlink, writeFile as writeFile7 } from "node:fs/promises";
-import { join as join16 } from "node:path";
+import { existsSync as existsSync13 } from "node:fs";
+import { chmod as chmod5, mkdir as mkdir8, mkdtemp as mkdtemp6, rename as rename5, rm as rm8, symlink, unlink, writeFile as writeFile8 } from "node:fs/promises";
+import { join as join17 } from "node:path";
 var GH_VERSION = "2.102.0";
 var RELEASES2 = {
   "darwin-arm64": {
@@ -24629,7 +24730,7 @@ var RELEASES2 = {
 };
 var executable2 = process.platform === "win32" ? "gh.exe" : "gh";
 function toolsBin() {
-  return join16(toolsDir(), "bin");
+  return join17(toolsDir(), "bin");
 }
 var resolved2;
 async function ghBinary() {
@@ -24648,9 +24749,9 @@ async function ghIsOurs() {
 async function ours() {
   const release = RELEASES2[`${process.platform}-${process.arch}`];
   if (!release) throw new Error(`No GitHub CLI build for ${process.platform}-${process.arch}.`);
-  const dir = join16(toolsDir(), "gh", GH_VERSION);
-  const path2 = join16(dir, executable2);
-  if (!existsSync12(path2)) {
+  const dir = join17(toolsDir(), "gh", GH_VERSION);
+  const path2 = join17(dir, executable2);
+  if (!existsSync13(path2)) {
     try {
       await download2(release, dir, path2);
     } catch (error62) {
@@ -24668,25 +24769,25 @@ async function download2(release, dir, path2) {
   const bytes = Buffer.from(await response.arrayBuffer());
   const digest = createHash5("sha256").update(bytes).digest("hex");
   if (digest !== release.sha256) throw new Error("the download didn't match its checksum");
-  await mkdir7(dir, { recursive: true });
-  const work = await mkdtemp5(join16(dir, ".download-"));
+  await mkdir8(dir, { recursive: true });
+  const work = await mkdtemp6(join17(dir, ".download-"));
   try {
-    await writeFile7(join16(work, name), bytes);
+    await writeFile8(join17(work, name), bytes);
     const inside2 = process.platform === "win32" ? `bin/${executable2}` : `${name.replace(/\.(zip|tar\.gz)$/, "")}/bin/${executable2}`;
     const unpacked = await exec2("tar", ["-xf", name, inside2], { cwd: work, timeout: 6e4 });
     if (unpacked.exitCode !== 0) throw new Error(unpacked.stderr.trim() || "couldn't unpack it");
-    await chmod5(join16(work, inside2), 493);
-    await rename4(join16(work, inside2), path2).catch((error62) => {
-      if (!existsSync12(path2)) throw error62;
+    await chmod5(join17(work, inside2), 493);
+    await rename5(join17(work, inside2), path2).catch((error62) => {
+      if (!existsSync13(path2)) throw error62;
     });
   } finally {
-    await rm6(work, { recursive: true, force: true });
+    await rm8(work, { recursive: true, force: true });
   }
 }
 async function linkInBin(path2) {
   if (process.platform === "win32") return;
-  const link2 = join16(toolsBin(), executable2);
-  await mkdir7(toolsBin(), { recursive: true });
+  const link2 = join17(toolsBin(), executable2);
+  await mkdir8(toolsBin(), { recursive: true });
   await unlink(link2).catch(() => {
   });
   await symlink(path2, link2).catch(() => {
@@ -25003,9 +25104,9 @@ function toPullRequest(raw) {
 
 // ../core/src/inbox.ts
 import { randomBytes } from "node:crypto";
-import { existsSync as existsSync13 } from "node:fs";
-import { readdir as readdir3, readFile as readFile9, rename as rename5, rm as rm7 } from "node:fs/promises";
-import { join as join17 } from "node:path";
+import { existsSync as existsSync14 } from "node:fs";
+import { readdir as readdir3, readFile as readFile10, rename as rename6, rm as rm9 } from "node:fs/promises";
+import { join as join18 } from "node:path";
 var INBOX_DIR = ".clodable/inbox";
 var Page = external_exports.object({ url: external_exports.string(), path: external_exports.string(), title: external_exports.string().optional() });
 var Source = external_exports.object({
@@ -25046,24 +25147,24 @@ async function writeInbox(root, item) {
   const createdAt = (/* @__PURE__ */ new Date()).toISOString();
   const id = `${item.kind}-${createdAt.replace(/[-:.TZ]/g, "")}-${randomBytes(3).toString("hex")}`;
   const full = { ...item, id, createdAt };
-  await writeJsonFile(join17(root, INBOX_DIR, `${id}.json`), full);
+  await writeJsonFile(join18(root, INBOX_DIR, `${id}.json`), full);
   return full;
 }
 async function waiting(root) {
-  const dir = join17(root, INBOX_DIR);
-  if (!existsSync13(dir)) return [];
+  const dir = join18(root, INBOX_DIR);
+  if (!existsSync14(dir)) return [];
   const found2 = [];
   for (const name of (await readdir3(dir)).filter((n4) => n4.endsWith(".json")).sort()) {
     let text2;
     try {
-      text2 = await readFile9(join17(dir, name), "utf8");
+      text2 = await readFile10(join18(dir, name), "utf8");
     } catch {
       continue;
     }
     try {
       found2.push({ name, item: JSON.parse(text2) });
     } catch {
-      await rm7(join17(dir, name), { force: true });
+      await rm9(join18(dir, name), { force: true });
     }
   }
   return found2;
@@ -25074,24 +25175,24 @@ async function readInbox(root) {
 var SAFE_ID = /^[\w-]+$/;
 async function ackInbox(root, id) {
   if (!SAFE_ID.test(id)) return;
-  await rm7(join17(root, INBOX_DIR, `${id}.json`), { force: true });
+  await rm9(join18(root, INBOX_DIR, `${id}.json`), { force: true });
 }
 var PRESENCE_DIR = ".clodable/local";
 var LIVE_MS = 2e4;
 var GONE_MS = 24 * 60 * 6e4;
 async function livePresences(root, now) {
   const live = /* @__PURE__ */ new Map();
-  const dir = join17(root, PRESENCE_DIR);
-  if (!existsSync13(dir)) return live;
+  const dir = join18(root, PRESENCE_DIR);
+  if (!existsSync14(dir)) return live;
   for (const name of await readdir3(dir)) {
     if (!/^session-[\w-]+\.json$/.test(name)) continue;
     let presence;
     try {
-      presence = JSON.parse(await readFile9(join17(dir, name), "utf8"));
+      presence = JSON.parse(await readFile10(join18(dir, name), "utf8"));
     } catch {
       continue;
     }
-    if (now - presence.alive > GONE_MS) await rm7(join17(dir, name), { force: true });
+    if (now - presence.alive > GONE_MS) await rm9(join18(dir, name), { force: true });
     else if (now - presence.alive <= LIVE_MS) live.set(presence.id, presence);
   }
   return live;
@@ -25111,37 +25212,37 @@ async function claimInbox(root, session) {
   if (found2.length === 0) return [];
   const live = await livePresences(root, Date.now());
   const owner = usedLast(live);
-  const dir = join17(root, INBOX_DIR);
+  const dir = join18(root, INBOX_DIR);
   const items = [];
   for (const { name, item } of found2) {
     const mine = item.conversation && live.has(item.conversation) ? item.conversation === session : !owner || owner === session;
     if (!mine) continue;
-    const claimed = join17(dir, `.${name}.${session}.claimed`);
+    const claimed = join18(dir, `.${name}.${session}.claimed`);
     try {
-      await rename5(join17(dir, name), claimed);
+      await rename6(join18(dir, name), claimed);
     } catch {
       continue;
     }
     items.push(item);
-    await rm7(claimed, { force: true });
+    await rm9(claimed, { force: true });
   }
   return items;
 }
 
 // ../core/src/move/copy.ts
-import { existsSync as existsSync16 } from "node:fs";
-import { mkdtemp as mkdtemp6, readdir as readdir5, readFile as readFile11, rename as rename7, rm as rm10 } from "node:fs/promises";
-import { join as join21 } from "node:path";
+import { existsSync as existsSync17 } from "node:fs";
+import { mkdtemp as mkdtemp7, readdir as readdir5, readFile as readFile12, rename as rename8, rm as rm12 } from "node:fs/promises";
+import { join as join22 } from "node:path";
 
 // ../core/src/move/export.ts
-import { createWriteStream as createWriteStream3, existsSync as existsSync14 } from "node:fs";
-import { copyFile, readdir as readdir4, rm as rm9, stat as stat2, writeFile as writeFile8 } from "node:fs/promises";
+import { createWriteStream as createWriteStream3, existsSync as existsSync15 } from "node:fs";
+import { copyFile, readdir as readdir4, rm as rm11, stat as stat2, writeFile as writeFile9 } from "node:fs/promises";
 import { homedir as homedir2 } from "node:os";
-import { basename as basename4, extname, join as join18 } from "node:path";
+import { basename as basename4, extname, join as join19 } from "node:path";
 
 // ../core/src/move/zip.ts
 import { createReadStream, createWriteStream as createWriteStream2 } from "node:fs";
-import { open as open2, rename as rename6, rm as rm8 } from "node:fs/promises";
+import { open as open2, rename as rename7, rm as rm10 } from "node:fs/promises";
 import { Transform } from "node:stream";
 import { pipeline as pipeline2 } from "node:stream/promises";
 import { crc32, createInflateRaw } from "node:zlib";
@@ -25262,9 +25363,9 @@ async function extractEntry(path2, entry, target) {
     if (size !== entry.size || crc >>> 0 !== entry.crc >>> 0) {
       throw new Error("the file inside the zip is damaged");
     }
-    await rename6(partial2, target);
+    await rename7(partial2, target);
   } catch (error62) {
-    await rm8(partial2, { force: true });
+    await rm10(partial2, { force: true });
     throw error62;
   }
 }
@@ -25273,14 +25374,14 @@ async function extractEntry(path2, entry, target) {
 var BACKUP = "export.backup";
 var FILES_LIST = "files.jsonl";
 var JOBS_FILE = "jobs.json";
-async function findExport(folder = join18(homedir2(), "Downloads")) {
-  if (!existsSync14(folder)) return void 0;
+async function findExport(folder = join19(homedir2(), "Downloads")) {
+  if (!existsSync15(folder)) return void 0;
   const month = Date.now() - 31 * 24 * 60 * 6e4;
   const candidates2 = [];
   for (const name of await readdir4(folder).catch(() => [])) {
     const ext = extname(name).toLowerCase();
     if (ext !== ".zip" && ext !== ".backup") continue;
-    const path2 = join18(folder, name);
+    const path2 = join19(folder, name);
     const info = await stat2(path2).catch(() => void 0);
     if (!info?.isFile() || info.mtimeMs < month) continue;
     candidates2.push({ path: path2, at: info.mtimeMs });
@@ -25294,8 +25395,8 @@ async function findExport(folder = join18(homedir2(), "Downloads")) {
   return void 0;
 }
 async function takeBackup(source, dir) {
-  const target = join18(dir, BACKUP);
-  await rm9(target, { force: true });
+  const target = join19(dir, BACKUP);
+  await rm11(target, { force: true });
   if (source.toLowerCase().endsWith(".zip")) {
     let entries;
     try {
@@ -25329,9 +25430,9 @@ var unreadable = (error62) => new ClodableError({
 });
 async function readExport(source, dir) {
   await takeBackup(source, dir);
-  const backup = join18(dir, BACKUP);
+  const backup = join19(dir, BACKUP);
   const listing = await listArchive(backup);
-  await writeFile8(join18(dir, "toc.list"), listing, { mode: 384 });
+  await writeFile9(join19(dir, "toc.list"), listing, { mode: 384 });
   const toc = parseToc(listing);
   if (toc.entries.length === 0) {
     throw new ClodableError({
@@ -25388,7 +25489,7 @@ async function readExport(source, dir) {
   const wanted = (e) => e.type === "TABLE DATA" && (e.schema !== null && !isManaged(e.schema) && e.schema !== "supabase_migrations" || e.schema === "auth" && ["users", "identities", "sessions"].includes(e.tag) || e.schema === "storage" && (e.tag === "buckets" || e.tag === "objects") || e.schema === "cron" && e.tag === "job" || e.schema === "vault" && e.tag === "secrets");
   await scanRows(backup, toc.entries.filter(wanted), dir, summary, sourceRefs);
   summary.sourceRefs = [...sourceRefs].sort();
-  await writeJsonFile(join18(dir, "export.json"), summary, { private: true });
+  await writeJsonFile(join19(dir, "export.json"), summary, { private: true });
   return { summary, toc };
 }
 var API_ROLES = /* @__PURE__ */ new Set(["anon", "authenticated", "service_role"]);
@@ -25448,7 +25549,7 @@ function copyValue(raw) {
   );
 }
 async function scanRows(backup, entries, dir, summary, sourceRefs) {
-  const files = createWriteStream3(join18(dir, FILES_LIST), { mode: 384 });
+  const files = createWriteStream3(join19(dir, FILES_LIST), { mode: 384 });
   const jobs = [];
   const buckets = /* @__PURE__ */ new Map();
   let table = null;
@@ -25540,11 +25641,11 @@ async function scanRows(backup, entries, dir, summary, sourceRefs) {
   summary.buckets = [...buckets.values()].sort((a2, b) => a2.id.localeCompare(b.id));
   summary.scheduledJobs.sort();
   summary.vaultSecrets.sort();
-  await writeJsonFile(join18(dir, JOBS_FILE), jobs, { private: true });
+  await writeJsonFile(join19(dir, JOBS_FILE), jobs, { private: true });
 }
 
 // ../core/src/move/restore.ts
-import { join as join19 } from "node:path";
+import { join as join20 } from "node:path";
 var managed = [...MANAGED_SCHEMAS].map((s) => `'${s}'`).join(", ");
 async function emptyCopy(sql) {
   await sql.run(`
@@ -25591,7 +25692,7 @@ end $$;`);
 }
 async function* copyExport(target, dir, toc, summary, options = {}) {
   const plan = planRestore(toc, new Set(summary.appTriggers));
-  const backup = join19(dir, BACKUP);
+  const backup = join20(dir, BACKUP);
   const problems = [];
   const keep = (errors) => {
     for (const error62 of errors) {
@@ -25748,9 +25849,9 @@ async function newBackendSignIn(api, ref, site) {
 }
 
 // ../core/src/move/switch.ts
-import { existsSync as existsSync15 } from "node:fs";
-import { readFile as readFile10, writeFile as writeFile9 } from "node:fs/promises";
-import { join as join20 } from "node:path";
+import { existsSync as existsSync16 } from "node:fs";
+import { readFile as readFile11, writeFile as writeFile10 } from "node:fs/promises";
+import { join as join21 } from "node:path";
 function writeGrants(grants) {
   const lines = [];
   for (const [table, roles] of Object.entries(grants)) {
@@ -25908,9 +26009,9 @@ async function giveBackGrants(sql, grants) {
   return lines.length;
 }
 async function recreateJobs(sql, dir, from, to, keys) {
-  const path2 = join20(dir, JOBS_FILE);
-  if (!existsSync15(path2)) return { created: 0, check: [] };
-  const jobs = JSON.parse(await readFile10(path2, "utf8"));
+  const path2 = join21(dir, JOBS_FILE);
+  if (!existsSync16(path2)) return { created: 0, check: [] };
+  const jobs = JSON.parse(await readFile11(path2, "utf8"));
   const site = to.siteUrl ? new URL(to.siteUrl).origin : void 0;
   const existing = new Set(
     (await sql.rows(
@@ -26002,25 +26103,25 @@ async function* goLive(ws, options = {}) {
   const backend = backendOf(state.home.ref, keys);
   const { SUPABASE_SERVICE_ROLE_KEY: _, ...values } = backendEnv(backend);
   for (const name of [".env", ".env.local", ".env.production"]) {
-    const path2 = join20(ws.root, name);
-    if (!existsSync15(path2)) continue;
-    const before = await readFile10(path2, "utf8");
+    const path2 = join21(ws.root, name);
+    if (!existsSync16(path2)) continue;
+    const before = await readFile11(path2, "utf8");
     const after = rewriteEnv(before, values);
     if (after !== before) {
-      await writeFile9(path2, after);
+      await writeFile10(path2, after);
       files.push(name);
     }
   }
   if (from) {
-    const toml = join20(ws.root, "supabase", "config.toml");
-    if (existsSync15(toml)) {
-      const before = await readFile10(toml, "utf8");
+    const toml = join21(ws.root, "supabase", "config.toml");
+    if (existsSync16(toml)) {
+      const before = await readFile11(toml, "utf8");
       const after = before.replace(
         /^project_id\s*=\s*"[^"]*"/m,
         `project_id = "${state.home.ref}"`
       );
       if (after !== before) {
-        await writeFile9(toml, after);
+        await writeFile10(toml, after);
         files.push("supabase/config.toml");
       }
     }
@@ -26028,7 +26129,7 @@ async function* goLive(ws, options = {}) {
       if (!file3.text.includes(from)) continue;
       const next = repoint(file3.text, from, state.home.ref, { ...keys.legacy, anon: backend.anon });
       if (next.text !== file3.text) {
-        await writeFile9(join20(ws.root, file3.path), next.text);
+        await writeFile10(join21(ws.root, file3.path), next.text);
         files.push(file3.path.replace(/^\//, ""));
       }
     }
@@ -26269,7 +26370,7 @@ async function* importExport(ws, options = {}) {
   const dir = await moveDir(ws.root);
   const before = await loadMove(ws.root);
   const pausedAt = before.switch?.liveAt ? void 0 : before.switch?.frozenAt;
-  const target = pausedAt ? await mkdtemp6(join21(dir, "incoming-")) : dir;
+  const target = pausedAt ? await mkdtemp7(join22(dir, "incoming-")) : dir;
   let summary;
   try {
     summary = (await readExport(file3, target)).summary;
@@ -26282,12 +26383,12 @@ async function* importExport(ws, options = {}) {
         });
       }
       for (const name of await readdir5(target)) {
-        await rm10(join21(dir, name), { recursive: true, force: true });
-        await rename7(join21(target, name), join21(dir, name));
+        await rm12(join22(dir, name), { recursive: true, force: true });
+        await rename8(join22(target, name), join22(dir, name));
       }
     }
   } finally {
-    if (pausedAt) await rm10(target, { recursive: true, force: true });
+    if (pausedAt) await rm12(target, { recursive: true, force: true });
   }
   const sourceRef = ws.project.supabase.projectRef ?? summary.sourceRefs[0];
   await updateMove(ws.root, (s) => {
@@ -26307,8 +26408,8 @@ function describeExport(summary) {
   ].join(" \xB7 ");
 }
 async function migrationVersions(root) {
-  const dir = join21(root, "supabase", "migrations");
-  if (!existsSync16(dir)) return [];
+  const dir = join22(root, "supabase", "migrations");
+  if (!existsSync17(dir)) return [];
   return (await readdir5(dir)).map((name) => name.match(/^(\d{8,})_.*\.sql$/)?.[1]).filter((v) => Boolean(v)).sort();
 }
 async function* copyData(ws) {
@@ -26329,15 +26430,15 @@ async function* copyData(ws) {
   }
   const api = await SupabaseApi.required();
   const dir = await moveDir(ws.root);
-  const backup = join21(dir, "export.backup");
-  if (!existsSync16(backup)) {
+  const backup = join22(dir, "export.backup");
+  if (!existsSync17(backup)) {
     throw new ClodableError({
       code: "export-not-found",
       message: "The export Clodable read is gone from this computer.",
       hint: "Read it again: download the export from Lovable, then run that step again."
     });
   }
-  const toc = parseToc(await readFile11(join21(dir, "toc.list"), "utf8"));
+  const toc = parseToc(await readFile12(join22(dir, "toc.list"), "utf8"));
   const summary = state.export.summary;
   yield step("move:data", "running", "Copying your data", "Connecting to your new database");
   const pg = await homeConnection(api, state.home);
@@ -26860,16 +26961,16 @@ async function* setUpEmails(ws, options = {}) {
 
 // ../core/src/move/files.ts
 import { createHash as createHash6 } from "node:crypto";
-import { existsSync as existsSync17 } from "node:fs";
-import { appendFile, readFile as readFile12 } from "node:fs/promises";
-import { join as join22 } from "node:path";
+import { existsSync as existsSync18 } from "node:fs";
+import { appendFile, readFile as readFile13 } from "node:fs/promises";
+import { join as join23 } from "node:path";
 var LEDGER = "files-done.txt";
 var key = (f) => `${f.bucket}/${f.name}#${f.size}`;
 var path = (name) => name.split("/").map(encodeURIComponent).join("/");
 async function readFileList(dir) {
-  const list = join22(dir, FILES_LIST);
-  if (!existsSync17(list)) return [];
-  return (await readFile12(list, "utf8")).split("\n").filter(Boolean).map((line) => JSON.parse(line));
+  const list = join23(dir, FILES_LIST);
+  if (!existsSync18(list)) return [];
+  return (await readFile13(list, "utf8")).split("\n").filter(Boolean).map((line) => JSON.parse(line));
 }
 var authHeaders = (key2) => key2.startsWith("sb_") ? { apikey: key2 } : { apikey: key2, Authorization: `Bearer ${key2}` };
 async function download3(from, file3, isPublic, sourceKey) {
@@ -26905,9 +27006,9 @@ var sha2562 = (data) => createHash6("sha256").update(data).digest("hex");
 async function* copyFiles(target, dir, buckets) {
   const files = await readFileList(dir);
   const isPublic = new Map(buckets.map((b) => [b.id, b.public]));
-  const ledgerPath = join22(dir, LEDGER);
+  const ledgerPath = join23(dir, LEDGER);
   const done = new Set(
-    existsSync17(ledgerPath) ? (await readFile12(ledgerPath, "utf8")).split("\n").filter(Boolean) : []
+    existsSync18(ledgerPath) ? (await readFile13(ledgerPath, "utf8")).split("\n").filter(Boolean) : []
   );
   const { todo, waiting: waiting2, tooBig, ...plan } = planCopy(files, done, isPublic, target);
   let copied = plan.copied;
@@ -27080,18 +27181,18 @@ async function repointLinks(sql, from, to) {
 }
 
 // ../core/src/move/functions.ts
-import { existsSync as existsSync18 } from "node:fs";
-import { readdir as readdir6, readFile as readFile13 } from "node:fs/promises";
-import { dirname as dirname6, join as join23, normalize as normalize2, relative as relative3, sep as sep3 } from "node:path";
+import { existsSync as existsSync19 } from "node:fs";
+import { readdir as readdir6, readFile as readFile14 } from "node:fs/promises";
+import { dirname as dirname7, join as join24, normalize as normalize2, relative as relative3, sep as sep3 } from "node:path";
 var BUILT_IN = /^SUPABASE_/;
 var LOVABLE_OWN = /^LOVABLE_/;
 var IMPORT = /(?:import|export)\s[^'"`;]*?from\s*["']([^"']+)["']|import\s*\(\s*["']([^"']+)["']\s*\)|import\s+["']([^"']+)["']/g;
 async function jwtSettings(root) {
   const settings2 = /* @__PURE__ */ new Map();
-  const path2 = join23(root, "supabase", "config.toml");
-  if (!existsSync18(path2)) return settings2;
+  const path2 = join24(root, "supabase", "config.toml");
+  if (!existsSync19(path2)) return settings2;
   let section = null;
-  for (const line of (await readFile13(path2, "utf8")).split("\n")) {
+  for (const line of (await readFile14(path2, "utf8")).split("\n")) {
     const header = line.match(/^\s*\[functions\.("?)([\w-]+)\1\]\s*$/);
     if (header) {
       section = header[2];
@@ -27107,35 +27208,35 @@ async function jwtSettings(root) {
   return settings2;
 }
 async function localFunctions(root) {
-  const base = join23(root, "supabase", "functions");
-  if (!existsSync18(base)) return [];
+  const base = join24(root, "supabase", "functions");
+  if (!existsSync19(base)) return [];
   const settings2 = await jwtSettings(root);
   const out = [];
   for (const entry of await readdir6(base, { withFileTypes: true })) {
     if (!entry.isDirectory() || entry.name.startsWith("_") || entry.name.startsWith(".")) continue;
-    const dir = join23(base, entry.name);
+    const dir = join24(base, entry.name);
     const index = ["index.ts", "index.tsx", "index.js", "index.mjs"].find(
-      (f) => existsSync18(join23(dir, f))
+      (f) => existsSync19(join24(dir, f))
     );
     if (!index) continue;
-    const entrypoint = join23(dir, index);
+    const entrypoint = join24(dir, index);
     const files = /* @__PURE__ */ new Set();
     const walk2 = async (file3) => {
       const key2 = relative3(root, file3).split(sep3).join("/");
-      if (files.has(key2) || !existsSync18(file3)) return;
+      if (files.has(key2) || !existsSync19(file3)) return;
       files.add(key2);
       if (!/\.(m?[jt]sx?)$/.test(file3)) return;
-      const text2 = await readFile13(file3, "utf8").catch(() => "");
+      const text2 = await readFile14(file3, "utf8").catch(() => "");
       for (const match of text2.matchAll(IMPORT)) {
         const spec = match[1] ?? match[2] ?? match[3];
         if (!spec || !(spec.startsWith("./") || spec.startsWith("../"))) continue;
-        const target = normalize2(join23(dirname6(file3), spec));
+        const target = normalize2(join24(dirname7(file3), spec));
         if (relative3(root, target).startsWith("..")) continue;
         await walk2(target);
       }
     };
     await walk2(entrypoint);
-    const importMap = ["deno.json", "deno.jsonc", "import_map.json"].map((f) => join23(dir, f)).find((f) => existsSync18(f));
+    const importMap = ["deno.json", "deno.jsonc", "import_map.json"].map((f) => join24(dir, f)).find((f) => existsSync19(f));
     if (importMap) files.add(relative3(root, importMap).split(sep3).join("/"));
     out.push({
       name: entry.name,
@@ -27154,7 +27255,7 @@ async function functionSecrets(root, functions) {
     for (const file3 of fn.files) {
       if (seen.has(file3)) continue;
       seen.add(file3);
-      const text2 = await readFile13(join23(root, file3), "utf8").catch(() => "");
+      const text2 = await readFile14(join24(root, file3), "utf8").catch(() => "");
       for (const match of text2.matchAll(/Deno\.env\.get\(\s*["'`]([A-Z][A-Z0-9_]*)["'`]\s*\)/g)) {
         if (!BUILT_IN.test(match[1]) && !LOVABLE_OWN.test(match[1])) names2.add(match[1]);
       }
@@ -27167,7 +27268,7 @@ async function stripeWebhooks(root, functions) {
   for (const fn of functions) {
     for (const file3 of fn.files) {
       if (file3.includes("/_shared/")) continue;
-      const text2 = await readFile13(join23(root, file3), "utf8").catch(() => "");
+      const text2 = await readFile14(join24(root, file3), "utf8").catch(() => "");
       if (/stripe-signature|constructEvent(Async)?\(/i.test(text2)) {
         names2.push(fn.name);
         break;
@@ -27180,7 +27281,7 @@ async function uploadFunction(api, ref, root, fn) {
   const files = await Promise.all(
     fn.files.map(async (path2) => ({
       path: path2,
-      content: new Uint8Array(await readFile13(join23(root, path2)))
+      content: new Uint8Array(await readFile14(join24(root, path2)))
     }))
   );
   await api.deployFunction(
@@ -28058,9 +28159,9 @@ async function moveProgress(ws) {
 }
 
 // ../core/src/online.ts
-import { existsSync as existsSync19 } from "node:fs";
-import { readFile as readFile14, writeFile as writeFile10 } from "node:fs/promises";
-import { join as join24 } from "node:path";
+import { existsSync as existsSync20 } from "node:fs";
+import { readFile as readFile15, writeFile as writeFile11 } from "node:fs/promises";
+import { join as join25 } from "node:path";
 async function siteChoices(ws) {
   const netlify = await NetlifyApi.onThisComputer();
   const teams = netlify ? await netlify.accounts() : [];
@@ -28195,15 +28296,15 @@ async function* createBackend(ws, options = {}) {
   yield step("backend", "running", "Creating your backend", "Connecting your app to it");
   const backend = backendOf(ref, await homeKeys(api, ref));
   const files = [];
-  const envPath = join24(ws.root, ENV_FILE);
-  const before = existsSync19(envPath) ? await readFile14(envPath, "utf8") : "";
+  const envPath = join25(ws.root, ENV_FILE);
+  const before = existsSync20(envPath) ? await readFile15(envPath, "utf8") : "";
   const after = envWith(before, {
     VITE_SUPABASE_PROJECT_ID: ref,
     VITE_SUPABASE_PUBLISHABLE_KEY: backend.publishable,
     VITE_SUPABASE_URL: backend.url
   });
   if (after !== before) {
-    await writeFile10(envPath, after);
+    await writeFile11(envPath, after);
     files.push(ENV_FILE);
   }
   await rememberSettings(ws.root, {
@@ -28251,14 +28352,14 @@ function pickOrganization(organizations, slug) {
 }
 
 // ../core/src/publish.ts
-import { mkdtemp as mkdtemp7, rm as rm11 } from "node:fs/promises";
-import { tmpdir as tmpdir4 } from "node:os";
-import { join as join27 } from "node:path";
+import { mkdtemp as mkdtemp8, rm as rm13 } from "node:fs/promises";
+import { tmpdir as tmpdir5 } from "node:os";
+import { join as join28 } from "node:path";
 
 // ../core/src/publish-functions.ts
-import { existsSync as existsSync20 } from "node:fs";
+import { existsSync as existsSync21 } from "node:fs";
 import { readdir as readdir7 } from "node:fs/promises";
-import { join as join25 } from "node:path";
+import { join as join26 } from "node:path";
 async function changedFunctions(ws, sha) {
   const files = await ws.git.diffNames(`${sha}^..${sha}`);
   const names2 = /* @__PURE__ */ new Set();
@@ -28270,8 +28371,8 @@ async function changedFunctions(ws, sha) {
     else names2.add(match[1]);
   }
   if (shared) {
-    const dir = join25(ws.root, "supabase", "functions");
-    if (existsSync20(dir)) {
+    const dir = join26(ws.root, "supabase", "functions");
+    if (existsSync21(dir)) {
       for (const entry of await readdir7(dir, { withFileTypes: true })) {
         if (entry.isDirectory() && !entry.name.startsWith("_")) names2.add(entry.name);
       }
@@ -28344,9 +28445,9 @@ async function* deployThroughCli(ref, root, names2, outcome) {
 }
 
 // ../core/src/waits.ts
-import { existsSync as existsSync21 } from "node:fs";
-import { readdir as readdir8, readFile as readFile15 } from "node:fs/promises";
-import { join as join26 } from "node:path";
+import { existsSync as existsSync22 } from "node:fs";
+import { readdir as readdir8, readFile as readFile16 } from "node:fs/promises";
+import { join as join27 } from "node:path";
 function timing(options) {
   return {
     sleep: options.sleep ?? ((ms) => new Promise((resolve9) => setTimeout(resolve9, ms))),
@@ -28355,11 +28456,11 @@ function timing(options) {
   };
 }
 async function runsChecksOnPullRequests(root) {
-  const dir = join26(root, ".github", "workflows");
-  if (!existsSync21(dir)) return false;
+  const dir = join27(root, ".github", "workflows");
+  if (!existsSync22(dir)) return false;
   for (const name of await readdir8(dir)) {
     if (!/\.ya?ml$/.test(name)) continue;
-    const text2 = await readFile15(join26(dir, name), "utf8").catch(() => "");
+    const text2 = await readFile16(join27(dir, name), "utf8").catch(() => "");
     if (/\bpull_request(_target)?\b/.test(text2)) return true;
   }
   return false;
@@ -28584,6 +28685,16 @@ async function* publish(ws, options = {}) {
   await ws.git.fetch(ws.remote, ws.liveBranch);
   const behind = await ws.git.count(`HEAD..${ws.liveRef}`, { noMerges: true });
   if (behind > 0) {
+    const compared = await ws.git.checkMerge(ws.liveRef);
+    if (!compared.ok) {
+      yield step("sync", "failed", "Your draft and the live site changed the same thing");
+      throw new ClodableError({
+        code: "conflict",
+        message: "Your draft and the live site both changed the same thing.",
+        hint: "Ask Claude to review both versions with you. Your preview is unchanged.",
+        files: compared.conflicts
+      });
+    }
     const merged = await ws.git.merge(ws.liveRef, "Caught up with the live site");
     if (!merged.ok) {
       yield step("sync", "failed", "Your draft and the live site changed the same thing");
@@ -28714,7 +28825,7 @@ async function* undoPublish(ws, options = {}) {
   const [target] = options.sha ? await ws.git.log(`${options.sha}^!`) : await ws.git.log(ws.liveRef, { firstParent: true, limit: 1 });
   if (!target)
     throw new ClodableError({ code: "not-found", message: "There's no publish to undo yet." });
-  const dir = await mkdtemp7(join27(tmpdir4(), "clodable-undo-"));
+  const dir = await mkdtemp8(join28(tmpdir5(), "clodable-undo-"));
   const branch = `undo/${target.sha.slice(0, 7)}`;
   try {
     const side = await ws.git.worktreeAdd(dir, branch, ws.liveRef);
@@ -28795,7 +28906,7 @@ ${kindTrailer("undo")}`
     };
   } finally {
     await ws.git.worktreeRemove(dir);
-    await rm11(dir, { recursive: true, force: true });
+    await rm13(dir, { recursive: true, force: true });
     await ws.git.run(["branch", "-D", branch]);
   }
 }
@@ -30755,18 +30866,18 @@ async function dbCommand(ctx2, options) {
 }
 
 // src/commands/dev.ts
-import { existsSync as existsSync25 } from "node:fs";
-import { dirname as dirname8, join as join29, resolve as resolve7 } from "node:path";
+import { existsSync as existsSync26 } from "node:fs";
+import { dirname as dirname9, join as join30, resolve as resolve7 } from "node:path";
 
 // ../preview/src/dev-server.ts
-import { existsSync as existsSync24, readFileSync as readFileSync3, statSync as statSync2 } from "node:fs";
-import { dirname as dirname7, join as join28 } from "node:path";
+import { existsSync as existsSync25, readFileSync as readFileSync3, statSync as statSync2 } from "node:fs";
+import { dirname as dirname8, join as join29 } from "node:path";
 import { pathToFileURL } from "node:url";
 
 // ../preview/src/plugin.ts
 import { randomBytes as randomBytes3 } from "node:crypto";
-import { existsSync as existsSync23, readFileSync as readFileSync2, realpathSync as realpathSync4 } from "node:fs";
-import { readFile as readFile17, writeFile as writeFile11 } from "node:fs/promises";
+import { existsSync as existsSync24, readFileSync as readFileSync2, realpathSync as realpathSync4 } from "node:fs";
+import { readFile as readFile18, writeFile as writeFile12 } from "node:fs/promises";
 import { isAbsolute, relative as relative4, resolve as resolve6, sep as sep4 } from "node:path";
 import { stripVTControlCharacters as stripVTControlCharacters2 } from "node:util";
 
@@ -47511,8 +47622,8 @@ function editText(code2, file3, location, before, after) {
 }
 
 // ../preview/src/toolbar-source.ts
-import { existsSync as existsSync22 } from "node:fs";
-import { readFile as readFile16 } from "node:fs/promises";
+import { existsSync as existsSync23 } from "node:fs";
+import { readFile as readFile17 } from "node:fs/promises";
 import { fileURLToPath as fileURLToPath2 } from "node:url";
 var cached2;
 async function toolbarSource() {
@@ -47520,8 +47631,8 @@ async function toolbarSource() {
   const live = Boolean(process.env.CLODABLE_TOOLBAR_DEV);
   if (cached2 && !live) return cached2;
   const dist = fileURLToPath2(new URL("../dist/toolbar.js", import.meta.url));
-  if (!live && existsSync22(dist)) {
-    cached2 = await readFile16(dist, "utf8");
+  if (!live && existsSync23(dist)) {
+    cached2 = await readFile17(dist, "utf8");
     return cached2;
   }
   const esbuild = await import("esbuild");
@@ -47649,10 +47760,10 @@ ${await toolbarSource()}
     const location = parseSourceAttr(String(body.src ?? ""));
     const rel = location && inside(root, location.file);
     const full = rel && resolve6(root, rel);
-    if (!location || !full || !EDITABLE.test(full) || !tagged.has(full) || !existsSync23(full)) {
+    if (!location || !full || !EDITABLE.test(full) || !tagged.has(full) || !existsSync24(full)) {
       return { ok: false, editable: false, reason: "not-found" };
     }
-    const code2 = await readFile17(full, "utf8");
+    const code2 = await readFile18(full, "utf8");
     if (probe) {
       return probeText(
         code2,
@@ -47667,7 +47778,7 @@ ${await toolbarSource()}
     if (!after.trim()) return { ok: false, reason: "empty" };
     const result = editText(code2, location.file, location, before, after);
     if (!result.ok) return result;
-    await writeFile11(full, result.code);
+    await writeFile12(full, result.code);
     await writeInbox(root, {
       kind: "edit",
       page: toolbarPage(body.page) ?? { url: "", path: "/" },
@@ -47849,8 +47960,8 @@ function backendPlugin(current) {
 function resolveProjectVite(root) {
   let dir = root;
   while (true) {
-    const pkgPath = join28(dir, "node_modules", "vite", "package.json");
-    if (existsSync24(pkgPath)) {
+    const pkgPath = join29(dir, "node_modules", "vite", "package.json");
+    if (existsSync25(pkgPath)) {
       const pkg = JSON.parse(readFileSync3(pkgPath, "utf8"));
       const dot = pkg.exports?.["."];
       const pick2 = (entry2) => {
@@ -47862,9 +47973,9 @@ function resolveProjectVite(root) {
         return void 0;
       };
       const entry = pick2(dot) ?? pkg.module ?? pkg.main ?? "dist/node/index.js";
-      return join28(dirname7(pkgPath), entry);
+      return join29(dirname8(pkgPath), entry);
     }
-    const parent = dirname7(dir);
+    const parent = dirname8(dir);
     if (parent === dir) break;
     dir = parent;
   }
@@ -47975,15 +48086,15 @@ var import_picocolors2 = __toESM(require_picocolors(), 1);
 function findAppRoot(start) {
   let dir = resolve7(start);
   while (true) {
-    if (existsSync25(join29(dir, "package.json"))) return dir;
-    const parent = dirname8(dir);
+    if (existsSync26(join30(dir, "package.json"))) return dir;
+    const parent = dirname9(dir);
     if (parent === dir) return resolve7(start);
     dir = parent;
   }
 }
 async function devCommand(ctx2, options) {
   const root = findAppRoot(ctx2.cwd);
-  if (!existsSync25(join29(root, "node_modules")) && existsSync25(join29(root, "package.json"))) {
+  if (!existsSync26(join30(root, "node_modules")) && existsSync26(join30(root, "package.json"))) {
     const pm = detectPackageManager(root);
     process.stdout.write(
       `
@@ -48023,10 +48134,10 @@ async function devCommand(ctx2, options) {
           if (fresh) known.set(move.home.ref, fresh);
           return fresh;
         },
-        watch: join29(root, MOVE_PATH)
+        watch: join30(root, MOVE_PATH)
       },
       // The settings the app's server code reads, from Clodable's private store on this computer.
-      settings: { current: () => localSettings(root), watch: join29(root, SETTINGS_PATH) }
+      settings: { current: () => localSettings(root), watch: join30(root, SETTINGS_PATH) }
     });
     process.stdout.write(
       `
@@ -48938,8 +49049,8 @@ async function settingsCommand(ctx2, options) {
 }
 
 // src/commands/setup.ts
-import { existsSync as existsSync26, readdirSync } from "node:fs";
-import { join as join30, resolve as resolve8 } from "node:path";
+import { existsSync as existsSync27, readdirSync } from "node:fs";
+import { join as join31, resolve as resolve8 } from "node:path";
 var import_picocolors4 = __toESM(require_picocolors(), 1);
 var MIN_NODE = [20, 19];
 var REQUIRED = ["node", "git", "gh", "github"];
@@ -49029,7 +49140,7 @@ async function appChecks(git) {
     status: project.appType === "unknown" ? "warn" : "ok",
     detail: `${typeLabel}${project.lovable.generated ? ", made with Lovable" : ""}`
   });
-  const installed = existsSync26(join30(root, "node_modules"));
+  const installed = existsSync27(join31(root, "node_modules"));
   items.push({
     id: "deps",
     label: "App dependencies",
@@ -49151,11 +49262,10 @@ async function kitCommand(ctx2, options) {
     ctx2,
     async () => {
       const ws = await ctx2.workspace({ requireSetup: false });
-      full = await planKit(
-        ws.project,
-        ws.config,
-        options.liveUrl ? { liveUrl: options.liveUrl } : {}
-      );
+      full = await planKit(ws.project, ws.config, {
+        liveUrl: options.liveUrl,
+        runtimeOnly: options.runtime
+      });
       if (options.apply) await applyKit(ws.root, full);
       return {
         applied: Boolean(options.apply),
@@ -49251,7 +49361,7 @@ async function pickRepo(ctx2, given, interactive) {
 }
 async function bringIn(ctx2, repo) {
   const empty = readdirSync(ctx2.cwd).filter((n4) => !n4.startsWith(".")).length === 0;
-  const target = empty ? ctx2.cwd : join30(ctx2.cwd, repo.split("/")[1]);
+  const target = empty ? ctx2.cwd : join31(ctx2.cwd, repo.split("/")[1]);
   ctx2.out.event(step("setup:app", "running", `Bringing in ${repo}`));
   try {
     await new GhCli(ctx2.cwd).clone(repo, target);
@@ -49303,7 +49413,7 @@ async function setupCommand(ctx2, options) {
       panelStep(ctx2, "setup:files", "running", "Adding Clodable's files");
       await applyKit(root, changes);
       panelStep(ctx2, "setup:files", "done", "Added Clodable's files");
-      if (!existsSync26(join30(root, "node_modules"))) {
+      if (!existsSync27(join31(root, "node_modules"))) {
         ctx2.out.event(
           step("setup:packages", "running", "Installing your app's packages", "a minute or two")
         );
@@ -49589,8 +49699,12 @@ cli.command("move [step] [arg]", MOVE_HELP).option("--org <slug>", "create: the 
     confirmEmail: yes(options.confirmEmail)
   })
 );
-cli.command("kit", "Show (or add) the files Clodable keeps in your project").option("--apply", "Write them").option("--live-url <url>", "Your live site's address").action(
-  (options) => kitCommand(ctx(options), { apply: options.apply, liveUrl: options.liveUrl })
+cli.command("kit", "Show (or add) the files Clodable keeps in your project").option("--apply", "Write them").option("--runtime", "Refresh only the installed runtime and its instructions").option("--live-url <url>", "Your live site's address").action(
+  (options) => kitCommand(ctx(options), {
+    apply: options.apply,
+    liveUrl: options.liveUrl,
+    runtime: options.runtime
+  })
 );
 cli.command("inbox", "Requests from the preview toolbar (for front ends)").option("--ack <id>", "Mark one as handled").option(
   "--claim <session>",

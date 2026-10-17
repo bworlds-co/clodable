@@ -339,17 +339,19 @@ function renderKit(ctx: Context, changes: KitChange[], applied: boolean) {
   }
 }
 
-export async function kitCommand(ctx: Context, options: { apply?: boolean; liveUrl?: string }) {
+export async function kitCommand(
+  ctx: Context,
+  options: { apply?: boolean; liveUrl?: string; runtime?: boolean },
+) {
   let full: KitChange[] = [];
   await run(
     ctx,
     async () => {
       const ws = await ctx.workspace({ requireSetup: false });
-      full = await planKit(
-        ws.project,
-        ws.config,
-        options.liveUrl ? { liveUrl: options.liveUrl } : {},
-      );
+      full = await planKit(ws.project, ws.config, {
+        liveUrl: options.liveUrl,
+        runtimeOnly: options.runtime,
+      });
       if (options.apply) await applyKit(ws.root, full);
       return {
         applied: Boolean(options.apply),

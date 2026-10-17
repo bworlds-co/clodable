@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -43,6 +43,100 @@ function clodableWith(env: Record<string, string>, ...args: string[]) {
 }
 
 describe("clodable --json", () => {
+  it("refreshes the installed runtime without changing account settings, and runs it without npm", async () => {
+    const source = join(sb.dir, "installed copy.mjs");
+    const bundle =
+      'console.log(JSON.stringify({ args: process.argv.slice(2), port: process.env.PORT, version: "installed" }));';
+    await writeFile(source, bundle);
+    await mkdir(join(sb.work, ".claude"), { recursive: true });
+    await sb.write(".claude/settings.json", '{"ownerSetting":true}\n');
+    await sb.write(
+      ".claude/launch.json",
+      JSON.stringify({
+        configurations: [
+          {
+            name: "app",
+            runtimeExecutable: "npx",
+            runtimeArgs: ["clodable", "dev"],
+            port: 5199,
+            autoPort: false,
+          },
+        ],
+      }),
+    );
+    const config = readFileSync(join(sb.work, ".clodable/config.json"), "utf8");
+    const refresh = () =>
+      clodableWith({ CLODABLE_RUNTIME_SOURCE: source }, "kit", "--apply", "--runtime");
+    const first = refresh();
+    expect(first.result.ok).toBe(true);
+    expect(first.events.every((event) => !JSON.stringify(event).includes(bundle))).toBe(true);
+    expect(readFileSync(join(sb.work, ".clodable/local/clodable.mjs"), "utf8")).toBe(bundle);
+    expect(readFileSync(join(sb.work, ".claude/settings.json"), "utf8")).toBe(
+      '{"ownerSetting":true}\n',
+    );
+    expect(readFileSync(join(sb.work, ".clodable/config.json"), "utf8")).toBe(config);
+    expect(readFileSync(join(sb.work, "AGENTS.md"), "utf8")).toContain(
+      'node ".clodable/local/clodable.mjs"',
+    );
+    const launch = JSON.parse(readFileSync(join(sb.work, ".claude/launch.json"), "utf8"))
+      .configurations[0];
+    const preview = spawnSync(launch.runtimeExecutable, [...launch.runtimeArgs, "--port", "5189"], {
+      cwd: sb.work,
+      env: { PATH: "/usr/bin:/bin", PORT: "5189" },
+      encoding: "utf8",
+    });
+    expect(launch.port).toBe(5199);
+    expect(launch.autoPort).toBe(false);
+    expect(preview.status).toBe(0);
+    expect(JSON.parse(preview.stdout)).toEqual({
+      args: ["dev", "--port", "5189"],
+      port: "5189",
+      version: "installed",
+    });
+    const ignored = spawnSync(
+      "git",
+      ["check-ignore", ".clodable/local/clodable.mjs", ".clodable/local/preview.sh"],
+      { cwd: sb.work, encoding: "utf8" },
+    );
+    expect(ignored.stdout.trim().split("\n")).toHaveLength(2);
+    expect(
+      refresh().result.data.changes.every(
+        (change: { action: string }) => change.action === "unchanged",
+      ),
+    ).toBe(true);
+    await writeFile(source, bundle.replace("installed", "updated"));
+    expect(refresh().result.ok).toBe(true);
+    expect(readFileSync(join(sb.work, ".clodable/local/clodable.mjs"), "utf8")).toContain(
+      '"updated"',
+    );
+    // Standalone kit runs keep the local runtime; an explicit developer preview override survives.
+    expect(clodable("kit", "--apply").result.ok).toBe(true);
+    expect(
+      JSON.parse(readFileSync(join(sb.work, ".claude/launch.json"), "utf8")).configurations[0]
+        .runtimeArgs,
+    ).toEqual(launch.runtimeArgs);
+    await sb.write(
+      ".claude/launch.json",
+      JSON.stringify({
+        configurations: [
+          { name: "app", runtimeExecutable: "node", runtimeArgs: ["/dev/clodable.mjs", "dev"] },
+        ],
+      }),
+    );
+    expect(refresh().result.ok).toBe(true);
+    expect(
+      JSON.parse(readFileSync(join(sb.work, ".claude/launch.json"), "utf8")).configurations[0]
+        .runtimeArgs,
+    ).toEqual(["/dev/clodable.mjs", "dev"]);
+    const beforeFailure = readFileSync(join(sb.work, ".claude/launch.json"), "utf8");
+    await rm(source);
+    expect(refresh().result.ok).toBe(false);
+    expect(readFileSync(join(sb.work, ".claude/launch.json"), "utf8")).toBe(beforeFailure);
+    expect(readFileSync(join(sb.work, ".clodable/local/clodable.mjs"), "utf8")).toContain(
+      '"updated"',
+    );
+  });
+
   it("keeps site.live boolean and marks an unavailable imported site's status unknown", async () => {
     const privateDir = await mkdtemp(join(tmpdir(), "clodable-status-contract-"));
     try {
