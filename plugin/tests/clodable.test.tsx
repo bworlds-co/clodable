@@ -893,7 +893,10 @@ describe("apps still on Lovable", () => {
       view: {},
     },
   } as const;
-  const madeWithLovable = { ...STATUS, project: { ...STATUS.project, madeWithLovable: true } };
+  const madeWithLovable = {
+    ...STATUS,
+    project: { ...STATUS.project, hosting: "unknown", madeWithLovable: true },
+  };
   const onLovable = (extra: object = {}, moving = true) => ({
     ...STATUS,
     project: { ...STATUS.project, backend: "lovable-cloud", hosting: "lovable", ...extra },
@@ -945,7 +948,7 @@ describe("apps still on Lovable", () => {
   });
 
   test("an app not made with Lovable isn't asked about Lovable, nor offered the move", async ($, on) => {
-    harness(on);
+    harness(on, { ...STATUS, project: { ...STATUS.project, hosting: "unknown" } });
     on("ui.open", () => ({ value: { isOpen: true } }) as never);
     await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
     await $.command.run({ command: "clodable", args: "" } as never);
