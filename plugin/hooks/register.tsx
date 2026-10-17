@@ -2444,20 +2444,25 @@ function setupPane(
         </Box>
       ) : Input ? (
         <Box flexDirection="column" rowGap={1}>
-          <Input
-            key="repo-name"
-            label="Your app's GitHub address"
-            placeholder="https://github.com/owner/name"
-            value={chosenRepo}
-            submitLabel="bring it in"
-            onSubmit={(value) => {
-              chosenRepo = value.trim();
-              background(bringIn($));
-            }}
-          />
-          <Button key="list-repos" plain onPress={() => background(loadRepos($))}>
-            Show my repositories
-          </Button>
+          {setupProgress(ui, "Bringing in your app…")}
+          {settingUp ? null : (
+            <Input
+              key="repo-name"
+              label="Your app's GitHub address"
+              placeholder="https://github.com/owner/name"
+              value={chosenRepo}
+              submitLabel="bring it in"
+              onSubmit={(value) => {
+                chosenRepo = value.trim();
+                background(bringIn($));
+              }}
+            />
+          )}
+          {settingUp ? null : (
+            <Button key="list-repos" plain onPress={() => background(loadRepos($))}>
+              Show my repositories
+            </Button>
+          )}
         </Box>
       ) : (
         <Text dimColor>Open Clodable in Claude Desktop or the terminal to pick your app.</Text>
