@@ -3355,6 +3355,43 @@ describe("an app that isn't online, or has no backend", () => {
     });
   }
 
+  for (const kind of ["site", "backend"] as const) {
+    test(`${kind} cannot create anything until account choices load, and can retry`, async ($, on) => {
+      let available = false;
+      harness(
+        on,
+        { ...where("none", "none"), netlify: { connected: true }, database: { connected: true } },
+        true,
+        {
+          [kind]: () =>
+            out(
+              available
+                ? kind === "site"
+                  ? { teams: [{ slug: "acme", name: "Acme" }] }
+                  : {
+                      organizations: [{ slug: "acme", name: "Acme", plan: "free", freeLeft: 1 }],
+                      costs: { acme: "Free" },
+                    }
+                : {},
+            ),
+        },
+      );
+      await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+      const pane = await $.ui.mount(PANE);
+      if (kind === "backend") await pane.press({ key: "add-backend" });
+      expect(
+        await shows(pane, /No (Netlify teams|Supabase organizations) were found/),
+      ).toBeDefined();
+      expect(await pane.find({ type: "Button", key: `${kind}-create` })).toBeUndefined();
+      available = true;
+      await pane.press({ key: `${kind}-options-retry` });
+      for (let i = 0; i < 30 && !(await pane.find({ key: `${kind}-create` })); i++)
+        await pane.redraw();
+      expect(await pane.find({ key: `${kind}-create` })).toBeDefined();
+      await pane.unmount();
+    });
+  }
+
   test("a site that's ready goes online at the next Publish", async ($, on) => {
     harness(on, {
       ...where("supabase", "github"),
