@@ -1,6 +1,6 @@
 # Clodable in Claude Desktop: UX review
 
-**2026-10-17 · Desktop UX review, with explicit limits to sign-off.** Fourteen focused fixes are merged. Sam’s full journey passed twice; Tom’s main editing and recovery actions passed in two fresh fixtures. Léa’s remaining copy work needs owner permission, and Nadia’s complete from-idea route needs a product decision. This is not a claim that all four journeys ran end to end twice. Evidence and retained test resources are in [FINDINGS.md](FINDINGS.md).
+**2026-10-17 · Desktop UX review, with explicit limits to sign-off.** Sixteen focused fixes are merged. Sam’s full journey passed twice; Tom’s main editing and recovery actions passed in two fresh fixtures. Léa’s remaining copy work needs owner permission, and Nadia’s complete from-idea route needs a product decision. This is not a claim that all four journeys ran end to end twice. Evidence and retained test resources are in [FINDINGS.md](FINDINGS.md).
 
 ## Judgment
 
@@ -15,7 +15,7 @@ The brand and calm typography are appropriate. The practical priority is truthfu
 | Builder | Observed experience | Judgment and limits |
 |---|---|---|
 | Sam | Two complete fresh runs reached the web, added a backend in test-org, and published visitor notes that survived a public-page reload. | The core promise works. Setup still asks infrastructure questions and can trigger technical permission prompts. The explicit live-data confirmation is a useful, understandable pause. |
-| Tom | Plain edit, inline edit, Point & ask, History Restore, conversational restore, Publish/Undo, key-stop recovery and broken-page recovery worked in Desktop. A simultaneous live edit stopped safely and could be recovered. | Everyday work feels direct. Restore is readable and durable Undo is available. Both fresh fixtures passed the main actions. Conflict recovery now asks before choosing; a further fix keeps the preview intact while the builder decides, with its final Desktop check in progress. |
+| Tom | Plain edit, inline edit, Point & ask, History Restore, conversational restore, Publish/Undo, key-stop recovery and broken-page recovery worked in Desktop. A simultaneous live edit stopped safely and could be recovered. | Everyday work feels direct. Restore is readable and durable Undo is available. Both fresh fixtures passed the main actions. Conflict recovery now asks before choosing; the final sequence passed in two further fresh fixtures, keeping the preview intact until the builder chose. Both then published successfully. |
 | Léa | Claude inspected the app and named its AI, sign-in and settings needs. The Carefully route reached the step-by-step Lovable export instructions. | The sequence is understandable so far, but the actual export/copy remains untested. Permission is pending for the pre-existing destination and the Lovable export. The isolated migration test is technical evidence, not a completed builder journey. |
 | Nadia | Empty-folder panel asks for a GitHub app. Claude made working local book/plant prototypes. After the fixes, the panel updates and both surfaces explain that Clodable is not saving or publishing them yet. | The current product has no complete starting-from-an-idea journey. F09/F15 make the limit honest; they cannot make this journey complete without a product decision. |
 
@@ -23,7 +23,7 @@ Desktop currently labels the brief's Ask mode **Manual**. I exercised it during 
 
 ## What changed
 
-Fourteen focused fixes were merged as separate pull requests after CI:
+Sixteen focused fixes were merged as separate pull requests after CI:
 
 | Fix | Result | Evidence |
 |---|---|---|
@@ -39,10 +39,12 @@ Fourteen focused fixes were merged as separate pull requests after CI:
 | [#55](https://github.com/bworlds-co/clodable/pull/55) · GitHub import | Accepts the copied GitHub address and shows setup progress while downloading/installing. | Two real GitHub imports succeeded. Progress appears immediately and hides the form (screenshot 20); failed import also recovers to the form. |
 | [#56](https://github.com/bworlds-co/clodable/pull/56) · Conflicting edits | Asks before choosing between incompatible edits and avoids promising both can always be kept. | Two independent model replays and a fresh Desktop choice before changing either heading; screenshot 26. |
 | [#58](https://github.com/bworlds-co/clodable/pull/58) · Prototype transition | Refreshes the panel after a local page appears, removing stale import controls. | Two fresh Desktop starts, book/plant prototypes; screenshots 24 and 27. |
-| [#59](https://github.com/bworlds-co/clodable/pull/59) · Preview during a choice | Requires read-only comparison before asking about conflicting edits. | Two model replays; final Desktop verification in progress. |
+| [#59](https://github.com/bworlds-co/clodable/pull/59) · Preview during a choice | Requires read-only comparison before asking about conflicting edits. | Two model replays and two fresh Desktop recoveries; completed by #61’s engine correction. |
 | [#60](https://github.com/bworlds-co/clodable/pull/60) · Imported live site | A new copy checks Netlify rather than assuming its absent local record means offline. Unavailable status remains neutral. | Real imported app shows Everything is live; screenshot 33. Automated unavailable-host and JSON contract cases. |
+| [#61](https://github.com/bworlds-co/clodable/pull/61) · Conflict check | Checks in a temporary copy so a stopped Publish leaves the preview intact. | Real-git regression and two fresh Desktop conflicts, both recovered and published with the chosen heading. Screenshot 35 shows the working preview during the choice. |
+| [#62](https://github.com/bworlds-co/clodable/pull/62) · Preview confirmation | Keeps local addresses and unsolicited page tours out of Claude’s reply. | Two independent model replays and a fresh Desktop reply: “Your preview is open beside this conversation.” Screenshot 36. |
 
-Lint and typecheck pass. The package suite passed **185 tests** (184 in the full run, followed by the additional CLI contract case); the latest plugin suite passed **127 tests**. Inline-edit, broken-page recovery, and isolated migration scripts passed. The migration script used its own ports and did not use the owner's other Supabase stack. The updated plugin was built and copied into Desktop's cache; existing conversations retain their earlier code.
+Lint and typecheck pass. The package suite passed **185 tests**; the latest plugin suite passed **127 tests**. Inline-edit, broken-page recovery, and isolated migration scripts passed. The migration script used its own ports and did not use the owner's other Supabase stack. The updated plugin was built and copied into Desktop's cache; existing conversations retain their earlier code.
 
 ## Where each moment belongs
 
@@ -90,7 +92,7 @@ Choose one runtime/version policy for the panel, preview and model commands, the
 ## Remaining risks and completion work
 
 - **Version consistency (K3):** the three execution paths are not yet unified. The source fixes and local cache do not establish a corrected released experience. A release requires owner approval; aligning runtime resolution also remains engineering work.
-- **Conflict recovery:** the final read-only-before-choice sequence is awaiting its last Desktop check. Earlier choice behavior, final repair and Publish were verified.
+- **Conflict recovery:** the final sequence passed twice with fresh fixtures and both choices. This is bounded evidence for these cases, not a promise that every simultaneous edit can be combined automatically.
 - **Token onboarding:** accounts were already connected. Finding and pasting a new token was not tested; no sign-out or token creation was attempted.
 - **Léa:** permission is still pending to inspect/reuse the pre-existing destination and to request/download the Lovable export. Her copied data, people, files, functions and sign-in rehearsal remain untested in Desktop. The isolated migration test is not a substitute.
 - **Nadia:** local prototypes work, but saving and publishing from an idea remain unsupported. The corrected explanation is not a completed journey.
