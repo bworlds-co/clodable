@@ -2592,7 +2592,7 @@ function stateCard(
       <Text color="warning" bold>
         Your draft and the live site changed the same thing
       </Text>,
-      <Text dimColor>Claude can combine them and keep both changes.</Text>,
+      <Text dimColor>Claude can review both versions with you.</Text>,
       [fixButton($, ui, "combine", true)],
     );
   }

@@ -427,7 +427,7 @@ export function fixRequest(error: {
         "From Clodable's Fix it: publishing stopped because the builder's draft and the live site both changed the same files.",
         RECOVERY_VOICE,
         error.files?.length ? `Files: ${error.files.join(", ")}.` : "",
-        "Combine both versions (keep both changes where you can), finish the merge so nothing is left unresolved, and check the app still builds. Then tell them it's ready to publish.",
+        "Compare both versions first. Keep compatible changes from each. If both versions replace the same wording or behavior and cannot both be kept, show the builder the two choices in plain words and ask which to keep BEFORE choosing or removing either. Do not decide by timestamps or assume their draft should win. After they choose, finish the merge so nothing is left unresolved and check the app still builds. Say exactly what was kept; never claim both changes were kept if one was replaced. Then tell them it's ready to publish.",
       ]
         .filter(Boolean)
         .join("\n"),
