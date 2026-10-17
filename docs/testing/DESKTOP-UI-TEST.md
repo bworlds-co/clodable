@@ -154,9 +154,7 @@ Before deleting anything in the cloud, read its name and its team or organizatio
    ```
 3. Start a new conversation. Conversations already open keep the old code.
 
-Two parts of a session use the npm version (0.2.2), not your build:
-- **The preview** (`npx clodable dev`). To test preview or toolbar changes, point the app's `.claude/launch.json` `app` entry at `node /Users/manu/Documents/bworlds/clodable/packages/cli/dist/clodable.mjs dev`. Clodable keeps such an entry.
-- **Claude's own `npx clodable …` commands.** Changes to those show only after a release (see K3).
+**Runtime after the UX fixes:** setup and fresh conversations prepare an ignored local copy of the installed plugin’s CLI. The default preview and Claude’s commands use that copy, so the build above reaches all three surfaces without publishing to npm. Start a fresh conversation and preview after copying changes. An explicit developer preview override in `.claude/launch.json` is preserved; remove that override in a disposable fixture when checking the default installed-runtime path. The original released 0.2.2 still has the K3 split described below; testing that release does not test these source fixes.
 
 **Resetting a test app:**
 1. Close its conversations.
@@ -190,7 +188,7 @@ From the owner's runs on 2026-10-15 to 17.
   - *Cause:* Clodable's guard lets the command through only exactly as given (`isOnlineStep` in `plugin/hooks/guards.ts`; `isMoveStep` is the same). The decision then fell to Auto mode's safety check, which denied it as "Data Exfiltration", and the builder was told "blocked by a permission check".
   - *Directions:* accept a `cd` into the app's own folder, tell Claude it's already there, or have the panel run it itself (a structural change: propose it).
 - **K2 · major · "Put my site online" reads like Publish.** Claude opened with "I can't publish for you: that's the Publish button…".
-- **K3 · major · Two versions of Clodable in one session.** The panel runs the plugin's own copy; Claude's `npx clodable …` and the preview run whatever npm serves.
+- **K3 · major · Two versions of Clodable in one session.** At handoff, the panel ran the plugin's own copy; Claude's `npx clodable …` and the preview ran whatever npm served. Fixed in source by #63; see the runtime instructions above and F11 in FINDINGS.md. Not yet released.
 - **K4 · polish · Restore's question can open out of sight** in the panel. A save's name runs on when it ends with a quote mark.
 - **K5 · external · Desktop's message box.** It says "/clodable isn't a command here" when `/clodable` is a new conversation's first message, though the panel opens. Desktop's own branch and repository labels can't be changed from Clodable.
 

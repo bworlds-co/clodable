@@ -1,6 +1,6 @@
 # Desktop UX findings
 
-Review started 2026-10-17. Repository baseline: `c219213`. Desktop: Auto, default Opus 5.5 Extra; Manual also exercised. Screenshots: `~/Clodable Tests/_runs/2026-10-17-ux/`. This is an ongoing review, not an end-to-end sign-off. The Mac locked during the run; further Desktop testing needs the owner to unlock it.
+Review started 2026-10-17; continued into 2026-10-18. Repository baseline: `c219213`. Desktop: Auto, default Opus 5.5 Extra; Manual also exercised. Screenshots: `~/Clodable Tests/_runs/2026-10-17-ux/`. Testing resumed after the owner unlocked the Mac. This review records repeated Desktop evidence and the remaining limits to sign-off.
 
 ## F01 — blocker — Setup command rejected after changing into the app folder (K1)
 
@@ -24,7 +24,7 @@ Review started 2026-10-17. Repository baseline: `c219213`. Desktop: Auto, defaul
 - Builder impact: the most important action is partially hidden; its meaning is harder to read.
 - Cause: shared cards put long explanation and non-shrinking actions in one horizontal row. History also forces title, badges, age and Restore into one row.
 - Fix: stack card actions below their explanation; let history metadata and actions use a second line, with Restore always visible.
-- Status: fixed in [PR #46](https://github.com/bworlds-co/clodable/pull/46), merged after CI. Home verified at the original dock width. Long history and Restore confirmation still need their full journey retest.
+- Status: fixed in [PR #46](https://github.com/bworlds-co/clodable/pull/46), merged after CI. Home verified at the original dock width. Long History titles and the adjacent Restore confirmation were verified in both Tom fixtures; screenshots 12 and 21.
 
 ## F04 — major — History says “Live” for a site that is not online
 
@@ -57,7 +57,7 @@ Review started 2026-10-17. Repository baseline: `c219213`. Desktop: Auto, defaul
 - Builder impact: cannot know which account is affected or what it will cost; a failed lookup still looks actionable.
 - Cause: null/empty choices fall through to the creation controls; lookup errors become empty lists.
 - Fix: loading messages replace creation controls until valid choices exist; failures and empty results offer Try again. A single Netlify team is named explicitly.
-- Verification: [PR #49](https://github.com/bworlds-co/clodable/pull/49), merged after CI. New tests cover unavailable choices, no creation action, and successful retry for both services. A fresh Desktop conversation loaded account choices, and Sam selected test-org successfully. The transient loading/failure state still needs a controlled Desktop retest.
+- Verification: [PR #49](https://github.com/bworlds-co/clodable/pull/49), merged after CI. New tests cover unavailable choices, no creation action, and successful retry for both services. A fresh Desktop conversation loaded account choices, and Sam selected test-org successfully. The second backend run visibly waited for account/cost choices before offering creation. Failure/retry behavior is covered by automated tests, not a forced real-service outage.
 
 ## Fix verification update
 
@@ -81,7 +81,7 @@ Review started 2026-10-17. Repository baseline: `c219213`. Desktop: Auto, defaul
 - Observed: the pending-site card retains Publish while the progress card below runs. “Your live site keeps working meanwhile” appears on the first publish. The URL pushes the app name out of the header at the default narrow width.
 - Builder impact: ambiguity about whether the click worked; inaccurate reassurance before the first publication.
 - Cause: pending-site card ignores activity; shared progress copy assumes a previous live version; header is a single row.
-- Fix: hide pending-site card while publishing/undoing; first-publish wording; stacked app name and URL. [PR #50](https://github.com/bworlds-co/clodable/pull/50) merged after CI; 120 plugin tests passed. Desktop verification pending in a new conversation.
+- Fix: hide pending-site card while publishing/undoing; first-publish wording; stacked app name and URL. [PR #50](https://github.com/bworlds-co/clodable/pull/50) merged after CI; 120 plugin tests passed. Verified in Sam’s second fresh conversation: only progress remains during first Publish, the reassurance is accurate, and the title/address fit; screenshot 19.
 
 ## F08 — major / structural proposal — Empty-folder setup offers only an existing GitHub app
 
@@ -97,7 +97,7 @@ Review started 2026-10-17. Repository baseline: `c219213`. Desktop: Auto, defaul
 - Builder impact: she follows the instruction and reaches the same dead end, with uncertainty about whether her work is saved.
 - Cause: the guide equates “a folder holding an app” with a supported app already connected to GitHub. The setup panel offers import even when the folder is no longer empty.
 - Fix: clarify the unsupported local-prototype state, preserve local work, and stop promising the absent button or offering import into a non-empty folder. A full from-scratch route remains an owner decision (F08).
-- Verification: [PR #51](https://github.com/bworlds-co/clodable/pull/51), merged after CI. Lint/typecheck and 122 plugin tests pass, including both empty and non-empty folder cases. Two independent model replays explain the limitation and preserve the local page. Updated build copied to Desktop; visual retest is pending because the Mac is locked.
+- Verification: [PR #51](https://github.com/bworlds-co/clodable/pull/51), merged after CI. Lint/typecheck and 122 plugin tests pass, including both empty and non-empty folder cases. Two independent model replays explain the limitation and preserve the local page. Updated build verified in a fresh Desktop conversation after the Mac was unlocked. The local-page explanation and absent import controls are correct; screenshot 11. PR #53 removes the misleading one-minute heading. After F15, two fresh empty-folder runs both changed to the correct local-page heading and explanation after Claude’s reply (screenshots 24 and 27).
 
 ## Manual-mode observation
 
@@ -117,22 +117,94 @@ Review started 2026-10-17. Repository baseline: `c219213`. Desktop: Auto, defaul
 - Observed: the panel runs the bundled CLI while the guide and generated app rules still use `npx clodable`; the preview's default launcher does too. The installed release is 0.2.2, so local source fixes do not automatically apply to all three paths.
 - Builder impact: the same action can behave differently depending on which surface starts it; a fix can appear not to work.
 - Cause: independent runtime resolution for the panel, model commands and preview.
-- Status: open engineering follow-up. For this test, fresh-app's preview points at the repository build as the brief permits. No npm publication or release tag was created. A release requires owner approval; local verification is not proof of the released experience.
+- Fix: setup and fresh conversations copy the installed CLI atomically into ignored local support files. The preview uses that copy and the verified Node executable; generated instructions use the same copy, and the guide uses the plugin directly before setup. Runtime refresh preserves account settings, preview ports and explicit developer overrides. Publish/Undo remain builder-only. [PR #63](https://github.com/bworlds-co/clodable/pull/63), merged after CI.
+- Verification: 186 package tests and 129 plugin tests passed; the 12 CLI contract tests passed again after the port-preservation and failed-copy checks. Two fresh Desktop fixtures automatically replaced their default npm launchers. Each local CLI matched the installed bundle byte for byte, and Claude ran its status check through that local CLI, with no additional permission prompt. Both previews and toolbars worked. Inline edit and broken-page recovery passed against the first preview, restoring app files byte for byte. Screenshots 37 and 38; `installed-runtime-evidence.json` records hashes, launch entries and observed model commands. A third fresh conversation after the final build refreshed the existing second fixture to the new matching bundle hash and opened its preview; screenshot 39 and `installed-runtime-upgrade.json`.
+- Status: fixed and verified locally. No npm publication or release tag was created. The released-install passes still verify the original 0.2.2, not these changes; shipping a new release requires owner approval.
 
-## Coverage at interruption
+## F12 — polish — Recovery progress exposes git vocabulary
 
-- **Sam:** reset, setup, two questions, hosting preparation, first Publish and public home/About verified. Backend `fresh-app` (`xeetvorbzybetwewdzdh`) was created in test-org; Claude reported the connection and build checked. The note feature, database confirmation, and live saved-data use remain to test.
-- **Tom:** automated inline-edit and broken-page recovery scripts passed. The everyday Desktop journey, History/asked restore, Publish/Undo, synthetic-key stop, broken-build stop and simultaneous live change remain to test.
-- **Léa:** owner approved inspection and copy-only work. Read-only local move status found an existing destination named `hirebright-score` (`aqvgqmycchkemeviyqpw`) from before this run. Separate permission to verify/reuse that pre-existing cloud destination is pending. No export/copy or live/Lovable change was performed.
-- **Nadia:** empty folder, plain request, resulting local page and the missing-save dead end exercised once. Fix F09 needs a new-conversation Desktop retest.
-- **Also:** new conversation in an existing app exercised repeatedly; correct-folder handoff settles successfully. GitHub import into an empty folder, simultaneous conversations on one app and installation of the released plugin remain to test.
-- **Repeat criterion:** no journey has yet been signed off twice from a fresh start. The brief's completion criterion has not been met.
+- Observed: after the synthetic-key stop, Claude’s intermediate update said the unused key had never been “pushed”. The final explanation was plain.
+- Builder impact: a reassuring recovery moment introduces technical words the builder should not need.
+- Cause: hidden repair instructions contain technical mechanics; the voice rule did not explicitly cover progress updates.
+- Fix: recovery requests now state the vocabulary rule for both progress and final replies, with short examples. [PR #54](https://github.com/bworlds-co/clodable/pull/54), merged after CI.
+- Verification: 122 plugin tests; two independent model replays (key removal and combined edits) used plain words. The second Desktop synthetic-key recovery also avoided git vocabulary: “The key stayed on this computer.”
 
-## Resources and resume notes
+## F13 — major — GitHub import rejects a copied address and gives no progress
 
-- Test-created site: `fresh-app-kgjt`, Netlify team `emmanuel-acqvas8`, public address `https://fresh-app-kgjt.netlify.app`.
-- Test-created backend: `fresh-app`, Supabase `xeetvorbzybetwewdzdh`, test-org `vuhauwchbncatqwkvelx`. Retained for the next step; no destructive cleanup performed.
-- Sam folder: `~/Clodable Tests/fresh-app`; latest Desktop conversation `local_d5d63bf9-62fb-4c0c-a4f2-e19a1dd6fbfb`. Backend setup finished while the Mac was locked.
-- Nadia folder: `~/Clodable Tests/nadia-20261017`; local prototype retained. Empty import fixture: `~/Clodable Tests/github-import-20261017`.
-- Headless model replay evidence: four JSONL files under the screenshot run's `model-replay/` folder. They use inert fixtures and do not create cloud resources.
-- Next: unlock Mac; open a new Nadia conversation to load F09; finish Sam's saved-data feature; exercise Tom and the additional journeys; complete authorized Léa copy steps after resolving its existing destination; then repeat from fresh starts. Owner-only actions remain gated by the brief.
+- Observed: pasting `https://github.com/bworlds-co/clodable-launch-test` into an empty folder’s import form was rejected with an owner/name instruction. After accepting the URL, import left the form unchanged while downloading/installing. Screenshots 16 and 18.
+- Builder impact: the natural input is treated as wrong, then a successful click looks inert and invites repeated clicks.
+- Cause: owner/name-only validation; the text-input branch omitted the setup-progress component used by the other setup routes.
+- Fix: normalize the copied GitHub address, label the field in plain words, and replace the controls with setup steps while import runs. [PR #55](https://github.com/bworlds-co/clodable/pull/55), merged after CI.
+- Verification: the full URL imported the authorized repository in Desktop. 183 package tests and 125 plugin tests pass, including real form submission, normalized argument, steps and hidden controls. Fresh Desktop verification shows progress immediately and hides the form (screenshot 20); a failed clone keeps the failed step visible and returns the form. The demo import could not finish because setup’s clone operation does not use the fake GitHub adapter; the real authorized import succeeded earlier. This fixture limitation is not counted as a second successful import.
+
+## F14 — major — Conflict recovery chooses before asking
+
+- Observed: the draft and the fake live site replaced the same heading. Claude kept the draft because it was newer, then offered a choice afterwards. The panel promised it could keep both changes. Screenshot 17 records the safe stop.
+- Builder impact: “combine” can silently discard someone’s intended words; the reassurance overpromises.
+- Cause: “keep both where you can” leaves the choice implicit when the edits are incompatible.
+- Fix: ask before choosing incompatible wording or behavior, preserve compatible changes, and accurately say what was kept. The panel now says Claude can review both versions with the builder. [PR #56](https://github.com/bworlds-co/clodable/pull/56), merged after CI. The second Desktop run asked before choosing; screenshot 26. F16 below records the preview break observed while that choice was pending.
+- Verification: two model replays (headings; booking versus waitlist behavior) asked before changing anything and kept the words plain. 122 plugin tests pass. In Desktop, the builder chose the live heading; Claude preserved the separate badge edit and repaired the preview. No incompatible wording was chosen before approval.
+
+## F15 — major — The panel stays on import after Claude creates a local page
+
+- Observed: in Nadia’s second fresh folder, Claude correctly described the local prototype’s limits, but the open panel retained the GitHub import form and one-minute promise. Screenshot 22.
+- Builder impact: the panel contradicts the conversation and invites an import into a folder that now contains work.
+- Cause: the not-a-repo state did not refresh folder emptiness after a reply.
+- Fix: refresh the empty-folder state when a turn completes, without saving or changing local files. [PR #58](https://github.com/bworlds-co/clodable/pull/58), merged after CI.
+- Verification: 126 plugin tests, including a real empty-to-nonempty transition. Two independent fresh Desktop folders (`nadia-refresh-1`, `nadia-refresh-2`) created book/plant prototypes and changed to “Keep shaping your local app with Claude.” Import controls disappeared; the panel explicitly said Clodable was not saving yet. Screenshots 24 and 27. The book’s Borrow action worked when exercised directly.
+
+## F16 — major — The preview breaks while a conflict choice is pending
+
+- Observed: the preview showed “Your app can’t load” while the builder was deciding between headings. Screenshot 26. The first retest proved that Publish had already left conflict markers before Claude received the recovery request; the conversation was not the only cause.
+- Builder impact: asking for help appears to break the app, precisely when the builder needs reassurance.
+- Cause: Publish tried the combination in the working files and left conflicts there. Recovery also needed an explicit instruction to compare without changing those files before asking.
+- Fix: [PR #59](https://github.com/bworlds-co/clodable/pull/59) requires read-only comparison before the choice and protects pre-existing unresolved work. This alone did not solve Publish’s earlier mutation. [PR #61](https://github.com/bworlds-co/clodable/pull/61) checks the combination in a temporary detached working copy first, reports the conflicting files, and leaves the builder’s preview intact. Both merged after CI.
+- Verification: lint/typecheck, 185 package tests and 127 plugin tests. The real-git regression checks unchanged draft contents, no unresolved working state, unchanged live site and temporary-copy cleanup. Two fresh Desktop fixtures then stopped Publish with the draft intact. Claude asked before choosing in each; one kept the draft heading, one the live heading, and both retained compatible badge/recipe edits and published successfully. The second fixture’s visible preview stayed healthy while awaiting the choice. Screenshots 34 and 35; two model replays also passed.
+
+## F17 — major — A fresh copy of a live app asks for its first Publish
+
+- Observed: the second successful GitHub import of Sam’s already-live app showed “Your site is ready to go online”, although its public visitor notes were working. Screenshot 28.
+- Builder impact: the same app appears live on one computer and offline on another, inviting an unnecessary Publish.
+- Cause: the first-publication flag existed only in `.clodable/local/state.json`.
+- Fix: with no local record, check the configured Netlify site’s published result. Record a confirmed live publication; a missing connection or failed lookup stays unknown and says Saved. Preserve the existing boolean JSON field and add an optional `statusKnown` flag. [PR #60](https://github.com/bworlds-co/clodable/pull/60), merged after CI. The API field is documented in [Netlify’s API reference](https://open-api.netlify.com/).
+- Verification: 184 package tests plus the added CLI contract case (185 total cases), 127 plugin tests. Cases cover new hosting, unavailable hosting and an imported live site. A fresh Desktop conversation in `github-import-pass-2` shows “Everything is live” and Published History, without a first-Publish card; screenshot 33.
+
+## F18 — major / external — Desktop hides the reason a marketplace source is rejected
+
+- Observed: adding the release-tagged Clodable URL over its existing unpinned marketplace returned only “Failed to add marketplace.” The log explained that it did not match the existing source declaration. Screenshot 29.
+- Builder impact: no visible way to understand or fix the failed installation.
+- Cause: Desktop’s source-consistency check is reduced to a generic message in its UI.
+- Status: external. Removing this test installation’s marketplace and adding the exact released source succeeded. No other marketplace was changed. Discover’s ordinary text search also failed to surface the custom Clodable listing; filtering Source to clodable did.
+
+## F19 — polish — Preview’s reply exposes a local address and gives an unsolicited tour
+
+- Observed: pressing Preview produced a localhost link, port number and a paragraph describing the page. Screenshot 35 includes that reply.
+- Builder impact: extra technical text distracts from the simple result: the preview is open beside the conversation.
+- Cause: the panel’s hidden request supplied the address without repeating the guide’s rule to keep it out of the reply.
+- Fix: keep the address for the tool call; confirm in one short sentence, without a local URL or page tour. [PR #62](https://github.com/bworlds-co/clodable/pull/62), merged after CI.
+- Verification: lint/typecheck, 127 plugin tests, two independent model replays (known address / start-preview paths). Both say “Your preview is open beside this conversation.” A fresh Desktop conversation returned that same single sentence without a local address; screenshot 36.
+
+## Coverage after unlocking the Mac
+
+- **Sam, twice complete:** first setup from `fresh-app`, then a full reset and GitHub import into `github-import-20261017`. Both runs reached a public site, added a free backend in test-org, asked before database changes, and published visitor notes. A note entered on each public site survived reload. Screenshots 13 and 23. The second note reads “Second fresh run: this note should still be here after a refresh.”
+- **Tom, two fresh fixtures:** plain edit, inline Edit text, Point & ask, History Restore, conversational restore, Publish and durable Undo worked. Both runs stopped a synthetic key before it reached the remote, then recovered through Fix it. Both stopped a broken build with “Nothing went live”, and preview Try to fix repaired the page. Conflicting live headings stopped Publish safely. The second run asked before selecting the heading; the builder chose the live wording and retained the independent badge edit. F16’s final sequence also passed in two fresh dedicated fixtures, with both wording choices and successful Publish.
+- **Two conversations on one app:** Tom’s second fixture had simultaneous conversations and preview servers. Point & ask from the second preview inserted its badge request into that second conversation and updated the intended app. New conversations repeatedly settled in the correct folder after Desktop’s spare-folder handoff.
+- **GitHub import:** two successful imports of the authorized throwaway repository from empty folders. Full GitHub URLs work and progress appears immediately. The fake demo clone failure is not counted as a success.
+- **Nadia:** the original page, a second book-swap prototype, and two fresh post-fix book/plant prototypes were exercised. The last two both updated the open panel correctly. Claude explained local-only behavior and the missing saving/publishing route. This verifies the honest limitation, not a complete from-idea product journey.
+- **Released installation:** two remove/add passes through Desktop’s Plugins screen succeeded with `https://github.com/bworlds-co/clodable.git#clodable--v0.2.2`. Marketplace HEAD matches the peeled release tag `0a8ecb9d`; the installed CLI’s hash matches the tagged CLI. A fresh released conversation opened the original panel and reproduced Desktop’s contradictory “isn’t a command here” message (screenshot 31). Screenshots 30 and 32 show successful installation. Accounts were already connected; no token creation or sign-out was tested.
+- **Léa:** owner approved inspection and copy-only work. Claude inspected hirebright-score and recorded AI/sign-in/settings facts. Carefully reached the Lovable export instructions. The pre-existing destination `aqvgqmycchkemeviyqpw` still needs permission to verify/reuse, and requesting/downloading a fresh Lovable export also needs permission. No export was opened and no data, people, files or functions were copied. No live app or Lovable changes occurred.
+- **Repeat criterion:** Sam’s complete journey and Tom’s main actions have been repeated. Full sign-off remains withheld: Léa is permission-blocked, Nadia needs a structural decision, and the fixes have not been released. K3 now passes two fresh local runtime checks. The final conflict sequence passed twice from fresh fixtures. Do not present this as every journey completed twice.
+
+## Resources and continuation notes
+
+- Sam first-run resources were removed after verifying exact names and ownership: Netlify `fresh-app-kgjt` (`e9e279bf-5733-4154-bc9e-42db71409bc9`) in `emmanuel-acqvas8`, and Supabase `fresh-app` (`xeetvorbzybetwewdzdh`) in test-org. Netlify returned 404; Supabase no longer listed the reference.
+- The disposable GitHub repository was reset to initial app `e4cb1df`, with only main and no repository secrets, before the second run. Both first-run bundles are retained outside the repo. Its conversation was archived and preview stopped; the reset remained not-set-up after a minute.
+- Sam’s retained second run: `~/Clodable Tests/github-import-20261017`, conversation `local_23f5bf6b-a26e-476c-aaf6-f6f0183049cb`. Netlify `github-import-20261017`, id `cd736b43-4258-4aee-bea5-12c53c4ff552`, team `emmanuel-acqvas8`, URL `https://github-import-20261017.netlify.app`. Supabase `github-import-20261017`, ref `mhnokcaprwzrpjehbzqe`, in test-org. The owner’s existing project occupies the other free slot.
+- Second imported copy: `~/Clodable Tests/github-import-pass-2`, import conversation `local_cd1592a9-d8ae-4f92-aa66-598a3eccefa4`, corrected-status conversation `local_b8e483d4-0bd0-4457-927a-a8521aa0ec6a`. It shares Sam’s test services; it created no extra cloud resource.
+- Runtime fixtures: `~/Clodable Tests/_runs/2026-10-17-ux/runtime-a/crumb-site` and `runtime-b/crumb-site`, with independent local fake remotes. Conversations `local_44c595d6-5aa1-4dec-ae27-070a60223d01` and `local_d9d76311-5727-4ea3-b2d4-ab2f8d4538dd`. Both used the automatically installed runtime for preview and Claude’s status command. Final update check: `local_44aee621-3814-408b-ac77-ef2ffbb38452` in the second fixture.
+- Final conflict fixtures: `~/Clodable Tests/_runs/2026-10-17-ux/conflict-preview-a/crumb-site` and `conflict-preview-b/crumb-site`, with separate local fake remotes. Conversations `local_ec878537-5b43-407e-a9d4-8f41ee56ce2e` and `local_a2345788-89e9-4438-a874-3d60a986a0cd`. Both published the chosen heading while retaining compatible edits.
+- Tom’s disposable fixtures: `~/Clodable Tests/_runs/2026-10-17-ux/tom-pass-1/crumb-site` and `tom-pass-2/crumb-site`, with local fake GitHub. No public bakery site is involved. Second-run conversations include `local_346be4d7-7b6f-4eec-83fb-be72236a30d7`, `local_27677460-7cd6-4d5d-bbc3-57ce9cbfa59b`, and final retest `local_b00788b1-4da5-4be3-9acb-44c908ecbae6`.
+- Nadia’s files remain in `nadia-20261017`, `nadia-pass-2`, `nadia-refresh-1`, and `nadia-refresh-2` under `~/Clodable Tests`. Léa’s copy journey is conversation `local_70c6782d-cbc3-4653-b5c2-c480a8e2fb85`.
+- The marketplace is pinned to release 0.2.2 after installation testing. The working plugin build was then copied into Desktop’s 0.2.2 cache as the brief instructs; this is a local test override, not a release. Existing conversations retain earlier code.
+- Screenshots and model replays: `~/Clodable Tests/_runs/2026-10-17-ux/`. Failed/timed-out replays are not counted. Latest runtime build/check logs are `/tmp/clodable-runtime-final-build.log`, `/tmp/clodable-runtime-contract.log` and `/tmp/clodable-runtime-plugin.log`; earlier logs include `/tmp/clodable-ux-import-status*.log`.
+- No npm release, release tag, new token, sign-out, paid resource, live migration or Lovable change was performed.
