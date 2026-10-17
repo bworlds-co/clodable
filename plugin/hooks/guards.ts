@@ -20,6 +20,32 @@ export const PRIVATE_FOLDER_DENY =
 export const SECRET_STEP =
   /clodable(?:\.mjs"?)?\s+move\s+(connect|secret|vault-secret|disconnect|forget|netlify|setting|resend|ai|google)\b|clodable(?:\.mjs"?)?\s+move\s+files\b.*--private|clodable(?:\.mjs"?)?\s+connect\b/;
 
+/** A copied GitHub address or owner/name, normalized for setup's --repo argument. */
+export function githubRepo(input: string): string | undefined {
+  let value = input.trim();
+  if (/^https?:\/\//i.test(value)) {
+    try {
+      const url = new URL(value);
+      if (
+        url.hostname !== "github.com" ||
+        url.username ||
+        url.password ||
+        url.port ||
+        url.search ||
+        url.hash
+      )
+        return undefined;
+      value = url.pathname.replace(/^\//, "");
+    } catch {
+      return undefined;
+    }
+  }
+  value = value.replace(/\/$/, "").replace(/\.git$/, "");
+  if (!/^[a-z\d](?:[a-z\d-]*[a-z\d])?\/[\w.-]+$/i.test(value)) return undefined;
+  const name = value.split("/")[1];
+  return name === "." || name === ".." ? undefined : value;
+}
+
 /** Whether a tool's file or path is inside Clodable's private folder. */
 export function inPrivateFolder(input: unknown): boolean {
   const fields = input as Record<string, unknown>;

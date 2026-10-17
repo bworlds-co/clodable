@@ -3,6 +3,7 @@ import { eventReader, lastResult } from "../hooks/cli.ts";
 import {
   commandInApp,
   dbCommandIn,
+  githubRepo,
   insideProject,
   isFactsRecord,
   isMoveStep,
@@ -16,6 +17,38 @@ import { nodeFrom, nodeOk, pathWith, pluginDataFolder, toolsFolder } from "../ho
 import { FIX_TEXT, hostOf, pageName, pointedAt, saveMessage, versionName } from "../hooks/words.ts";
 
 const CWD = "/work/crumb";
+
+describe("GitHub import addresses", () => {
+  test("accepts copied app addresses and owner/name", () => {
+    for (const input of [
+      "acme/website",
+      "  acme/website  ",
+      "https://github.com/acme/website",
+      "https://github.com/acme/website/",
+      "https://github.com/acme/website.git",
+      "https://github.com/acme/website.git/",
+    ])
+      expect(githubRepo(input)).toBe("acme/website");
+  });
+
+  test("rejects other hosts, credentials, page paths and invalid names", () => {
+    for (const input of [
+      "",
+      "website",
+      "acme/..",
+      "acme/.",
+      "https://example.com/acme/website",
+      "https://github.com.example.com/acme/website",
+      "https://user:password@github.com/acme/website",
+      "https://github.com:8080/acme/website",
+      "https://github.com/acme/website/tree/main",
+      "https://github.com/acme/website?token=private",
+      "https://github.com/acme/website#readme",
+      "acme/website && echo extra",
+    ])
+      expect(githubRepo(input)).toBeUndefined();
+  });
+});
 /** Where the plugin is loaded from: Claude's runs of Clodable name its CLI there. */
 const PLUGIN_ROOT = new URL("..", (import.meta as unknown as { url: string }).url).pathname.replace(
   /\/$/,

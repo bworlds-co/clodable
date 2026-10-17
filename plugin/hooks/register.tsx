@@ -41,6 +41,7 @@ import {
 import {
   commandInApp,
   dbCommandIn,
+  githubRepo,
   inPrivateFolder,
   insideProject,
   isFactsRecord,
@@ -2445,8 +2446,8 @@ function setupPane(
         <Box flexDirection="column" rowGap={1}>
           <Input
             key="repo-name"
-            label="Your app's GitHub repository"
-            placeholder="owner/name"
+            label="Your app's GitHub address"
+            placeholder="https://github.com/owner/name"
             value={chosenRepo}
             submitLabel="bring it in"
             onSubmit={(value) => {
@@ -5007,9 +5008,11 @@ async function runSetup($: EngineInterface, args: string[]): Promise<Result | un
 }
 
 async function bringIn($: EngineInterface) {
-  const repo = chosenRepo || repoChoices[0]?.value;
-  if (!repo || !/^[\w.-]+\/[\w.-]+$/.test(repo)) {
-    $.ui.toast("Type your repository as owner/name, for example acme/website.");
+  const repo = githubRepo(chosenRepo || repoChoices[0]?.value || "");
+  if (!repo) {
+    $.ui.toast(
+      "Paste your app's GitHub address, like https://github.com/acme/website, or type acme/website.",
+    );
     return;
   }
   const result = await runSetup($, ["--repo", repo]);
