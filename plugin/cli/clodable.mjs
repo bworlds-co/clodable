@@ -24026,6 +24026,7 @@ async function status(ws, options = {}) {
   const hasLive = Boolean(await ws.git.revParse(ws.liveRef));
   const unpublished = branch === ws.liveBranch ? [] : await waitingSaves(ws);
   const behindLive = hasLive ? await ws.git.count(`HEAD..${ws.liveRef}`, { noMerges: true }) : 0;
+  const site = await siteStatus(ws, state.siteLiveAt);
   return {
     project: {
       name: ws.project.name,
@@ -24048,15 +24049,30 @@ async function status(ws, options = {}) {
     ...state.pullRequest ? { pullRequest: state.pullRequest } : {},
     ...await whereTheMoveIs(ws.root),
     ...ws.config.backend === "supabase" || ws.config.backend === "none" ? { database: { connected: Boolean(await readSecret(SUPABASE_TOKEN)) } } : {},
-    ...ws.config.netlify ? {
-      site: {
-        url: ws.config.netlify.url,
-        admin: ws.config.netlify.admin,
-        live: Boolean(state.siteLiveAt)
-      }
-    } : {},
+    ...site ? { site } : {},
     ...ws.config.hosting === "none" ? { netlify: { connected: Boolean(await readSecret(NETLIFY_TOKEN)) } } : {}
   };
+}
+async function siteStatus(ws, liveAt) {
+  const configured = ws.config.netlify;
+  if (!configured) return void 0;
+  const base = { url: configured.url, admin: configured.admin };
+  if (liveAt) return { ...base, live: true };
+  try {
+    const api = await NetlifyApi.onThisComputer();
+    const remote = await api?.site(configured.siteId);
+    if (!remote || remote.id !== configured.siteId || remote.account_slug !== configured.account)
+      return { ...base, live: false, statusKnown: false };
+    const live = remote.published_deploy?.state === "ready";
+    if (live) {
+      await ws.updateState({
+        siteLiveAt: remote.published_deploy?.published_at ?? (/* @__PURE__ */ new Date()).toISOString()
+      });
+    }
+    return { ...base, live };
+  } catch {
+    return { ...base, live: false, statusKnown: false };
+  }
 }
 async function history(ws, options = {}) {
   const live = await liveBase(ws) ?? ws.liveBranch;
@@ -24094,6 +24110,8 @@ async function whereTheMoveIs(root) {
 
 // ../core/src/git.ts
 import { existsSync as existsSync10 } from "node:fs";
+import { mkdtemp as mkdtemp4, rm as rm5 } from "node:fs/promises";
+import { tmpdir as tmpdir3 } from "node:os";
 import { join as join14 } from "node:path";
 var COMMIT_KINDS = ["save", "restore", "sync", "publish", "undo", "setup"];
 var KIND_KEY = "Clodable-Kind";
@@ -24252,6 +24270,26 @@ ${kindTrailer(options.kind)}`
       timeout: 12e4
     });
     return result.exitCode === 0;
+  }
+  /** Check a merge away from the preview; never put conflict markers in the builder's files. */
+  async checkMerge(ref) {
+    const dir = await mkdtemp4(join14(tmpdir3(), "clodable-combine-"));
+    try {
+      await this.ok(["worktree", "add", "--quiet", "--detach", dir, "HEAD"]);
+      const side = new _Git(dir);
+      const result = await side.run(["merge", "--no-commit", "--no-ff", ref]);
+      if (result.exitCode === 0) return { ok: true, conflicts: [] };
+      const conflicts = await side.conflictedFiles();
+      if (conflicts.length > 0) return { ok: false, conflicts };
+      throw new ClodableError({
+        code: "unknown",
+        message: "Your draft couldn't be compared with the live site.",
+        details: result.stderr || result.stdout
+      });
+    } finally {
+      await this.worktreeRemove(dir);
+      await rm5(dir, { recursive: true, force: true });
+    }
   }
   /** Merge `ref` into the current branch. Leaves conflicts in place for someone to resolve. */
   async merge(ref, message) {
@@ -24454,8 +24492,8 @@ function parseGitHubRemote(url2) {
 
 // ../core/src/github/fake.ts
 import { existsSync as existsSync11, readFileSync, writeFileSync } from "node:fs";
-import { mkdtemp as mkdtemp4, rm as rm5 } from "node:fs/promises";
-import { tmpdir as tmpdir3 } from "node:os";
+import { mkdtemp as mkdtemp5, rm as rm6 } from "node:fs/promises";
+import { tmpdir as tmpdir4 } from "node:os";
 import { join as join15 } from "node:path";
 var FakeGitHub = class _FakeGitHub {
   constructor(bareRepo, user = { login: "ada", name: "Ada", email: "1+ada@users.noreply.github.com" }, info = {
@@ -24545,7 +24583,7 @@ var FakeGitHub = class _FakeGitHub {
     if (pr?.state !== "open") {
       throw new ClodableError({ code: "not-found", message: "That draft isn't open any more." });
     }
-    const dir = await mkdtemp4(join15(tmpdir3(), "clodable-fake-merge-"));
+    const dir = await mkdtemp5(join15(tmpdir4(), "clodable-fake-merge-"));
     try {
       const git = new Git(dir);
       await git.ok(["clone", "--quiet", this.bareRepo, "."]);
@@ -24570,7 +24608,7 @@ ${input2.body}`]);
       this.persist();
       return { sha };
     } finally {
-      await rm5(dir, { recursive: true, force: true });
+      await rm6(dir, { recursive: true, force: true });
     }
   }
   async deploymentsFor(sha) {
@@ -24598,7 +24636,7 @@ ${input2.body}`]);
 // ../core/src/github/gh-binary.ts
 import { createHash as createHash5 } from "node:crypto";
 import { existsSync as existsSync12 } from "node:fs";
-import { chmod as chmod5, mkdir as mkdir7, mkdtemp as mkdtemp5, rename as rename4, rm as rm6, symlink, unlink, writeFile as writeFile7 } from "node:fs/promises";
+import { chmod as chmod5, mkdir as mkdir7, mkdtemp as mkdtemp6, rename as rename4, rm as rm7, symlink, unlink, writeFile as writeFile7 } from "node:fs/promises";
 import { join as join16 } from "node:path";
 var GH_VERSION = "2.102.0";
 var RELEASES2 = {
@@ -24669,7 +24707,7 @@ async function download2(release, dir, path2) {
   const digest = createHash5("sha256").update(bytes).digest("hex");
   if (digest !== release.sha256) throw new Error("the download didn't match its checksum");
   await mkdir7(dir, { recursive: true });
-  const work = await mkdtemp5(join16(dir, ".download-"));
+  const work = await mkdtemp6(join16(dir, ".download-"));
   try {
     await writeFile7(join16(work, name), bytes);
     const inside2 = process.platform === "win32" ? `bin/${executable2}` : `${name.replace(/\.(zip|tar\.gz)$/, "")}/bin/${executable2}`;
@@ -24680,7 +24718,7 @@ async function download2(release, dir, path2) {
       if (!existsSync12(path2)) throw error62;
     });
   } finally {
-    await rm6(work, { recursive: true, force: true });
+    await rm7(work, { recursive: true, force: true });
   }
 }
 async function linkInBin(path2) {
@@ -25004,7 +25042,7 @@ function toPullRequest(raw) {
 // ../core/src/inbox.ts
 import { randomBytes } from "node:crypto";
 import { existsSync as existsSync13 } from "node:fs";
-import { readdir as readdir3, readFile as readFile9, rename as rename5, rm as rm7 } from "node:fs/promises";
+import { readdir as readdir3, readFile as readFile9, rename as rename5, rm as rm8 } from "node:fs/promises";
 import { join as join17 } from "node:path";
 var INBOX_DIR = ".clodable/inbox";
 var Page = external_exports.object({ url: external_exports.string(), path: external_exports.string(), title: external_exports.string().optional() });
@@ -25063,7 +25101,7 @@ async function waiting(root) {
     try {
       found2.push({ name, item: JSON.parse(text2) });
     } catch {
-      await rm7(join17(dir, name), { force: true });
+      await rm8(join17(dir, name), { force: true });
     }
   }
   return found2;
@@ -25074,7 +25112,7 @@ async function readInbox(root) {
 var SAFE_ID = /^[\w-]+$/;
 async function ackInbox(root, id) {
   if (!SAFE_ID.test(id)) return;
-  await rm7(join17(root, INBOX_DIR, `${id}.json`), { force: true });
+  await rm8(join17(root, INBOX_DIR, `${id}.json`), { force: true });
 }
 var PRESENCE_DIR = ".clodable/local";
 var LIVE_MS = 2e4;
@@ -25091,7 +25129,7 @@ async function livePresences(root, now) {
     } catch {
       continue;
     }
-    if (now - presence.alive > GONE_MS) await rm7(join17(dir, name), { force: true });
+    if (now - presence.alive > GONE_MS) await rm8(join17(dir, name), { force: true });
     else if (now - presence.alive <= LIVE_MS) live.set(presence.id, presence);
   }
   return live;
@@ -25123,25 +25161,25 @@ async function claimInbox(root, session) {
       continue;
     }
     items.push(item);
-    await rm7(claimed, { force: true });
+    await rm8(claimed, { force: true });
   }
   return items;
 }
 
 // ../core/src/move/copy.ts
 import { existsSync as existsSync16 } from "node:fs";
-import { mkdtemp as mkdtemp6, readdir as readdir5, readFile as readFile11, rename as rename7, rm as rm10 } from "node:fs/promises";
+import { mkdtemp as mkdtemp7, readdir as readdir5, readFile as readFile11, rename as rename7, rm as rm11 } from "node:fs/promises";
 import { join as join21 } from "node:path";
 
 // ../core/src/move/export.ts
 import { createWriteStream as createWriteStream3, existsSync as existsSync14 } from "node:fs";
-import { copyFile, readdir as readdir4, rm as rm9, stat as stat2, writeFile as writeFile8 } from "node:fs/promises";
+import { copyFile, readdir as readdir4, rm as rm10, stat as stat2, writeFile as writeFile8 } from "node:fs/promises";
 import { homedir as homedir2 } from "node:os";
 import { basename as basename4, extname, join as join18 } from "node:path";
 
 // ../core/src/move/zip.ts
 import { createReadStream, createWriteStream as createWriteStream2 } from "node:fs";
-import { open as open2, rename as rename6, rm as rm8 } from "node:fs/promises";
+import { open as open2, rename as rename6, rm as rm9 } from "node:fs/promises";
 import { Transform } from "node:stream";
 import { pipeline as pipeline2 } from "node:stream/promises";
 import { crc32, createInflateRaw } from "node:zlib";
@@ -25264,7 +25302,7 @@ async function extractEntry(path2, entry, target) {
     }
     await rename6(partial2, target);
   } catch (error62) {
-    await rm8(partial2, { force: true });
+    await rm9(partial2, { force: true });
     throw error62;
   }
 }
@@ -25295,7 +25333,7 @@ async function findExport(folder = join18(homedir2(), "Downloads")) {
 }
 async function takeBackup(source, dir) {
   const target = join18(dir, BACKUP);
-  await rm9(target, { force: true });
+  await rm10(target, { force: true });
   if (source.toLowerCase().endsWith(".zip")) {
     let entries;
     try {
@@ -26269,7 +26307,7 @@ async function* importExport(ws, options = {}) {
   const dir = await moveDir(ws.root);
   const before = await loadMove(ws.root);
   const pausedAt = before.switch?.liveAt ? void 0 : before.switch?.frozenAt;
-  const target = pausedAt ? await mkdtemp6(join21(dir, "incoming-")) : dir;
+  const target = pausedAt ? await mkdtemp7(join21(dir, "incoming-")) : dir;
   let summary;
   try {
     summary = (await readExport(file3, target)).summary;
@@ -26282,12 +26320,12 @@ async function* importExport(ws, options = {}) {
         });
       }
       for (const name of await readdir5(target)) {
-        await rm10(join21(dir, name), { recursive: true, force: true });
+        await rm11(join21(dir, name), { recursive: true, force: true });
         await rename7(join21(target, name), join21(dir, name));
       }
     }
   } finally {
-    if (pausedAt) await rm10(target, { recursive: true, force: true });
+    if (pausedAt) await rm11(target, { recursive: true, force: true });
   }
   const sourceRef = ws.project.supabase.projectRef ?? summary.sourceRefs[0];
   await updateMove(ws.root, (s) => {
@@ -28251,8 +28289,8 @@ function pickOrganization(organizations, slug) {
 }
 
 // ../core/src/publish.ts
-import { mkdtemp as mkdtemp7, rm as rm11 } from "node:fs/promises";
-import { tmpdir as tmpdir4 } from "node:os";
+import { mkdtemp as mkdtemp8, rm as rm12 } from "node:fs/promises";
+import { tmpdir as tmpdir5 } from "node:os";
 import { join as join27 } from "node:path";
 
 // ../core/src/publish-functions.ts
@@ -28584,6 +28622,16 @@ async function* publish(ws, options = {}) {
   await ws.git.fetch(ws.remote, ws.liveBranch);
   const behind = await ws.git.count(`HEAD..${ws.liveRef}`, { noMerges: true });
   if (behind > 0) {
+    const compared = await ws.git.checkMerge(ws.liveRef);
+    if (!compared.ok) {
+      yield step("sync", "failed", "Your draft and the live site changed the same thing");
+      throw new ClodableError({
+        code: "conflict",
+        message: "Your draft and the live site both changed the same thing.",
+        hint: "Ask Claude to review both versions with you. Your preview is unchanged.",
+        files: compared.conflicts
+      });
+    }
     const merged = await ws.git.merge(ws.liveRef, "Caught up with the live site");
     if (!merged.ok) {
       yield step("sync", "failed", "Your draft and the live site changed the same thing");
@@ -28714,7 +28762,7 @@ async function* undoPublish(ws, options = {}) {
   const [target] = options.sha ? await ws.git.log(`${options.sha}^!`) : await ws.git.log(ws.liveRef, { firstParent: true, limit: 1 });
   if (!target)
     throw new ClodableError({ code: "not-found", message: "There's no publish to undo yet." });
-  const dir = await mkdtemp7(join27(tmpdir4(), "clodable-undo-"));
+  const dir = await mkdtemp8(join27(tmpdir5(), "clodable-undo-"));
   const branch = `undo/${target.sha.slice(0, 7)}`;
   try {
     const side = await ws.git.worktreeAdd(dir, branch, ws.liveRef);
@@ -28795,7 +28843,7 @@ ${kindTrailer("undo")}`
     };
   } finally {
     await ws.git.worktreeRemove(dir);
-    await rm11(dir, { recursive: true, force: true });
+    await rm12(dir, { recursive: true, force: true });
     await ws.git.run(["branch", "-D", branch]);
   }
 }
