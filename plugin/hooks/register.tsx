@@ -1818,13 +1818,13 @@ export const register: Register = (on) => {
     const url = s.lastPublish?.url ?? s.liveUrl;
     return (
       <Box flexDirection="column" rowGap={2} paddingX={2} paddingY={1}>
-        <Box flexDirection="row" justifyContent="space-between" alignItems="center">
+        <Box flexDirection="column" rowGap={1} alignItems="flex-start">
           {header}
           {url ? siteLink(ui, url) : null}
         </Box>
         {appQuestions($, ui, s)}
         {movedOffCard($, ui, s, desktop)}
-        {siteCard($, ui, s)}
+        {a.kind === "publishing" || a.kind === "undoing" ? null : siteCard($, ui, s)}
         {backendCard($, ui, s)}
         {databaseCard($, ui, s)}
         {settingsCard($, ui, s)}
@@ -2480,7 +2480,11 @@ function stateCard(
     return card(
       ui,
       <Text bold>{a.kind === "publishing" ? "Publishing…" : "Undoing…"}</Text>,
-      <Text dimColor>Your live site keeps working meanwhile.</Text>,
+      <Text dimColor>
+        {s.site && !s.site.live
+          ? "Your app goes online when these checks finish."
+          : "Your live site keeps working meanwhile."}
+      </Text>,
       [],
       steps,
     );
