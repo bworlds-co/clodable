@@ -266,6 +266,7 @@ let backendOptions: {
 } | null = null;
 let backendOrg = "";
 let loadingOptions = false;
+const optionsError: Partial<Record<"site" | "backend", string>> = {};
 /** Setup running: its button gives way to its steps until it's done. */
 let settingUp = false;
 /** The setup's steps as they come in; kept after one that stopped, to show where. */
@@ -1047,9 +1048,20 @@ async function connectService($: EngineInterface, service: "supabase" | "netlify
 async function loadOptions($: EngineInterface, kind: "site" | "backend") {
   if (loadingOptions) return;
   loadingOptions = true;
+  delete optionsError[kind];
+  $.ui.invalidate("ui.render");
   try {
     const result = await cli($, [kind]);
     const data = result.ok ? result.data : null;
+    const choices = kind === "site" ? data?.teams : data?.organizations;
+    if (!choices?.length) {
+      optionsError[kind] =
+        result.error?.message ??
+        (kind === "site"
+          ? "No Netlify teams were found. Check your account, then try again."
+          : "No Supabase organizations were found. Check your account, then try again.");
+      return;
+    }
     if (kind === "site") {
       siteOptions = { teams: data?.teams ?? [] };
       if (!siteTeam && siteOptions.teams[0]) siteTeam = siteOptions.teams[0].slug;
@@ -1066,10 +1078,12 @@ async function loadOptions($: EngineInterface, kind: "site" | "backend") {
       );
       if (!backendOrg) backendOrg = (free ?? backendOptions.organizations[0])?.slug ?? "";
     }
+  } catch {
+    optionsError[kind] = "Your account choices couldn't load. Try again.";
   } finally {
     loadingOptions = false;
+    $.ui.invalidate("ui.render");
   }
-  $.ui.invalidate("ui.render");
 }
 
 /** The app isn't on the web after all: say so, and open the panel on putting it online. */
@@ -2769,7 +2783,28 @@ function siteCard($: EngineInterface, ui: PaneUi, s: ClodableStatus) {
       </Box>,
     );
   }
-  if (siteOptions === null) background(loadOptions($, "site"));
+  if (siteOptions === null) {
+    if (!optionsError.site) background(loadOptions($, "site"));
+    return card(
+      ui,
+      <Text bold>Set up hosting</Text>,
+      <Box flexDirection="column" rowGap={1}>
+        {about}
+        <Text dimColor>{optionsError.site ?? "Loading your Netlify teams…"}</Text>
+      </Box>,
+      optionsError.site
+        ? [
+            <Button
+              key="site-options-retry"
+              variant="secondary"
+              onPress={() => background(loadOptions($, "site"))}
+            >
+              Try again
+            </Button>,
+          ]
+        : [],
+    );
+  }
   const teams = siteOptions?.teams ?? [];
   return card(
     ui,
@@ -2787,7 +2822,9 @@ function siteCard($: EngineInterface, ui: PaneUi, s: ClodableStatus) {
             $.ui.invalidate("ui.render");
           }}
         />
-      ) : null}
+      ) : (
+        <Text dimColor>{`Netlify team: ${teams[0]?.name ?? ""}`}</Text>
+      )}
     </Box>,
     isPiloting()
       ? [claudeOnIt(ui)]
@@ -2877,7 +2914,33 @@ function backendCard($: EngineInterface, ui: PaneUi, s: ClodableStatus) {
       [notNow],
     );
   }
-  if (backendOptions === null) background(loadOptions($, "backend"));
+  if (backendOptions === null) {
+    if (!optionsError.backend) background(loadOptions($, "backend"));
+    return card(
+      ui,
+      <Text bold>Add a backend</Text>,
+      <Box flexDirection="column" rowGap={1}>
+        {about}
+        <Text dimColor>
+          {optionsError.backend ?? "Checking your Supabase organizations and costs…"}
+        </Text>
+      </Box>,
+      [
+        notNow,
+        ...(optionsError.backend
+          ? [
+              <Button
+                key="backend-options-retry"
+                variant="secondary"
+                onPress={() => background(loadOptions($, "backend"))}
+              >
+                Try again
+              </Button>,
+            ]
+          : []),
+      ],
+    );
+  }
   const orgs = backendOptions?.organizations ?? [];
   const org = orgs.find((o) => o.slug === backendOrg) ?? orgs[0];
   const cost = org ? backendOptions?.costs[org.slug] : undefined;
