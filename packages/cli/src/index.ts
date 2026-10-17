@@ -215,9 +215,14 @@ cli
 cli
   .command("kit", "Show (or add) the files Clodable keeps in your project")
   .option("--apply", "Write them")
+  .option("--runtime", "Refresh only the installed runtime and its instructions")
   .option("--live-url <url>", "Your live site's address")
   .action((options) =>
-    kitCommand(ctx(options), { apply: options.apply, liveUrl: options.liveUrl }),
+    kitCommand(ctx(options), {
+      apply: options.apply,
+      liveUrl: options.liveUrl,
+      runtime: options.runtime,
+    }),
   );
 
 cli

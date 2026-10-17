@@ -3,7 +3,7 @@
 
 export const PUSH_OR_REWRITE =
   /\bgit\s+(push|reset\s+--hard|rebase|filter-branch|filter-repo|update-ref)\b|\bgh\s+pr\s+merge\b/;
-export const OUR_PUBLISH = /\bclodable\s+(publish|undo)\b/;
+export const OUR_PUBLISH = /\bclodable(?:\.mjs)?["']?\s+(publish|undo)\b/;
 export const LEAVE_DRAFT = /\bgit\s+(checkout|switch)\s+(-[-\w]+\s+)*(main|master)\b/;
 /**
  * Clodable's private folder on this computer: the Supabase token, database passwords, and the
@@ -118,6 +118,13 @@ export function onlineCommandLine(root: string, args: string[]): string {
 export function isOnlineStep(root: string, command: string): boolean {
   return new RegExp(
     `^node "${escapeRegExp(root)}/cli/clodable\\.mjs" (site|backend)( create)?( --(team|org|region) [\\w.-]+)*$`,
+  ).test(command);
+}
+
+/** Only informational commands from the installed bundle or its project-local copy. */
+export function isRuntimeRead(root: string, command: string): boolean {
+  return new RegExp(
+    `^node "(?:${escapeRegExp(root)}/cli/clodable\\.mjs|\\.clodable/local/clodable\\.mjs)" (status|history|doctor|check|settings)( --json)?$`,
   ).test(command);
 }
 

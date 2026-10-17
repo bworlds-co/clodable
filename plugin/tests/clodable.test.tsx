@@ -8,6 +8,7 @@ import {
   isFactsRecord,
   isMoveStep,
   isOnlineStep,
+  isRuntimeRead,
   moveCommandLine,
   SECRET_STEP,
   safeCommand,
@@ -475,6 +476,8 @@ describe("guards", () => {
       "git push --force",
       "gh pr merge 3",
       "npx clodable publish",
+      'node ".clodable/local/clodable.mjs" publish',
+      `node "${PLUGIN_ROOT}/cli/clodable.mjs" undo`,
       "git reset --hard HEAD~1",
     ]) {
       const result: any = await $.tool.call({ tool: "Bash", command });
@@ -2936,6 +2939,43 @@ describe("restore", () => {
 });
 
 describe("the preview", () => {
+  test("refreshes the installed runtime before starting an existing app's preview", async ($, on) => {
+    const order: string[] = [];
+    harness(on, STATUS, true, {}, (argv, init) => {
+      if (!argv.includes("kit")) return;
+      expect(argv.slice(2)).toEqual(["kit", "--apply", "--runtime", "--json"]);
+      expect(init?.env?.CLODABLE_RUNTIME_SOURCE).toBe(`${PLUGIN_ROOT}/cli/clodable.mjs`);
+      order.push("runtime");
+      return out({ changes: [] });
+    });
+    on("fs.exists", () => ({ value: true }));
+    on("session.surfaces", () => ({ value: ["desktop"] }));
+    on("mcp.call", () => {
+      order.push("preview");
+      return { value: { content: [{ type: "text", text: '{"port":5189}' }], isError: false } };
+    });
+    await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+    await bandText($, "desktop", /not live yet/);
+    expect(order).toEqual(["runtime", "preview"]);
+  });
+
+  test("allows only informational commands from the installed runtime", () => {
+    for (const path of [`${PLUGIN_ROOT}/cli/clodable.mjs`, ".clodable/local/clodable.mjs"]) {
+      expect(isRuntimeRead(PLUGIN_ROOT, `node "${path}" status --json`)).toBe(true);
+      expect(isRuntimeRead(PLUGIN_ROOT, `node "${path}" history --json`)).toBe(true);
+      for (const tail of [
+        "publish",
+        "undo",
+        "settings --set SECRET value",
+        "status; echo extra",
+        "status --json && echo extra",
+      ]) {
+        expect(isRuntimeRead(PLUGIN_ROOT, `node "${path}" ${tail}`)).toBe(false);
+      }
+    }
+    expect(isRuntimeRead(PLUGIN_ROOT, 'node "/another/clodable.mjs" status --json')).toBe(false);
+  });
+
   test("opens with the session on Desktop, and the bar's Preview asks for it in the conversation", async ($, on) => {
     harness(on);
     const prompts: string[] = [];
@@ -3765,7 +3805,10 @@ describe("the tools Clodable needs", () => {
     expect(seen.setAt).toBe(seen.cliAt);
     expect(seen.node).toBe(OURS);
     // The CLI, and Claude's own runs of it, find the tools in the same place.
-    expect(seen.cliEnv).toEqual({ CLODABLE_TOOLS_DIR: TOOLS });
+    expect(seen.cliEnv).toEqual({
+      CLODABLE_TOOLS_DIR: TOOLS,
+      CLODABLE_RUNTIME_SOURCE: `${PLUGIN_ROOT}/cli/clodable.mjs`,
+    });
     expect(env.CLODABLE_TOOLS_DIR).toBe(TOOLS);
   });
 

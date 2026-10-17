@@ -11,6 +11,7 @@ import {
 import { NETLIFY_TOML, WORKFLOW_PATH } from "../move/site.js";
 import type { ProjectInfo } from "../project.js";
 import { agentsMd } from "./agents-md.js";
+import { hasLocalRuntime, installRuntime, LOCAL_CLI, LOCAL_PREVIEW } from "./runtime.js";
 
 /**
  * The repo kit: the handful of plain files that make a Lovable project a Clodable project.
@@ -25,6 +26,8 @@ export interface KitOptions {
   /** GitHub repository that hosts the Clodable plugin marketplace. */
   marketplaceRepo?: string;
   liveUrl?: string;
+  /** Refresh only the installed runtime and its instructions, without changing account settings. */
+  runtimeOnly?: boolean;
 }
 
 export interface KitChange {
@@ -104,6 +107,13 @@ export async function planKit(
 ): Promise<KitChange[]> {
   const root = project.root;
   const ref = supabaseRef(config, project);
+  if (options.runtimeOnly) {
+    return [
+      await agentsPlan(root, project, config, ref),
+      await launchPlan(root, options),
+      await gitignorePlan(root),
+    ];
+  }
   const planned = [
     await agentsPlan(root, project, config, ref),
     await claudePlan(root),
@@ -152,6 +162,7 @@ async function agentsPlan(
         supabaseRef: ref,
         backend: config.backend,
         hosting: config.hosting,
+        cliCommand: hasLocalRuntime(root) ? `node "${LOCAL_CLI}"` : undefined,
       }),
     ),
   );
@@ -175,14 +186,30 @@ async function launchPlan(root: string, options: KitOptions): Promise<KitChange>
     before,
     {},
   );
-  const dev = options.devCommand ?? clodableDev(launch.configurations ?? []) ?? previewCommand();
+  const existing = launch.configurations?.find((configuration) => configuration.name === "app");
+  const override = clodableDev(launch.configurations ?? []);
+  if (options.runtimeOnly && override && before) {
+    return change(
+      ".claude/launch.json",
+      "Keeps your explicit Clodable preview command",
+      before,
+      before,
+    );
+  }
+  const dev =
+    options.devCommand ??
+    override ??
+    (hasLocalRuntime(root) ? installedPreviewCommand() : previewCommand());
   const ours = {
     name: "app",
     runtimeExecutable: dev.executable,
     runtimeArgs: dev.args,
     // Lovable's templates, classic and TanStack Start, both serve on 8080.
-    port: options.port ?? 8080,
-    autoPort: true,
+    port:
+      options.port ??
+      (options.runtimeOnly && typeof existing?.port === "number" ? existing.port : 8080),
+    autoPort:
+      options.runtimeOnly && typeof existing?.autoPort === "boolean" ? existing.autoPort : true,
   };
   const others = (launch.configurations ?? []).filter(
     (c) =>
@@ -203,6 +230,12 @@ async function launchPlan(root: string, options: KitOptions): Promise<KitChange>
  * Code gives `clodable@clodable`, the plugin these settings turn on.
  */
 const TOOLS_PATH = "$HOME/.claude/plugins/data/clodable-clodable/tools/bin";
+
+function installedPreviewCommand(): { executable: string; args: string[] } {
+  return process.platform === "win32"
+    ? { executable: "node", args: [LOCAL_CLI, "dev"] }
+    : { executable: "/bin/sh", args: [LOCAL_PREVIEW] };
+}
 
 /**
  * How Desktop starts the preview: `npx clodable dev`. Desktop starts it with its own PATH, where
@@ -235,6 +268,7 @@ function clodableDev(
   if (typeof executable !== "string" || !Array.isArray(args)) return undefined;
   const words = [executable, ...args].map(String);
   const command = words.join(" ");
+  if (args.includes(LOCAL_PREVIEW) || args.includes(LOCAL_CLI)) return undefined;
   if (command === "npx clodable dev") return undefined;
   if (/^\/bin\/sh -c PATH="\$PATH:[^"]*" exec npx clodable dev$/.test(command)) return undefined;
   return words.some((w) => w.includes("clodable")) && words.includes("dev")
@@ -375,6 +409,8 @@ async function gitignorePlan(root: string): Promise<KitChange> {
 }
 
 export async function applyKit(root: string, changes: KitChange[]): Promise<KitChange[]> {
+  // Install before pointing Desktop at the bundle; a failed copy leaves the old launch usable.
+  if (changes.some((change) => change.path === ".claude/launch.json")) await installRuntime(root);
   const written: KitChange[] = [];
   for (const change of changes) {
     if (change.action === "unchanged") continue;

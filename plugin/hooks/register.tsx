@@ -47,6 +47,7 @@ import {
   isFactsRecord,
   isMoveStep,
   isOnlineStep,
+  isRuntimeRead,
   LEAVE_DRAFT,
   moveCommandLine,
   OUR_PUBLISH,
@@ -359,6 +360,8 @@ async function lookAtFolder($: EngineInterface) {
   appSettingsStatus = null;
   settingsAsked = false;
   deployable = [];
+  runtimeReady = inApp === true ? refreshRuntime($) : Promise.resolve(true);
+  await runtimeReady;
   // The bar says "getting ready" until the new folder's status is in.
   if ((await read($, status)) !== null) {
     await update<ClodableStatus | ClodableNotReady | null>($, status, () => null);
@@ -516,7 +519,10 @@ function argv($: EngineInterface, args: string[]): string[] {
 }
 
 /** What the CLI needs to know beside its arguments: where the tools Clodable fetched live. */
-const cliEnv = (): Record<string, string> => (toolsDir ? { CLODABLE_TOOLS_DIR: toolsDir } : {});
+const cliEnv = ($: EngineInterface): Record<string, string> => ({
+  ...(toolsDir ? { CLODABLE_TOOLS_DIR: toolsDir } : {}),
+  CLODABLE_RUNTIME_SOURCE: `${$.plugin.root}/cli/clodable.mjs`,
+});
 
 /** The longest the engine lets `$.process.run` take; it refuses to start anything asking for more. */
 const MAX_RUN_MS = 10 * 60_000;
@@ -531,7 +537,7 @@ async function cli(
   try {
     const out = await $.process.run(argv($, args), {
       cwd: await syncFolder($),
-      env: cliEnv(),
+      env: cliEnv($),
       timeoutMs: Math.min(timeoutMs, MAX_RUN_MS),
       ...(input !== undefined ? { stdin: input } : {}),
     });
@@ -569,7 +575,7 @@ async function streamCli(
     for await (const chunk of $.process.spawn({
       argv: argv($, args),
       cwd: await syncFolder($),
-      env: cliEnv(),
+      env: cliEnv($),
       ...(input !== undefined ? { input } : {}),
     })) {
       if (chunk.stream !== "stdout") continue;
@@ -1250,7 +1256,27 @@ async function restoreNow($: EngineInterface, sha: string) {
  * Desktop's own preview tools and the `app` entry the kit writes in .claude/launch.json. No
  * message goes to Claude. The tools connect as the session starts, so it tries a few times.
  */
+let runtimeReady: Promise<boolean> = Promise.resolve(true);
+
+/** Refresh a ready app before Desktop starts its preview, including after a spare-folder move. */
+async function refreshRuntime($: EngineInterface): Promise<boolean> {
+  const result = await cli($, ["kit", "--apply", "--runtime"]);
+  if (!result.ok) {
+    note($, "The installed Clodable couldn't be prepared for this app's preview.");
+    return false;
+  }
+  if (
+    result.data?.changes?.some(
+      (change: { path: string; action: string }) =>
+        change.path === "AGENTS.md" && change.action !== "unchanged",
+    )
+  )
+    await shareAppRules($);
+  return true;
+}
+
 async function startPreview($: EngineInterface, attempt = 0): Promise<void> {
+  if (!(await runtimeReady)) return;
   if (previewUrl || (attempt === 0 && previewAsked)) return;
   previewAsked = true;
   try {
@@ -1708,6 +1734,7 @@ export const register: Register = (on) => {
       e.tool === "Bash" &&
       (isMoveStep($.plugin.root, ownCommand) ||
         isOnlineStep($.plugin.root, ownCommand) ||
+        isRuntimeRead($.plugin.root, ownCommand) ||
         isFactsRecord($.plugin.root, ownCommand))
     )
       return { ...verdict, decision: "allow" };
