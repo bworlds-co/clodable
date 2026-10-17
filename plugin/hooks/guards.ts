@@ -52,6 +52,25 @@ export function dbCommandIn(
 
 const escapeRegExp = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
+/**
+ * Claude sometimes repeats its working folder before the panel's command. Strip only a literal
+ * cd into this app, never another folder, shell expansion, or an extra command. The remaining
+ * command still has to pass its exact allowlist.
+ */
+export function commandInApp(command: string, cwd: string): string {
+  const value = command.trim();
+  if (!cwd || /[\n\r]/.test(cwd)) return value;
+  const paths: string[] = [];
+  if (!cwd.includes("'")) paths.push(`'${cwd}'`);
+  if (!/["`$\\]/.test(cwd)) paths.push(`"${cwd}"`);
+  if (/^[\w/.-]+$/.test(cwd)) paths.push(cwd);
+  for (const path of paths) {
+    const prefix = new RegExp(`^cd\\s+(?:--\\s+)?${escapeRegExp(path)}\\s*&&\\s*`);
+    if (prefix.test(value)) return value.replace(prefix, "");
+  }
+  return value;
+}
+
 /** How Claude runs a move step: Clodable's own command line, next to the plugin at `root`. */
 export function moveCommandLine(root: string, args: string[]): string {
   return `node "${root}/cli/clodable.mjs" move ${args.join(" ")}`;

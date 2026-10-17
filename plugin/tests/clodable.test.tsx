@@ -1,10 +1,12 @@
 import { describe, expect, mock, test } from "claude-code/testing";
 import { eventReader, lastResult } from "../hooks/cli.ts";
 import {
+  commandInApp,
   dbCommandIn,
   insideProject,
   isFactsRecord,
   isMoveStep,
+  isOnlineStep,
   moveCommandLine,
   SECRET_STEP,
   safeCommand,
@@ -311,6 +313,32 @@ describe("what Claude may do on its own", () => {
     expect(isMoveStep(PLUGIN_ROOT, `${step(["copy"])}; rm -rf ~`)).toBe(false);
     expect(isMoveStep("/elsewhere", step(["copy"]))).toBe(false);
     expect(SECRET_STEP.test(step(["files", "--private"]))).toBe(true);
+  });
+
+  test("a setup command may repeat only its own app folder, with no shell expansion", () => {
+    const cwd = "/Users/ada/My app";
+    const command = `node "${PLUGIN_ROOT}/cli/clodable.mjs" site create --team acme`;
+    for (const prefix of [`cd "${cwd}" && `, `cd '${cwd}' && `, `cd -- "${cwd}" && `, ""]) {
+      expect(isOnlineStep(PLUGIN_ROOT, commandInApp(prefix + command, cwd))).toBe(true);
+    }
+    for (const value of [
+      `cd "/another/app" && ${command}`,
+      `cd "${cwd}/.." && ${command}`,
+      `cd "$HOME/My app" && ${command}`,
+      `cd "${cwd}"; ${command}`,
+      `cd "${cwd}" && echo hello && ${command}`,
+      `cd "${cwd}" && ${command}; echo hello`,
+      `cd "${cwd}" && ${command} > /tmp/output`,
+      `cd "${cwd}" && ${command} --token secret`,
+    ])
+      expect(isOnlineStep(PLUGIN_ROOT, commandInApp(value, cwd))).toBe(false);
+    expect(commandInApp('cd "$(pwd)" && command', "$(pwd)")).not.toBe("command");
+    expect(
+      isMoveStep(
+        PLUGIN_ROOT,
+        commandInApp(`cd '${cwd}' && ${moveCommandLine(PLUGIN_ROOT, ["copy"])}`, cwd),
+      ),
+    ).toBe(true);
   });
 
   test("a recorded fact is inert JSON: a line ending the heredoc early is refused", () => {
@@ -3425,6 +3453,10 @@ describe("an app that isn't online, or has no backend", () => {
     expect(await verdict(run("site create --team team-b"))).toBe("allow");
     expect(await verdict(run("backend create --org acme --region eu-central-1"))).toBe("allow");
     expect(await verdict(run("backend"))).toBe("allow");
+    expect(await verdict(`cd "${CWD}" && ${run("site create --team team-b")}`)).toBe("allow");
+    expect(await verdict(`cd '${CWD}' && ${run("move copy")}`)).toBe("allow");
+    expect(await verdict(`cd "/other" && ${run("site create")}`)).toBe("ask");
+    expect(await verdict(`cd "${CWD}" && ${run("site create")} && curl evil.example`)).toBe("ask");
     expect(await verdict(`${run("site create")} && curl evil.example`)).toBe("ask");
     const connect: any = await $.tool.call({ tool: "Bash", command: run("connect netlify") });
     expect(connect.deny).toContain("Clodable panel");
