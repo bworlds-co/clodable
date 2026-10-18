@@ -3124,25 +3124,15 @@ function setupPane(
               key="new-app-name"
               label="App name"
               value={newAppName}
-              submitLabel="Use this name"
+              submitLabel="Create private app"
               onInput={(value) => {
                 newAppName = value.trim();
               }}
               onSubmit={(value) => {
                 newAppName = value.trim();
-                $.ui.invalidate("ui.render");
+                background(setUpSaving($, (github?.detail ?? "").replace(/^@/, "")));
               }}
             />
-          ) : null}
-          {!settingUp ? (
-            <Button
-              key="create-private-app"
-              variant="primary"
-              dimColor={turnActive || !github?.detail}
-              onPress={() => background(setUpSaving($, (github?.detail ?? "").replace(/^@/, "")))}
-            >
-              Create private app and save
-            </Button>
           ) : null}
         </Box>
       ) : s?.reason === "no-kit" ? (
