@@ -48,6 +48,8 @@ export class Toolbar {
   private popover: HTMLElement | undefined;
   private mode: Mode = "idle";
   private minimized = false;
+  private shortViewport = innerHeight <= 420;
+  private expandedInShortViewport = false;
   private editing: Editing | undefined;
   private device: Device;
 
@@ -112,8 +114,16 @@ export class Toolbar {
 
   private draw() {
     if (this.surface === "outer") this.drawDeviceBar();
-    else if (this.minimized) this.drawPebble();
+    else if (this.collapsed) this.drawPebble();
     else this.drawDock();
+  }
+
+  /** A split Desktop preview leaves little room for a full floating dock. */
+  private get collapsed() {
+    return (
+      this.minimized ||
+      (this.shortViewport && !this.expandedInShortViewport && this.mode === "idle")
+    );
   }
 
   /** Around the device frame: the size switch, the screen's size, and Rotate. */
@@ -151,18 +161,22 @@ export class Toolbar {
 
   /** The tools, hidden: one clod in the corner that brings them back. */
   private drawPebble() {
+    const onCopy = config()?.backend === "copy";
+    const labelled = onCopy || (this.shortViewport && !this.minimized);
     this.hintSlot.replaceChildren();
     this.dockSlot.replaceChildren(
       h(
         "button",
         {
-          class: "pebble",
+          class: `pebble${labelled ? " labelled" : ""}`,
           "data-key": "pebble",
           "aria-label": "Show Clodable tools",
+          ...(onCopy ? { "aria-description": "This preview uses a copy of your data." } : {}),
           title: "Show Clodable tools (⌥⇧H)",
           onclick: () => this.setMinimized(false),
         },
         this.mark(24),
+        ...(labelled ? [h("span", {}, onCopy ? "Copy · Tools" : "Tools")] : []),
       ),
     );
   }
@@ -301,6 +315,8 @@ export class Toolbar {
     if (this.editing) this.finishEdit(false);
     this.closePopover();
     this.mode = mode;
+    // A tool shortcut must show its controls, including after Hide.
+    if (mode !== "idle") this.minimized = false;
     this.hover.hide();
     document.documentElement.style.cursor = "";
     this.render();
@@ -308,6 +324,7 @@ export class Toolbar {
 
   private setMinimized(minimized: boolean) {
     this.minimized = minimized;
+    this.expandedInShortViewport = !minimized;
     try {
       localStorage.setItem(STORE, JSON.stringify({ minimized }));
     } catch {
@@ -347,6 +364,14 @@ export class Toolbar {
   }
 
   private listen() {
+    addEventListener("resize", () => {
+      const short = innerHeight <= 420;
+      if (short === this.shortViewport) return;
+      this.shortViewport = short;
+      this.expandedInShortViewport = false;
+      this.closePopover();
+      this.render();
+    });
     let pending = 0;
     addEventListener(
       "pointermove",
@@ -436,7 +461,7 @@ export class Toolbar {
       const map: Record<string, () => void> = {
         KeyE: () => this.setMode(this.mode === "edit" ? "idle" : "edit"),
         KeyA: () => this.setMode(this.mode === "ask" ? "idle" : "ask"),
-        KeyH: () => this.setMinimized(!this.minimized),
+        KeyH: () => this.setMinimized(!this.collapsed),
       };
       const action = map[e.code];
       if (action && !(typing && !this.editing)) {

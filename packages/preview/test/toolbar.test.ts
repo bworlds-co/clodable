@@ -93,4 +93,35 @@ describe("the toolbar, from the keyboard", () => {
     expect(document.activeElement).toBe(own);
     own.remove();
   });
+
+  it("keeps a short preview clear, without saving an automatic Hide preference", () => {
+    press("Edit text"); // Return to idle after the preceding shortcut check.
+    vi.stubGlobal("innerHeight", 320);
+    dispatchEvent(new Event("resize"));
+    expect(button("Show Clodable tools").textContent).toContain("Tools");
+    expect(shadow.querySelector('[role="toolbar"]')).toBeNull();
+    expect(JSON.parse(localStorage.getItem("clodable:toolbar")!).minimized).toBe(false);
+    press("Show Clodable tools");
+    expect(button("Edit text").isConnected).toBe(true);
+    expect(focused()).toBe("Hide Clodable tools");
+    vi.stubGlobal("innerHeight", 820);
+    dispatchEvent(new Event("resize"));
+    expect(button("Edit text").isConnected).toBe(true);
+  });
+
+  it("shows tools from shortcuts in a short preview and keeps Copy visible when hidden", () => {
+    vi.stubGlobal("__CLODABLE__", { backend: "copy" });
+    vi.stubGlobal("innerHeight", 320);
+    dispatchEvent(new Event("resize"));
+    expect(button("Show Clodable tools").textContent).toContain("Copy");
+    dispatchEvent(new KeyboardEvent("keydown", { code: "KeyH", altKey: true, shiftKey: true }));
+    expect(shadow.querySelector('[role="toolbar"]')).not.toBeNull();
+    press("Hide Clodable tools");
+    expect(button("Show Clodable tools").textContent).toContain("Copy");
+    dispatchEvent(new KeyboardEvent("keydown", { code: "KeyE", altKey: true, shiftKey: true }));
+    expect(button("Edit text").getAttribute("aria-pressed")).toBe("true");
+    dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+    expect(button("Show Clodable tools").textContent).toContain("Copy");
+    vi.unstubAllGlobals();
+  });
 });

@@ -111,6 +111,11 @@ button:focus-visible, [tabindex]:focus-visible, textarea:focus-visible {
   transition: transform var(--cl-fast) var(--cl-ease-out);
 }
 .pebble:hover { transform: translateY(-2px); }
+.pebble.labelled {
+  width: auto; min-width: 44px; max-width: calc(100vw - 32px); padding: 0 12px;
+  display: flex; gap: 7px; border-radius: var(--cl-radius-pill);
+  white-space: nowrap; font-size: 12px; font-weight: 500;
+}
 
 /* ── Hint above the dock ──────────────────────────────────────────── */
 .hint {
