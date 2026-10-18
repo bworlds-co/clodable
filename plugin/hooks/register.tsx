@@ -232,6 +232,8 @@ let appSettingsStatus: {
   lovable: string[];
   site?: string[];
 } | null = null;
+/** A saved value is never read back; Change opens an empty replacement field. */
+let editingAppSetting: string | null = null;
 /** The database's own secrets (vault) that Lovable can't hand over: names only. */
 let moveVault: { wanted: string[]; set: string[]; query?: string } | null = null;
 /** The editing view asks for them once by itself; panel opens and saves ask again. */
@@ -379,6 +381,7 @@ async function lookAtFolder($: EngineInterface) {
   assessment = null;
   assessedFacts = "";
   appSettingsStatus = null;
+  editingAppSetting = null;
   settingsAsked = false;
   deployable = [];
   runtimeReady = inApp === true ? refreshRuntime($) : Promise.resolve(true);
@@ -1201,8 +1204,13 @@ async function saveSetting($: EngineInterface, name: string, value: string) {
   const result = await cli($, ["setting", name], 60_000, value);
   if (moving) moveRun = null;
   if (!result.ok) $.ui.toast(result.error?.message ?? `Couldn't save ${name}.`);
+  else {
+    if (editingAppSetting === name) editingAppSetting = null;
+    $.ui.toast(`Saved ${name}.`);
+  }
   await loadSettings($);
   if (moving) await loadMove($);
+  $.ui.invalidate("ui.render");
 }
 
 const tailOf = (text: string) => text.trim().slice(-200);
@@ -3707,11 +3715,67 @@ function backendCard($: EngineInterface, ui: PaneUi, s: ClodableStatus) {
   );
 }
 
-/** The settings the app's server code reads, missing on this computer or on the site. */
+/** Missing values to add, and saved values to replace without revealing them. */
 function settingsCard($: EngineInterface, ui: PaneUi, s: ClodableStatus) {
-  const { Text } = ui;
+  const { Box, Text, Button } = ui;
   const fields = settingsFields($, ui, "app-setting", s.backend === "lovable-cloud");
-  return fields ? card(ui, <Text bold>Your app's settings</Text>, fields) : null;
+  const st = appSettingsStatus;
+  const saved = (st?.wanted ?? []).filter(
+    (name) => st?.local.includes(name) && (st.site === undefined || st.site.includes(name)),
+  );
+  if (!fields && saved.length === 0) return null;
+  return card(
+    ui,
+    <Text bold>Your app's settings</Text>,
+    <Box flexDirection="column" rowGap={1}>
+      {fields}
+      {saved.map((name) => (
+        <Box key={`saved-setting-${name}`} flexDirection="column" rowGap={1}>
+          {editingAppSetting === name ? (
+            <Box flexDirection="column" rowGap={1}>
+              {pasteField(
+                ui,
+                `app-setting-${name}`,
+                name,
+                (value) => background(saveSetting($, name, value)),
+                {
+                  placeholder: "Paste the new value",
+                  note: st?.site
+                    ? "Saving replaces this value for your preview and your site on Netlify."
+                    : "Saving replaces this value for your preview on this computer.",
+                },
+              )}
+              <Button
+                key={`setting-cancel-${name}`}
+                variant="secondary"
+                onPress={() => {
+                  editingAppSetting = null;
+                  $.ui.invalidate("ui.render");
+                }}
+              >
+                Cancel
+              </Button>
+            </Box>
+          ) : (
+            <Box flexDirection="row" columnGap={1} alignItems="center">
+              <Text bold>{name}</Text>
+              <Text dimColor>Saved</Text>
+              <Button
+                key={`setting-change-${name}`}
+                variant="secondary"
+                onPress={() => {
+                  editingAppSetting = name;
+                  $.ui.invalidate("ui.render");
+                }}
+              >
+                Change
+              </Button>
+            </Box>
+          )}
+        </Box>
+      ))}
+    </Box>,
+  );
 }
 
 /** Missing setup facts are a conversation, not an infrastructure questionnaire. */

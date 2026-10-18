@@ -2643,6 +2643,87 @@ describe("every step of the move", () => {
   });
 });
 
+describe("saved app settings", () => {
+  test("a saved setting remains changeable without revealing it or sending it to chat", async ($, on) => {
+    let saved = false;
+    const status = () =>
+      out({ wanted: ["GREETING"], local: saved ? ["GREETING"] : [], lovable: [] });
+    const calls = harness(on, STATUS, true, {
+      settings: status,
+      setting: () => {
+        saved = true;
+        return status();
+      },
+    });
+    const session = mock.session(on);
+    const prompts: string[] = [];
+    on("prompt.submit", (_$: unknown, e: { text: string }) => {
+      prompts.push(e.text);
+      return { text: e.text };
+    });
+    await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+    await $.tool.call({ tool: "mcp__clodable__open_panel", view: "settings" } as never);
+    const pane = await $.ui.mount(PANE_PROPS);
+    for (let i = 0; i < 30 && !(await pane.find({ key: "app-setting-GREETING" })); i++)
+      await pane.redraw();
+    await pane.input({ key: "app-setting-GREETING", text: "first-private-value", kind: "submit" });
+    for (let i = 0; i < 30 && !(await pane.find({ key: "setting-change-GREETING" })); i++)
+      await pane.redraw();
+    expect(await pane.find({ key: "setting-change-GREETING" })).toBeDefined();
+    expect(await pane.find({ key: "app-setting-GREETING" })).toBeUndefined();
+    expect(JSON.stringify(await pane.drawn())).not.toContain("first-private-value");
+
+    await pane.press({ key: "setting-change-GREETING" });
+    const input = await pane.find({ key: "app-setting-GREETING" });
+    expect(input?.props.value).toBe("");
+    expect(
+      await pane.find({ type: "Text", text: /for your preview on this computer/ }),
+    ).toBeDefined();
+    await pane.press({ key: "setting-cancel-GREETING" });
+    expect(calls.filter((c) => c[0] === "setting")).toHaveLength(1);
+    await pane.press({ key: "setting-change-GREETING" });
+    await pane.input({
+      key: "app-setting-GREETING",
+      text: "replacement-private-value",
+      kind: "submit",
+    });
+    for (let i = 0; i < 30 && !(await pane.find({ key: "setting-change-GREETING" })); i++)
+      await pane.redraw();
+    expect(await pane.find({ key: "app-setting-GREETING" })).toBeUndefined();
+    const at = calls.findLastIndex((c) => c[0] === "setting");
+    expect(calls[at]).toEqual(["setting", "GREETING", "--json"]);
+    expect((calls as any).stdins[at]).toBe("replacement-private-value");
+    expect(JSON.stringify(calls)).not.toContain("private-value");
+    expect(JSON.stringify(await pane.drawn())).not.toContain("private-value");
+    expect(readBy(session).join(" ")).not.toContain("private-value");
+    expect(prompts).toEqual([]);
+    await pane.unmount();
+  });
+
+  test("a failed replacement keeps its field and explains the site scope before saving", async ($, on) => {
+    const calls = harness(on, STATUS, true, {
+      settings: out({ wanted: ["GREETING"], local: ["GREETING"], site: ["GREETING"], lovable: [] }),
+      setting: out({ message: "Couldn't reach your site." }, false),
+    });
+    await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+    await $.tool.call({ tool: "mcp__clodable__open_panel", view: "settings" } as never);
+    const pane = await $.ui.mount(PANE_PROPS);
+    for (let i = 0; i < 30 && !(await pane.find({ key: "setting-change-GREETING" })); i++)
+      await pane.redraw();
+    await pane.press({ key: "setting-change-GREETING" });
+    expect(
+      await pane.find({ type: "Text", text: /for your preview and your site on Netlify/ }),
+    ).toBeDefined();
+    await pane.input({ key: "app-setting-GREETING", text: "replacement", kind: "submit" });
+    for (let i = 0; i < 30 && !calls.some((c) => c[0] === "setting"); i++) await pane.redraw();
+    expect(await pane.find({ key: "app-setting-GREETING" })).toBeDefined();
+    await pane.press({ key: "setting-cancel-GREETING" });
+    expect(await pane.find({ key: "setting-change-GREETING" })).toBeDefined();
+    expect(calls.filter((c) => c[0] === "setting")).toHaveLength(1);
+    await pane.unmount();
+  });
+});
+
 describe("worth a look", () => {
   test("a fix that's a command is Claude's to run: the builder gets a button, never the command", async ($, on) => {
     harness(on, STATUS, true, {
