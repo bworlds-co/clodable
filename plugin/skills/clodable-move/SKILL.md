@@ -6,7 +6,7 @@ description: Runs the steps of a builder's move off Lovable in the conversation,
 
 # Moving off Lovable, step by step
 
-The builder pressed a step in the Clodable panel (Move off Lovable). The exact command for that step reaches you beside their message, from Clodable (their message stays in their words). You run it, read what it says, tell them in plain words, and deal with what goes wrong. The panel shows the steps and where the move stands; the conversation is where things happen.
+The builder may press a step in the Clodable panel or ask naturally in the conversation. A panel request includes its exact command beside their message. A conversational request may not. Use the installed Clodable command from the app's `AGENTS.md`; in a set-up app it is `node ".clodable/local/clodable.mjs"`. Never fetch another version or inspect Clodable's implementation to discover an ordinary command. The panel shows where the move stands; explain choices and investigate problems in the conversation.
 
 Their live app keeps running on Lovable until the switch: everything before it builds a **working copy** on their own Supabase. The switch (below) moves the live app over.
 
@@ -17,6 +17,21 @@ Their live app keeps running on Lovable until the switch: everything before it b
 - Read the output: the steps, the checks (✓ fine, ! needs a look), the counts.
 - Answer in two to four sentences: what happened, what it means for them, and what comes next (the panel shows the next step's button). Use their words: backend, copy, data, people, files, live. Never git words.
 - Say what's surprising, even when the step "worked": an export with 0 people when they have users, fewer rows than they'd expect, a check marked !, an empty feature on the copy.
+
+### When the request starts in conversation
+
+Run `move status --json` first if the current state is not already available. Use that result to avoid repeating a completed copy or creating anything again. These are supported commands, with the same installed command prefix above:
+
+| Request | Next action |
+|---|---|
+| "Where are we?", "continue the move" | `move status --json`; explain the next unfinished step. Do not treat "continue" as consent for a live change or an account/cost choice. |
+| "Try the copy", "switch my preview to the copy" | `move preview copy --json`, then `move diagnose --json`. Open the existing preview with Desktop's preview tools, or start its configured `app` entry if needed. Check the requested app features; a successful database check alone does not establish they work. |
+| "Check the copy", "is my new backend ready?" | `move diagnose --json`. Keep what was checked separate from features or data that could not be tested. |
+| "Show live data in my preview" | `move preview live --json`, only when explicitly requested; remind them that edits in this preview affect live data. |
+| "Read this export" | `move export --file <path> --json`; respect the matching and freshness rules below. |
+| "Copy my data" | Check status and prerequisites, then `move copy --json` when that operation is requested. Copying again replaces the rehearsal's data and accounts; explain that effect before repeating it. |
+
+For a command not listed here or supplied by the panel, consult the installed command's `move --help` before exploring files. Secret entry, account consent, Publish and live-switch boundaries remain unchanged. Keep the builder-facing reply brief; do not repeat command syntax or local addresses.
 
 ## Looking at the app first
 
