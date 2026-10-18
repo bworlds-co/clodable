@@ -12,11 +12,11 @@ Prepared October 18, 2026. Open Claude Desktop → **Code** and use the three nu
 
 Keep **Auto** permissions and the current default model. The two newly prepared sessions use Opus 5.5 Extra, as Desktop selected it. If you start a new session, choose **This computer** and the matching folder.
 
-The installed Clodable build contains the UX fixes. It still carries the `0.2.2` label; reinstalling the released version would not test all these fixes. Describe changes in the conversation. Use the panel for controls and enter any requested secret there.
+The installed Clodable build contains the UX fixes. It still carries the `0.2.2` label; reinstalling the released version would not test all these fixes. Describe changes in the conversation. Use the panel for controls and enter any requested secret there. **Open Clodable**, beside the composer, remains available when Desktop hides its status bar for a question card. All three retained sessions were refreshed after the owner-review fixes through PR #109; no reinstall is needed.
 
 ## 01 — Start from an idea
 
-The folder is empty. Type directly into Claude's normal message box—no command or panel first:
+This session now contains the book-sharing prototype from your test. Continue shaping it here, or choose a new empty folder to repeat the first-use journey. In a fresh folder, type directly into Claude's normal message box—no command or panel first:
 
 > Make a simple app for sharing books with my neighbours. I want to see which books are available and mark one as borrowed. Start with sample books.
 
@@ -26,16 +26,16 @@ Optional next step:
 
 > I want to keep this app and work on it again tomorrow.
 
-Clodable should offer **Set up saving**, name your GitHub account and ask before creating a private app. Hosting and a shared database are later choices. Browser-local sample data does not establish that neighbours share the same data.
+Clodable should offer **Set up saving**, name your GitHub account and ask before creating a private app. Edit the name and use the single **Create private app** action. Hosting and a shared database are later choices. Browser-local sample data does not establish that neighbours share the same data.
 
 You can stop after the local prototype. To try the GitHub-import entry instead, use another empty folder; do not import into the folder containing your prototype.
 
 ## 02 — Edit, publish and undo
 
-This is the retained disposable test app. Hosting and its database are already connected. The fresh session opened with **Everything is live**, and its preview now uses the installed Clodable runtime.
+This is the retained disposable test app. Hosting and its database are configured. Your review left a failed host update: the refreshed panel now identifies it and exposes **Publishing connection**. Repair that connection in the panel before publishing again. With no new edits, **Retry Publish** sends the saved version again; no incidental app edit is needed. This repair has not been performed on your live test site during the UX fix pass.
 
 1. Ask: **“Show me my app, then make the home-page introduction warmer and easier to read.”** Check the preview and the saving indicator.
-2. Use **Edit text** in the preview. Then use **Point & ask** on a heading and ask for a visual change.
+2. Open the small **Tools** entry in the preview and use **Edit text**. Then use **Point & ask** on a heading and ask for a visual change.
 3. Ask: **“Show my previous versions.”** Expect History to open with a short acknowledgement. Try restoring one of your test changes.
 4. Make another visible change, click **Publish**, and check the [test website](https://github-import-20261017.netlify.app).
 5. Try **Undo** immediately after publication. Later, use the app's controls or ask how to undo the last publication. Reload the website to check the result.
@@ -53,6 +53,8 @@ Start with:
 
 > Where are we in the move? Explain what has been tested and what remains. Keep my live Lovable app unchanged.
 
+The migration panel should open at its current step. Expect a short checkpoint that distinguishes earlier checks from checks performed now. **Open Clodable** also reopens the move if you close its panel.
+
 Then:
 
 > Let me try the existing copy. Reuse its signed-in preview if available. Do not copy the data again or publish.
@@ -67,7 +69,8 @@ Claude should explain outcomes in your app's words, make small changes directly,
 
 ## Cleanup and recovery
 
-- **52 sessions archived**, with history retained. Three unrelated sessions temporarily caught by a sidebar-grouping mistake were restored and verified. The earlier **H1 title SEO optimization** conversation was also restored and retained.
+- **Seven owner-review verification sessions were also archived** after the final checks. Your three numbered test sessions and unrelated conversations remain.
+- **52 sessions archived in the earlier cleanup**, with history retained. Three unrelated sessions temporarily caught by a sidebar-grouping mistake were restored and verified. The earlier **H1 title SEO optimization** conversation was also restored and retained.
 - **Ten local test folders archived** at `/Users/manu/Documents/Clodable Test Archive/2026-10-18`. Its `cleanup-manifest.json` records original locations. The two retained app folders keep their original paths.
 - `_runs` keeps screenshots and regression evidence; it is not a manual-test app. The original `~/Clodable Demo` also remains outside the three-scenario workspace.
 - Five duplicate Tiny Notes preview servers were stopped. The original copy preview and the everyday app preview were kept.
