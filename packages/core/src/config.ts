@@ -87,6 +87,17 @@ export const LocalStateSchema = z.object({
       noHost: z.boolean().optional(),
     })
     .optional(),
+  /** The exact version accepted for publication but not yet confirmed by the host. */
+  pendingPublish: z
+    .object({
+      sha: z.string(),
+      title: z.string(),
+      at: z.string(),
+      pullRequest: z.object({ number: z.number(), url: z.string() }),
+      state: z.enum(["pending", "failed"]),
+      ignoredDeploymentIds: z.array(z.number()).optional(),
+    })
+    .optional(),
   /** When a Publish was first seen live on the site Clodable put on Netlify. */
   siteLiveAt: z.string().optional(),
   /** The app's settings set on that site (names only). */

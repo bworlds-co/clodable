@@ -1,6 +1,6 @@
 import { ScannerUnavailable } from "./checks/gitleaks.js";
 import { describeFinding, type SecretFinding, scanStaged, scanUnsent } from "./checks/secrets.js";
-import type { ProjectConfig } from "./config.js";
+import type { LocalState, ProjectConfig } from "./config.js";
 import { ClodableError } from "./errors.js";
 import type { Commit, CommitKind } from "./git.js";
 import type { PullRequest } from "./github/types.js";
@@ -54,6 +54,7 @@ export interface Status {
   merging: boolean;
   conflicts: string[];
   pullRequest?: { number: number; url: string };
+  pendingPublish?: LocalState["pendingPublish"];
   lastPublish?: { sha: string; title: string; at: string; url?: string; noHost?: boolean };
   /** A move off Lovable has started (Claude looked at the app, or a way to move was chosen) and isn't over. */
   movingOffLovable?: true;
@@ -265,8 +266,19 @@ export async function countUnpublished(ws: Workspace): Promise<number> {
  * restore of the version before it) leave the app as it's live, so nothing is waiting then.
  */
 async function waitingSaves(ws: Workspace): Promise<Commit[]> {
+  if (await matchesPendingPublish(ws)) return [];
   const saves = await unpublishedSaves(ws, { buildersOnly: true });
   return saves.length > 0 && (await sameAsLive(ws)) ? [] : saves;
+}
+
+/** A failed host update leaves a squash-equivalent draft, not another unpublished change. */
+async function matchesPendingPublish(ws: Workspace): Promise<boolean> {
+  const pending = (await ws.state()).pendingPublish;
+  if (!pending) return false;
+  if (!(await ws.git.revParse(pending.sha))) {
+    await ws.git.fetch(ws.remote, ws.liveBranch).catch(() => undefined);
+  }
+  return (await ws.git.run(["diff", "--quiet", pending.sha, "HEAD"])).exitCode === 0;
 }
 
 /**
@@ -313,6 +325,7 @@ export async function ensurePullRequest(
   ws: Workspace,
   branch: string,
 ): Promise<PullRequest | undefined> {
+  if (await matchesPendingPublish(ws)) return undefined;
   const saves = await unpublishedSaves(ws);
   if (saves.length === 0) return undefined;
   const existing = await ws.github.findOpenPullRequest(branch);
@@ -363,6 +376,23 @@ export async function status(ws: Workspace, options: { fetch?: boolean } = {}): 
   const unpublished = branch === ws.liveBranch ? [] : await waitingSaves(ws);
   const behindLive = hasLive ? await ws.git.count(`HEAD..${ws.liveRef}`, { noMerges: true }) : 0;
   const site = await siteStatus(ws, state.siteLiveAt);
+  let pendingPublish = state.pendingPublish;
+  if (!pendingPublish && state.pullRequest && hasLive) {
+    const [latest] = await ws.git.log(ws.liveRef, { firstParent: true, limit: 1 });
+    if (latest?.kind === "publish" && state.lastPublish?.sha !== latest.sha) {
+      const deliveries = await ws.github.deploymentsFor(latest.sha).catch(() => []);
+      const delivery = deliveries.find((d) => d.isProduction) ?? deliveries[0];
+      if (delivery?.state === "failure" || delivery?.state === "error") {
+        pendingPublish = {
+          sha: latest.sha,
+          title: latest.subject,
+          at: latest.date,
+          pullRequest: state.pullRequest,
+          state: "failed",
+        };
+      }
+    }
+  }
   return {
     project: {
       name: ws.project.name,
@@ -382,6 +412,7 @@ export async function status(ws: Workspace, options: { fetch?: boolean } = {}): 
     merging,
     conflicts,
     ...(state.lastPublish ? { lastPublish: state.lastPublish } : {}),
+    ...(pendingPublish ? { pendingPublish } : {}),
     ...(state.pullRequest ? { pullRequest: state.pullRequest } : {}),
     ...(await whereTheMoveIs(ws.root)),
     ...(ws.config.backend === "supabase" || ws.config.backend === "none"

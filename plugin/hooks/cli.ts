@@ -84,6 +84,7 @@ export function toStatus(data: any): ClodableStatus {
           ...(data.lastPublish.noHost ? { noHost: true } : {}),
         }
       : null,
+    ...(data?.pendingPublish ? { pendingPublish: data.pendingPublish } : {}),
     pullRequest: data?.pullRequest ?? null,
     backend: data?.project?.backend ?? "unknown",
     hosting: data?.project?.hosting ?? "unknown",

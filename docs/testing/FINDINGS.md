@@ -512,7 +512,7 @@ The owner initially requested collection without implementation, then completed 
 
 ## F40 — blocker — Publish recovery sends the builder to missing Netlify reconnection controls
 
-- **Status:** fixed locally; recovery controls and credential refresh verified, awaiting CI/merge. Issue: https://github.com/bworlds-co/clodable/issues/91.
+- **Status:** merged in [PR #99](https://github.com/bworlds-co/clodable/pull/99); CI and two native conversational routing checks passed. Issue: https://github.com/bworlds-co/clodable/issues/91.
 - **Observed:** after **Fix what stopped my publish**, Claude says Netlify refused the site's access key, claims it opened the site panel for reconnection, and asks whether the builder has reconnected. The panel contains only **Your site is live.**, with no reconnection field or action. History also appears highlighted, making the current destination unclear; the screenshot alone does not establish whether this is selection or retained keyboard focus.
 - **Builder impact:** the builder cannot perform the requested recovery in the supplied view. The healthy-looking live message obscures the failed update, and the conversation asks them to confirm an action they cannot take.
 - **Confirmed UI cause:** `siteCard` in `plugin/hooks/register.tsx` returns early for an already-hosted app before reaching its Netlify connection field. The `site` view then renders **Your site is live.** when `s.site.live` is true. `open_panel` reports that the view opened, but does not establish that reconnection controls exist; its explicit reconnection guidance currently covers the migration view only. The actual credential failure and why the highlighted navigation item persists have not been independently verified in this review.
@@ -537,12 +537,14 @@ The owner initially requested collection without implementation, then completed 
 
 ## F42 — blocker — A failed host update can leave Publish with no retry path
 
-- **Status:** open; implementation authorized after the owner completed review. Issue: https://github.com/bworlds-co/clodable/issues/93.
+- **Status:** fixed locally; automated recovery and native retry passed, awaiting CI/merge. Issue: https://github.com/bworlds-co/clodable/issues/93.
 - **Observed:** in the same screenshot, Claude reports that the public site still has old content but Clodable considers the changes already published after the first publication stage succeeded. It says Publish has nothing new to send. The panel still displays **Your site is live.**
 - **Builder impact:** publication can fail halfway and leave the builder unable to retry the intended version. A comparison of code versions is presented as proof that visitors have the changes, obscuring the difference between the saved release and the version actually served.
 - **Source evidence:** `publish()` updates the shared code before `waitForDeploy()` confirms the host. On a later attempt, it throws `nothing-to-publish` when no code changes remain against `ws.liveRef`, with **Your live site already has everything**, before consulting host delivery or retrying it. `waitForDeploy()` can throw `deploy-failed` after that first stage. This supports the reported failure mode; the owner's external publication state and credential failure have not been independently rechecked here.
 - **Proposed fix:** track host delivery separately from code publication, retain failed/pending delivery state, and offer a retry of the same intended version after the actual connection is repaired. Only claim the latest changes are live after host confirmation. Verify recovery without creating another app edit.
 - **Evidence:** the F41 screenshot and `packages/core/src/publish.ts` / `packages/core/src/waits.ts`. No retry, credential change or publication performed.
+
+- **Implemented and verified (October 18):** publication now records the exact accepted version separately from host confirmation and preserves failed/pending delivery across sessions. The bar/panel offer **Retry Publish** even with no new app changes; delayed host reports no longer trigger a premature “You’re live” message. A retry reruns only Clodable’s hosting workflow for the same version, ignores the previous failed report while waiting for the new one, and never manufactures a content change. Legacy failures with retained publication metadata are recoverable too. Tests cover real local saves/publication, repeated failures, auto-save after failure, legacy recovery, unchanged content/version and exact workflow selection. Native Desktop (`local_d170f662-7a2e-4477-bbe3-38fee49860f8`) retained the failure in a fresh session, displayed **Retry Publish**, and reached the confirmed result against local fake hosting. No live site was published. The native check caught a stale-draft count, now covered by an additional regression.
 
 ## F43 — major — Claude edits unrelated content to force a publication retry
 

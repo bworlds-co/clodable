@@ -340,6 +340,38 @@ export class GhCli implements GitHubAdapter {
     return { ...(doing ? { step: doing } : {}), ...(lastSeconds ? { lastSeconds } : {}) };
   }
 
+  async retryDeployment(sha: string): Promise<"started" | "running" | false> {
+    const { owner, name } = await this.repo();
+    const { workflow_runs: runs } = await this.json<{
+      workflow_runs: Array<{
+        id: number;
+        head_sha: string;
+        path: string;
+        status: string;
+        conclusion: string | null;
+      }>;
+    }>([
+      "api",
+      `repos/${owner}/${name}/actions/workflows/clodable-netlify.yml/runs?head_sha=${encodeURIComponent(sha)}&per_page=20`,
+    ]);
+    const run = runs.find(
+      (r) =>
+        r.head_sha === sha && r.path.split("@")[0] === ".github/workflows/clodable-netlify.yml",
+    );
+    if (!run) return false;
+    if (run.status !== "completed") return "running";
+    if (!["failure", "cancelled", "timed_out", "action_required"].includes(run.conclusion ?? ""))
+      return false;
+    // A rerun retains the original SHA/ref, even if another builder has since published.
+    await this.gh([
+      "api",
+      "--method",
+      "POST",
+      `repos/${owner}/${name}/actions/runs/${run.id}/rerun`,
+    ]);
+    return "started";
+  }
+
   async hasDeployments(): Promise<boolean> {
     const { owner, name } = await this.repo();
     const deployments = await this.json<unknown[]>([

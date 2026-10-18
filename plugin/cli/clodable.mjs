@@ -20988,6 +20988,15 @@ var LocalStateSchema = external_exports.object({
     /** No host ever reported putting the app online: this publish is on GitHub only. */
     noHost: external_exports.boolean().optional()
   }).optional(),
+  /** The exact version accepted for publication but not yet confirmed by the host. */
+  pendingPublish: external_exports.object({
+    sha: external_exports.string(),
+    title: external_exports.string(),
+    at: external_exports.string(),
+    pullRequest: external_exports.object({ number: external_exports.number(), url: external_exports.string() }),
+    state: external_exports.enum(["pending", "failed"]),
+    ignoredDeploymentIds: external_exports.array(external_exports.number()).optional()
+  }).optional(),
   /** When a Publish was first seen live on the site Clodable put on Netlify. */
   siteLiveAt: external_exports.string().optional(),
   /** The app's settings set on that site (names only). */
@@ -24049,8 +24058,17 @@ async function countUnpublished(ws) {
   return (await waitingSaves(ws)).length;
 }
 async function waitingSaves(ws) {
+  if (await matchesPendingPublish(ws)) return [];
   const saves = await unpublishedSaves(ws, { buildersOnly: true });
   return saves.length > 0 && await sameAsLive(ws) ? [] : saves;
+}
+async function matchesPendingPublish(ws) {
+  const pending = (await ws.state()).pendingPublish;
+  if (!pending) return false;
+  if (!await ws.git.revParse(pending.sha)) {
+    await ws.git.fetch(ws.remote, ws.liveBranch).catch(() => void 0);
+  }
+  return (await ws.git.run(["diff", "--quiet", pending.sha, "HEAD"])).exitCode === 0;
 }
 async function sameAsLive(ws, options = {}) {
   const live = await liveBase(ws);
@@ -24073,6 +24091,7 @@ function onlyClodables(paths) {
   return paths.length > 0 && paths.every(clodableFile);
 }
 async function ensurePullRequest(ws, branch) {
+  if (await matchesPendingPublish(ws)) return void 0;
   const saves = await unpublishedSaves(ws);
   if (saves.length === 0) return void 0;
   const existing = await ws.github.findOpenPullRequest(branch);
@@ -24117,6 +24136,23 @@ async function status(ws, options = {}) {
   const unpublished = branch === ws.liveBranch ? [] : await waitingSaves(ws);
   const behindLive = hasLive ? await ws.git.count(`HEAD..${ws.liveRef}`, { noMerges: true }) : 0;
   const site = await siteStatus(ws, state.siteLiveAt);
+  let pendingPublish = state.pendingPublish;
+  if (!pendingPublish && state.pullRequest && hasLive) {
+    const [latest] = await ws.git.log(ws.liveRef, { firstParent: true, limit: 1 });
+    if (latest?.kind === "publish" && state.lastPublish?.sha !== latest.sha) {
+      const deliveries = await ws.github.deploymentsFor(latest.sha).catch(() => []);
+      const delivery = deliveries.find((d) => d.isProduction) ?? deliveries[0];
+      if (delivery?.state === "failure" || delivery?.state === "error") {
+        pendingPublish = {
+          sha: latest.sha,
+          title: latest.subject,
+          at: latest.date,
+          pullRequest: state.pullRequest,
+          state: "failed"
+        };
+      }
+    }
+  }
   return {
     project: {
       name: ws.project.name,
@@ -24136,6 +24172,7 @@ async function status(ws, options = {}) {
     merging,
     conflicts,
     ...state.lastPublish ? { lastPublish: state.lastPublish } : {},
+    ...pendingPublish ? { pendingPublish } : {},
     ...state.pullRequest ? { pullRequest: state.pullRequest } : {},
     ...await whereTheMoveIs(ws.root),
     ...ws.config.backend === "supabase" || ws.config.backend === "none" ? { database: { connected: Boolean(await readSecret(SUPABASE_TOKEN)) } } : {},
@@ -24613,6 +24650,7 @@ var FakeGitHub = class _FakeGitHub {
       url: "https://crumb-and-co.example"
     }
   ];
+  retryDeployment = async () => false;
   /**
    * With `stateFile`, pull requests survive across processes. That lets the CLI run against a
    * fake GitHub for demos (`CLODABLE_FAKE_GITHUB=<bare repo>`).
@@ -24621,6 +24659,10 @@ var FakeGitHub = class _FakeGitHub {
     const fake = new _FakeGitHub(bareRepo);
     fake.stateFile = stateFile;
     if (process.env.CLODABLE_FAKE_HOST === "none") fake.deploymentFor = () => [];
+    if (process.env.CLODABLE_FAKE_HOST === "failed")
+      fake.deploymentFor = () => [
+        { id: 1, environment: "Production", isProduction: true, state: "failure" }
+      ];
     if (existsSync12(stateFile)) {
       fake.pullRequests.push(...JSON.parse(readFileSync(stateFile, "utf8")));
     }
@@ -25131,6 +25173,27 @@ ${cloned.stderr}`.trim()
     const lastSeconds = this.lastBuild.get(run2.workflow_id);
     const doing = step2?.name ?? (run2.status === "completed" ? "Complete" : void 0);
     return { ...doing ? { step: doing } : {}, ...lastSeconds ? { lastSeconds } : {} };
+  }
+  async retryDeployment(sha) {
+    const { owner, name } = await this.repo();
+    const { workflow_runs: runs } = await this.json([
+      "api",
+      `repos/${owner}/${name}/actions/workflows/clodable-netlify.yml/runs?head_sha=${encodeURIComponent(sha)}&per_page=20`
+    ]);
+    const run2 = runs.find(
+      (r2) => r2.head_sha === sha && r2.path.split("@")[0] === ".github/workflows/clodable-netlify.yml"
+    );
+    if (!run2) return false;
+    if (run2.status !== "completed") return "running";
+    if (!["failure", "cancelled", "timed_out", "action_required"].includes(run2.conclusion ?? ""))
+      return false;
+    await this.gh([
+      "api",
+      "--method",
+      "POST",
+      `repos/${owner}/${name}/actions/runs/${run2.id}/rerun`
+    ]);
+    return "started";
   }
   async hasDeployments() {
     const { owner, name } = await this.repo();
@@ -28425,6 +28488,26 @@ async function backendChoices() {
     costs: Object.fromEntries(choices.organizations.map((o) => [o.slug, costOf(o)]))
   };
 }
+async function reconnectSite(ws) {
+  const move = await loadMove(ws.root);
+  const known = ws.config.netlify ?? (move.site ? { ...move.site, siteId: move.site.id } : void 0);
+  if (!known) {
+    throw new ClodableError({
+      code: "not-set-up",
+      message: "This app has no Netlify site to reconnect."
+    });
+  }
+  const api = await NetlifyApi.required();
+  const site = await api.site(known.siteId);
+  if (site.id !== known.siteId || site.account_slug !== known.account) {
+    throw new ClodableError({
+      code: "netlify-auth",
+      message: "This connection doesn't match your app's hosting account."
+    });
+  }
+  await ws.github.setSecret("NETLIFY_AUTH_TOKEN", await readSecret(NETLIFY_TOKEN));
+  return { reconnected: true, url: siteUrl(site) };
+}
 async function* putSiteOnline(ws, options = {}) {
   const move = await loadMove(ws.root);
   if (move.site || move.home) {
@@ -28775,12 +28858,14 @@ async function* waitForCi(ws, prNumber, o) {
     await o.sleep(o.poll);
   }
 }
-async function* followDeployment(ws, sha, o, shown) {
+async function* followDeployment(ws, sha, o, shown, ignoredDeploymentIds = []) {
   const started = o.now().getTime();
   const deadline = started + ws.config.publish.deployTimeoutMinutes * 6e4;
   let line = "";
   while (true) {
-    const deployments = await ws.github.deploymentsFor(sha).catch(() => []);
+    const deployments = (await ws.github.deploymentsFor(sha).catch(() => [])).filter(
+      (d) => !ignoredDeploymentIds.includes(d.id)
+    );
     const deployment = deployments.find((d) => d.isProduction) ?? deployments[0];
     const build = await ws.github.buildProgress?.(sha).catch(() => void 0);
     if (deployment?.state === "success") return { state: "success", deployment };
@@ -28799,7 +28884,7 @@ async function* followDeployment(ws, sha, o, shown) {
     await o.sleep(o.poll);
   }
 }
-async function* waitForDeploy(ws, sha, o) {
+async function* waitForDeploy(ws, sha, o, ignoredDeploymentIds = []) {
   if (ws.config.hosting === "lovable") {
     const url2 = ws.config.liveUrl ?? ws.project.lovable.appUrl;
     yield step(
@@ -28809,15 +28894,21 @@ async function* waitForDeploy(ws, sha, o) {
       "To put it live, click Publish, then Publish changes, in Lovable"
     );
     const moving = (await loadMove(ws.root)).site;
-    const site = moving ? yield* followSite(ws, sha, o, moving.url) : void 0;
+    const site = moving ? yield* followSite(ws, sha, o, moving.url, ignoredDeploymentIds) : void 0;
     return { state: "lovable", ...url2 ? { url: url2 } : {}, ...site ? { site } : {} };
   }
   yield step("deploy", "running", "Going live");
-  const end = yield* followDeployment(ws, sha, o, {
-    id: "deploy",
-    title: "Going live",
-    unreportedAfterMs: 75e3
-  });
+  const end = yield* followDeployment(
+    ws,
+    sha,
+    o,
+    {
+      id: "deploy",
+      title: "Going live",
+      unreportedAfterMs: 75e3
+    },
+    ignoredDeploymentIds
+  );
   const liveUrl = ws.config.liveUrl ? { url: ws.config.liveUrl } : {};
   switch (end.state) {
     case "success": {
@@ -28829,8 +28920,8 @@ async function* waitForDeploy(ws, sha, o) {
       yield step("deploy", "failed", "Your host couldn't put it live");
       throw new ClodableError({
         code: "deploy-failed",
-        message: "Your changes are published on GitHub, but your host couldn't put them live.",
-        hint: "Your previous version is still live. Ask Claude to look at the host's report.",
+        message: "Your changes are saved, but your host couldn't put them live.",
+        hint: "Your previous version is still live. Fix the hosting problem, then retry Publish; no new app change is needed.",
         ...end.deployment.logUrl ? { details: end.deployment.logUrl } : {}
       });
     case "unreported": {
@@ -28851,13 +28942,19 @@ async function* waitForDeploy(ws, sha, o) {
       return { state: "pending", ...liveUrl };
   }
 }
-async function* followSite(ws, sha, o, url2) {
+async function* followSite(ws, sha, o, url2, ignoredDeploymentIds = []) {
   yield step("move:site", "running", "Updating your site on Netlify");
-  const end = yield* followDeployment(ws, sha, o, {
-    id: "move:site",
-    title: "Updating your site on Netlify",
-    unreportedAfterMs: 12e4
-  });
+  const end = yield* followDeployment(
+    ws,
+    sha,
+    o,
+    {
+      id: "move:site",
+      title: "Updating your site on Netlify",
+      unreportedAfterMs: 12e4
+    },
+    ignoredDeploymentIds
+  );
   if (end.state === "success") {
     const siteUrl2 = end.deployment.url ?? url2;
     yield step("move:site", "done", "Your site on Netlify is up to date", siteUrl2);
@@ -28886,6 +28983,22 @@ function publishTitle(saves) {
 async function* publish(ws, options = {}) {
   const wait2 = timing(options);
   const warnings = [];
+  const earlier = await ws.state();
+  if (earlier.pendingPublish || earlier.pullRequest) {
+    await ws.git.fetch(ws.remote, ws.liveBranch);
+    const [latest] = await ws.git.log(ws.liveRef, { firstParent: true, limit: 1 });
+    const pending2 = earlier.pendingPublish ?? (latest?.kind === "publish" && earlier.pullRequest && earlier.lastPublish?.sha !== latest.sha ? {
+      sha: latest.sha,
+      title: latest.subject,
+      at: latest.date,
+      pullRequest: earlier.pullRequest,
+      state: "pending"
+    } : void 0);
+    const branch2 = await ws.git.currentBranch();
+    if (pending2 && branch2 && branch2 !== ws.liveBranch && latest?.sha === pending2.sha && !await ws.git.hasChanges() && (await ws.git.run(["diff", "--quiet", pending2.sha, "HEAD"])).exitCode === 0) {
+      return yield* retryPublish(ws, pending2, branch2, wait2);
+    }
+  }
   yield step("save", "running", "Saving your latest changes");
   let saved;
   try {
@@ -28969,9 +29082,25 @@ async function* publish(ws, options = {}) {
   }
   const saves = await ws.git.log(`${ws.liveRef}..HEAD`, { noMerges: true, limit: 200 });
   if (saves.length === 0 || await sameAsLive(ws, { clodablesToo: true })) {
+    const state = await ws.state();
+    const [latest] = await ws.git.log(ws.liveRef, { firstParent: true, limit: 1 });
+    let pending2 = state.pendingPublish;
+    if (!pending2 && latest?.kind === "publish" && state.pullRequest && state.lastPublish?.sha !== latest.sha) {
+      pending2 = {
+        sha: latest.sha,
+        title: latest.subject,
+        at: latest.date,
+        pullRequest: state.pullRequest,
+        state: "pending"
+      };
+    }
+    if (pending2 && latest?.sha === pending2.sha) {
+      return yield* retryPublish(ws, pending2, branch, wait2);
+    }
     throw new ClodableError({
       code: "nothing-to-publish",
-      message: "There's nothing new to publish. Your live site already has everything."
+      message: "There's no new app change to publish.",
+      hint: "This does not confirm which version visitors see. Ask Claude to check the hosting status if your site looks out of date."
     });
   }
   if (options.skipChecks) {
@@ -29016,8 +29145,53 @@ async function* publish(ws, options = {}) {
     kindTrailer("publish")
   ].join("\n");
   const { sha } = await ws.github.merge(pr.number, { subject: title, body });
-  yield step("merge", "done", "Published");
-  const deployed = yield* waitForDeploy(ws, sha, wait2);
+  const pending = {
+    sha,
+    title,
+    at: wait2.now().toISOString(),
+    pullRequest: { number: pr.number, url: pr.url },
+    state: "pending"
+  };
+  await ws.updateState({ pendingPublish: pending });
+  yield step("merge", "done", "Ready for your host");
+  return yield* finishPublish(ws, pending, branch, wait2, warnings);
+}
+async function* retryPublish(ws, pending, branch, wait2) {
+  await ws.updateState({ pendingPublish: pending });
+  const deliveries = await ws.github.deploymentsFor(pending.sha);
+  const latest = deliveries.find((d) => d.isProduction) ?? deliveries[0];
+  if (latest?.state !== "success") {
+    const ownedSite = ws.config.netlify ?? (await loadMove(ws.root)).site;
+    if (ownedSite && ws.github.retryDeployment) {
+      yield step("deploy", "running", "Retrying the same version");
+      const retry = await ws.github.retryDeployment(pending.sha);
+      if (retry === "started") {
+        pending = {
+          ...pending,
+          state: "pending",
+          ignoredDeploymentIds: deliveries.map((d) => d.id)
+        };
+        await ws.updateState({ pendingPublish: pending });
+      } else if (!retry && (latest?.state === "failure" || latest?.state === "error" || !latest)) {
+        throw new ClodableError({
+          code: "deploy-failed",
+          message: "This version couldn't be retried automatically.",
+          hint: "Ask Claude to check the hosting report. Keep the app unchanged; don't make an edit to trigger publishing."
+        });
+      }
+    }
+  }
+  return yield* finishPublish(ws, pending, branch, wait2, []);
+}
+async function* finishPublish(ws, pending, branch, wait2, warnings) {
+  const { sha, title, pullRequest: pr } = pending;
+  let deployed;
+  try {
+    deployed = yield* waitForDeploy(ws, sha, wait2, pending.ignoredDeploymentIds);
+  } catch (error62) {
+    await ws.updateState({ pendingPublish: { ...pending, state: "failed" } });
+    throw error62;
+  }
   const functions = yield* deployChangedFunctions(ws, sha);
   yield step("fresh-draft", "running", "Starting a fresh draft");
   await ws.git.fetch(ws.remote, ws.liveBranch);
@@ -29034,7 +29208,8 @@ async function* publish(ws, options = {}) {
       prNumber: pr.number,
       ...deployed.noHost ? { noHost: true } : {}
     },
-    pullRequest: void 0
+    pullRequest: void 0,
+    pendingPublish: deployed.state === "live" || deployed.state === "lovable" && (!deployed.site || deployed.site.state === "live") || deployed.noHost ? void 0 : { ...pending, state: deployed.site?.state === "failed" ? "failed" : "pending" }
   });
   yield step("fresh-draft", "done", "Fresh draft ready");
   if (deployed.site?.state === "live" || deployed.state === "live" && (await loadMove(ws.root)).site) {
@@ -49077,6 +49252,18 @@ async function connectCommand(ctx2, service) {
   });
 }
 async function siteCommand(ctx2, options) {
+  if (options.action === "reconnect") {
+    await run(
+      ctx2,
+      async () => reconnectSite(await ctx2.workspace()),
+      () => {
+        ctx2.out.line(
+          `${celadon("\u2713")} Your app's publishing connection is updated. You can retry Publish.`
+        );
+      }
+    );
+    return;
+  }
   if (options.action === "create") {
     await run(
       ctx2,
@@ -49922,10 +50109,7 @@ cli.command(
   "connect <service>",
   "Connect supabase or netlify on this computer, the token piped in (for a new backend or site)"
 ).action((service, options) => connectCommand(ctx(options), String(service)));
-cli.command(
-  "site [action]",
-  "Your app's site: where it stands, or create: put it online on your own Netlify"
-).option("--team <slug>", "create: the Netlify team the site goes in").action(
+cli.command("site [action]", "Your app's site: status, create hosting, or reconnect publishing").option("--team <slug>", "create: the Netlify team the site goes in").action(
   (action, options) => siteCommand(ctx(options), {
     ...action ? { action: String(action) } : {},
     ...options.team ? { team: String(options.team) } : {}
