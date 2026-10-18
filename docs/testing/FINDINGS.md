@@ -351,6 +351,15 @@ Review started 2026-10-17; continued into 2026-10-18. Repository baseline: `c219
 - **Why it matters:** the two surfaces disagree, and the remaining button invites the builder to repeat an operation that has already finished. That undermines the approved conversation-first workflow.
 - **Cause:** move status refreshed after a turn only when that turn came from a panel button. The shared action helper also ignored an active turn started directly in chat.
 - **Fix:** after any main-conversation turn with loaded migration state, refresh it before re-enabling step actions. During a turn, requests that would send another migration instruction show a waiting message. Secret-entry fields remain available. Child-agent completion does not unlock the main conversation’s action.
-- **Checks:** lint/typecheck/build and 141 plugin tests pass, including completed/aborted conversational operations and usable secret fields. The 199 package tests passed immediately before this plugin-only fix. The updated plugin is loaded for a fresh Tiny Notes preview rehearsal; real Desktop verification is in progress.
+- **Checks:** lint/typecheck/build and 141 plugin tests pass, including completed/aborted conversational operations and usable secret fields. The 199 package tests passed immediately before this plugin-only fix. Fresh Desktop conversation `local_b4e1b08c-85f0-4b9f-8781-ed2e8f0dc571` verified the fix: the open panel shows the waiting message during chat, then a conversational switch to live data changes the next action from website setup to Try my app on the copy without reopening the panel. The preview was then returned to Copy; no live data was edited.
 
 F28 merged as [#71](https://github.com/bworlds-co/clodable/pull/71) after CI passed. No release was published.
+
+
+### Tiny Notes public preview rehearsal
+
+- Fresh source-build conversation **Tiny Notes preview migration** switched only the preview to `vpewfafqslrjiqjexyix` in test-org. Desktop’s Browser pane at port 8082 shows the public Wall and all three sample posts, with the toolbar labelled **Copy**. Reload and the conversation’s request inspection confirmed the posts came from the new backend. No sign-in, account creation, data edit or publication was performed.
+- Screenshot: `~/Clodable Tests/_runs/2026-10-18-conversation/tiny-notes-wall-copy-preview.png`. The next migration stage is website/email/service preparation. This is public-page evidence only: it does not verify private notes, new-account behavior, uploaded images, the greeting setting, or AI summaries.
+- Polish / conversational friction: the fresh preview request spent several minutes inspecting Clodable’s implementation and looking up the supported command before switching. The skill’s opening still assumes every request came from a panel button with its command attached. A direct request needs concise supported-command guidance; the existing source inspection was unnecessary for this established operation. This remains a recorded improvement opportunity, not a failure of the copy.
+
+- Source-scope check: GitHub main still points to `76f3ecfa5f35860734f34cbc8bb8816d6d08032c`, the preflight revision. The preview was switched to live data and back only to verify state synchronization; no live data was edited. The rehearsal remains on Copy.
