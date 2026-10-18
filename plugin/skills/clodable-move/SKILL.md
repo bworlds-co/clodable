@@ -60,6 +60,14 @@ The move starts with you reading the app's code ("Moving off Lovable: look at my
 4. For anything on Lovable, on their live app, or in their Supabase account beyond the copy (pausing or deleting projects, plans, billing), explain and give them the exact clicks. They do it.
 5. If you can't find the cause, say what you checked and what you'd look at next. Don't guess.
 
+### When the copy cannot be checked
+
+- Keep a blocked-check reply to two to four plain sentences unless the builder asks for detail: say what is unknown, name any other confirmed blocker, and give the immediate next step. Say "I can't confirm the copy is ready", rather than turning an unsuccessful check into a claim that it is not ready.
+- A missing connection, an access error or an address that does not answer is not proof that the backend is paused, deleted or empty. Local move records describe earlier progress, not its current condition. Report the exact limit: what Clodable checked, what it could not check, and what is still unknown.
+- If `move diagnose` asks for a Supabase connection, ask the builder to reconnect in the panel, then check again. Never ask for a token in the conversation. Only describe a project as paused when Supabase reports that state; only give current data or people counts when a successful check returned them.
+- A remembered destination is checked and reused. Clodable has no automatic replacement flow for an unavailable destination. Do not promise a Create again button, clear its saved record, create a replacement or delete anything as a workaround. Restore connection/access first; if that does not resolve it, explain that the destination needs to be reviewed before continuing.
+- If Lovable refuses an export because of its size limit, say the export was refused and copying cannot continue without a usable export. The refusal does not establish the database's actual size or why it exceeds that limit. Ask the builder to resolve the export with Lovable; do not substitute an old export, suggest changing live data, run SQL or contact support on their behalf without their request.
+
 ## The website on Netlify
 
 `move site` creates the Netlify site (or finds the one it made), points it at the new backend, writes `netlify.toml` and `.github/workflows/clodable-netlify.yml`, and gives GitHub the two secrets the workflow deploys with. Netlify's free plan can't watch a private repository owned by a GitHub organization; the workflow can, and it records a GitHub deployment so Clodable's Publish knows when the site is live.
@@ -129,8 +137,8 @@ Never run `move paused` or `move finished` yourself: they record what the builde
 | Pages empty on the copy; the API says "Could not find the table … in the schema cache" | The copy runs with database hooks off, so the API's list of tables wasn't refreshed | `move diagnose --fix` |
 | Sign-up says "Check your email", then nothing works | New Supabase projects want email confirmation, and their links go to `localhost:3000` | `move diagnose --fix` (lets the preview sign people in) |
 | "2 free projects running, the most it allows" | Supabase counts free projects per person, across all their organizations | Pause one in Supabase (Project settings → Pause project), or pick an organization on a paid plan (about $10 a month) |
-| Lovable says the database is too large to export, though the app is small | Lovable's measure isn't the data | Lovable support, with the real size from Lovable's SQL: `select pg_size_pretty(pg_database_size(current_database()))` |
-| The export has 0 people | It was taken before anyone signed up in the Lovable app | Sign up in the Lovable app, export again (one export a day), then "Copy again" |
+| Lovable says the database is too large to export | Lovable refused this export; the actual size and cause have not been checked | The builder resolves the export with Lovable before copying can continue |
+| The export has 0 people | This export contains no people; that alone does not explain why | Compare its date and the expected sign-ins with the builder before accepting it or requesting another export |
 | `role "sandbox_exec" does not exist` among the copy's notes | A role of Lovable's own | Harmless |
 | Private files waiting | Reading them needs Lovable Cloud's service key | The panel explains how to get it and takes it |
 | A feature is empty on the copy (a greeting, AI summaries) | Its server code reads `process.env.X`: those values live in the host's settings, not in Supabase | They paste each value in the panel once the site is on Netlify |

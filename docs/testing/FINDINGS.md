@@ -190,7 +190,10 @@ Review started 2026-10-17; continued into 2026-10-18. Repository baseline: `c219
 - Builder impact: the suggested recovery may not apply, and retrying Create previously claimed the remembered project was ready without checking it.
 - Cause: diagnosis swallowed lookup errors; Create returned its local record immediately.
 - Fix: preserve specific account/access errors, explain an unavailable project without claiming deletion, check remembered projects and wait for readiness, and distinguish paused from starting. No replacement is created automatically.
-- Verification: 187 package tests and 129 plugin tests pass, including unavailable/paused projects, expired account access, no duplicate creation and no new writes from a failed check. Desktop retest pending.
+- Verification: 187 package tests and 129 plugin tests pass, including unavailable/paused projects, expired account access, no duplicate creation and no new writes from a failed check. Fresh Desktop asks for Supabase reconnection; screenshot 41.
+
+- Follow-up: the first model retest still guessed that a missing address meant paused/deleted/empty and promised a replacement path that does not exist. The move guide now separates current checks from old local records, requires connection/access recovery first, and describes the export refusal without inferring its cause.
+- Two independent model replays with the final guide preserved these limits and did not promise automatic replacement. A fresh Desktop read-only check returned the missing connection, said readiness could not be confirmed, named the missing export and gave reconnection as the next step. Screenshot 47. No copy, new backend or live-app change was performed. Desktop independently suggested “Fix merge conflicts” even though a read-only `git status` was clean; this surrounding Desktop suggestion is external.
 
 ## F21 — blocker / external — Lovable refuses Léa's database export
 
