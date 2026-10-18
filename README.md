@@ -123,7 +123,7 @@ Your app, your data and your people move out of Lovable into accounts in your na
 
 1. **Claude looks at your app** to see what it uses: AI, sign-in, emails, payments, scheduled jobs, uploads. You see what it found, and each step fits your app.
 2. **You choose how to move.** *Carefully*, for an app people use: you try a working copy first, then your live app pauses for a few minutes while the latest data comes over, so nothing is lost. *In one go*, for a prototype: one export, and you're live on your own accounts.
-3. **Get ready, beside your live app.** A copy of your data and people on your Supabase, which you can try in the preview. Your site on Netlify. Your emails, your AI key, your sign-in.
+3. **Get ready, beside your live app.** A copy of your data and people on your Supabase, which you can try in the preview. Your website, prepared on Netlify. Your emails, your AI key, your sign-in.
 4. **Go live.** Clodable points your app at its new home, Publish puts it live, and your domain follows.
 5. **Finish in Lovable**, once you've signed in on the new site: unpublish, disconnect GitHub, remove Lovable Cloud. The panel gives you the exact clicks, and a message for your users.
 
