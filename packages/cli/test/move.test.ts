@@ -311,6 +311,53 @@ describe.skipIf(!PG_BIN)("clodable move", () => {
     ).toHaveLength(1);
   });
 
+  it("doesn't call an unavailable or paused copy ready, or hide an account error", async () => {
+    const project = fake.projects.get(DST)!;
+    const before = fake.requests.filter((r) => r.method === "POST").length;
+    try {
+      fake.projects.delete(DST);
+      for (const command of ["create", "diagnose"]) {
+        const missing = await clodable(["move", command]);
+        expect(missing.result).toMatchObject({
+          ok: false,
+          error: {
+            code: "not-found",
+            message: "Your new backend isn't available to this Supabase account.",
+          },
+        });
+        expect(missing.events).not.toContainEqual(
+          expect.objectContaining({ id: "move:create", state: "done" }),
+        );
+      }
+      fake.projects.set(DST, project);
+      project.status = "INACTIVE";
+      expect((await clodable(["move", "create"])).result).toMatchObject({
+        ok: false,
+        error: { code: "move-not-ready", message: "Your new backend is paused." },
+      });
+      expect((await clodable(["move", "diagnose"])).result.data.findings).toEqual([
+        expect.objectContaining({ ok: false, label: "Your new backend is paused" }),
+      ]);
+      expect(fake.requests.filter((r) => r.method === "POST")).toHaveLength(before);
+      const saved = readFileSync(join(config, "secrets.json"), "utf8");
+      try {
+        writeFileSync(
+          join(config, "secrets.json"),
+          JSON.stringify({ "supabase-token": "expired-test-token" }),
+        );
+        expect((await clodable(["move", "diagnose"])).result).toMatchObject({
+          ok: false,
+          error: { code: "supabase-auth" },
+        });
+      } finally {
+        writeFileSync(join(config, "secrets.json"), saved);
+      }
+    } finally {
+      fake.projects.set(DST, project);
+      project.status = "ACTIVE_HEALTHY";
+    }
+  });
+
   it("reads the export and copies it, then checks everything is there", async () => {
     const read = await clodable(["move", "export", "--file", zip]);
     expect(read.result).toMatchObject({

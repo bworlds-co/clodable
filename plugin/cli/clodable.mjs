@@ -21635,6 +21635,13 @@ var SupabaseApi = class _SupabaseApi {
           await forgetSecret(SUPABASE_TOKEN).catch(() => {
           });
         }
+        if (response.status === 404 && method === "GET" && /^\/v1\/projects\/[a-z]+$/.test(path2)) {
+          throw new ClodableError({
+            code: "not-found",
+            message: "Your new backend isn't available to this Supabase account.",
+            hint: "Open Supabase and check the account and project. It may have been removed or your access may have changed. Your live app hasn't changed."
+          });
+        }
         throw describeFailure(response.status, text2, permissionFor(method, path2));
       }
       if (!text2) return void 0;
@@ -22385,11 +22392,21 @@ function newPassword() {
 }
 async function* createHome(ws, options) {
   const state = await loadMove(ws.root);
+  const api = await SupabaseApi.required();
   if (state.home) {
+    yield step("move:create", "running", "Checking your new backend");
+    const project = await api.project(state.home.ref);
+    if (project.status === "INACTIVE" || project.status === "GOING_DOWN") {
+      throw new ClodableError({
+        code: "move-not-ready",
+        message: "Your new backend is paused.",
+        hint: "Restore it on its page in Supabase, then try this step again. Your live app hasn't changed."
+      });
+    }
+    await waitUntilUp(api, state.home.ref);
     yield step("move:create", "done", "Your new backend is ready", state.home.name);
     return state.home;
   }
-  const api = await SupabaseApi.required();
   yield step("move:create", "running", "Creating your new backend");
   const organizations = await organizationChoices(api);
   const org = organizations.find((o) => o.slug === options.org) ?? (organizations.length === 1 ? organizations[0] : void 0);
@@ -22440,7 +22457,7 @@ async function* createHome(ws, options) {
 async function waitUntilUp(api, ref) {
   const started = Date.now();
   while (true) {
-    const project = await api.project(ref).catch(() => void 0);
+    const project = await api.project(ref);
     if (project?.status === "INIT_FAILED") {
       throw new ClodableError({
         code: "supabase-failed",
@@ -26622,13 +26639,15 @@ async function diagnoseCopy(ws, options = {}) {
   const api = await SupabaseApi.required();
   const ref = state.home.ref;
   const findings = [];
-  const project = await api.project(ref).catch(() => void 0);
+  const project = await api.project(ref);
   const running = project?.status === "ACTIVE_HEALTHY";
   findings.push({
     id: "running",
     ok: running,
-    label: running ? "Your new backend is running" : `Your new backend isn't running (${project?.status ?? "Supabase didn't answer"})`,
-    ...running ? {} : { fix: "If it's paused, restore it on its page in Supabase, then look again." }
+    label: running ? "Your new backend is running" : project.status === "INACTIVE" || project.status === "GOING_DOWN" ? "Your new backend is paused" : "Your new backend isn't ready yet",
+    ...running ? {} : {
+      fix: project.status === "INACTIVE" || project.status === "GOING_DOWN" ? "Restore it on its page in Supabase, then look again." : "Check its status in Supabase, then look again in a minute."
+    }
   });
   if (!running) return { findings };
   const sql = homeSql(api, ref);

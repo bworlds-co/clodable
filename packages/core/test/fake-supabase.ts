@@ -175,7 +175,7 @@ export async function startFakeSupabase(options: {
     const rest = match[2] ?? "";
     if (rest === "") {
       project.looks++;
-      if (project.looks >= 2) project.status = "ACTIVE_HEALTHY";
+      if (project.status === "COMING_UP" && project.looks >= 2) project.status = "ACTIVE_HEALTHY";
       return send(200, { ...project, id: project.ref, created_at: "2026-10-11T00:00:00Z" });
     }
     if (rest === "/health") {

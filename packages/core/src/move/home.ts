@@ -27,11 +27,21 @@ export async function* createHome(
   options: { org?: string; region?: string; name?: string },
 ): Flow<NonNullable<MoveState["home"]>> {
   const state = await loadMove(ws.root);
+  const api = await SupabaseApi.required();
   if (state.home) {
+    yield step("move:create", "running", "Checking your new backend");
+    const project = await api.project(state.home.ref);
+    if (project.status === "INACTIVE" || project.status === "GOING_DOWN") {
+      throw new ClodableError({
+        code: "move-not-ready",
+        message: "Your new backend is paused.",
+        hint: "Restore it on its page in Supabase, then try this step again. Your live app hasn't changed.",
+      });
+    }
+    await waitUntilUp(api, state.home.ref);
     yield step("move:create", "done", "Your new backend is ready", state.home.name);
     return state.home;
   }
-  const api = await SupabaseApi.required();
   yield step("move:create", "running", "Creating your new backend");
   const organizations = await organizationChoices(api);
   const org =
@@ -88,7 +98,7 @@ export async function* createHome(
 export async function waitUntilUp(api: SupabaseApi, ref: string): Promise<void> {
   const started = Date.now();
   while (true) {
-    const project = await api.project(ref).catch(() => undefined);
+    const project = await api.project(ref);
     if (project?.status === "INIT_FAILED") {
       throw new ClodableError({
         code: "supabase-failed",
