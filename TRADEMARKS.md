@@ -5,7 +5,7 @@ Cloclod's code and docs are open source, under the [MIT license](LICENSE). Its n
 - **The code is yours to use.** Copy it, change it and share it, as the MIT license says.
 - **Forks are welcome, under their own name and art.** If you publish your own version, give it a name, a logo and a mascot of its own, so nobody takes it for Cloclod.
 
-What the MIT license doesn't cover, wherever it appears:
+What the MIT license doesn't cover, wherever it appears. Each folder of brand files also carries a short `NOTICE.md` saying so:
 
 | What | Where |
 |---|---|
