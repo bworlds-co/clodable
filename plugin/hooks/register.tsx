@@ -2073,7 +2073,6 @@ export const register: Register = (on) => {
 
   // ── The bar above the prompt ─────────────────────────────────────────────
   on("ui.render", { component: "AbovePrompt" }, async ($, e, next) => {
-    if (e.props.hasSurvey) return next(e);
     const s = await read($, status);
     const invite =
       s !== null && !s.ready && s.reason === "not-a-repo" && (emptyFolder || hasLocalApp);
@@ -2101,6 +2100,15 @@ export const register: Register = (on) => {
         >
           <Box flexDirection="row" columnGap={1} alignItems="center" flexShrink={1} minWidth={0}>
             {mark}
+            <Button
+              key="open-clodable"
+              plain
+              onPress={() =>
+                background(openPane($, s?.ready && s.movingOffLovable ? "move" : "app"))
+              }
+            >
+              Clodable
+            </Button>
             {left}
           </Box>
           <Box flexDirection="row" columnGap={1} alignItems="center" flexShrink={0}>
