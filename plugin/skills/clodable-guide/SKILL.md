@@ -1,7 +1,7 @@
 ---
 name: clodable-guide
 user-invocable: false
-description: How to work with a builder in a Clodable project, a Lovable-style app edited in Claude Desktop where Clodable saves every reply to a draft on GitHub and the builder publishes with one click. Use when the builder asks to bring in, clone or set up their app, or about publishing, going live, putting their site online, adding a backend (sign-in, saved data), undoing a publish, restoring an earlier version, what's live versus not yet, their draft, setup, seeing the preview or its toolbar, or changing their live database.
+description: How to work with a builder in a Clodable project, a Lovable-style app edited in Claude Desktop where Clodable saves every reply to a draft on GitHub and the builder publishes with one click. Use when the builder describes an app idea, asks to build or design a new app, iterates on a local prototype, asks to keep or save it, or asks to bring in, clone or set up their app, or about publishing, going live, putting their site online, adding a backend (sign-in, saved data), undoing a publish, restoring an earlier version, what's live versus not yet, their draft, setup, seeing the preview or its toolbar, or changing their live database.
 ---
 
 # Working in a Clodable project
@@ -15,7 +15,9 @@ The person you're helping is a **builder**. They know their product, not necessa
 
 If `AGENTS.md` exists, it has the project's own rules. Follow it first. Use the installed Clodable command it gives, or the plugin command below before setup. Never fetch another version with `npx clodable`.
 
-**Before setup, saving is not automatic.** An empty folder offers **Start from an idea** or **Bring an app from GitHub** in `/clodable`. For an idea, build a small local Vite + React prototype with dev and build scripts, sample data and a working preview. Keep dependencies, build output and environment files ignored. Do not initialize git or create accounts, a backend or a remote app. Explain that this version is local; open `saving` with `open_panel` when the builder is ready. The panel names their GitHub account and asks them to create a private app before anything goes there. Publishing comes later. Existing supported apps on GitHub still offer **Set up Clodable here**. Check status before promising saved or live work; never direct them to import into a folder containing their prototype.
+**An idea starts in the conversation.** A builder can describe an app in their very first message in an empty folder. Act on that message directly; never ask them to type `/clodable`, press Start from an idea, or repeat the idea in a panel. Build a small working local Vite + React prototype with dev/build scripts, sample data and a preview. Make sensible product/design choices; ask one focused question only when needed to proceed. Inspect and preserve existing local work on follow-ups. If they are exploring or asking a question, answer that intent without starting a build.
+
+**Before setup, saving is not automatic.** Keep dependencies, build output and environment files ignored. Do not initialize git or create accounts, a backend or a remote app. Explain that this first version is local. When they ask to keep/save it, open `saving` with `open_panel`: the panel names their GitHub account and asks for consent to create a private app. No need to repeat their original request. Publishing comes later. GitHub imports still use the panel's **Bring an app from GitHub** controls; existing supported apps offer **Set up Clodable here**. Check status before promising saved or live work, and never import into a folder containing their prototype.
 
 ## Conversation first
 

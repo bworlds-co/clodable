@@ -89,7 +89,7 @@ Go through them as the builder would. Start each from a fresh conversation and, 
   - Publish and undo.
   - Hit the things that stop a save or a publish: a key in the code, a broken build, the live site changing the same text.
 - **Léa: moving off Lovable** (`tiny-notes-wall`, `/move-off-lovable`; switched from `hirebright-score` with owner approval on October 18 because its Lovable export is blocked). The stages that work on a copy are yours to run: looking at the app, the new backend in test-org, copying data, people and files, functions, trying the app on the copy. The owner approved requesting/downloading the replacement app's export as part of this test. Live changes and finishing the move in Lovable still require separate approval.
-- **Nadia: from scratch** (a new empty folder). Follow the screen with no app and see where it leads, then try describing an idea to Claude.
+- **Nadia: from scratch** (a new empty folder). Describe an idea as the first normal message to Claude, without a command or panel. Try the local preview, then ask to keep the app and check that saving asks for account consent. A request to brainstorm or wait must not start building.
 - **Also:**
   - bringing an app in from GitHub into an empty folder;
   - two conversations open on the same app;

@@ -468,3 +468,11 @@ Fix: [#85](https://github.com/bworlds-co/clodable/pull/85).
 The agent remains responsible for driving Desktop, making ordinary test choices, implementing fixes, reloading and repeating the scenarios. Service gaps are evidence limits, not an instruction for the owner to execute the remaining test plan. Real AI calls cannot be verified without an authorized provider credential and spending permission; activation of a new email sender creates access that needs specific consent. These limits do not block independent interface checks.
 
 A scoped read-only check of the existing Resend connection succeeded and found one verified sending domain and one failed domain. Asking the owner to find a domain before checking the existing account was unnecessary. No domain was selected, no key was created, no DNS was changed and no email was sent. The verified domain's suitability for Tiny Notes has not been assumed. The original signed-in preview and the copy-only restriction remain in place.
+
+
+## F37 — major — Starting an idea requires a second message box
+
+- **Observed:** the owner tried the manual handoff and rejected the entry sequence: open Clodable, press Start from an idea, then describe the app in a panel field. They expect to describe it directly to Claude.
+- **Cause:** prototype guidance was attached only to the panel submission. The general skill did not explicitly advertise initial app-idea requests, and the empty-folder bar directed builders into setup.
+- **Fix:** ordinary turns in a local folder receive conditional builder guidance before the first model request. The guidance distinguishes building, follow-up edits, importing, and discussion-only requests. Removed the duplicate idea field and start button. The bar invites a normal message, then shows local-only status and a saving control for a local app. Account creation remains behind explicit consent. Updated the skill, recorded decision and manual journey.
+- **Validation:** 201 package tests, 148 plugin tests, typecheck, build and lint of tracked source/configuration pass. Native Desktop checks are in progress; do not count this as final acceptance yet.

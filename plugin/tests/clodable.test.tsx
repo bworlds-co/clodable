@@ -165,7 +165,12 @@ function harness(
   on("turn.start", (_$: unknown, e: { turnId: string }) => ({ turnId: e.turnId }));
   on("turn.complete", (_$: unknown, e: { answer: string }) => ({ text: e.answer }));
   on("command.register", () => ({ value: undefined }));
-  on("ui.open", () => ({ value: { isPlaced: true } }));
+  const opened: unknown[] = [];
+  (calls as unknown as { opened: unknown[] }).opened = opened;
+  on("ui.open", (_$: unknown, e: unknown) => {
+    opened.push(e);
+    return { value: { isPlaced: true } };
+  });
   on("tool.register", (_$: unknown, e: { name: string }) => ({
     value: { tool: `mcp__clodable__${e.name}` },
   }));
@@ -454,7 +459,7 @@ describe("the Publish bar", () => {
     expect(await bandText($, "desktop", /Everything is live/)).toBe("Everything is live");
   });
 
-  test("offers setup in an empty folder", async ($, on) => {
+  test("invites a normal message in an empty folder", async ($, on) => {
     harness(
       on,
       { code: "not-a-repo", message: "This folder isn't connected to GitHub yet." },
@@ -464,9 +469,7 @@ describe("the Publish bar", () => {
       value: [{ name: ".DS_Store", kind: "file", size: 1, mtimeMs: 0, isLink: false }],
     }));
     await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
-    expect(await bandText($, "desktop", /Start an idea/)).toContain(
-      "Start an idea or bring in your app",
-    );
+    expect(await bandText($, "desktop", /Describe your idea/)).toBe("Describe your idea to Claude");
   });
 });
 
@@ -3401,31 +3404,73 @@ describe("the preview, when Claude starts it", () => {
 });
 
 describe("everywhere else", () => {
-  test("an idea starts in the conversation before any GitHub consent or setup", async ($, on) => {
+  test("the first plain idea gets builder guidance without opening a panel or submitting another prompt", async ($, on) => {
     const calls = harness(on, { code: "not-a-repo", message: "Local folder" }, false);
-    on("fs.list", () => ({ value: [] }));
+    let hasFiles = false;
+    on("fs.exists", (_$: unknown, e: { path: string }) => ({
+      value: hasFiles && /(?:^|\/)package\.json$/.test(e.path),
+    }));
+    on("fs.list", () => ({
+      value: hasFiles
+        ? [{ name: "package.json", kind: "file", size: 100, mtimeMs: 0, isLink: false }]
+        : [],
+    }));
+    const session = mock.session(on);
+    const opened = (calls as unknown as { opened: unknown[] }).opened;
     const asked: string[] = [];
     on("prompt.submit", (_$: unknown, e: { text: string }) => {
       asked.push(e.text);
       return { text: e.text };
     });
     await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
-    const pane = await $.ui.mount(PANE_PROPS as never);
-    for (let i = 0; i < 30 && !(await pane.find({ key: "start-idea" })); i++) await pane.redraw();
-    expect(await pane.find({ key: "connect-github" })).toBeUndefined();
-    await pane.press({ key: "start-idea" });
-    await $.ui.input({
-      plugin: "clodable",
-      key: "idea-description",
-      text: "A neighbourhood book swap",
-    });
-    expect(asked).toEqual(["Make a first version of this idea: A neighbourhood book swap"]);
-    expect(await pane.find({ key: "idea-description" })).toBeUndefined();
-    expect(
-      await pane.find({ type: "Text", text: /Claude is making your first version/ }),
-    ).toBeDefined();
+    await $.turn.start({
+      text: "Build an app for a neighbourhood book swap",
+      turnId: "idea",
+    } as never);
+    expect(readBy(session).join("\n")).toContain(
+      "The builder's message in the conversation is the request",
+    );
+    expect(readBy(session).join("\n")).toContain("without building");
+    expect(asked).toEqual([]);
+    expect(opened).toEqual([]);
+    hasFiles = true;
+    await $.turn.complete({
+      turnId: "idea",
+      answer: "Your local book swap is ready.",
+      isAborted: false,
+    } as never);
+    expect(await bandText($, "desktop", /Only on this computer/)).toBe("Only on this computer");
     expect(calls.some((call) => ["save", "setup"].includes(call[0]!))).toBe(false);
+    await $.turn.start({
+      text: "Make the book cards easier to read",
+      turnId: "idea-followup",
+    } as never);
+    expect(readBy(session).at(-1)).toContain("do not restart a prototype on a follow-up");
+  });
+
+  test("the optional empty-folder panel has import controls but no duplicate idea form", async ($, on) => {
+    harness(on, { code: "not-a-repo", message: "Local folder" }, false);
+    on("fs.list", () => ({ value: [] }));
+    await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+    const pane = await $.ui.mount(PANE_PROPS as never);
+    for (let i = 0; i < 30 && !(await pane.find({ key: "choose-import" })); i++)
+      await pane.redraw();
+    expect(
+      await pane.find({ type: "Text", text: /Describe your idea to Claude in the conversation/ }),
+    ).toBeDefined();
+    expect(await pane.find({ key: "start-idea" })).toBeUndefined();
+    expect(await pane.find({ key: "idea-description" })).toBeUndefined();
+    expect(await pane.find({ key: "connect-github" })).toBeUndefined();
+    expect(await pane.find({ key: "choose-import" })).toBeDefined();
     await pane.unmount();
+  });
+
+  test("a connected app does not receive local-prototype instructions", async ($, on) => {
+    harness(on);
+    const session = mock.session(on);
+    await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+    await $.turn.start({ text: "Build a book-sharing page", turnId: "existing-app" } as never);
+    expect(readBy(session).join("\n")).not.toContain("Clodable context: this folder is not set up");
   });
 
   test("saving a prototype names the account and waits for explicit private-app consent", async ($, on) => {
@@ -3709,7 +3754,7 @@ describe("everywhere else", () => {
       await $.command.run({ command: "clodable", args: "" } as never);
       const pane = await $.ui.mount(PANE_PROPS as never);
       if (!hasLocalPage) {
-        expect(await pane.find({ key: "start-idea" })).toBeDefined();
+        expect(await pane.find({ key: "start-idea" })).toBeUndefined();
         await pane.press({ key: "choose-import" });
       }
       expect(Boolean(await pane.find({ key: "repo-name" }))).toBe(!hasLocalPage);

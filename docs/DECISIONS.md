@@ -39,7 +39,7 @@ These decisions were settled with the project owner on 2026-10-10 in a structure
 
 ## 2026-10-18 · Start from an idea
 
-The owner approved Nadia's proposed route from the Desktop UX report. An empty folder offers **Start from an idea** alongside GitHub import. Claude shapes a local prototype in the conversation, with no account required to begin. Clodable states that it is local and not yet saved to GitHub. **Set up saving** names the connected GitHub account and asks for consent to create a private app there. Saving then follows the existing draft and Publish model; hosting and a backend remain separate choices. This extends the setup scope without changing Q1 or making the prototype public.
+The owner approved Nadia's proposed route from the Desktop UX report. The builder describes the idea in Claude's normal message box, including as the first message in an empty folder. No slash command, start button or separate idea field is required. Claude shapes a local prototype in that conversation, with no account required to begin. The optional panel retains GitHub import controls. This direct-entry clarification was requested by the owner after the manual handoff on October 18. Clodable states that it is local and not yet saved to GitHub. **Set up saving** names the connected GitHub account and asks for consent to create a private app there. Saving then follows the existing draft and Publish model; hosting and a backend remain separate choices. This extends the setup scope without changing Q1 or making the prototype public.
 
 ## 2026-10-18 · Conversation first, focused controls
 

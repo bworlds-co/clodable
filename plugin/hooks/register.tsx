@@ -175,10 +175,9 @@ let confirming:
   | null = null;
 let repoChoices: Array<{ value: string; label: string }> = [];
 let chosenRepo = "";
-let setupChoice: "import" | "idea" | "saving" | null = null;
+let setupChoice: "import" | "saving" | null = null;
 let newAppName = "";
 let setupProblem: { message: string; help: boolean } | null = null;
-let ideaRequested = false;
 let deviceCode = "";
 const requests = new Map<string, string>();
 /**
@@ -297,6 +296,7 @@ let inApp: boolean | null = null;
 let firstStatus: Promise<void> = Promise.resolve();
 /** An empty folder is where an app gets brought in, so the bar invites setup there. */
 let emptyFolder = false;
+let hasLocalApp = false;
 /** The app's preview in Desktop's Browser, once it runs. */
 let previewUrl: string | null = null;
 /** The preview is started once per session, from whichever comes first: session start or the bar. */
@@ -331,8 +331,10 @@ async function folderIsEmpty($: EngineInterface): Promise<boolean> {
 /** A local prototype can appear during a reply, before Clodable has an app it can save. */
 async function refreshEmptyFolder($: EngineInterface) {
   const empty = await folderIsEmpty($);
-  if (empty === emptyFolder) return;
+  const app = !empty && (await $.fs.exists("package.json").catch(() => false));
+  if (empty === emptyFolder && app === hasLocalApp) return;
   emptyFolder = empty;
+  hasLocalApp = app;
   $.ui.invalidate("ui.render");
 }
 
@@ -359,10 +361,10 @@ async function syncFolder($: EngineInterface): Promise<string> {
 async function lookAtFolder($: EngineInterface) {
   inApp = (await $.fs.exists(".clodable/config.json").catch(() => false)) ? true : null;
   emptyFolder = false;
+  hasLocalApp = false;
   setupChoice = null;
   newAppName = "";
   setupProblem = null;
-  ideaRequested = false;
   inspectingApp = false;
   paneView = null;
   showAssessment = false;
@@ -1774,6 +1776,15 @@ export const register: Register = (on) => {
   on("turn.start", async ($, e, next) => {
     await syncFolder($);
     requests.set(e.turnId, e.text);
+    // A plain first message needs the same builder guidance as a panel request. Wait for the
+    // folder's initial status (including Desktop's spare-folder move), without opening a panel.
+    await isApp();
+    const current = await read($, status);
+    if (current?.ready === false && current.reason === "not-a-repo") {
+      await $.session
+        .append({ message: { type: "user", content: [{ type: "text", text: LOCAL_APP_CONTEXT }] } })
+        .catch(() => {});
+    }
     // A request Clodable sent in the builder's name: its details, for Claude only.
     const details = detailsFor.get(e.text);
     if (details !== undefined) {
@@ -1811,7 +1822,6 @@ export const register: Register = (on) => {
 
   // Auto-save after every reply of the main conversation.
   on("turn.complete", async ($, e, next) => {
-    ideaRequested = false;
     if (e.agentId === undefined) inspectingApp = false;
     const asked = requests.get(e.turnId);
     requests.delete(e.turnId);
@@ -2065,7 +2075,8 @@ export const register: Register = (on) => {
   on("ui.render", { component: "AbovePrompt" }, async ($, e, next) => {
     if (e.props.hasSurvey) return next(e);
     const s = await read($, status);
-    const invite = s !== null && !s.ready && s.reason === "not-a-repo" && emptyFolder;
+    const invite =
+      s !== null && !s.ready && s.reason === "not-a-repo" && (emptyFolder || hasLocalApp);
     if (inApp !== true && !invite) return next(e);
     const desktop = e.surface === "desktop";
     if (desktop && inApp === true && !previewAsked) background(startPreview($));
@@ -2610,10 +2621,29 @@ function barSides(
     return { left: [<Text dimColor>Saving…</Text>], right: [history, preview] };
   if (!s) return { left: [<Text dimColor>Clodable is getting ready…</Text>] };
   if (!s.ready) {
+    if (s.reason === "not-a-repo") {
+      return {
+        left: [
+          <Text>{emptyFolder ? "Describe your idea to Claude" : "Only on this computer"}</Text>,
+        ],
+        right: [
+          <Button
+            key={emptyFolder ? "bring-app" : "save-local-app"}
+            variant="secondary"
+            dimColor={turnActive}
+            onPress={() => {
+              if (turnActive) return;
+              if (emptyFolder) setupChoice = "import";
+              background(openPane($, emptyFolder ? "app" : "saving"));
+            }}
+          >
+            {emptyFolder ? "Bring an app from GitHub" : "Set up saving"}
+          </Button>,
+        ],
+      };
+    }
     return {
-      left: [
-        <Text>{s.reason === "not-a-repo" ? "Start an idea or bring in your app" : s.message}</Text>,
-      ],
+      left: [<Text>{s.message}</Text>],
       right: [
         <Button key="setup" variant="primary" onPress={() => background(openPane($))}>
           Set up
@@ -2894,76 +2924,20 @@ function setupPane(
       <Box flexDirection="column" rowGap={1} paddingX={1}>
         {header}
         <Text bold>What would you like to make?</Text>
-        {setupChoice === "idea" && (ideaRequested || turnActive) ? (
-          <Text dimColor>
-            Claude is making your first version. Follow the conversation, then try the preview.
-          </Text>
-        ) : setupChoice === "idea" ? (
-          <Box flexDirection="column" rowGap={1}>
-            <Text>Describe who it's for and what they should be able to do.</Text>
-            {Input ? (
-              <Input
-                key="idea-description"
-                label="Your idea"
-                placeholder="A place for neighbours to lend books…"
-                submitLabel="Make a first version"
-                onSubmit={(value) => {
-                  if (!value.trim() || ideaRequested || turnActive) return;
-                  ideaRequested = true;
-                  $.ui.invalidate("ui.render");
-                  const text = `Make a first version of this idea: ${value.trim()}`;
-                  detailsFor.set(text, IDEA_DETAILS);
-                  background(
-                    $.prompt.submit({ text, asUser: true }).catch(() => {
-                      ideaRequested = false;
-                      $.ui.toast("Claude couldn't start yet. Try your idea again.");
-                      $.ui.invalidate("ui.render");
-                    }),
-                  );
-                }}
-              />
-            ) : (
-              <Text>Tell Claude your idea in the conversation.</Text>
-            )}
-            <Text dimColor>
-              Start with a local preview. You can connect saving when you're ready.
-            </Text>
-            <Button
-              key="back-to-start"
-              plain
-              onPress={() => {
-                setupChoice = null;
-                $.ui.invalidate("ui.render");
-              }}
-            >
-              Back
-            </Button>
-          </Box>
-        ) : (
-          <Box flexDirection="column" rowGap={1}>
-            <Button
-              key="start-idea"
-              variant="primary"
-              onPress={() => {
-                setupChoice = "idea";
-                $.ui.invalidate("ui.render");
-              }}
-            >
-              Start from an idea
-            </Button>
-            <Text dimColor>Describe it to Claude and try a first version on this computer.</Text>
-            <Button
-              key="choose-import"
-              variant="secondary"
-              onPress={() => {
-                setupChoice = "import";
-                $.ui.invalidate("ui.render");
-              }}
-            >
-              Bring an app from GitHub
-            </Button>
-          </Box>
-        )}
+        <Text>Describe your idea to Claude in the conversation.</Text>
+        <Text dimColor>Try a first version on this computer. Set up saving when you're ready.</Text>
+        <Button
+          key="choose-import"
+          variant="secondary"
+          dimColor={turnActive}
+          onPress={() => {
+            if (turnActive) return;
+            setupChoice = "import";
+            $.ui.invalidate("ui.render");
+          }}
+        >
+          Bring an app from GitHub
+        </Button>
       </Box>
     );
   }
@@ -5752,7 +5726,7 @@ async function runSetup($: EngineInterface, args: string[]): Promise<Result | un
   return result;
 }
 
-const IDEA_DETAILS = `The builder chose Start from an idea. Make a small, working local prototype with Vite and React in this folder, with dev and build scripts and .gitignore excluding node_modules, dist and .env files. Use sample data and browser storage only; explain what is local when relevant. Do not create a GitHub app, connect accounts, add a backend or publish. Do not initialize git or add Clodable's setup files yet. Open the preview in Desktop, try its main interaction, and say it is a local first version. Clodable is not saving to GitHub yet. When they want saving, tell them to press Set up saving in the Clodable panel; that panel gets account consent. Keep progress and final replies free of git vocabulary and local addresses.`;
+const LOCAL_APP_CONTEXT = `Clodable context: this folder is not set up for automatic saving. The builder's message in the conversation is the request; do not ask them to repeat it in a panel, type /clodable or press Start from an idea. If they ask to build an app, act on that request directly: make a small, working local prototype with Vite and React, dev and build scripts, and .gitignore excluding node_modules, dist and .env files. Inspect and preserve any existing local work; do not restart a prototype on a follow-up. Make sensible product and design choices, asking one focused question only if it is needed to proceed. Use sample data and browser storage first, and explain that it is local when relevant. If they are only exploring, asking a question or asking you to wait, respond to that intent without building. If they want to bring an existing app from GitHub, open the app view with open_panel for the import controls instead of scaffolding or cloning. Do not create a GitHub app, connect accounts, add a backend, initialize git, write Clodable setup files or publish. Open the preview in Desktop and try the main interaction before saying the prototype is ready. Keep replies brief, in product terms, without file lists, git vocabulary or local addresses. When they ask to keep/save the prototype, open the saving view with open_panel for account consent; they should not have to find a command or repeat their original request. Files are on this computer; Clodable is not saving to GitHub yet.`;
 const IDEA_PREPARE_DETAILS = `Keep the existing app's design, content and local work. Prepare it as a supported Vite + React app with dev and build scripts, checking that it builds. Keep environment files and generated dependencies ignored. Do not create a remote app, connect accounts or publish. Once ready, ask the builder to try Set up saving in Clodable again. All account consent and GitHub creation happen in the panel. Use plain builder language.`;
 
 async function setUpSaving($: EngineInterface, account: string) {
