@@ -88,7 +88,7 @@ Go through them as the builder would. Start each from a fresh conversation and, 
   - Go back to an earlier version: from History, and by asking Claude.
   - Publish and undo.
   - Hit the things that stop a save or a publish: a key in the code, a broken build, the live site changing the same text.
-- **Léa: moving off Lovable** (`hirebright-score`, `/move-off-lovable`). The stages that work on a copy are yours to run: looking at the app, the new backend in test-org, copying data, people and files, functions, trying the app on the copy. Everything that touches her live app or Lovable itself is the owner's: stop and ask.
+- **Léa: moving off Lovable** (`tiny-notes-wall`, `/move-off-lovable`; switched from `hirebright-score` with owner approval on October 18 because its Lovable export is blocked). The stages that work on a copy are yours to run: looking at the app, the new backend in test-org, copying data, people and files, functions, trying the app on the copy. The owner approved requesting/downloading the replacement app's export as part of this test. Live changes and finishing the move in Lovable still require separate approval.
 - **Nadia: from scratch** (a new empty folder). Follow the screen with no app and see where it leads, then try describing an idea to Claude.
 - **Also:**
   - bringing an app in from GitHub into an empty folder;
@@ -109,7 +109,7 @@ Use the builder's usual setup: Desktop's **Auto** permission mode and its defaul
 | `~/Clodable Tests/fresh-app` | `bworlds-co/clodable-launch-test` (private) | A Lovable app with no database, not online. Throwaway: reset freely, never delete the repo |
 | `~/Clodable Demo/crumb-site` | A stand-in GitHub on this Mac | Set up, with fake services. Rebuild with `pnpm tsx scripts/demo-workspace.mts`. Its "live" site isn't real |
 | `~/Clodable Tests/hirebright-score` | `vulk-corp/hirebright-score` | A real Lovable Cloud project. Only the steps above |
-| `~/Clodable Tests/tiny-notes-wall` | `vulk-corp/tiny-notes-wall` | A Lovable app, not set up. Ask before using it |
+| `~/Clodable Tests/tiny-notes-wall` | `vulk-corp/tiny-notes-wall` | Owner-approved replacement for Léa's copy-only migration test, including export; live changes remain reserved |
 | `~/Clodable Tests/nadia-idea-books` | `emmanuelvulk/clodable-idea-books-test` (private) | Owner approved creation for Nadia's saving/publishing test on October 18 |
 | `~/Clodable Tests/nadia-idea-plants` | `emmanuelvulk/clodable-idea-plants-test` (private) | Owner approved creation for Nadia's saving/publishing test on October 18 |
 
