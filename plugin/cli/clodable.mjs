@@ -25467,23 +25467,53 @@ async function extractEntry(path2, entry, target) {
 var BACKUP = "export.backup";
 var FILES_LIST = "files.jsonl";
 var JOBS_FILE = "jobs.json";
-async function findExport(folder = join19(homedir2(), "Downloads")) {
+var isBackup = (name) => /\.(backup|dump)$/i.test(name);
+var projectId = (text2) => text2.match(/[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}/i)?.[0]?.toLowerCase();
+async function exportNames(source) {
+  if (!source.toLowerCase().endsWith(".zip")) return [basename4(source)];
+  const entries = await zipEntries(source).catch((error62) => {
+    throw unreadable(error62);
+  });
+  const backups = entries.filter((e) => isBackup(e.name));
+  if (backups.length !== 1) {
+    throw new ClodableError({
+      code: "export-unreadable",
+      message: backups.length ? "That zip holds more than one database export." : "That zip doesn't hold a database export.",
+      hint: "Choose the single .backup or .dump file for this app, or download its export again from Lovable."
+    });
+  }
+  return [basename4(source), basename4(backups[0].name)];
+}
+async function checkExportSource(source, projectUrl2) {
+  const names2 = await exportNames(source);
+  const expected = projectUrl2 && projectId(projectUrl2);
+  if (expected && names2.some((name) => projectId(name) && projectId(name) !== expected)) {
+    throw new ClodableError({
+      code: "export-unreadable",
+      message: "That export is labelled for a different Lovable app.",
+      hint: "Download this app's export, or tell Claude where you saved the correct file. Your saved copy hasn't changed."
+    });
+  }
+}
+async function findExport(folder = join19(homedir2(), "Downloads"), projectUrl2) {
   if (!existsSync15(folder)) return void 0;
   const month = Date.now() - 31 * 24 * 60 * 6e4;
   const candidates2 = [];
   for (const name of await readdir4(folder).catch(() => [])) {
     const ext = extname(name).toLowerCase();
-    if (ext !== ".zip" && ext !== ".backup") continue;
+    if (ext !== ".zip" && !isBackup(name)) continue;
     const path2 = join19(folder, name);
     const info = await stat2(path2).catch(() => void 0);
     if (!info?.isFile() || info.mtimeMs < month) continue;
     candidates2.push({ path: path2, at: info.mtimeMs });
   }
   candidates2.sort((a2, b) => b.at - a2.at);
-  for (const { path: path2 } of candidates2.slice(0, 40)) {
-    if (path2.toLowerCase().endsWith(".backup")) return path2;
-    const entries = await zipEntries(path2).catch(() => []);
-    if (entries.some((e) => e.name.toLowerCase().endsWith(".backup"))) return path2;
+  const expected = projectUrl2 && projectId(projectUrl2);
+  if (!expected) return void 0;
+  for (const { path: path2 } of candidates2) {
+    const names2 = await exportNames(path2).catch(() => []);
+    const ids = names2.map(projectId).filter(Boolean);
+    if (ids.length > 0 && ids.every((id) => id === expected)) return path2;
   }
   return void 0;
 }
@@ -25497,15 +25527,15 @@ async function takeBackup(source, dir) {
     } catch (error62) {
       throw unreadable(error62);
     }
-    const backups = entries.filter((e) => e.name.toLowerCase().endsWith(".backup"));
-    if (backups.length === 0) {
+    const backups = entries.filter((e) => isBackup(e.name));
+    if (backups.length !== 1) {
       throw new ClodableError({
         code: "export-unreadable",
-        message: "That zip doesn't hold a database export.",
-        hint: "Download the zip from the email Lovable sent when the export was ready, or from More \u2192 Cloud \u2192 Storage in Lovable."
+        message: backups.length ? "That zip holds more than one database export." : "That zip doesn't hold a database export.",
+        hint: "Choose the single .backup or .dump file for this app, or download its export again from Lovable."
       });
     }
-    const entry = backups.sort((a2, b) => b.size - a2.size)[0];
+    const entry = backups[0];
     try {
       await extractEntry(source, entry, target);
     } catch (error62) {
@@ -26452,18 +26482,19 @@ var API_PRIVILEGES = /* @__PURE__ */ new Set(["SELECT", "INSERT", "UPDATE", "DEL
 // ../core/src/move/copy.ts
 async function* importExport(ws, options = {}) {
   yield step("move:export", "running", "Reading your export");
-  const file3 = options.file ?? await findExport();
+  const file3 = options.file ?? await findExport(void 0, ws.project.lovable.projectUrl);
   if (!file3) {
     throw new ClodableError({
       code: "export-not-found",
-      message: "Clodable didn't find your Lovable export in Downloads.",
-      hint: "In Lovable: More \u2192 Cloud \u2192 Overview \u2192 Advanced settings \u2192 Export data, then Export on the Database card, then Start export. Download the zip from the email Lovable sends (or from Cloud \u2192 Storage)."
+      message: "Clodable couldn't match an export in Downloads to this app.",
+      hint: "Download this app's export from Lovable, or tell Claude the name and location of its .zip, .backup or .dump file. Clodable won't guess between apps."
     });
   }
+  await checkExportSource(file3, ws.project.lovable.projectUrl);
   const dir = await moveDir(ws.root);
   const before = await loadMove(ws.root);
   const pausedAt = before.switch?.liveAt ? void 0 : before.switch?.frozenAt;
-  const target = pausedAt ? await mkdtemp7(join22(dir, "incoming-")) : dir;
+  const target = await mkdtemp7(join22(dir, "incoming-"));
   let summary;
   try {
     summary = (await readExport(file3, target)).summary;
@@ -26475,13 +26506,13 @@ async function* importExport(ws, options = {}) {
           hint: "Check the pause is in place in Lovable, export again, download the new zip, then read it."
         });
       }
-      for (const name of await readdir5(target)) {
-        await rm12(join22(dir, name), { recursive: true, force: true });
-        await rename8(join22(target, name), join22(dir, name));
-      }
+    }
+    for (const name of await readdir5(target)) {
+      await rm12(join22(dir, name), { recursive: true, force: true });
+      await rename8(join22(target, name), join22(dir, name));
     }
   } finally {
-    if (pausedAt) await rm12(target, { recursive: true, force: true });
+    await rm12(target, { recursive: true, force: true });
   }
   const sourceRef = ws.project.supabase.projectRef ?? summary.sourceRefs[0];
   await updateMove(ws.root, (s) => {

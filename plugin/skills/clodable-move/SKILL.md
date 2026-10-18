@@ -51,6 +51,7 @@ The move starts with you reading the app's code ("Moving off Lovable: look at my
 - The Supabase and Netlify tokens, the Resend key, Lovable Cloud's service key, AI and Google keys, secret values and the app's settings are typed in the panel and go straight to Clodable. Never ask for them in the chat. Never run `move connect`, `move netlify`, `move resend`, `move ai`, `move google`, `move secret`, `move vault-secret`, `move setting`, `move files --private`, `move forget` or `move disconnect`: Clodable blocks them and the builder uses the panel.
 - Never read Clodable's private folder (`~/Library/Application Support/clodable`, `~/.config/clodable`): it holds keys and the people's data from the export. Clodable blocks it. `move status` and `move diagnose` report everything that's safe to see.
 - Never show rows of people's data. Counts, times and the names of tables are fine.
+- `move export` matches Downloads filenames to this app's Lovable project. If it cannot match one, ask for the file's name and location, then use `move export --file <path>`. A manual `.dump`, `.backup` or zip containing one of them is supported. Never rename another app's export to bypass a mismatch. Report the archive's date; an older manual export can rehearse a copy but cannot serve as a fresh final export. Database archives include storage metadata, not the uploaded files themselves; those copy in the separate files step.
 
 ## When something's wrong
 

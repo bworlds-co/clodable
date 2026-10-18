@@ -64,31 +64,70 @@ export const BACKUP = "export.backup";
 export const FILES_LIST = "files.jsonl";
 export const JOBS_FILE = "jobs.json";
 
-/** Where Lovable's export usually lands: the newest zip in Downloads that holds one backup. */
+const isBackup = (name: string) => /\.(backup|dump)$/i.test(name);
+const projectId = (text: string) =>
+  text.match(/[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}/i)?.[0]?.toLowerCase();
+
+/** Names are a selection aid, not proof of an archive's contents. */
+async function exportNames(source: string): Promise<string[]> {
+  if (!source.toLowerCase().endsWith(".zip")) return [basename(source)];
+  const entries = await zipEntries(source).catch((error: unknown) => {
+    throw unreadable(error);
+  });
+  const backups = entries.filter((e) => isBackup(e.name));
+  if (backups.length !== 1) {
+    throw new ClodableError({
+      code: "export-unreadable",
+      message: backups.length
+        ? "That zip holds more than one database export."
+        : "That zip doesn't hold a database export.",
+      hint: "Choose the single .backup or .dump file for this app, or download its export again from Lovable.",
+    });
+  }
+  return [basename(source), basename(backups[0]!.name)];
+}
+
+/** Refuse a file clearly labelled for another app, even when chosen explicitly. */
+export async function checkExportSource(source: string, projectUrl?: string): Promise<void> {
+  const names = await exportNames(source);
+  const expected = projectUrl && projectId(projectUrl);
+  if (expected && names.some((name) => projectId(name) && projectId(name) !== expected)) {
+    throw new ClodableError({
+      code: "export-unreadable",
+      message: "That export is labelled for a different Lovable app.",
+      hint: "Download this app's export, or tell Claude where you saved the correct file. Your saved copy hasn't changed.",
+    });
+  }
+}
+
+/** Choose the newest export labelled for this app. Unlabelled files need an explicit choice. */
 export async function findExport(
   folder = join(homedir(), "Downloads"),
+  projectUrl?: string,
 ): Promise<string | undefined> {
   if (!existsSync(folder)) return undefined;
   const month = Date.now() - 31 * 24 * 60 * 60_000;
   const candidates: Array<{ path: string; at: number }> = [];
   for (const name of await readdir(folder).catch(() => [] as string[])) {
     const ext = extname(name).toLowerCase();
-    if (ext !== ".zip" && ext !== ".backup") continue;
+    if (ext !== ".zip" && !isBackup(name)) continue;
     const path = join(folder, name);
     const info = await stat(path).catch(() => undefined);
     if (!info?.isFile() || info.mtimeMs < month) continue;
     candidates.push({ path, at: info.mtimeMs });
   }
   candidates.sort((a, b) => b.at - a.at);
-  for (const { path } of candidates.slice(0, 40)) {
-    if (path.toLowerCase().endsWith(".backup")) return path;
-    const entries = await zipEntries(path).catch(() => [] as ZipEntry[]);
-    if (entries.some((e) => e.name.toLowerCase().endsWith(".backup"))) return path;
+  const expected = projectUrl && projectId(projectUrl);
+  if (!expected) return undefined;
+  for (const { path } of candidates) {
+    const names = await exportNames(path).catch(() => [] as string[]);
+    const ids = names.map(projectId).filter(Boolean);
+    if (ids.length > 0 && ids.every((id) => id === expected)) return path;
   }
   return undefined;
 }
 
-/** Put the backup in the protected folder, from the zip Lovable gave or a bare .backup file. */
+/** Put the backup in the protected folder, from a zip, .backup or .dump file. */
 async function takeBackup(source: string, dir: string): Promise<void> {
   const target = join(dir, BACKUP);
   await rm(target, { force: true });
@@ -99,16 +138,17 @@ async function takeBackup(source: string, dir: string): Promise<void> {
     } catch (error) {
       throw unreadable(error);
     }
-    const backups = entries.filter((e) => e.name.toLowerCase().endsWith(".backup"));
-    if (backups.length === 0) {
+    const backups = entries.filter((e) => isBackup(e.name));
+    if (backups.length !== 1) {
       throw new ClodableError({
         code: "export-unreadable",
-        message: "That zip doesn't hold a database export.",
-        hint: "Download the zip from the email Lovable sent when the export was ready, or from More → Cloud → Storage in Lovable.",
+        message: backups.length
+          ? "That zip holds more than one database export."
+          : "That zip doesn't hold a database export.",
+        hint: "Choose the single .backup or .dump file for this app, or download its export again from Lovable.",
       });
     }
-    // Several (an older export kept in the same zip): the largest is the database.
-    const entry = backups.sort((a, b) => b.size - a.size)[0]!;
+    const entry = backups[0]!;
     try {
       await extractEntry(source, entry, target);
     } catch (error) {

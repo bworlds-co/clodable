@@ -4531,8 +4531,8 @@ function exportStep($: EngineInterface, { ui, s }: StepView) {
         {openLovable(ui, s)}
       </Box>
       <Text dimColor>
-        Clodable finds it in your Downloads. Lovable allows one export a day, while your backend is
-        running.
+        Clodable looks for this app's export in Downloads. Have a file from Lovable support? Tell
+        Claude where you saved it. Lovable allows one export a day while your backend is running.
       </Text>
     </Box>
   );
