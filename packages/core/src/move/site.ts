@@ -215,7 +215,7 @@ export async function* putSiteOnNetlify(
   const supabase = await SupabaseApi.required();
   const token = (await readSecret(NETLIFY_TOKEN))!;
 
-  yield step("move:site", "running", "Putting your site on Netlify", "Creating the site");
+  yield step("move:site", "running", "Preparing your website", "Creating the site");
   const site =
     (state.site ? await netlify.site(state.site.id).catch(() => undefined) : undefined) ??
     (await createNetlifySite(netlify, ws.project.name, options.account));
@@ -230,12 +230,7 @@ export async function* putSiteOnNetlify(
     };
   });
 
-  yield step(
-    "move:site",
-    "running",
-    "Putting your site on Netlify",
-    "Pointing it at your new backend",
-  );
+  yield step("move:site", "running", "Preparing your website", "Pointing it at your new backend");
   const backend = backendOf(state.home.ref, await homeKeys(supabase, state.home.ref));
   const carried = await setSiteEnv(netlify, site, ws.root, backend);
   if (carried.length > 0) {
@@ -244,11 +239,16 @@ export async function* putSiteOnNetlify(
     });
   }
 
-  yield step("move:site", "running", "Putting your site on Netlify", "Setting up Publish");
+  yield step("move:site", "running", "Preparing your website", "Setting up Publish");
   const files = await setUpPublish(ws, site, token);
 
   const settings = await siteSettingsOf(netlify, site.account_slug, site.id, ws.root);
-  yield step("move:site", "done", "Your site is ready on Netlify", `Publish to see it at ${url}`);
+  yield step(
+    "move:site",
+    "done",
+    "Your website is prepared",
+    "Nothing has been published. Continue the move in the panel.",
+  );
   return { site: { name: site.name, url, admin: site.admin_url }, files, settings };
 }
 

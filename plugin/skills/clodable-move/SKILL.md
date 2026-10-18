@@ -17,6 +17,7 @@ Their live app keeps running on Lovable until the switch: everything before it b
 - Read the output: the steps, the checks (✓ fine, ! needs a look), the counts.
 - Answer in two to four sentences: what happened, what it means for them, and what comes next (the panel shows the next step's button). Use their words: backend, copy, data, people, files, live. Never git words.
 - Say what's surprising, even when the step "worked": an export with 0 people when they have users, fewer rows than they'd expect, a check marked !, an empty feature on the copy.
+- Name the scope of checks: "The database copy checks pass" does not mean "The app checks out fully". A selected copy preview proves which backend it uses, not that every feature was tried. AI, emails, sign-in and hosted behavior need their own evidence. Re-read current status and `settings --json` (names only) before repeating old reminders from memory; a saved setting can already be configured.
 
 ### When the request starts in conversation
 
@@ -88,7 +89,8 @@ The move starts with you reading the app's code ("Moving off Lovable: look at my
 
 `move site` creates the Netlify site (or finds the one it made), points it at the new backend, writes `netlify.toml` and `.github/workflows/clodable-netlify.yml`, and gives GitHub the two secrets the workflow deploys with. Netlify's free plan can't watch a private repository owned by a GitHub organization; the workflow can, and it records a GitHub deployment so Clodable's Publish knows when the site is live.
 
-- After it, tell them: the files are saved to their draft with your reply; **Publish** puts the site on Netlify (the workflow runs on GitHub, a few minutes the first time), at the address `move site` printed. It uses the new backend; their live app stays on Lovable.
+- This is hosting preparation, not publication or a completed move. After it, run `move status --json` and explain the next unfinished step, usually emails or services. Say the website is prepared and nothing was published. Do not tell them Publish is the only remaining step while those preparations and the switch are pending.
+- Publish updates the app's shared code as well as starting the Netlify workflow. With Lovable's GitHub sync still connected, those changes can also reach the live Lovable app. Never present Publish as an isolated test of the copy. If the builder requested copy-only work or no live changes, do not recommend or perform Publish; continue the authorized preparation and wait for explicit publication/live-change consent. Do not skip emails or services, pause the app, copy again, or run the switch just to make a prepared address show a page.
 - The settings their server code reads (`process.env.X`, like `GREETING`) are listed: they paste each value in the panel, once, for their preview and their site. The site step stays open until they do, or go on without them; values pasted earlier for the preview go to the site by themselves. Lovable's own (`LOVABLE_*`) only work on Lovable: the services step switches the AI one.
 - If the deploy fails, the panel shows Publish's report with a link to the workflow's run: read it (`gh run view --log-failed`), explain, and fix the cause in the code or in `netlify.toml`.
 

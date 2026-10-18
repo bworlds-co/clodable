@@ -4877,8 +4877,8 @@ function siteStep($: EngineInterface, { ui }: StepView) {
   return (
     <Box flexDirection="column" rowGap={1}>
       <Text dimColor>
-        Clodable creates the site, points it at your new backend, and sets up Publish to put it live
-        on Netlify through GitHub.
+        Clodable prepares a Netlify site for your copy. Nothing goes online at this step. Then
+        continue preparing your move in this panel.
       </Text>
       {teams.length > 1 && Select ? (
         <Select
@@ -4894,9 +4894,12 @@ function siteStep($: EngineInterface, { ui }: StepView) {
       ) : (
         <Text dimColor>{`Netlify team: ${teams[0]?.name ?? ""}`}</Text>
       )}
-      {pilotButton($, ui, "move-site", "Put my site on Netlify", {
-        text: "Moving off Lovable: put my site on Netlify, then tell me what's left before I can see it there.",
-        details: stepDetails(runStep($, ["site", ...(moveTeam ? ["--account", moveTeam] : [])])),
+      {pilotButton($, ui, "move-site", "Prepare my website", {
+        text: "Moving off Lovable: prepare my website on Netlify, then tell me the next step in the move.",
+        details: stepDetails(
+          runStep($, ["site", ...(moveTeam ? ["--account", moveTeam] : [])]),
+          "This prepares hosting only. Afterwards, read move status and explain its next unfinished step. Do not say Publish is the only remaining step. Publish updates the shared app code and can also affect the live Lovable app; it is not a private preview action. Respect any copy-only restriction. Successful copy checks do not prove that AI, emails or every app feature works.",
+        ),
       })}
     </Box>
   );
