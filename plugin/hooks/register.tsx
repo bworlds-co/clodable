@@ -222,6 +222,7 @@ let moveSecrets: { wanted: string[]; set: string[] } | null = null;
 /** Netlify teams to put the site in, and the app's settings on the site (names only). */
 let moveTeams: Array<{ slug: string; name: string }> | null = null;
 let moveTeam = "";
+let moveTeamsProblem: { message: string; reconnect: boolean } | null = null;
 /**
  * The settings the app's server code reads (`process.env.X`): which have a value on this computer,
  * for the preview, and on the site on Netlify once there is one. Names only, never values.
@@ -251,6 +252,7 @@ let choosingMethod: MoveMethod | null = null;
 let moveOrg = "";
 let moveRegion = "";
 let loadingMove = false;
+let pendingMove: Promise<void> | null = null;
 /**
  * Claude runs the move's steps in the conversation: from the press of a step's button until the
  * reply that answers it ends. Meanwhile that step's controls give way to a note.
@@ -378,6 +380,9 @@ async function lookAtFolder($: EngineInterface) {
   previewAsked = false;
   move = null;
   moveError = null;
+  moveTeams = null;
+  moveTeam = "";
+  moveTeamsProblem = null;
   assessment = null;
   assessedFacts = "";
   appSettingsStatus = null;
@@ -886,15 +891,15 @@ async function loadAssessment($: EngineInterface) {
 }
 
 /** Where the move stands, and what the next step needs (Supabase choices, missing secrets). */
-async function loadMove($: EngineInterface) {
-  if (loadingMove) return;
+function loadMove($: EngineInterface): Promise<void> {
+  if (pendingMove) return pendingMove;
   loadingMove = true;
-  try {
-    await readMove($);
-  } finally {
+  pendingMove = readMove($).finally(() => {
     loadingMove = false;
+    pendingMove = null;
     $.ui.invalidate("ui.render");
-  }
+  });
+  return pendingMove;
 }
 
 async function readMove($: EngineInterface) {
@@ -912,6 +917,7 @@ async function readMove($: EngineInterface) {
     background(loadAssessment($));
   }
   const next = (progress.steps ?? []).find((x) => x.state === "next" || x.state === "attention");
+  moveTeamsProblem = null;
   // Read fresh each time: projects get paused or deleted in Supabase between two looks.
   if (next?.id === "create") {
     const choices = await cli($, ["move", "choices"]);
@@ -934,10 +940,23 @@ async function readMove($: EngineInterface) {
     }
   }
   if (next?.id === "site") {
+    moveTeams = null;
     const teams = await cli($, ["move", "teams"]);
     if (teams.ok) {
       moveTeams = teams.data.accounts ?? [];
       if (!moveTeams?.some((t) => t.slug === moveTeam)) moveTeam = moveTeams?.[0]?.slug ?? "";
+      if (moveTeams?.length === 0) {
+        moveTeamsProblem = {
+          message: "No Netlify teams were found. Check your account, then try again.",
+          reconnect: false,
+        };
+      }
+    } else {
+      moveTeam = "";
+      moveTeamsProblem = {
+        message: teams.error?.message ?? "Couldn't read your Netlify account.",
+        reconnect: teams.error?.code === "netlify-auth",
+      };
     }
   }
   await loadSettings($);
@@ -1182,7 +1201,8 @@ async function openPane($: EngineInterface, view: PaneView | null = "app") {
   background(refreshStatus($));
   if (view === "settings" || view === "site") background(loadSettings($));
   // Opened again: where the move stands now, not when it was last looked at.
-  if (move) background(loadMove($));
+  if (view === "move") await loadMove($);
+  else if (move) background(loadMove($));
   return opened;
 }
 
@@ -1684,8 +1704,12 @@ export const register: Register = (on) => {
       return { result: "Choose an available Clodable view.", isError: true };
     await syncFolder($);
     const opened = await openPane($, view as PaneView);
+    const blocked =
+      view === "move" && moveTeamsProblem
+        ? ` Site setup is unavailable: ${moveTeamsProblem.message} ${moveTeamsProblem.reconnect ? "The panel offers Netlify reconnection; the builder enters the token there." : "The panel offers Check again."} Explain this blocker briefly; don't describe site setup as ready.`
+        : "";
     return {
-      result: `${opened.isPlaced ? "Opened" : "Requested"} Clodable's ${view} view.${opened.isPlaced ? "" : " The interface has not confirmed it is visible; don't claim it is open."} No account was created, action confirmed or site published. Acknowledge briefly; do not repeat the panel's contents in chat unless the builder asks you to explain them. Never ask for a token here.`,
+      result: `${opened.isPlaced ? "Opened" : "Requested"} Clodable's ${view} view.${opened.isPlaced ? "" : " The interface has not confirmed it is visible; don't claim it is open."} No account was created, action confirmed or site published.${blocked} Acknowledge briefly; do not repeat the panel's contents in chat unless the builder asks you to explain them. Never ask for a token here.`,
     };
   });
 
@@ -4816,7 +4840,7 @@ function netlifyStep($: EngineInterface, { ui }: StepView) {
 
 /** The site on Netlify. Once it's there, the settings its server code reads are the last part. */
 function siteStep($: EngineInterface, { ui }: StepView) {
-  const { Box, Text, Select } = ui;
+  const { Box, Text, Select, Button, Link } = ui;
   const settingsLeft: string[] = move?.settingsLeft ?? [];
   if (settingsLeft.length > 0) {
     return (
@@ -4826,6 +4850,29 @@ function siteStep($: EngineInterface, { ui }: StepView) {
       </Box>
     );
   }
+  if (moveTeamsProblem) {
+    return (
+      <Box flexDirection="column" rowGap={1}>
+        <Text>{moveTeamsProblem.message}</Text>
+        {moveTeamsProblem.reconnect ? (
+          <Box flexDirection="column" rowGap={1}>
+            <Text dimColor>Reconnect Netlify here, then choose where to prepare your site.</Text>
+            <Link
+              href="https://app.netlify.com/user/applications#personal-access-tokens"
+              label="Open Netlify's token page ↗"
+            />
+            {field(ui, "move-netlify-token", "Netlify token", "Reconnect", (value) =>
+              background(moveWith($, ["netlify"], value)),
+            )}
+          </Box>
+        ) : null}
+        <Button key="move-teams-retry" variant="secondary" onPress={() => background(loadMove($))}>
+          Check again
+        </Button>
+      </Box>
+    );
+  }
+  if (moveTeams === null) return <Text dimColor>Looking at your Netlify account…</Text>;
   const teams = moveTeams ?? [];
   return (
     <Box flexDirection="column" rowGap={1}>
@@ -4844,7 +4891,9 @@ function siteStep($: EngineInterface, { ui }: StepView) {
             $.ui.invalidate("ui.render");
           }}
         />
-      ) : null}
+      ) : (
+        <Text dimColor>{`Netlify team: ${teams[0]?.name ?? ""}`}</Text>
+      )}
       {pilotButton($, ui, "move-site", "Put my site on Netlify", {
         text: "Moving off Lovable: put my site on Netlify, then tell me what's left before I can see it there.",
         details: stepDetails(runStep($, ["site", ...(moveTeam ? ["--account", moveTeam] : [])])),
