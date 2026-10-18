@@ -343,3 +343,31 @@ Review started 2026-10-17; continued into 2026-10-18. Repository baseline: `c219
 - **Why it matters:** the explanation presents an assumption as fact and stops matching the choice on screen.
 - **Fix:** remove the location claim; keep the useful advice to choose where the app’s users are.
 - **Checks:** lint, typecheck, build, 199 package tests and 138 plugin tests pass. No selection logic or account behavior changed.
+
+
+## F29 — major — Migration actions in conversation leave the panel behind
+
+- **Observed:** a plain-language request copied Tiny Notes successfully, but the panel kept offering “Copy my data” during the running operation and after Claude reported completion. It did not advance to the preview step. Screenshot: `~/Clodable Tests/_runs/2026-10-18-conversation/tiny-notes-copy-panel-stale.png`.
+- **Why it matters:** the two surfaces disagree, and the remaining button invites the builder to repeat an operation that has already finished. That undermines the approved conversation-first workflow.
+- **Cause:** move status refreshed after a turn only when that turn came from a panel button. The shared action helper also ignored an active turn started directly in chat.
+- **Fix:** after any main-conversation turn with loaded migration state, refresh it before re-enabling step actions. During a turn, requests that would send another migration instruction show a waiting message. Secret-entry fields remain available. Child-agent completion does not unlock the main conversation’s action.
+- **Checks:** lint/typecheck/build and 141 plugin tests pass, including completed/aborted conversational operations and usable secret fields. The 199 package tests passed immediately before this plugin-only fix. Fresh Desktop conversation `local_b4e1b08c-85f0-4b9f-8781-ed2e8f0dc571` verified the fix: the open panel shows the waiting message during chat, then a conversational switch to live data changes the next action from website setup to Try my app on the copy without reopening the panel. The preview was then returned to Copy; no live data was edited.
+
+F28 merged as [#71](https://github.com/bworlds-co/clodable/pull/71) after CI passed. No release was published.
+
+
+### Tiny Notes public preview rehearsal
+
+- Fresh source-build conversation **Tiny Notes preview migration** switched only the preview to `vpewfafqslrjiqjexyix` in test-org. Desktop’s Browser pane at port 8082 shows the public Wall and all three sample posts, with the toolbar labelled **Copy**. Reload and the conversation’s request inspection confirmed the posts came from the new backend. No sign-in, account creation, data edit or publication was performed.
+- Screenshot: `~/Clodable Tests/_runs/2026-10-18-conversation/tiny-notes-wall-copy-preview.png`. The next migration stage is website/email/service preparation. This is public-page evidence only: it does not verify private notes, new-account behavior, uploaded images, the greeting setting, or AI summaries.
+- Polish / conversational friction: the fresh preview request spent several minutes inspecting Clodable’s implementation and looking up the supported command before switching. The skill’s opening still assumes every request came from a panel button with its command attached. A direct request needs concise supported-command guidance; the existing source inspection was unnecessary for this established operation. This remains a recorded improvement opportunity, not a failure of the copy.
+
+- Source-scope check: GitHub main still points to `76f3ecfa5f35860734f34cbc8bb8816d6d08032c`, the preflight revision. The preview was switched to live data and back only to verify state synchronization; no live data was edited. The rehearsal remains on Copy.
+
+
+## F30 — polish — The floating toolbar covers signup in a short preview
+
+- **Observed:** with Browser above the Clodable panel, the short preview put “No account? Sign up” behind the floating toolbar. Attempts to press the link hit Edit text instead. No text was changed. Exiting Edit text and hiding Clodable’s tools exposed the link and opened Create account.
+- **Why it matters:** an app control becomes hard to discover and use when Desktop divides the available height between panels. The existing Hide control is a working recovery, but builders should not have to discover that to sign up.
+- **Follow-up:** evaluate a compact toolbar for short previews while keeping Copy/live-data status visible and all editing controls reachable. This remains polish, with the existing hide control used for the current test.
+- **Handoff:** the copy’s Create account form is open in Desktop at port 8082. The owner was asked to enter a test account personally, because computer-use rules reserve new credential entry for them. No credentials were entered or requested in chat. Desktop control is paused for that handoff; the public Wall, copy checks and preview-state synchronization are complete. The greeting and AI settings are still unset. GitHub main remains at the preflight revision.
