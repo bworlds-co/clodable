@@ -1746,7 +1746,7 @@ export const register: Register = (on) => {
         ? ` Site setup is unavailable: ${moveTeamsProblem.message} ${moveTeamsProblem.reconnect ? "The panel offers Netlify reconnection; the builder enters the token there." : "The panel offers Check again."} Explain this blocker briefly; don't describe site setup as ready.`
         : "";
     return {
-      result: `${opened.isPlaced ? "Opened" : "Requested"} Clodable's ${view} view.${opened.isPlaced ? "" : " The interface has not confirmed it is visible; don't claim it is open."} No account was created, action confirmed or site published.${blocked} Acknowledge briefly; do not repeat the panel's contents in chat unless the builder asks you to explain them. Never ask for a token here.`,
+      result: `${opened.isPlaced ? "Opened" : "Requested"} Clodable's ${view} view.${opened.isPlaced ? "" : " The interface has not confirmed it is visible; don't claim it is open."} No account was created, action confirmed or site published.${blocked}${view === "move" ? " For a migration progress/checkpoint request, summarize in at most three short paragraphs and 140 words: current stage/live-app boundary; grouped previous checks and their scope; remaining services or unknowns and one next action. No per-feature bullet list or repeated question-card recap. Expand only for an explicit detailed report." : ""} Acknowledge briefly; do not repeat the panel's contents in chat unless the builder asks you to explain them. Never ask for a token here.`,
     };
   });
 
