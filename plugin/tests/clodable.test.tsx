@@ -2360,6 +2360,87 @@ describe("every step of the move", () => {
     },
   } as const;
   const SITE = { name: "crumb", url: "https://crumb.netlify.app" };
+  for (const failure of ["auth", "network", "empty"] as const) {
+    test(`site preparation stops on ${failure} account lookup and recovers without creating`, async ($, on) => {
+      let available = false;
+      const calls = harness(
+        on,
+        {
+          ...STATUS,
+          project: { ...STATUS.project, backend: "lovable-cloud", hosting: "lovable" },
+          movingOffLovable: true,
+        },
+        true,
+        {
+          move: (args) => {
+            if (args[1] === "check") return out({ level: "simple", items: [] });
+            if (args[1] === "teams") {
+              if (available) return out({ accounts: [{ slug: "test-team", name: "Test team" }] });
+              if (failure === "empty") return out({ accounts: [] });
+              return out(
+                {
+                  code: failure === "auth" ? "netlify-auth" : "network",
+                  message:
+                    failure === "auth"
+                      ? "Netlify rejected the connection."
+                      : "Netlify is unavailable.",
+                },
+                false,
+              );
+            }
+            return out({
+              steps: [{ id: "site", title: "Put your site on Netlify", state: "next" }],
+              preview: "copy",
+              method: "careful",
+            });
+          },
+        },
+      );
+      await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+      const pane = await $.ui.mount(PANE);
+      const opened: any = await $.tool.call({
+        tool: "mcp__clodable__open_panel",
+        view: "move",
+      } as never);
+      expect(opened.result).toContain("Site setup is unavailable:");
+      expect(opened.result).toContain(failure === "auth" ? "Netlify reconnection" : "Check again");
+      expect(
+        await draws(pane, {
+          type: "Text",
+          text: /Netlify (rejected|is unavailable|teams were found)/,
+        }),
+      ).toBe(true);
+      expect(await pane.find({ key: "move-site" })).toBeUndefined();
+      expect(Boolean(await pane.find({ key: "move-netlify-token" }))).toBe(failure === "auth");
+      available = true;
+      await pane.press({ key: "move-teams-retry" });
+      expect(await draws(pane, { type: "Text", text: "Netlify team: Test team" })).toBe(true);
+      expect(await pane.find({ key: "move-site" })).toBeDefined();
+      expect(await pane.find({ key: "move-netlify-token" })).toBeUndefined();
+      // A later failed refresh must not retain that previously valid team or its action.
+      available = false;
+      await $.turn.start({ text: "Check my move", turnId: "check-connection" } as never);
+      await $.turn.complete({
+        answer: "Checked.",
+        turnId: "check-connection",
+        durationMs: 100,
+        isAborted: false,
+        reason: "answer",
+      });
+      expect(
+        await draws(pane, {
+          type: "Text",
+          text: /Netlify (rejected|is unavailable|teams were found)/,
+        }),
+      ).toBe(true);
+      expect(await pane.find({ key: "move-site" })).toBeUndefined();
+      expect(await pane.find({ key: "move-team" })).toBeUndefined();
+      expect(
+        calls.some((args) => args[0] === "move" && ["site", "netlify"].includes(args[1]!)),
+      ).toBe(false);
+      await pane.unmount();
+    });
+  }
   /** One step, the next one, in a move like the CLI reports it; then what the panel shows for it. */
   const CASES: Array<{
     name: string;
