@@ -88,7 +88,7 @@ describe("an app with no backend and no site", () => {
     expect(status.netlify).toEqual({ connected: false });
     expect(status.site).toBeUndefined();
     // Claude's instructions say where a backend and a site come from.
-    expect(file("AGENTS.md")).toContain("click **Add a backend** in the Clodable panel");
+    expect(file("AGENTS.md")).toContain("backend consent view");
     expect(file("AGENTS.md")).toContain("**Set up hosting**");
   });
 
@@ -228,5 +228,36 @@ describe("an app with no backend and no site", () => {
     netlify.sites.set("site-1", site);
     expect((await clodable(["status"])).result.data.site).toMatchObject({ live: true });
     expect(JSON.parse(file(".clodable/local/state.json")).siteLiveAt).toBe("2026-10-17T10:00:00Z");
+  });
+
+  it("does not replace a remembered site when Netlify cannot find it", async () => {
+    const site = netlify.sites.get("site-1")!;
+    const before = file(".clodable/config.json");
+    netlify.sites.delete("site-1");
+    try {
+      expect((await clodable(["site", "create"])).result.ok).toBe(false);
+      expect(netlify.sites.size).toBe(0);
+      expect(file(".clodable/config.json")).toBe(before);
+    } finally {
+      netlify.sites.set("site-1", site);
+    }
+  });
+
+  it("does not replace an inaccessible backend while retrying unfinished setup", async () => {
+    const before = file(".clodable/config.json");
+    const pending = JSON.parse(before);
+    pending.backend = "none";
+    pending.supabase.projectRef = "unavailable";
+    writeFileSync(join(sb.work, ".clodable/config.json"), JSON.stringify(pending));
+    const start = fake.requests.length;
+    try {
+      expect((await clodable(["backend", "create"])).result.ok).toBe(false);
+      expect(
+        fake.requests.slice(start).some((r) => r.method === "POST" && r.path === "/v1/projects"),
+      ).toBe(false);
+      expect(JSON.parse(file(".clodable/config.json")).supabase.projectRef).toBe("unavailable");
+    } finally {
+      writeFileSync(join(sb.work, ".clodable/config.json"), before);
+    }
   });
 });
