@@ -1,0 +1,66 @@
+name: Something isn't working
+description: Clodable stopped you, or did something you didn't expect. Plain words are perfect.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for telling us. You don't need technical words: describe it the way you see it.
+
+        **This page is public.** Leave out keys, passwords and your users' data. For anything private, email contact@bworlds.co.
+  - type: textarea
+    id: trying-to-do
+    attributes:
+      label: What were you trying to do?
+      description: For example, "publish my new pricing page" or "bring my app into Clodable".
+    validations:
+      required: true
+  - type: textarea
+    id: what-you-saw
+    attributes:
+      label: What did you see?
+      description: The exact words on screen, or a screenshot. You can paste a screenshot or drag it into this box.
+    validations:
+      required: true
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where did it happen?
+      options:
+        - Setting up (adding Clodable, bringing my app in, or starting from an idea)
+        - The preview of my app, or its toolbar
+        - The Publish bar
+        - The Clodable panel
+        - Moving off Lovable
+        - Somewhere else, or I'm not sure
+    validations:
+      required: true
+  - type: input
+    id: macos-version
+    attributes:
+      label: Your Mac's macOS version (optional)
+      description: Open the Apple menu and choose About This Mac. The version is a number like 26.2.
+  - type: dropdown
+    id: app-builder
+    attributes:
+      label: Which AI app builder did your app come from?
+      options:
+        - Lovable
+        - Bolt
+        - Base44
+        - Another AI app builder
+        - I started it in Clodable
+    validations:
+      required: true
+  - type: input
+    id: found-clodable
+    attributes:
+      label: How did you find Clodable? (optional)
+      description: A friend, a post, a search, anything.
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Before you send
+      options:
+        - label: I removed keys, passwords and my users' data from what I pasted.
+          required: true

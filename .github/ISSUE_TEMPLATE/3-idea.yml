@@ -1,0 +1,29 @@
+name: An idea
+description: Something Clodable could do better. Start with the problem, then the idea.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: Start with the problem. A clear problem helps more than a finished solution, because there's often more than one way to solve it.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What's the problem?
+      description: What were you trying to do, and what got in the way?
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What's your idea?
+      description: How would you like it to work?
+    validations:
+      required: true
+  - type: markdown
+    attributes:
+      value: Some choices are settled in [docs/DECISIONS.md](https://github.com/bworlds-co/clodable/blob/main/docs/DECISIONS.md). If your idea changes one, say which one you'd revisit and why.
+  - type: textarea
+    id: settled-choice
+    attributes:
+      label: Which settled choice would it change? (optional)
+      description: Name the decision, and why you'd revisit it.
