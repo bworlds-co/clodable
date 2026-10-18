@@ -332,7 +332,7 @@ export async function* goLive(
   if (!state.home || !state.site) {
     throw new ClodableError({
       code: "move-not-ready",
-      message: "Put your site on Netlify first.",
+      message: "Prepare your website first.",
       hint: "Going live points your app and its sign-in at it.",
     });
   }

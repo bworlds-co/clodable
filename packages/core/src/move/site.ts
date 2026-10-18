@@ -370,7 +370,7 @@ export async function siteSettings(
   if (!state.site) {
     throw new ClodableError({
       code: "move-not-ready",
-      message: "Put your site on Netlify first.",
+      message: "Prepare your website first.",
     });
   }
   return siteSettingsOf(await NetlifyApi.required(), state.site.account, state.site.id, ws.root);
@@ -390,7 +390,7 @@ export async function setSiteSetting(ws: Workspace, name: string, value: string)
   }
   const state = await loadMove(ws.root);
   if (!state.site) {
-    throw new ClodableError({ code: "move-not-ready", message: "Put your site on Netlify first." });
+    throw new ClodableError({ code: "move-not-ready", message: "Prepare your website first." });
   }
   const netlify = await NetlifyApi.required();
   await netlify.setEnv(state.site.account, state.site.id, name, value.replace(/\r?\n$/, ""), {

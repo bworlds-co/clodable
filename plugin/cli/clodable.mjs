@@ -22773,7 +22773,7 @@ async function assessMove(project, config2, facts) {
       id: "functions",
       label: plural2(functions.length, "backend function"),
       by: "clodable",
-      detail: "Deployed to your Supabase, all together."
+      detail: "Moved to your Supabase, all together."
     });
   }
   const secretNames = /* @__PURE__ */ new Set();
@@ -23461,7 +23461,7 @@ async function siteSettings(ws) {
   if (!state.site) {
     throw new ClodableError({
       code: "move-not-ready",
-      message: "Put your site on Netlify first."
+      message: "Prepare your website first."
     });
   }
   return siteSettingsOf(await NetlifyApi.required(), state.site.account, state.site.id, ws.root);
@@ -26235,7 +26235,7 @@ async function* goLive(ws, options = {}) {
   if (!state.home || !state.site) {
     throw new ClodableError({
       code: "move-not-ready",
-      message: "Put your site on Netlify first.",
+      message: "Prepare your website first.",
       hint: "Going live points your app and its sign-in at it."
     });
   }
@@ -27493,7 +27493,7 @@ async function* deployFunctions(api, ref, root) {
   if (functions.length === 0) {
     throw new ClodableError({
       code: "move-not-ready",
-      message: "This app has no backend functions to deploy."
+      message: "This app has no backend functions to move."
     });
   }
   const deployed = [];
@@ -27503,7 +27503,7 @@ async function* deployFunctions(api, ref, root) {
     yield step(
       "move:functions",
       "running",
-      "Deploying your backend functions",
+      "Moving your backend functions",
       `${index + 1} of ${functions.length}: ${fn.name}`
     );
     try {
@@ -27527,7 +27527,7 @@ async function* deployFunctions(api, ref, root) {
   yield step(
     "move:functions",
     failed.length > 0 ? "failed" : "done",
-    failed.length > 0 ? "Some backend functions didn't deploy" : "Deployed your backend functions",
+    failed.length > 0 ? "Some backend functions didn't move" : "Moved your backend functions",
     failed.length > 0 ? problems.join(" \xB7 ").slice(0, 500) : `${deployed.length} running`
   );
   return { deployed, failed, missingSecrets };
@@ -28072,7 +28072,7 @@ async function enableEmailHook(ws) {
   if (deployed?.status !== "ACTIVE") {
     throw new ClodableError({
       code: "move-not-ready",
-      message: "Deploy your backend functions first: the sign-in emails come from auth-email-hook.",
+      message: "Move your backend functions first: the sign-in emails come from auth-email-hook.",
       hint: "clodable move functions"
     });
   }
@@ -28204,7 +28204,7 @@ function moveSteps(state, around) {
     add(
       {
         id: "functions",
-        title: "Deploy your backend functions",
+        title: "Move your backend functions",
         ...state.functions ? {
           detail: secretsOpen ? `${count(secretsLeft.length, "secret key")} to add` : count(state.functions.deployed.length, "function")
         } : {}
