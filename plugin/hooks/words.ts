@@ -141,7 +141,7 @@ const MOVE_WORDS: Record<string, [string, string, FriendlyRow["tone"]]> = {
   preview: ["Switching the preview", "Switched the preview", "work"],
   diagnose: ["Checking your new backend", "Checked your new backend", "look"],
   status: ["Checking the move", "Checked the move", "look"],
-  site: ["Putting your site on Netlify", "Put your site on Netlify", "work"],
+  site: ["Preparing your website", "Prepared your website", "work"],
   emails: ["Setting up your emails", "Set up your emails", "work"],
   pause: ["Reading the pause", "Read the pause", "look"],
   golive: ["Switching to your new backend", "Switched to your new backend", "work"],

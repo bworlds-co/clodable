@@ -1201,7 +1201,7 @@ describe("apps still on Lovable", () => {
                   title: "Connect your Netlify account",
                   detail: "Connected on this computer",
                 },
-                { id: "site", state: "later", title: "Put your site on Netlify" },
+                { id: "site", state: "later", title: "Prepare your website" },
               ],
               preview: "live",
               vaultKey: false,
@@ -1681,7 +1681,7 @@ describe("apps still on Lovable", () => {
             {
               id: "site",
               state: "done",
-              title: "Put your site on Netlify",
+              title: "Prepare your website",
               detail: "https://crumb.netlify.app",
             },
             { id: "emails", state: "next", title: "Set up emails for your users" },
@@ -1774,7 +1774,7 @@ describe("apps still on Lovable", () => {
             {
               id: "site",
               state: skipped ? "done" : "next",
-              title: "Put your site on Netlify",
+              title: "Prepare your website",
               detail: skipped ? "https://crumb.netlify.app" : "1 setting to add",
             },
             { id: "emails", state: skipped ? "next" : "later", title: "Set up emails" },
@@ -1804,7 +1804,7 @@ describe("apps still on Lovable", () => {
     });
     await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
     const pane = await $.ui.mount(PANE);
-    expect(await shows(pane, /● Put your site on Netlify {2}· 1 setting to add/)).toBeDefined();
+    expect(await shows(pane, /● Prepare your website {2}· 1 setting to add/)).toBeDefined();
     expect(await shows(pane, "GREETING")).toBeDefined();
     expect(await pane.find({ key: "move-setting-GREETING" })).toBeDefined();
     expect(await shows(pane, "Don't have it yet?")).toBeDefined();
@@ -1817,7 +1817,7 @@ describe("apps still on Lovable", () => {
     }
     await pane.press({ key: "move-progress" });
     expect(
-      await shows(pane, /✓ Put your site on Netlify {2}· https:\/\/crumb\.netlify\.app/),
+      await shows(pane, /✓ Prepare your website {2}· https:\/\/crumb\.netlify\.app/),
     ).toBeDefined();
     expect(await pane.find({ key: "move-setting-GREETING" })).toBeUndefined();
     expect(calls.some((c) => c[0] === "settings")).toBe(true);
@@ -1846,7 +1846,7 @@ describe("apps still on Lovable", () => {
             {
               id: "site",
               state: saved ? "done" : "next",
-              title: "Put your site on Netlify",
+              title: "Prepare your website",
               detail: saved ? "https://crumb.netlify.app" : "1 setting to add",
             },
             { id: "emails", state: saved ? "next" : "later", title: "Set up emails" },
@@ -1875,7 +1875,7 @@ describe("apps still on Lovable", () => {
     }
     expect(await shows(pane, /● Set up emails/)).toBeDefined();
     await pane.press({ key: "move-progress" });
-    expect(await shows(pane, /✓ Put your site on Netlify/)).toBeDefined();
+    expect(await shows(pane, /✓ Prepare your website/)).toBeDefined();
     const at = calls.findIndex((c) => c[0] === "setting");
     expect(calls[at]).toEqual(["setting", "GREETING", "--json"]);
     expect((calls as any).stdins[at]).toBe("Hello from Netlify");
@@ -2389,7 +2389,7 @@ describe("every step of the move", () => {
               );
             }
             return out({
-              steps: [{ id: "site", title: "Put your site on Netlify", state: "next" }],
+              steps: [{ id: "site", title: "Prepare your website", state: "next" }],
               preview: "copy",
               method: "careful",
             });

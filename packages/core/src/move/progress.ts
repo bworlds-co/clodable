@@ -342,7 +342,7 @@ function moveSteps(state: MoveState, around: Surroundings) {
   add(
     {
       id: "site",
-      title: "Put your site on Netlify",
+      title: "Prepare your website",
       ...(state.site
         ? {
             detail: settingsOpen

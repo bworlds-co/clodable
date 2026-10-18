@@ -23346,7 +23346,7 @@ async function* putSiteOnNetlify(ws, options = {}) {
   const netlify = await NetlifyApi.required();
   const supabase = await SupabaseApi.required();
   const token = await readSecret(NETLIFY_TOKEN);
-  yield step("move:site", "running", "Putting your site on Netlify", "Creating the site");
+  yield step("move:site", "running", "Preparing your website", "Creating the site");
   const site = (state.site ? await netlify.site(state.site.id).catch(() => void 0) : void 0) ?? await createNetlifySite(netlify, ws.project.name, options.account);
   const url2 = siteUrl(site);
   await updateMove(ws.root, (s) => {
@@ -23358,12 +23358,7 @@ async function* putSiteOnNetlify(ws, options = {}) {
       account: site.account_slug
     };
   });
-  yield step(
-    "move:site",
-    "running",
-    "Putting your site on Netlify",
-    "Pointing it at your new backend"
-  );
+  yield step("move:site", "running", "Preparing your website", "Pointing it at your new backend");
   const backend = backendOf(state.home.ref, await homeKeys(supabase, state.home.ref));
   const carried = await setSiteEnv(netlify, site, ws.root, backend);
   if (carried.length > 0) {
@@ -23371,10 +23366,15 @@ async function* putSiteOnNetlify(ws, options = {}) {
       s.siteSettings = withNames(s.siteSettings, carried);
     });
   }
-  yield step("move:site", "running", "Putting your site on Netlify", "Setting up Publish");
+  yield step("move:site", "running", "Preparing your website", "Setting up Publish");
   const files = await setUpPublish(ws, site, token);
   const settings2 = await siteSettingsOf(netlify, site.account_slug, site.id, ws.root);
-  yield step("move:site", "done", "Your site is ready on Netlify", `Publish to see it at ${url2}`);
+  yield step(
+    "move:site",
+    "done",
+    "Your website is prepared",
+    "Nothing has been published. Continue the move in the panel."
+  );
   return { site: { name: site.name, url: url2, admin: site.admin_url }, files, settings: settings2 };
 }
 var siteUrl = (site) => site.ssl_url || site.url;
@@ -28091,7 +28091,7 @@ function moveSteps(state, around) {
   add(
     {
       id: "site",
-      title: "Put your site on Netlify",
+      title: "Prepare your website",
       ...state.site ? {
         detail: settingsOpen ? `${count(settingsLeft.length, "setting")} to add` : state.site.url
       } : {}
