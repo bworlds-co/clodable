@@ -3935,6 +3935,28 @@ describe("an app that isn't online, or has no backend", () => {
     await pane.unmount();
   });
 
+  test("an existing live site's connection remains reachable and replacement tokens stay out of chat", async ($, on) => {
+    const token = "panel-only-replacement-token";
+    const calls = harness(on, {
+      ...where("supabase", "github"),
+      site: { url: "https://crumb.netlify.app", live: true },
+    });
+    const session = mock.session(on);
+    await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+    await $.tool.call({ tool: "mcp__clodable__open_panel", view: "site" } as never);
+    const pane = await $.ui.mount(PANE);
+    expect(await shows(pane, "Publishing connection")).toBeDefined();
+    expect(await pane.find({ key: "site-create" })).toBeUndefined();
+    await pane.input({ key: "site-reconnect-token", text: token, kind: "submit" });
+    expect(await shows(pane, /Publishing connection updated/)).toBeDefined();
+    expect(calls).toContainEqual(["site", "reconnect", "--json"]);
+    const at = calls.findIndex((c) => c[0] === "connect");
+    expect((calls as any).stdins[at]).toBe(token);
+    expect(readBy(session).join(" ")).not.toContain(token);
+    expect(calls.some((c) => c[0] === "publish" || c.includes("create"))).toBe(false);
+    await pane.unmount();
+  });
+
   for (const hosting of ["none", "unknown", "lovable"]) {
     test(`history does not claim a version is live with ${hosting} hosting`, async ($, on) => {
       harness(on, where("none", hosting));

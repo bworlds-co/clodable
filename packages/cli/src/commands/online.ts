@@ -6,6 +6,7 @@ import {
   createBackend,
   NETLIFY_TOKENS_PAGE,
   putSiteOnline,
+  reconnectSite,
   siteChoices,
   TOKENS_PAGE,
 } from "@clodable/core";
@@ -61,6 +62,18 @@ export async function connectCommand(ctx: Context, service: string) {
 
 /** The app's site: where it stands, or put it online on the builder's own Netlify (`create`). */
 export async function siteCommand(ctx: Context, options: { action?: string; team?: string }) {
+  if (options.action === "reconnect") {
+    await run(
+      ctx,
+      async () => reconnectSite(await ctx.workspace()),
+      () => {
+        ctx.out.line(
+          `${celadon("✓")} Your app's publishing connection is updated. You can retry Publish.`,
+        );
+      },
+    );
+    return;
+  }
   if (options.action === "create") {
     await run(
       ctx,

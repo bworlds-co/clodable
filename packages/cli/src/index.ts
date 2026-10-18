@@ -141,10 +141,7 @@ cli
   .action((service, options) => connectCommand(ctx(options), String(service)));
 
 cli
-  .command(
-    "site [action]",
-    "Your app's site: where it stands, or create: put it online on your own Netlify",
-  )
+  .command("site [action]", "Your app's site: status, create hosting, or reconnect publishing")
   .option("--team <slug>", "create: the Netlify team the site goes in")
   .action((action, options) =>
     siteCommand(ctx(options), {

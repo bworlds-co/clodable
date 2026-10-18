@@ -196,6 +196,36 @@ describe("an app with no backend and no site", () => {
     expect(netlify.sites.size).toBe(1);
   });
 
+  it("reconnects only the existing site's publishing secret without creating or publishing", async () => {
+    const secretPath = join(sb.bare, "clodable-fake-secrets.json");
+    writeFileSync(
+      secretPath,
+      JSON.stringify({ NETLIFY_AUTH_TOKEN: "expired", NETLIFY_SITE_ID: "site-1" }),
+    );
+    const before = file(".clodable/config.json");
+    const workflow = file(".github/workflows/clodable-netlify.yml");
+    const run = await clodable(["site", "reconnect"]);
+    expect(run.result).toMatchObject({ ok: true, data: { reconnected: true } });
+    expect(JSON.stringify(run.events)).not.toContain(NETLIFY);
+    expect(JSON.parse(readFileSync(secretPath, "utf8"))).toEqual({
+      NETLIFY_AUTH_TOKEN: NETLIFY,
+      NETLIFY_SITE_ID: "site-1",
+    });
+    expect(file(".clodable/config.json")).toBe(before);
+    expect(file(".github/workflows/clodable-netlify.yml")).toBe(workflow);
+    expect(netlify.sites.size).toBe(1);
+    const site = netlify.sites.get("site-1")!;
+    site.account = "different-team";
+    try {
+      expect((await clodable(["site", "reconnect"])).result).toMatchObject({
+        ok: false,
+        error: { code: "netlify-auth" },
+      });
+    } finally {
+      site.account = "builder-team";
+    }
+  });
+
   it("is online after the next Publish", async () => {
     expect((await clodable(["save", "-m", "Put my site online"])).result.data.unpublished).toBe(1);
     const published = await clodable(["publish"]);

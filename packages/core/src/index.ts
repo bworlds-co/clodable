@@ -235,6 +235,7 @@ export {
   createBackend,
   type OnlineSite,
   putSiteOnline,
+  reconnectSite,
   type SiteChoices,
   type SiteOnlineOutcome,
   siteChoices,
