@@ -446,6 +446,8 @@ F28 merged as [#71](https://github.com/bworlds-co/clodable/pull/71) after CI pas
 
 ## F35 — major — Hosting preparation tells the builder to publish before the move is ready
 
+Fix: [#85](https://github.com/bworlds-co/clodable/pull/85).
+
 - **Observed:** after the approved hosting preparation, the panel correctly advanced to email setup, but Claude said Publish was the only remaining step and offered to check after publication. AI and email preparation, the final copy and switch were still pending. The owner had authorized only the copy and hosting preparation.
 - **Builder impact:** a builder can mistake Publish for a private test of the copied app. Publish updates shared app code; with Lovable's GitHub sync connected, those changes can also reach the live app. A successful build does not establish migration readiness.
 - **Cause:** the migration guide explicitly instructed Claude to suggest Publish immediately after `move site`; the CLI completion detail said “Publish to see it”, and the panel request asked what remained before seeing the new site. These instructions competed with the actual migration state.
