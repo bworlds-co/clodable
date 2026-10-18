@@ -494,12 +494,14 @@ The owner initially requested collection without implementation, then completed 
 
 ## F38 — polish — Redundant “Use this name” button in saving setup
 
-- **Status:** open; implementation authorized after the owner completed review. Issue: https://github.com/bworlds-co/clodable/issues/89.
+- **Status:** fixed; automated checks and native Desktop inspection passed, awaiting CI/merge. Issue: https://github.com/bworlds-co/clodable/issues/89.
 - **Observed:** the owner asked what **Use this name** does beside the App name field, above **Create private app and save**.
 - **Builder impact:** two adjacent actions suggest a required name-confirmation step and make it unclear which action actually saves the app.
 - **Cause:** the field's `onInput` already updates `newAppName`. Its separate submit button repeats that assignment and refreshes the panel; it neither creates nor saves anything. The primary creation action reads `newAppName` directly.
 - **Proposed fix:** retain the editable name and one primary **Create private app and save** action. Remove the redundant name-confirmation action, preserving validation and explicit account consent.
 - **Evidence:** owner's screenshot and inspection of `plugin/hooks/register.tsx` (`new-app-name` and `setUpSaving`). No implementation change made.
+
+- **Implemented and verified (October 18):** the name field now has one explicit **Create private app** submit action, replacing both the no-op name confirmation and separate creation button. The account, privacy and saving explanation remains above it. Editing the name alone does nothing. The SDK requires an input submit action, so this uses that action instead of displaying two buttons. 151 plugin tests and build passed; native Desktop session `local_771c2cb6-db48-42e9-9818-bb6f22eda1f2` showed a single action and retained the local-only state after typing. No real repository was created for this regression.
 
 ## F39 — major — Clodable and Desktop show competing preview toolbars
 
@@ -548,7 +550,7 @@ The owner initially requested collection without implementation, then completed 
 
 ## F43 — major — Claude edits unrelated content to force a publication retry
 
-- **Status:** fixed locally; two model replays passed, awaiting CI/merge. Issue: https://github.com/bworlds-co/clodable/issues/94.
+- **Status:** merged in [PR #101](https://github.com/bworlds-co/clodable/pull/101); CI and two model replays passed. Issue: https://github.com/bworlds-co/clodable/issues/94.
 - **Observed:** Claude announces it will change the shared-link author credit from Lovable to Crumb & Co. “to give Publish something to push.” The screenshot then shows an `index.html` edit. It continues by requesting a new Netlify key in the same panel with no reconnection controls (F40).
 - **Builder impact:** infrastructure recovery changes the product unnecessarily, adds an unrelated saved version and still leaves the original blocker unresolved. The builder is exposed to internal publication mechanics instead of a clear recovery action.
 - **Cause:** the missing delivery retry path (F42) encourages the agent to manufacture a code change; the existing recovery guidance does not explicitly rule this out. The repeated credential prompt also assumes unavailable controls exist.
