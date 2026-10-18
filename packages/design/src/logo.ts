@@ -76,7 +76,7 @@ export function logoSvg(options: LogoOptions = {}): string {
 }
 
 /** Width of the lockup at its natural height of 48: the mark, a 12 px gap, the word. */
-const LOCKUP_WIDTH = 207;
+const LOCKUP_WIDTH = 186;
 
 /**
  * The mark plus the lowercase wordmark, for the README and docs. Keep the height a multiple of 16
@@ -95,6 +95,6 @@ export function lockupSvg(
 /** The word alone, for places where a drawing of the mascot stands above it (the README header). */
 export function wordmarkSvg(options: { height?: number; ink?: string } = {}): string {
   const h = options.height ?? 30;
-  const w = Math.round((h * 148) / 30);
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 -29 148 30" role="img" aria-label="Cloclod"><path fill="${options.ink ?? "#1F1A16"}" d="${WORDMARK_PATH}"/></svg>`;
+  const w = Math.round((h * 127) / 30);
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 -29 127 30" role="img" aria-label="Cloclod"><path fill="${options.ink ?? "#1F1A16"}" d="${WORDMARK_PATH}"/></svg>`;
 }
