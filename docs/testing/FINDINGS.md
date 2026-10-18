@@ -578,12 +578,14 @@ The owner initially requested collection without implementation, then completed 
 
 ## F45 — polish — Migration orientation requires a lengthy investigation and oversized recap
 
-- **Status:** summary guidance updated; model/native verification in progress. Issue: https://github.com/bworlds-co/clodable/issues/96.
+- **Status:** PR #106 removed transcript reconstruction and duplicate question recaps; a fresh session exposed an overly long feature list, now tightened in both the guide and the navigation response. Model replay and final fresh Desktop check passed with three grouped paragraphs. 151 plugin tests, build, typecheck and lint passed. Issue: https://github.com/bworlds-co/clodable/issues/96.
 - **Observed:** a status request produces six commands, multiple tool groups, transcript retrieval and several progress messages, followed by a long report and another largely repeated recap in a question card. The answer opens with **about halfway**, although remaining steps have unequal effort and unresolved service setup.
 - **Builder impact:** the builder must read across screens to learn the current stage and the useful next action. A guessed fraction can create false expectations about how much work remains. The request explicitly asks what was tested, so evidence is appropriate; repeated summaries and narration of transcript searching add little value.
 - **Proposed fix:** lead with the stage, the live-app boundary, a compact tested/pending summary and one relevant next choice. Make detailed evidence available on request, using a durable record rather than broad transcript reconstruction. Describe completed milestones instead of estimating a fraction without a basis.
 - **Expected checkpoint:** scenario 03 deliberately resumes the retained copy. Hosting is prepared but unpublished; email and AI preparation remain. Trying the existing copy is available before making further service decisions. The final switch remains a separate, owner-approved step.
 - **Evidence:** the F44 screenshots and the manual test guide. No implementation change made.
+
+- **Final native check (October 18):** session `local_573a23eb-a412-4601-8a31-99c07fbcf6c9` used the owner’s original progress request. Claude read current status, opened the correct migration step, then gave three paragraphs grouping earlier checks and remaining services. No transcript search, per-feature list or duplicate decision card. The response retained the earlier-test distinction and the failed AI result. The word target is guidance, not an enforced output limit.
 
 ## F46 — major — Asking about the move does not reopen its migration panel
 
