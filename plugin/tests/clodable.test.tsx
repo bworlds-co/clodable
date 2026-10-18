@@ -1528,6 +1528,89 @@ describe("apps still on Lovable", () => {
     expect(prompts.join(" ")).not.toContain(token);
   });
 
+  for (const aborted of [false, true]) {
+    test(`a move requested in chat refreshes the panel after ${aborted ? "stopping" : "finishing"}`, async ($, on) => {
+      let copied = false;
+      harness(on, onLovable(), true, {
+        move: (args) =>
+          args[1] === "check"
+            ? out({ level: "simple", items: [] })
+            : out({
+                steps: [
+                  { id: "copy", title: "Copy your data", state: copied ? "done" : "next" },
+                  { id: "try", title: "Try your copy", state: copied ? "next" : "later" },
+                ],
+                method: "careful",
+                preview: "live",
+                vaultKey: false,
+                functions: 0,
+              }),
+      });
+      await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+      const pane = await $.ui.mount(PANE);
+      for (let i = 0; i < 30 && !(await pane.find({ key: "move-copy" })); i++) await pane.redraw();
+      expect(["initial copy", Boolean(await pane.find({ key: "move-copy" }))]).toEqual([
+        "initial copy",
+        true,
+      ]);
+      await $.turn.start({
+        text: "Copy the data into my new backend",
+        turnId: "chat-copy",
+      } as never);
+      expect([
+        "waiting",
+        Boolean(await shows(pane, "Wait for Claude to finish in the conversation.")),
+      ]).toEqual(["waiting", true]);
+      expect(await pane.find({ key: "move-copy" })).toBeUndefined();
+      // A child finishing does not re-enable the parent's action.
+      await $.turn.complete({
+        turnId: "child",
+        agentId: "child",
+        isAborted: false,
+        answer: "Checked.",
+      } as never);
+      expect(await pane.find({ key: "move-copy" })).toBeUndefined();
+      copied = !aborted;
+      await $.turn.complete({
+        turnId: "chat-copy",
+        isAborted: aborted,
+        answer: aborted ? "Stopped." : "Copied.",
+      } as never);
+      expect([
+        "finished",
+        Boolean(await shows(pane, aborted ? /Copy your data/ : /Try your copy/)),
+      ]).toEqual(["finished", true]);
+      if (aborted) expect(await pane.find({ key: "move-copy" })).toBeDefined();
+      if (!aborted) expect(await pane.find({ key: "move-copy" })).toBeUndefined();
+      await pane.unmount();
+    });
+  }
+
+  test("a running conversation still leaves the panel's secret fields usable", async ($, on) => {
+    harness(on, onLovable(), true, {
+      move: (args) =>
+        args[1] === "check"
+          ? out({ level: "simple", items: [] })
+          : args[1] === "vault"
+            ? out({ wanted: ["STRIPE_KEY"], set: [], query: "select 1;" })
+            : out({
+                steps: [{ id: "copy", title: "Copy your data", state: "next" }],
+                method: "careful",
+                preview: "live",
+                vaultKey: false,
+                functions: 0,
+                vaultLeft: ["STRIPE_KEY"],
+              }),
+    });
+    await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+    const pane = await $.ui.mount(PANE);
+    await $.turn.start({ text: "What setting do I need?", turnId: "secret-help" } as never);
+    for (let i = 0; i < 30 && !(await pane.find({ key: "move-vault-STRIPE_KEY" })); i++)
+      await pane.redraw();
+    expect(await pane.find({ key: "move-vault-STRIPE_KEY" })).toBeDefined();
+    await pane.unmount();
+  });
+
   test("Claude runs the move's steps without asking, but never a secret one or the private folder", async ($, on) => {
     harness(on, onLovable());
     on("tool.call", () => ({ result: "ok" }));

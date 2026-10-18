@@ -1032,7 +1032,7 @@ function createRequest(
 
 /** Hand a step of the move to Claude, as the builder's own request in this conversation. */
 async function pilot($: EngineInterface, ask: Ask) {
-  if (isPiloting() || moveRun) return;
+  if (turnActive || isPiloting() || moveRun) return;
   piloting = { at: Date.now() };
   moveError = null;
   $.ui.invalidate("ui.render");
@@ -1751,6 +1751,7 @@ export const register: Register = (on) => {
         .catch(() => {});
     }
     turnActive = true;
+    $.ui.invalidate("ui.render");
     markActive($);
     // The first reply after a Fix it press is the one working on it.
     if (fixing && !fixing.turnId) fixing.turnId = e.turnId;
@@ -1790,16 +1791,23 @@ export const register: Register = (on) => {
       );
       $.ui.invalidate("ui.render");
     }
-    if (piloting?.turnId === e.turnId) {
+    const completedPilot = piloting?.turnId === e.turnId;
+    if (completedPilot) {
       // Claude is done with that step: show where the move stands now.
       piloting = null;
-      background(loadMove($));
+    }
+    if (e.agentId === undefined && (completedPilot || move)) {
+      // A builder can ask for the same work in chat without pressing a panel button.
+      await loadMove($).catch(() => {});
       background(refreshStatus($));
       // What's worth a look may have changed with it ("Switch it" leaves nothing to switch).
       background(refreshChecks($));
       $.ui.invalidate("ui.render");
     }
-    if (e.agentId === undefined) turnActive = false;
+    if (e.agentId === undefined) {
+      turnActive = false;
+      $.ui.invalidate("ui.render");
+    }
     if (e.agentId === undefined && !e.isAborted) {
       const answer = e.answer;
       const subject = saveMessage(asked ?? "");
@@ -5352,7 +5360,8 @@ function pilotButton(
   request: Ask,
   variant: "primary" | "secondary" = "primary",
 ) {
-  const { Button } = ui;
+  const { Button, Text } = ui;
+  if (turnActive) return <Text dimColor>Wait for Claude to finish in the conversation.</Text>;
   return (
     <Button key={key} variant={variant} onPress={() => background(pilot($, request))}>
       {label}

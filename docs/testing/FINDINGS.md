@@ -343,3 +343,14 @@ Review started 2026-10-17; continued into 2026-10-18. Repository baseline: `c219
 - **Why it matters:** the explanation presents an assumption as fact and stops matching the choice on screen.
 - **Fix:** remove the location claim; keep the useful advice to choose where the app’s users are.
 - **Checks:** lint, typecheck, build, 199 package tests and 138 plugin tests pass. No selection logic or account behavior changed.
+
+
+## F29 — major — Migration actions in conversation leave the panel behind
+
+- **Observed:** a plain-language request copied Tiny Notes successfully, but the panel kept offering “Copy my data” during the running operation and after Claude reported completion. It did not advance to the preview step. Screenshot: `~/Clodable Tests/_runs/2026-10-18-conversation/tiny-notes-copy-panel-stale.png`.
+- **Why it matters:** the two surfaces disagree, and the remaining button invites the builder to repeat an operation that has already finished. That undermines the approved conversation-first workflow.
+- **Cause:** move status refreshed after a turn only when that turn came from a panel button. The shared action helper also ignored an active turn started directly in chat.
+- **Fix:** after any main-conversation turn with loaded migration state, refresh it before re-enabling step actions. During a turn, requests that would send another migration instruction show a waiting message. Secret-entry fields remain available. Child-agent completion does not unlock the main conversation’s action.
+- **Checks:** lint/typecheck/build and 141 plugin tests pass, including completed/aborted conversational operations and usable secret fields. The 199 package tests passed immediately before this plugin-only fix. The updated plugin is loaded for a fresh Tiny Notes preview rehearsal; real Desktop verification is in progress.
+
+F28 merged as [#71](https://github.com/bworlds-co/clodable/pull/71) after CI passed. No release was published.
