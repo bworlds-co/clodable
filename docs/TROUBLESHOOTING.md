@@ -296,7 +296,7 @@ The move runs in the Clodable panel, one step at a time, and Claude runs each st
 
 - **When:** trying your app on the copy, a feature that works on Lovable shows nothing: a greeting, AI summaries.
 - **Why:** its server code reads one of your app's settings, and those values live in Lovable's hosting, not in your data.
-- **What to do:** paste each value where the Clodable panel asks for it: in **Try your app on the copy**, **Put your site on Netlify**, or **Your app's settings**. The preview restarts with it.
+- **What to do:** paste each value where the Clodable panel asks for it: in **Try your app on the copy**, **Prepare your website**, or **Your app's settings**. The preview restarts with it. To replace a value you already saved, open **Settings** and press **Change** next to its name.
 - **Check:** the feature shows in the preview.
 - *For a developer:* the code reads `process.env.X`; values are kept on this computer and set on the Netlify site, never in the project.
 - **Still stuck?** [Tell us what happened](https://github.com/bworlds-co/clodable/issues/new).
@@ -363,6 +363,14 @@ The move runs in the Clodable panel, one step at a time, and Claude runs each st
 - **Why:** Supabase has paused the project.
 - **What to do:** open it in Supabase and restore it, then press the step again. Your live app hasn't changed.
 - **Check:** ask Claude to check your new backend: it says “Your new backend is running”.
+- **Still stuck?** [Tell us what happened](https://github.com/bworlds-co/clodable/issues/new).
+
+### “Netlify didn't accept your access token.”
+
+- **When:** the move's **Prepare your website** step, when Clodable looks at your Netlify account. The panel shows a **Netlify token** field and **Check again** instead of **Prepare my website**.
+- **Why:** Netlify no longer accepts the token kept on this computer: it may have expired or been deleted. Nothing was created, and your live app hasn't changed.
+- **What to do:** press **Open Netlify's token page ↗**, create a personal access token named Clodable, paste it in the **Netlify token** field and press **Reconnect**.
+- **Check:** the step names your Netlify team, or lets you choose one, and shows **Prepare my website**.
 - **Still stuck?** [Tell us what happened](https://github.com/bworlds-co/clodable/issues/new).
 
 ## Claude Desktop's own quirks

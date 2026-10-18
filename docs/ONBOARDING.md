@@ -54,7 +54,7 @@ The preview starts by itself in Desktop. Show the builder three things:
 What the panel offers depends on where the site lives:
 - **Not online yet:** the panel offers **Set up hosting**. The builder connects their own Netlify (free to start) and picks the team, and Clodable creates the site with the backend's address and the app's settings. That only prepares the address: the first **Publish** puts the site on the web, and the bar then says **You're live**.
 - **On a host that deploys from GitHub** (Vercel, Netlify, Cloudflare…): nothing to set up. **Publish** updates `main`, the host puts it live, and Clodable waits for the host's GitHub deployment before the bar says **You're live**. If it says **Published on GitHub** · **Not on the web yet** instead, the host doesn't report its deployments to GitHub: check its GitHub integration.
-- **Hosted by Lovable:** Publish ends at **Published on GitHub**, and the builder then clicks **Publish**, then **Publish changes**, in Lovable (the bar links there). Leaving Lovable's hosting is part of the move off Lovable Cloud (step 7): its **Put your site on Netlify** step builds the new site beside the live one, and the domain moves after going live. Keep Lovable's hosting until then. The panel's move starts from Lovable Cloud, so an app already on its own Supabase keeps Lovable's hosting for now ([DECISIONS](DECISIONS.md) Q5e).
+- **Hosted by Lovable:** Publish ends at **Published on GitHub**, and the builder then clicks **Publish**, then **Publish changes**, in Lovable (the bar links there). Leaving Lovable's hosting is part of the move off Lovable Cloud (step 7): its **Prepare your website** step prepares the new site on Netlify beside the live one, without putting it online, and the domain moves after going live. Keep Lovable's hosting until then. The panel's move starts from Lovable Cloud, so an app already on its own Supabase keeps Lovable's hosting for now ([DECISIONS](DECISIONS.md) Q5e).
 
 On an app that's already live, the first **Publish** only adds Clodable's files, so the site looks the same.
 
@@ -66,15 +66,15 @@ An app that's already off Lovable doesn't need it. If Lovable still sends change
 
 ## 7. Moving off Lovable Cloud
 
-The builder asks Claude to move off Lovable, presses **Move off Lovable** in the panel, or types `/move-off-lovable`. The panel's move is the one path, for developers and agencies too ([DECISIONS](DECISIONS.md) Q5e). Each step the builder presses goes to Claude, which runs Clodable's command, explains and fixes what goes wrong. Keys and tokens go in the panel, never in the chat.
+The builder asks Claude to move off Lovable, presses **Move off Lovable** in the panel, or types `/move-off-lovable`. The panel's move is the one path, for developers and agencies too ([DECISIONS](DECISIONS.md) Q5e). Each step the builder presses, or asks for in their own words, goes to Claude, which runs Clodable's command, explains and fixes what goes wrong. Keys and tokens go in the panel, never in the chat.
 
 1. **Look at your app:** Claude reads the code and records what it uses (AI, sign-in, emails, payments, scheduled jobs, uploads). The panel then shows what the move involves, and which parts are best done with help.
 2. **How to move:** carefully, for an app people use (a working copy to try, then a short pause), or in one go, for a prototype.
-3. **Get ready, beside the live app:** connect Supabase, create the new backend, export from Lovable, copy the data, people, files and functions, and try the app on the copy. Then the site on Netlify, emails from the builder's own Resend account and domain, and their own AI key and Google sign-in where the app uses them.
+3. **Get ready, beside the live app:** connect Supabase, create the new backend, export from Lovable, copy the data, people, files and functions, and try the app on the copy. Then the website on Netlify (prepared, not online yet), emails from the builder's own Resend account and domain, and their own AI key and Google sign-in where the app uses them.
 4. **Go live:** carefully, the live app pauses while a last export is copied in. Clodable then points the app at its new home, **Publish** puts it live, and the app's domain follows.
 5. **Finish in Lovable,** once a sign-in on the new site is seen: unpublish the app, turn off Lovable's GitHub link, then remove Lovable Cloud. The panel gives the exact clicks.
 
-The live app keeps running on Lovable until step 4. Stay close for the parts the panel marks as best done with help.
+The live app keeps running on Lovable until step 4. Before then, **Publish** isn't a private test of the copy: it updates the app's shared code, which Lovable's GitHub link can carry to the live app. Stay close for the parts the panel marks as best done with help.
 
 An app that's already off Lovable but still calls Lovable's AI: the panel's **Settings** lists **Lovable AI** under **Worth a look**, and **Switch it** asks Claude to move those features to the builder's own key.
 
