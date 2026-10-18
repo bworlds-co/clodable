@@ -5,6 +5,7 @@ import { basename, join } from "node:path";
 import { configDir, writeJsonFile } from "../places.js";
 import type { ExportSummary } from "./export.js";
 import type { RecordedFacts } from "./facts.js";
+import type { RehearsalObservation } from "./rehearsal.js";
 
 /**
  * Where a move off Lovable stands, on this computer: `.clodable/local/move.json` (git-ignored).
@@ -38,6 +39,10 @@ export interface MoveState {
   export?: { file: string; importedAt: string; summary: ExportSummary };
   /** The data copied into the new backend. */
   data?: { at: string; ok: boolean; problems: string[]; fixes: string[] };
+  /** Latest destructive copy attempt; old rehearsal evidence becomes stale immediately. */
+  copyStartedAt?: string;
+  /** Dated feature checks. Local only, no secret values or rows of personal data. */
+  rehearsal?: RehearsalObservation[];
   /** Uploaded files copied over. */
   files?: {
     at: string;

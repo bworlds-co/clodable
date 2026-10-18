@@ -189,7 +189,7 @@ cli
     "emails: go live without emails of your own for now; domain: keep the Netlify address; settings, secrets, vault: go on without the ones left",
   )
   .option("--hook", "emails: send sign-in emails through the app's own templates (auth-email-hook)")
-  .option("--set", "facts: record what Claude found in the app's code (JSON on stdin)")
+  .option("--set", "facts/rehearsal: record app facts or dated copy checks (JSON on stdin)")
   .option("--sign-up <yes|no>", "golive: whether anyone may sign up (no: only invited people)")
   .option("--confirm-email <yes|no>", "golive: whether new people confirm their email first")
   .action((step, arg, options) =>

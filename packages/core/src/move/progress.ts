@@ -10,6 +10,7 @@ import { localFunctions, stripeWebhooks } from "./functions.js";
 import { type GoogleStatus, googleStatus } from "./google.js";
 import { homeSql } from "./home.js";
 import { NETLIFY_TOKEN } from "./netlify-api.js";
+import { rehearsalSummary } from "./rehearsal.js";
 import { RESEND_KEY } from "./resend-api.js";
 import {
   type ServicesStatus,
@@ -58,7 +59,11 @@ export interface MoveProgress {
   steps: MoveStep[];
   home?: { ref: string; name: string; url: string; dashboard: string };
   preview: "live" | "copy";
+  /** Database transfer checks only, at checksAt; not app feature testing. */
   checks?: MoveCheck[];
+  checksAt?: string;
+  /** Dated feature evidence, separate from database transfer checks. */
+  rehearsal: ReturnType<typeof rehearsalSummary>;
   /** What the last file copy left: private folders waiting for Lovable Cloud's key, and more. */
   files?: { waiting: string[]; tooBig: number; failed: number };
   /**
@@ -527,8 +532,22 @@ export async function moveProgress(ws: Workspace): Promise<MoveProgress> {
           },
         }
       : {}),
+    rehearsal: rehearsalSummary(state),
     preview: state.preview ?? "live",
-    ...(state.checks ? { checks: state.checks.items } : {}),
+    ...(state.checks
+      ? {
+          checksAt: state.checks.at,
+          checks: state.checks.items.map((item) =>
+            item.id === "old-backend" && item.ok
+              ? {
+                  ...item,
+                  label:
+                    "The checked database functions and webhooks no longer name the old backend",
+                }
+              : item,
+          ),
+        }
+      : {}),
     ...(state.files
       ? {
           files: {

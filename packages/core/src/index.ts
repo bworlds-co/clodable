@@ -180,6 +180,12 @@ export {
   ToolUnavailable,
 } from "./move/postgres-tools.js";
 export { type MoveProgress, type MoveStep, moveProgress } from "./move/progress.js";
+export {
+  type RehearsalObservation,
+  readRehearsal,
+  recordRehearsal,
+  rehearsalSummary,
+} from "./move/rehearsal.js";
 export { RESEND_KEY, RESEND_KEYS_PAGE, ResendApi } from "./move/resend-api.js";
 export { copyExport } from "./move/restore.js";
 export {
