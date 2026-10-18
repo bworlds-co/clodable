@@ -49497,7 +49497,7 @@ async function publishCommand(ctx2, options) {
       for (const warning of result.warnings) out.line(`${ochre("!")} ${warning}`);
       if (result.functions.pending.length > 0) {
         out.line(
-          `${ochre("!")} Backend functions to update: ${result.functions.pending.join(", ")}. Ask Claude to deploy them.`
+          `${ochre("!")} Backend functions to update: ${result.functions.pending.join(", ")}. Ask Claude to put them live.`
         );
       }
       out.line();
