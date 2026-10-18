@@ -221,6 +221,13 @@ export class SupabaseApi {
         ) {
           await forgetSecret(SUPABASE_TOKEN).catch(() => {});
         }
+        if (response.status === 404 && method === "GET" && /^\/v1\/projects\/[a-z]+$/.test(path)) {
+          throw new ClodableError({
+            code: "not-found",
+            message: "Your new backend isn't available to this Supabase account.",
+            hint: "Open Supabase and check the account and project. It may have been removed or your access may have changed. Your live app hasn't changed.",
+          });
+        }
         throw describeFailure(response.status, text, permissionFor(method, path));
       }
       if (!text) return undefined as T;

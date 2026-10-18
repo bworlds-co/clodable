@@ -184,6 +184,24 @@ Review started 2026-10-17; continued into 2026-10-18. Repository baseline: `c219
 - Fix: keep the address for the tool call; confirm in one short sentence, without a local URL or page tour. [PR #62](https://github.com/bworlds-co/clodable/pull/62), merged after CI.
 - Verification: lint/typecheck, 127 plugin tests, two independent model replays (known address / start-preview paths). Both say “Your preview is open beside this conversation.” A fresh Desktop conversation returned that same single sentence without a local address; screenshot 36.
 
+## F20 — major — An unavailable migration backend looks paused or ready
+
+- Observed on 2026-10-18: the saved destination `aqvgqmycchkemeviyqpw` was absent from test-org's project list. `move diagnose` said Supabase did not answer, then suggested restoring a paused project. A subsequent check reported that Supabase was no longer connected on this computer. This does not prove the project was deleted: access is unresolved.
+- Builder impact: the suggested recovery may not apply, and retrying Create previously claimed the remembered project was ready without checking it.
+- Cause: diagnosis swallowed lookup errors; Create returned its local record immediately.
+- Fix: preserve specific account/access errors, explain an unavailable project without claiming deletion, check remembered projects and wait for readiness, and distinguish paused from starting. No replacement is created automatically.
+- Verification: 187 package tests and 129 plugin tests pass, including unavailable/paused projects, expired account access, no duplicate creation and no new writes from a failed check. Desktop retest pending.
+
+## F21 — blocker / external — Lovable refuses Léa's database export
+
+- Owner approved verifying/reusing the existing destination and requesting/downloading a fresh export on 2026-10-18.
+- In the authorized Lovable project's Cloud → Advanced settings → Export data, Start export showed Exporting, then returned to Start export without a download. The page's console recorded `api_error_database_too_large_for_export` for this attempt. Screenshot 40 records the returned dialog. A prior Lovable conversation described the same limit; it was not treated as a fresh export or executed.
+- No export was downloaded or opened, and no data, people, files or functions were copied. The live app is unchanged. Copy testing needs an export supplied by Lovable and a working Supabase connection. No support message, new token or live migration was attempted.
+
+## Approved continuation — Nadia
+
+- On 2026-10-18 the owner approved **Start from an idea**: Claude creates a local prototype; Clodable requests account consent before setting up saving and publishing. Implementation and repeat Desktop tests are in progress. This supersedes the earlier pending-decision status below; it is not yet a completed journey.
+
 ## Coverage after unlocking the Mac
 
 - **Sam, twice complete:** first setup from `fresh-app`, then a full reset and GitHub import into `github-import-20261017`. Both runs reached a public site, added a free backend in test-org, asked before database changes, and published visitor notes. A note entered on each public site survived reload. Screenshots 13 and 23. The second note reads “Second fresh run: this note should still be here after a refresh.”

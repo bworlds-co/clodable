@@ -49,17 +49,26 @@ export async function diagnoseCopy(
   const ref = state.home.ref;
   const findings: MoveFinding[] = [];
 
-  const project = await api.project(ref).catch(() => undefined);
+  // An unavailable account or project is not a paused backend. Keep the API's specific
+  // explanation and next step instead of turning every failed lookup into a false diagnosis.
+  const project = await api.project(ref);
   const running = project?.status === "ACTIVE_HEALTHY";
   findings.push({
     id: "running",
     ok: running,
     label: running
       ? "Your new backend is running"
-      : `Your new backend isn't running (${project?.status ?? "Supabase didn't answer"})`,
+      : project.status === "INACTIVE" || project.status === "GOING_DOWN"
+        ? "Your new backend is paused"
+        : "Your new backend isn't ready yet",
     ...(running
       ? {}
-      : { fix: "If it's paused, restore it on its page in Supabase, then look again." }),
+      : {
+          fix:
+            project.status === "INACTIVE" || project.status === "GOING_DOWN"
+              ? "Restore it on its page in Supabase, then look again."
+              : "Check its status in Supabase, then look again in a minute.",
+        }),
   });
   if (!running) return { findings };
   const sql = homeSql(api, ref);
