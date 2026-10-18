@@ -23,6 +23,8 @@ Desktop currently labels the brief's Ask mode **Manual**. I exercised it during 
 
 ## What changed
 
+The approved conversation-first pass is implemented in [PR #68](https://github.com/bworlds-co/clodable/pull/68), stacked on Nadia's existing feature branch. Home is short; History and Settings are separate views. Claude can open the appropriate controls from an ordinary request. App discovery and uncertain choices stay in chat, while account consent, costs, secret fields and fixed creation stay in the panel. Migration shows its current action before optional background detail. The final fresh History request received a brief acknowledgement instead of another copy of the list. These changes are loaded locally in Desktop; they are not a released build.
+
 Twenty focused fixes were merged as separate pull requests after CI:
 
 | Fix | Result | Evidence |
