@@ -5538,7 +5538,7 @@ function domainField(
       return;
     }
     moveError = {
-      message: `“${value.trim()}” isn't a domain name.`,
+      message: value.trim() ? `“${value.trim()}” isn't a domain name.` : "Enter your domain name.",
       hint: `Just the domain, like ${example}.`,
     };
     $.ui.invalidate("ui.render");
