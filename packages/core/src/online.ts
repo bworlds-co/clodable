@@ -86,6 +86,30 @@ export interface SiteOnlineOutcome {
   settings: { wanted: string[]; set: string[]; lovable: string[] };
 }
 
+/** Refresh only this app's existing publishing access. Never create a site or publish. */
+export async function reconnectSite(ws: Workspace): Promise<{ reconnected: true; url: string }> {
+  const move = await loadMove(ws.root);
+  const known =
+    ws.config.netlify ?? (move.site ? { ...move.site, siteId: move.site.id } : undefined);
+  if (!known) {
+    throw new ClodableError({
+      code: "not-set-up",
+      message: "This app has no Netlify site to reconnect.",
+    });
+  }
+  const api = await NetlifyApi.required();
+  // Check the new connection reaches the exact saved site before changing publishing access.
+  const site = await api.site(known.siteId);
+  if (site.id !== known.siteId || site.account_slug !== known.account) {
+    throw new ClodableError({
+      code: "netlify-auth",
+      message: "This connection doesn't match your app's hosting account.",
+    });
+  }
+  await ws.github.setSecret("NETLIFY_AUTH_TOKEN", (await readSecret(NETLIFY_TOKEN))!);
+  return { reconnected: true, url: siteUrl(site) };
+}
+
 /**
  * Put the app online on the builder's own Netlify: a site named after the app, the backend's
  * address and keys and the settings pasted here, and what each Publish needs to put it live there.

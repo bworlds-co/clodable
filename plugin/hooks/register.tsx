@@ -266,6 +266,7 @@ const savingWhere: Partial<Record<"backend" | "hosting", string>> = {};
 let addingBackend = false;
 /** A token on its way to Supabase or Netlify, checked by the CLI. */
 let connecting: "supabase" | "netlify" | null = null;
+let siteConnectionMessage: string | null = null;
 /** What Netlify offers for a new site, once connected: its teams. */
 let siteOptions: { teams: Array<{ slug: string; name: string }> } | null = null;
 let siteTeam = "";
@@ -369,6 +370,7 @@ async function lookAtFolder($: EngineInterface) {
   paneView = null;
   showAssessment = false;
   showMoveProgress = false;
+  siteConnectionMessage = null;
   siteOptions = null;
   backendOptions = null;
   siteTeam = "";
@@ -1105,6 +1107,32 @@ async function connectService($: EngineInterface, service: "supabase" | "netlify
   if (service === "netlify") siteOptions = null;
   else backendOptions = null;
   await refreshStatus($);
+}
+
+/** Reuse a saved connection, or accept a replacement in the panel, then update this app only. */
+async function reconnectHosting($: EngineInterface, token?: string) {
+  if (connecting) return;
+  connecting = "netlify";
+  siteConnectionMessage = null;
+  $.ui.invalidate("ui.render");
+  try {
+    if (token !== undefined) {
+      if (!token.trim()) return;
+      const connected = await cli($, ["connect", "netlify"], 60_000, token.trim());
+      if (!connected.ok) {
+        siteConnectionMessage = connected.error?.message ?? "Netlify didn't accept that token.";
+        return;
+      }
+    }
+    const result = await cli($, ["site", "reconnect"], 60_000);
+    siteConnectionMessage = result.ok
+      ? "Publishing connection updated. You can retry Publish."
+      : (result.error?.message ?? "Couldn't update this app's publishing connection.");
+  } finally {
+    connecting = null;
+    await refreshStatus($);
+    $.ui.invalidate("ui.render");
+  }
 }
 
 /** The Netlify teams, or the Supabase organizations, a new site or backend can go in. */
@@ -1888,6 +1916,11 @@ export const register: Register = (on) => {
         deny: "The builder selects the account and confirms creation in Clodable's hosting or backend view. Open it with open_panel; don't create a service from the conversation.",
       };
     }
+    if (/\bclodable(?:\.mjs)?["']?\s+site\s+reconnect\b/.test(command)) {
+      return {
+        deny: "Open Clodable's site view with open_panel. The builder updates the app's publishing connection there.",
+      };
+    }
     if (SECRET_STEP.test(command)) {
       return {
         deny: "This step takes a secret (a token, a key, a password), so the builder does it in the Clodable panel, never through the chat. Ask them to use the panel (type /clodable), then carry on.",
@@ -2227,13 +2260,13 @@ export const register: Register = (on) => {
               Add sign-in or saved data
             </Button>
           ) : null}
-          {s.hosting === "none" ? (
+          {s.hosting === "none" || s.site ? (
             <Button
               key="settings-site"
               variant="secondary"
               onPress={() => background(openPane($, "site"))}
             >
-              Set up hosting
+              {s.site ? "Hosting and connection" : "Set up hosting"}
             </Button>
           ) : null}
           {settingsCard($, ui, s)}
@@ -2278,7 +2311,8 @@ export const register: Register = (on) => {
               {s.hosting !== "none" && !s.site ? (
                 <Text>Your app already has hosting. Ask Claude if you want to change it.</Text>
               ) : null}
-              {s.site?.live ? <Text>Your site is live.</Text> : null}
+              {s.site ? siteLink(ui, s.site.url) : null}
+              {s.site ? hostingConnection($, ui) : null}
               {s.site ? settingsCard($, ui, s) : null}
             </Box>
           ) : (
@@ -3446,6 +3480,39 @@ function databaseCard($: EngineInterface, ui: PaneUi, s: ClodableStatus) {
 
 /** Netlify's page for personal access tokens. */
 const NETLIFY_TOKENS = "https://app.netlify.com/user/applications#personal-access-tokens";
+
+/** Always reachable for an existing site, even when its last publication failed. */
+function hostingConnection($: EngineInterface, ui: PaneUi) {
+  const { Box, Text, Button, Link } = ui;
+  return (
+    <Box flexDirection="column" rowGap={1}>
+      <Text bold>Publishing connection</Text>
+      <Text dimColor>
+        Update this app with your saved Netlify connection, or paste a replacement token. Clodable
+        stores it on this computer and in this app's encrypted publishing settings. This does not
+        publish your app.
+      </Text>
+      {siteConnectionMessage ? <Text>{siteConnectionMessage}</Text> : null}
+      {connecting === "netlify" ? (
+        <Text dimColor>Updating the connection…</Text>
+      ) : (
+        <Box flexDirection="column" rowGap={1}>
+          <Button
+            key="site-reconnect"
+            variant="secondary"
+            onPress={() => background(reconnectHosting($))}
+          >
+            Use saved connection
+          </Button>
+          {field(ui, "site-reconnect-token", "Netlify token", "Reconnect", (value) =>
+            background(reconnectHosting($, value)),
+          )}
+          <Link href={NETLIFY_TOKENS} label="Open Netlify's token page ↗" />
+        </Box>
+      )}
+    </Box>
+  );
+}
 
 /**
  * Not online yet: Netlify connected here, then Clodable creates the address after consent
