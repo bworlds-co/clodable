@@ -57,7 +57,7 @@ const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 1280, height: 820 } });
 await page.goto(base, { waitUntil: "networkidle" });
 await page.waitForFunction(() =>
-  document.querySelector("clodable-toolbar")?.shadowRoot?.querySelector(".dock"),
+  document.querySelector("clodable-toolbar")?.shadowRoot?.querySelector(".pebble"),
 );
 
 await edit(page, original, changed);

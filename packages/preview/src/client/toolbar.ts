@@ -12,7 +12,8 @@ type Device = "desktop" | "tablet" | "phone";
 /** app: the normal preview. outer: the device stage. inner: the app inside the device frame. */
 export type Surface = "app" | "outer" | "inner";
 
-const STORE = "clodable:toolbar";
+// Version the preference: older releases opened a full dock without an explicit choice.
+const STORE = "clodable:toolbar:v2";
 /** The mark the device frame adds to the app's address, left out of the routes it reports. */
 const FRAME_MARK = new RegExp(`[?&]${FRAME_PARAM}=1`);
 const MESSAGES = {
@@ -47,7 +48,7 @@ export class Toolbar {
   private active!: Highlight;
   private popover: HTMLElement | undefined;
   private mode: Mode = "idle";
-  private minimized = false;
+  private minimized = true;
   private shortViewport = innerHeight <= 420;
   private expandedInShortViewport = false;
   private editing: Editing | undefined;
@@ -57,9 +58,9 @@ export class Toolbar {
     const params = new URLSearchParams(location.search);
     this.device = surface === "outer" ? ((params.get("device") as Device) ?? "phone") : "desktop";
     try {
-      this.minimized = JSON.parse(localStorage.getItem(STORE) ?? "{}").minimized === true;
+      this.minimized = JSON.parse(localStorage.getItem(STORE) ?? "{}").minimized !== false;
     } catch {
-      this.minimized = false;
+      this.minimized = true;
     }
   }
 
@@ -162,13 +163,12 @@ export class Toolbar {
   /** The tools, hidden: one clod in the corner that brings them back. */
   private drawPebble() {
     const onCopy = config()?.backend === "copy";
-    const labelled = onCopy || (this.shortViewport && !this.minimized);
     this.hintSlot.replaceChildren();
     this.dockSlot.replaceChildren(
       h(
         "button",
         {
-          class: `pebble${labelled ? " labelled" : ""}`,
+          class: "pebble labelled",
           "data-key": "pebble",
           "aria-label": "Show Clodable tools",
           ...(onCopy ? { "aria-description": "This preview uses a copy of your data." } : {}),
@@ -176,7 +176,7 @@ export class Toolbar {
           onclick: () => this.setMinimized(false),
         },
         this.mark(24),
-        ...(labelled ? [h("span", {}, onCopy ? "Copy · Tools" : "Tools")] : []),
+        h("span", {}, onCopy ? "Copy · Tools" : "Tools"),
       ),
     );
   }

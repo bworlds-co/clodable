@@ -494,7 +494,7 @@ The owner initially requested collection without implementation, then completed 
 
 ## F38 — polish — Redundant “Use this name” button in saving setup
 
-- **Status:** fixed; automated checks and native Desktop inspection passed, awaiting CI/merge. Issue: https://github.com/bworlds-co/clodable/issues/89.
+- **Status:** merged in [PR #102](https://github.com/bworlds-co/clodable/pull/102); CI and native Desktop inspection passed. Issue: https://github.com/bworlds-co/clodable/issues/89.
 - **Observed:** the owner asked what **Use this name** does beside the App name field, above **Create private app and save**.
 - **Builder impact:** two adjacent actions suggest a required name-confirmation step and make it unclear which action actually saves the app.
 - **Cause:** the field's `onInput` already updates `newAppName`. Its separate submit button repeats that assignment and refreshes the panel; it neither creates nor saves anything. The primary creation action reads `newAppName` directly.
@@ -505,12 +505,14 @@ The owner initially requested collection without implementation, then completed 
 
 ## F39 — major — Clodable and Desktop show competing preview toolbars
 
-- **Status:** open; implementation authorized after the owner completed review. Issue: https://github.com/bworlds-co/clodable/issues/90.
+- **Status:** fixed; native Desktop and targeted checks passed, awaiting CI/merge. Issue: https://github.com/bworlds-co/clodable/issues/90.
 - **Observed:** the owner's bakery preview shows Clodable's floating toolbar above Claude Desktop's annotation toolbar. The owner asked why two bars are visible. Both show text and pointer controls, while the lower bar also offers drawing, undo and **Add to chat**.
 - **Builder impact:** the bars occupy substantial preview space and appear to offer duplicate editing tools. Similar text icons mean different things: Clodable edits the app's actual text; Desktop adds a text annotation to feedback. The builder must understand the boundary between two products to choose correctly.
 - **Cause:** Clodable injects its own preview tools (Edit text, Point & ask and device sizes), independently of Desktop's native annotation controls. They can remain expanded simultaneously. This is an integration/design issue; the lower bar belongs to Desktop, not a duplicate Clodable instance.
 - **Proposed direction:** review the two toolsets together and reduce redundant controls. Prefer Desktop's native feedback flow where it can replace Point & ask; retain Clodable's distinct direct-edit capability in a compact, clearly labelled entry. Check capability parity and available integration controls before settling the change. Closing the native toolbar with its **×** is an immediate workaround, not the product fix.
 - **Evidence:** owner's screenshot retained at `~/Clodable Tests/_runs/2026-10-18-owner-review/duplicate-preview-toolbars.png`; Clodable's controls confirmed in `packages/preview/src/client/toolbar.ts`. No implementation or Desktop UI change made.
+
+- **Implemented and verified (October 18):** the preview defaults to a small named **Tools** entry (**Copy · Tools** on a migration copy). The full controls open only on request, and direct-edit / feedback labels remain visible in narrow panes. Explicit show/hide preferences persist; the previous automatic-expanded preference is migrated to the compact default. Desktop’s annotation overlay remains its own surface. Native inspection in `local_771c2cb6-db48-42e9-9818-bb6f22eda1f2` covered the compact entry, expanded narrow layout, reload and Desktop annotation mode. Nine toolbar tests cover focus, shortcuts, copy labels and the default. Real inline-edit and error-recovery scripts passed, restoring the example byte-for-byte. No native Desktop controls were modified.
 
 ## F40 — blocker — Publish recovery sends the builder to missing Netlify reconnection controls
 

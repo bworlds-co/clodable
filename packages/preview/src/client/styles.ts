@@ -89,10 +89,12 @@ button:focus-visible, [tabindex]:focus-visible, textarea:focus-visible {
 .devices button:hover { color: var(--cl-ink); }
 .devices button[aria-checked="true"] { color: var(--cl-ink); }
 
-/* Narrow screens (and the phone frame): icons only. */
+/* Keep the editing tools named even in Desktop's narrow preview. */
 @media (max-width: 560px) {
-  .tool .label, .tool .key { display: none; }
-  .tool { padding: 0; width: 36px; justify-content: center; }
+  .dock { height: auto; min-height: 46px; max-width: calc(100vw - 24px); padding: 5px; flex-wrap: wrap; justify-content: center; border-radius: 18px; }
+  .dock .sep { display: none; }
+  .dock .devices { order: 1; }
+  .tool { padding: 0 8px; }
   .dock-wrap { bottom: 10px; }
 }
 
