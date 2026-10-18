@@ -172,6 +172,10 @@ let confirming:
   | null = null;
 let repoChoices: Array<{ value: string; label: string }> = [];
 let chosenRepo = "";
+let setupChoice: "import" | "idea" | "saving" | null = null;
+let newAppName = "";
+let setupProblem: { message: string; help: boolean } | null = null;
+let ideaRequested = false;
 let deviceCode = "";
 const requests = new Map<string, string>();
 /**
@@ -348,6 +352,10 @@ async function syncFolder($: EngineInterface): Promise<string> {
 async function lookAtFolder($: EngineInterface) {
   inApp = (await $.fs.exists(".clodable/config.json").catch(() => false)) ? true : null;
   emptyFolder = false;
+  setupChoice = null;
+  newAppName = "";
+  setupProblem = null;
+  ideaRequested = false;
   versions = null;
   replySaves = [];
   blockSaves.clear();
@@ -1554,6 +1562,7 @@ export const register: Register = (on) => {
 
   // Auto-save after every reply of the main conversation.
   on("turn.complete", async ($, e, next) => {
+    ideaRequested = false;
     const asked = requests.get(e.turnId);
     requests.delete(e.turnId);
     if (fixing?.turnId === e.turnId) {
@@ -1601,6 +1610,11 @@ export const register: Register = (on) => {
   on("tool.call", { tool: "Bash" }, async (_$, e, next) => {
     const command = String((e as { command?: unknown }).command ?? "");
     if (PRIVATE_FOLDER.test(command)) return { deny: PRIVATE_FOLDER_DENY };
+    if (/\bclodable(?:\.mjs)?["']?\s+setup\b[^\n]*--new\b/.test(command)) {
+      return {
+        deny: "The builder chooses the GitHub account and creates their private app in Clodable's Set up saving panel. Ask them to use that button; keep their local work intact.",
+      };
+    }
     if (!(await isApp())) return next(e);
     if (SECRET_STEP.test(command)) {
       return {
@@ -2138,11 +2152,7 @@ function barSides(
   if (!s.ready) {
     return {
       left: [
-        <Text>
-          {s.reason === "not-a-repo"
-            ? "Bring your app into this folder to save and publish"
-            : s.message}
-        </Text>,
+        <Text>{s.reason === "not-a-repo" ? "Start an idea or bring in your app" : s.message}</Text>,
       ],
       right: [
         <Button key="setup" variant="primary" onPress={() => background(openPane($))}>
@@ -2372,18 +2382,142 @@ function setupPane(
   doctor: ClodableCheck[],
 ) {
   const { Box, Text, Button, Link, Select, Input } = ui;
+  if (!s) {
+    return (
+      <Box flexDirection="column" rowGap={1} paddingX={1}>
+        {header}
+        <Text dimColor>Checking your app…</Text>
+      </Box>
+    );
+  }
   const tools = doctor.filter((c) => ["node", "git", "gh", "github"].includes(c.id));
   const blocking = tools.filter((c) => c.status === "fail");
   const github = doctor.find((c) => c.id === "github");
+  const noRemote = doctor.some((c) => c.id === "repo" && c.status === "fail");
+  const localPrototype =
+    (s?.reason === "not-a-repo" && !emptyFolder) || (s?.reason === "no-kit" && noRemote);
+  const pendingName = doctor.find((c) => c.id === "new-app")?.detail?.split("/")[1];
+  if (localPrototype && setupChoice !== "saving") {
+    return (
+      <Box flexDirection="column" rowGap={1} paddingX={1}>
+        {header}
+        <Text bold>Your local app</Text>
+        <Text>Keep shaping your local app with Claude.</Text>
+        <Text dimColor>Your files are on this computer. Clodable isn't saving them yet.</Text>
+        <Button
+          key="set-up-saving"
+          variant="primary"
+          dimColor={turnActive}
+          onPress={() => {
+            if (turnActive) return;
+            setupChoice = "saving";
+            background(refreshChecks($));
+            newAppName ||=
+              pendingName ??
+              cwd
+                .split("/")
+                .at(-1)
+                ?.toLowerCase()
+                .replace(/[^a-z0-9-]+/g, "-") ??
+              "my-app";
+            $.ui.invalidate("ui.render");
+          }}
+        >
+          Set up saving
+        </Button>
+        <Text dimColor>Choose your GitHub account next. Nothing goes live until you publish.</Text>
+      </Box>
+    );
+  }
+  if (s?.reason === "not-a-repo" && emptyFolder && setupChoice !== "import") {
+    return (
+      <Box flexDirection="column" rowGap={1} paddingX={1}>
+        {header}
+        <Text bold>What would you like to make?</Text>
+        {setupChoice === "idea" && (ideaRequested || turnActive) ? (
+          <Text dimColor>
+            Claude is making your first version. Follow the conversation, then try the preview.
+          </Text>
+        ) : setupChoice === "idea" ? (
+          <Box flexDirection="column" rowGap={1}>
+            <Text>Describe who it's for and what they should be able to do.</Text>
+            {Input ? (
+              <Input
+                key="idea-description"
+                label="Your idea"
+                placeholder="A place for neighbours to lend books…"
+                submitLabel="Make a first version"
+                onSubmit={(value) => {
+                  if (!value.trim() || ideaRequested || turnActive) return;
+                  ideaRequested = true;
+                  $.ui.invalidate("ui.render");
+                  const text = `Make a first version of this idea: ${value.trim()}`;
+                  detailsFor.set(text, IDEA_DETAILS);
+                  background(
+                    $.prompt.submit({ text, asUser: true }).catch(() => {
+                      ideaRequested = false;
+                      $.ui.toast("Claude couldn't start yet. Try your idea again.");
+                      $.ui.invalidate("ui.render");
+                    }),
+                  );
+                }}
+              />
+            ) : (
+              <Text>Tell Claude your idea in the conversation.</Text>
+            )}
+            <Text dimColor>
+              Start with a local preview. You can connect saving when you're ready.
+            </Text>
+            <Button
+              key="back-to-start"
+              plain
+              onPress={() => {
+                setupChoice = null;
+                $.ui.invalidate("ui.render");
+              }}
+            >
+              Back
+            </Button>
+          </Box>
+        ) : (
+          <Box flexDirection="column" rowGap={1}>
+            <Button
+              key="start-idea"
+              variant="primary"
+              onPress={() => {
+                setupChoice = "idea";
+                $.ui.invalidate("ui.render");
+              }}
+            >
+              Start from an idea
+            </Button>
+            <Text dimColor>Describe it to Claude and try a first version on this computer.</Text>
+            <Button
+              key="choose-import"
+              variant="secondary"
+              onPress={() => {
+                setupChoice = "import";
+                $.ui.invalidate("ui.render");
+              }}
+            >
+              Bring an app from GitHub
+            </Button>
+          </Box>
+        )}
+      </Box>
+    );
+  }
   return (
     <Box flexDirection="column" rowGap={1} paddingX={1}>
       {header}
       <Text>
-        {s?.reason === "not-a-repo" && !emptyFolder
-          ? "Keep shaping your local app with Claude."
-          : "Let's bring your app home. It takes a minute, once."}
+        {setupChoice === "saving"
+          ? "Set up saving for your app."
+          : s?.reason === "not-a-repo" && !emptyFolder
+            ? "Keep shaping your local app with Claude."
+            : "Let's bring your app home. It takes a minute, once."}
       </Text>
-      {section(ui, "1 · Tools")}
+      {section(ui, setupChoice === "saving" ? "1 · Your account" : "1 · Tools")}
       {fetchingNode ? (
         <Text dimColor>Getting Node.js ready for your app: about a minute, once.</Text>
       ) : tools.length === 0 && (checksFailed || s?.reason === "unknown") ? (
@@ -2398,26 +2532,32 @@ function setupPane(
       ) : tools.length === 0 ? (
         <Text dimColor>Checking…</Text>
       ) : null}
-      {tools.map((c) => (
-        <Box flexDirection="column">
-          <Text color={c.status === "ok" ? "success" : "error"}>
-            {c.status === "ok" ? "✓" : "✕"} {c.label} {c.detail ? `· ${c.detail}` : ""}
-          </Text>
-          {c.status !== "ok" && c.id === "git" && c.fix?.includes("xcode-select") ? (
-            // macOS: Apple's own installer for Git, no Terminal needed.
-            <Box flexDirection="row" columnGap={1} alignItems="center">
-              <Button key="install-git" variant="primary" onPress={() => background(installGit($))}>
-                Install Git
-              </Button>
-              <Button key="git-check-again" plain onPress={() => background(refreshChecks($))}>
-                Check again
-              </Button>
-            </Box>
-          ) : c.status !== "ok" && c.fix ? (
-            <Text dimColor> {c.fix}</Text>
-          ) : null}
-        </Box>
-      ))}
+      {tools
+        .filter((c) => setupChoice !== "saving" || c.id === "github" || c.status !== "ok")
+        .map((c) => (
+          <Box flexDirection="column">
+            <Text color={c.status === "ok" ? "success" : "error"}>
+              {c.status === "ok" ? "✓" : "✕"} {c.label} {c.detail ? `· ${c.detail}` : ""}
+            </Text>
+            {c.status !== "ok" && c.id === "git" && c.fix?.includes("xcode-select") ? (
+              // macOS: Apple's own installer for Git, no Terminal needed.
+              <Box flexDirection="row" columnGap={1} alignItems="center">
+                <Button
+                  key="install-git"
+                  variant="primary"
+                  onPress={() => background(installGit($))}
+                >
+                  Install Git
+                </Button>
+                <Button key="git-check-again" plain onPress={() => background(refreshChecks($))}>
+                  Check again
+                </Button>
+              </Box>
+            ) : c.status !== "ok" && c.fix ? (
+              <Text dimColor> {c.fix}</Text>
+            ) : null}
+          </Box>
+        ))}
       {github && github.status !== "ok" ? (
         <Box flexDirection="column" rowGap={1}>
           <Button
@@ -2441,8 +2581,66 @@ function setupPane(
         </Box>
       ) : null}
       {section(ui, "2 · Your app")}
-      {blocking.length > 0 ? (
+      {setupChoice === "saving" && tools.length === 0 ? (
+        <Text dimColor>Checking your GitHub account before creating anything…</Text>
+      ) : blocking.length > 0 ? (
         <Text dimColor>Once the tools above are ready, pick your app here.</Text>
+      ) : setupChoice === "saving" && localPrototype ? (
+        <Box flexDirection="column" rowGap={1}>
+          <Text>Save to {github?.detail ?? "your GitHub account"} · Private</Text>
+          <Text dimColor>
+            Clodable creates a private app in this account and saves your files there. Only you and
+            people you give access can see the code. This doesn't put your site online.
+          </Text>
+          {setupProgress(ui, "Setting up saving…")}
+          {setupProblem ? (
+            <Box flexDirection="column" rowGap={1}>
+              <Text color="error">{setupProblem.message}</Text>
+              {setupProblem.help ? (
+                <Button
+                  key="prepare-local-app"
+                  plain
+                  onPress={() =>
+                    background(
+                      askClaude(
+                        $,
+                        "Prepare my local app for saving with Clodable, keeping my design and content.",
+                        IDEA_PREPARE_DETAILS,
+                      ),
+                    )
+                  }
+                >
+                  Ask Claude for help
+                </Button>
+              ) : null}
+            </Box>
+          ) : null}
+          {!settingUp && Input ? (
+            <Input
+              key="new-app-name"
+              label="App name"
+              value={newAppName}
+              submitLabel="Use this name"
+              onInput={(value) => {
+                newAppName = value.trim();
+              }}
+              onSubmit={(value) => {
+                newAppName = value.trim();
+                $.ui.invalidate("ui.render");
+              }}
+            />
+          ) : null}
+          {!settingUp ? (
+            <Button
+              key="create-private-app"
+              variant="primary"
+              dimColor={turnActive || !github?.detail}
+              onPress={() => background(setUpSaving($, (github?.detail ?? "").replace(/^@/, "")))}
+            >
+              Create private app and save
+            </Button>
+          ) : null}
+        </Box>
       ) : s?.reason === "no-kit" ? (
         <Box flexDirection="column" rowGap={1}>
           <Text>This folder already holds an app. Clodable can set itself up right here.</Text>
@@ -2507,12 +2705,27 @@ function setupPane(
         <Text dimColor>Open Clodable in Claude Desktop or the terminal to pick your app.</Text>
       )}
       <Text dimColor>
-        {s?.reason === "no-kit"
-          ? "Clodable adds a few plain files and saves them, with any changes in progress, to your draft on GitHub. Nothing goes live."
-          : s?.reason === "not-a-repo" && !emptyFolder
-            ? "Your local files stay as they are. Nothing goes live."
-            : "Clodable copies your app from GitHub into this folder and adds a few plain files. Nothing goes live."}
+        {setupChoice === "saving"
+          ? "Publishing stays a separate choice. You can set up hosting after saving."
+          : s?.reason === "no-kit"
+            ? "Clodable adds a few plain files and saves them, with any changes in progress, to your draft on GitHub. Nothing goes live."
+            : s?.reason === "not-a-repo" && !emptyFolder
+              ? "Your local files stay as they are. Nothing goes live."
+              : "Clodable copies your app from GitHub into this folder and adds a few plain files. Nothing goes live."}
       </Text>
+      {setupChoice === "saving" && !settingUp ? (
+        <Button
+          key="keep-local"
+          plain
+          onPress={() => {
+            setupChoice = null;
+            setupProblem = null;
+            $.ui.invalidate("ui.render");
+          }}
+        >
+          Keep working locally
+        </Button>
+      ) : null}
     </Box>
   );
 }
@@ -5028,6 +5241,7 @@ async function runSetup($: EngineInterface, args: string[]): Promise<Result | un
   if (settingUp) return undefined;
   settingUp = true;
   setupSteps = [];
+  setupProblem = null;
   $.ui.invalidate("ui.render");
   let outcome: { result?: Result; failure?: unknown } = {};
   try {
@@ -5050,10 +5264,42 @@ async function runSetup($: EngineInterface, args: string[]): Promise<Result | un
   if (!result?.ok) {
     if (failure !== undefined) note($, `setup didn't run: ${String(failure)}`.slice(0, 400));
     $.ui.toast(result?.error?.message ?? "Setup didn't finish.");
+    setupProblem = {
+      message: [result?.error?.message ?? "Setup didn't finish.", result?.error?.hint]
+        .filter(Boolean)
+        .join(" "),
+      help: true,
+    };
+    $.ui.invalidate("ui.render");
     return undefined;
   }
   setupSteps = [];
   return result;
+}
+
+const IDEA_DETAILS = `The builder chose Start from an idea. Make a small, working local prototype with Vite and React in this folder, with dev and build scripts and .gitignore excluding node_modules, dist and .env files. Use sample data and browser storage only; explain what is local when relevant. Do not create a GitHub app, connect accounts, add a backend or publish. Do not initialize git or add Clodable's setup files yet. Open the preview in Desktop, try its main interaction, and say it is a local first version. Clodable is not saving to GitHub yet. When they want saving, tell them to press Set up saving in the Clodable panel; that panel gets account consent. Keep progress and final replies free of git vocabulary and local addresses.`;
+const IDEA_PREPARE_DETAILS = `Keep the existing app's design, content and local work. Prepare it as a supported Vite + React app with dev and build scripts, checking that it builds. Keep environment files and generated dependencies ignored. Do not create a remote app, connect accounts or publish. Once ready, ask the builder to try Set up saving in Clodable again. All account consent and GitHub creation happen in the panel. Use plain builder language.`;
+
+async function setUpSaving($: EngineInterface, account: string) {
+  if (turnActive) return;
+  const name = newAppName.trim();
+  if (!name) {
+    setupProblem = { message: "Give your app a name before creating it.", help: false };
+    $.ui.invalidate("ui.render");
+    return;
+  }
+  if (!account) return;
+  const result = await runSetup($, ["--new", name, "--account", account]);
+  if (!result) return;
+  setupChoice = null;
+  await shareAppRules($);
+  $.ui.toast(
+    result.data?.pushed
+      ? "Saved to your private app on GitHub."
+      : "Your app is connected. Your latest changes are still on this computer; Clodable will try saving them again.",
+  );
+  await refreshStatus($);
+  await refreshChecks($);
 }
 
 async function bringIn($: EngineInterface) {

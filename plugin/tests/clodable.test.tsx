@@ -460,13 +460,25 @@ describe("the Publish bar", () => {
       value: [{ name: ".DS_Store", kind: "file", size: 1, mtimeMs: 0, isLink: false }],
     }));
     await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
-    expect(await bandText($, "desktop", /Bring your app/)).toContain(
-      "Bring your app into this folder",
+    expect(await bandText($, "desktop", /Start an idea/)).toContain(
+      "Start an idea or bring in your app",
     );
   });
 });
 
 describe("guards", () => {
+  test("new private-app creation stays in the consent panel before setup too", async ($, on) => {
+    harness(on, { code: "not-a-repo", message: "Local folder" }, false);
+    on("tool.call", () => ({ result: { stdout: "", stderr: "", interrupted: false } }));
+    await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+    for (const command of [
+      `node "${PLUGIN_ROOT}/cli/clodable.mjs" setup --new books --account ada --yes`,
+      `cd "${CWD}" && node "${PLUGIN_ROOT}/cli/clodable.mjs" setup --new books --account ada --yes`,
+    ]) {
+      const result: any = await $.tool.call({ tool: "Bash", command });
+      expect(result.deny).toContain("Set up saving");
+    }
+  });
   test("Claude can't push, merge, publish or put backend code live by itself", async ($, on) => {
     harness(on);
     on("tool.call", () => ({ result: { stdout: "", stderr: "", interrupted: false } }));
@@ -3149,6 +3161,88 @@ describe("the preview, when Claude starts it", () => {
 });
 
 describe("everywhere else", () => {
+  test("an idea starts in the conversation before any GitHub consent or setup", async ($, on) => {
+    const calls = harness(on, { code: "not-a-repo", message: "Local folder" }, false);
+    on("fs.list", () => ({ value: [] }));
+    const asked: string[] = [];
+    on("prompt.submit", (_$: unknown, e: { text: string }) => {
+      asked.push(e.text);
+      return { text: e.text };
+    });
+    await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+    const pane = await $.ui.mount(PANE_PROPS as never);
+    for (let i = 0; i < 30 && !(await pane.find({ key: "start-idea" })); i++) await pane.redraw();
+    expect(await pane.find({ key: "connect-github" })).toBeUndefined();
+    await pane.press({ key: "start-idea" });
+    await $.ui.input({
+      plugin: "clodable",
+      key: "idea-description",
+      text: "A neighbourhood book swap",
+    });
+    expect(asked).toEqual(["Make a first version of this idea: A neighbourhood book swap"]);
+    expect(await pane.find({ key: "idea-description" })).toBeUndefined();
+    expect(
+      await pane.find({ type: "Text", text: /Claude is making your first version/ }),
+    ).toBeDefined();
+    expect(calls.some((call) => ["save", "setup"].includes(call[0]!))).toBe(false);
+    await pane.unmount();
+  });
+
+  test("saving a prototype names the account and waits for explicit private-app consent", async ($, on) => {
+    harness(on, { code: "not-a-repo", message: "Local folder" }, false, {
+      doctor: out([
+        { id: "github", status: "ok", label: "GitHub account", detail: "@ada" },
+        { id: "repo", status: "fail", label: "Your app on GitHub" },
+      ]),
+    });
+    on("fs.list", () => ({
+      value: [{ name: "package.json", kind: "file", size: 100, mtimeMs: 0, isLink: false }],
+    }));
+    const ran: string[][] = [];
+    on("process.spawn", async function* (_$: unknown, e: { argv: readonly string[] }) {
+      ran.push(e.argv.slice(2));
+      yield {
+        stream: "stdout" as const,
+        text: `${JSON.stringify({ type: "result", ok: false, error: { code: "not-found", message: "Name already in use.", hint: "Choose another name. Your local files are still here." } })}\n`,
+      };
+      return { value: { code: 1, signal: null } };
+    });
+    await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+    const pane = await $.ui.mount(PANE_PROPS as never);
+    for (let i = 0; i < 30 && !(await pane.find({ key: "set-up-saving" })); i++)
+      await pane.redraw();
+    await pane.press({ key: "set-up-saving" });
+    expect(ran).toHaveLength(0);
+    for (let i = 0; i < 30 && !(await pane.find({ type: "Text", text: /Save to @ada/ })); i++)
+      await pane.redraw();
+    expect(await pane.find({ type: "Text", text: /Save to @ada/ })).toBeDefined();
+    await $.ui.input({
+      plugin: "clodable",
+      key: "new-app-name",
+      kind: "change",
+      text: "books-nearby",
+    });
+    await pane.press({ key: "create-private-app" });
+    for (let i = 0; i < 30 && !ran.length; i++) await pane.redraw();
+    expect(ran[0]).toEqual([
+      "setup",
+      "--new",
+      "books-nearby",
+      "--account",
+      "ada",
+      "--yes",
+      "--json",
+    ]);
+    for (let i = 0; i < 30 && !(await pane.find({ key: "keep-local" })); i++) await pane.redraw();
+    expect(
+      await pane.find({ type: "Text", text: /Name already in use.*Choose another name/ }),
+    ).toBeDefined();
+    await pane.press({ key: "keep-local" });
+    expect(await pane.find({ key: "set-up-saving" })).toBeDefined();
+    expect(ran).toHaveLength(1);
+    await pane.unmount();
+  });
+
   const quiet = async ($: any) => {
     for (let i = 0; i < 30; i++) await Promise.resolve();
     const band = await $.ui.mount({ ...BAND, surface: "desktop" });
@@ -3204,6 +3298,11 @@ describe("everywhere else", () => {
       });
       await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
       const pane = await $.ui.mount(PANE_PROPS as never);
+      if (importing) {
+        for (let i = 0; i < 30 && !(await pane.find({ key: "choose-import" })); i++)
+          await pane.redraw();
+        await pane.press({ key: "choose-import" });
+      }
       const control = importing ? "repo-name" : "set-up-here";
       for (let i = 0; i < 30 && !(await pane.find({ key: control })); i++) await pane.redraw();
       if (importing)
@@ -3370,6 +3469,10 @@ describe("everywhere else", () => {
       await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
       await $.command.run({ command: "clodable", args: "" } as never);
       const pane = await $.ui.mount(PANE_PROPS as never);
+      if (!hasLocalPage) {
+        expect(await pane.find({ key: "start-idea" })).toBeDefined();
+        await pane.press({ key: "choose-import" });
+      }
       expect(Boolean(await pane.find({ key: "repo-name" }))).toBe(!hasLocalPage);
       expect(Boolean(await pane.find({ key: "list-repos" }))).toBe(!hasLocalPage);
       expect(await pane.find({ key: "set-up-here" })).toBeUndefined();
@@ -3381,7 +3484,7 @@ describe("everywhere else", () => {
         expect(
           await pane.find({
             type: "Text",
-            text: "Your local files stay as they are. Nothing goes live.",
+            text: "Choose your GitHub account next. Nothing goes live until you publish.",
           }),
         ).toBeDefined();
       }
@@ -3403,6 +3506,9 @@ describe("everywhere else", () => {
     }));
     await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
     const pane = await $.ui.mount(PANE_PROPS as never);
+    for (let i = 0; i < 30 && !(await pane.find({ key: "choose-import" })); i++)
+      await pane.redraw();
+    await pane.press({ key: "choose-import" });
     for (let i = 0; i < 30 && !(await pane.find({ key: "repo-name" })); i++) await pane.redraw();
     expect(await pane.find({ key: "repo-name" })).toBeDefined();
     await $.turn.start({ text: "Make a book-swap page", turnId: "local-page" } as never);
@@ -3882,6 +3988,10 @@ describe("the tools Clodable needs", () => {
         view: {},
       },
     } as never);
+    for (let i = 0; i < 30 && !(await pane.find({ key: "choose-import" })); i++)
+      await pane.redraw();
+    if (await pane.find({ key: "choose-import" })) await pane.press({ key: "choose-import" });
+    if (await pane.find({ key: "set-up-saving" })) await pane.press({ key: "set-up-saving" });
     for (let i = 0; i < 30 && !(await pane.find({ key: "install-git" })); i++) await pane.redraw();
     await pane.press({ key: "install-git" });
     for (let i = 0; i < 30 && ran.length === 0; i++) await Promise.resolve();

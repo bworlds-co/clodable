@@ -53,6 +53,55 @@ export class GhCli implements GitHubAdapter {
     return { installed: true, authenticated: status.exitCode === 0 };
   }
 
+  async createPrivateRepository(name: string): Promise<{ repo: RepoInfo; cloneUrl: string }> {
+    const result = await this.run(["api", "user/repos", "--method", "POST", "--input", "-"], {
+      input: JSON.stringify({ name, private: true, auto_init: true }),
+    });
+    if (result.exitCode !== 0) {
+      throw ghError(result, {
+        code: "not-found",
+        message: "Couldn't create your private app on GitHub.",
+        hint: "That name may already be in use, or your account may not allow new apps. Your local work is still here. Check GitHub before trying again.",
+        details: result.stderr,
+      });
+    }
+    const created = JSON.parse(result.stdout) as {
+      owner: { login: string };
+      name: string;
+      html_url: string;
+      clone_url: string;
+      default_branch: string;
+      private: boolean;
+    };
+    return {
+      repo: {
+        owner: created.owner.login,
+        name: created.name,
+        url: created.html_url,
+        defaultBranch: created.default_branch,
+        isPrivate: created.private,
+      },
+      cloneUrl: created.clone_url,
+    };
+  }
+
+  /** Use the connected GitHub account for this app, irrespective of the Mac's SSH identity. */
+  async configureCredentials(): Promise<void> {
+    const git = (args: string[]) => exec("git", args, { cwd: this.cwd, timeout: 10_000 });
+    const key = "credential.https://github.com.helper";
+    await git(["config", "--local", "--unset-all", key]);
+    for (const value of ["", `!'${await ghBinary()}' auth git-credential`]) {
+      const result = await git(["config", "--local", "--add", key, value]);
+      if (result.exitCode !== 0)
+        throw new ClodableError({
+          code: "gh-auth",
+          message: "Couldn't connect this app to your GitHub account.",
+          hint: "Try Set up saving again.",
+          details: result.stderr,
+        });
+    }
+  }
+
   /** The builder's own repositories (not forks), most recently changed first. */
   async repositories(limit = 40): Promise<Array<{ name: string; description: string | null }>> {
     const repos = await this.json<Array<{ nameWithOwner: string; description: string | null }>>([

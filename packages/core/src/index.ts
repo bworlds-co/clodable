@@ -227,6 +227,7 @@ export {
 } from "./move/switch.js";
 export { parseToc, planRestore } from "./move/toc.js";
 export { verifyCopy } from "./move/verify.js";
+export { pendingNewApp, prepareNewApp } from "./new-app.js";
 export {
   type BackendChoices,
   type BackendOutcome,
