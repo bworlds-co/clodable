@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { ClodableError, messageOf } from "../errors.js";
 import { type Flow, step } from "../events.js";
 import type { Workspace } from "../workspace.js";
-import { type ExportSummary, findExport, readExport } from "./export.js";
+import { checkExportSource, type ExportSummary, findExport, readExport } from "./export.js";
 import type { NewKeys } from "./fixes.js";
 import { homeConnection, homeKeys, homeSql, localTarget } from "./home.js";
 import { type Sql, waitForConnection } from "./postgres.js";
@@ -27,20 +27,20 @@ export async function* importExport(
   options: { file?: string } = {},
 ): Flow<ExportSummary> {
   yield step("move:export", "running", "Reading your export");
-  const file = options.file ?? (await findExport());
+  const file = options.file ?? (await findExport(undefined, ws.project.lovable.projectUrl));
   if (!file) {
     throw new ClodableError({
       code: "export-not-found",
-      message: "Clodable didn't find your Lovable export in Downloads.",
-      hint: "In Lovable: More → Cloud → Overview → Advanced settings → Export data, then Export on the Database card, then Start export. Download the zip from the email Lovable sends (or from Cloud → Storage).",
+      message: "Clodable couldn't match an export in Downloads to this app.",
+      hint: "Download this app's export from Lovable, or tell Claude the name and location of its .zip, .backup or .dump file. Clodable won't guess between apps.",
     });
   }
+  await checkExportSource(file, ws.project.lovable.projectUrl);
   const dir = await moveDir(ws.root);
   const before = await loadMove(ws.root);
   const pausedAt = before.switch?.liveAt ? undefined : before.switch?.frozenAt;
-  // During the pause, the export is read aside first: one made before the pause would lose what
-  // people wrote since, so it never replaces the one the final copy uses.
-  const target = pausedAt ? await mkdtemp(join(dir, "incoming-")) : dir;
+  // A failed read or stale final export must never replace the last usable copy.
+  const target = await mkdtemp(join(dir, "incoming-"));
   let summary: ExportSummary;
   try {
     summary = (await readExport(file, target)).summary;
@@ -52,13 +52,13 @@ export async function* importExport(
           hint: "Check the pause is in place in Lovable, export again, download the new zip, then read it.",
         });
       }
-      for (const name of await readdir(target)) {
-        await rm(join(dir, name), { recursive: true, force: true });
-        await rename(join(target, name), join(dir, name));
-      }
+    }
+    for (const name of await readdir(target)) {
+      await rm(join(dir, name), { recursive: true, force: true });
+      await rename(join(target, name), join(dir, name));
     }
   } finally {
-    if (pausedAt) await rm(target, { recursive: true, force: true });
+    await rm(target, { recursive: true, force: true });
   }
   const sourceRef = ws.project.supabase.projectRef ?? summary.sourceRefs[0];
   await updateMove(ws.root, (s) => {

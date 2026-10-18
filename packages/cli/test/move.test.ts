@@ -364,6 +364,11 @@ describe.skipIf(!PG_BIN)("clodable move", () => {
       ok: true,
       data: { people: { total: 3, withPassword: 2 }, sourceRefs: [SRC] },
     });
+    // A failed replacement must leave the previous archive usable for the next copy.
+    const damaged = join(sb.work, "damaged.dump");
+    writeFileSync(damaged, "not a PostgreSQL archive");
+    expect((await clodable(["move", "export", "--file", damaged])).result.ok).toBe(false);
+    await rm(damaged);
     const copy = await clodable(["move", "copy"]);
     expect(copy.result.ok).toBe(true);
     expect(copy.result.data.ok).toBe(true);
