@@ -6,4 +6,4 @@ You don't need to run it yourself. The Cloclod plugin for Claude Desktop uses it
 
 For programs, every command takes `--json` and prints one event per line (NDJSON).
 
-[MIT](https://github.com/bworlds-co/cloclod/blob/main/LICENSE). Cloclod is not affiliated with Anthropic or Lovable.
+[MIT](https://github.com/bworlds-co/cloclod/blob/main/LICENSE), except the Cloclod name, logo and mascot: see [TRADEMARKS.md](https://github.com/bworlds-co/cloclod/blob/main/TRADEMARKS.md). Cloclod is not affiliated with Anthropic or Lovable.

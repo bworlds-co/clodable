@@ -12,6 +12,8 @@ The name also winks at "Cloclo", a French nickname for Claude. Keep that wink in
 
 Write **Cloclod** in sentences: one word, with a capital C. Write `cloclod`, all lowercase, in ids, commands and the wordmark.
 
+The name, the mark and the mascot's drawings belong to BWorlds and aren't covered by the MIT license: see [TRADEMARKS.md](../../TRADEMARKS.md).
+
 ## The mark
 
 <img src="../assets/logo.svg" alt="The clod" width="64" height="64">

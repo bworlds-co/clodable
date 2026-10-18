@@ -235,4 +235,4 @@ Cloclod is **v0.2**: early, working end to end, and moving fast. The move off Lo
 
 ## License
 
-[MIT](LICENSE). Cloclod is not affiliated with Anthropic or Lovable.
+[MIT](LICENSE), except the Cloclod name, logo and mascot: see [TRADEMARKS.md](TRADEMARKS.md). Cloclod is not affiliated with Anthropic or Lovable.
