@@ -253,7 +253,7 @@ BWorlds, a small company that helps people own their AI-built apps. Clodable is 
   <img src="docs/assets/mascot/still-shaping.png" alt="The mascot lying flat, still being shaped, waving" width="177">
 </p>
 
-Clodable is **early**: working end to end, and moving fast. The move off Lovable has run end to end on test apps; Google sign-in, your own domain and the careful switch haven't yet run against real accounts. The design decisions are recorded in [docs/DECISIONS.md](docs/DECISIONS.md). Coming next:
+Clodable is **early**: working end to end, and moving fast. The move off Lovable runs end to end in our tests, against a real Supabase running locally. On a real Lovable app, the export and a working copy on the new backend have been tried; moving existing users and files, Google sign-in, your own domain and the careful switch haven't yet run against real accounts. The design decisions are recorded in [docs/DECISIONS.md](docs/DECISIONS.md). Coming next:
 - a local staging database;
 - a "wait for my developer" mode;
 - a secure form for your production keys.
