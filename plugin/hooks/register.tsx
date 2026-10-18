@@ -1486,7 +1486,7 @@ async function registerAppTools($: EngineInterface) {
   await $.tool.register({
     name: "open_panel",
     description:
-      "Open a focused Clodable view when the builder needs controls: app, history, settings (including secret fields), site (hosting consent), backend (database account consent), move, or saving (private GitHub app consent). This only opens the view; it never creates accounts, publishes, restores, or confirms anything. Answer ordinary questions in the conversation without opening a panel. Use this instead of asking the builder to type a slash command.",
+      "Open a focused Clodable view when the builder needs controls: app, history, settings (including secret fields), site (hosting consent), backend (database account consent), move, or saving (private GitHub app consent). This only opens the view; it never creates accounts, publishes, restores, or confirms anything. Answer ordinary questions in the conversation without opening a panel, except migration progress/resume requests: open or focus move at the existing step even for a read-only checkpoint. Use this instead of asking the builder to type a slash command.",
     inputSchema: {
       type: "object",
       properties: { view: { type: "string", enum: [...PANE_VIEWS] } },

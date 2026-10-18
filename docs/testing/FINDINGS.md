@@ -585,10 +585,12 @@ The owner initially requested collection without implementation, then completed 
 
 ## F46 — major — Asking about the move does not reopen its migration panel
 
-- **Status:** open; implementation authorized after the owner completed review. Issue: https://github.com/bworlds-co/clodable/issues/97.
+- **Status:** navigation guidance fixed; 151 plugin tests and two model replays passed, native verification pending. Issue: https://github.com/bworlds-co/clodable/issues/97.
 - **Observed:** after the scenario 03 progress request, Claude delivers a long conversational report and next-action question without opening the migration panel. The owner explicitly expected the same panel as `/move-off-lovable`. The review agent's initial assessment missed this navigation failure.
 - **Builder impact:** the builder loses the persistent progress view and current-step controls, and must know a slash command to recover them. Conversation-first interaction should open the appropriate controls automatically, not replace migration navigation with prose.
 - **Compounding failure confirmed by the owner:** the Clodable bar is also absent in this scenario (F41). There is no visible panel-opening control to compensate for Claude's omitted navigation. Test the complete route from an ordinary migration request to a visible panel, plus a discoverable manual entry point.
 - **Guidance gap:** the general guide directs migration requests to `open_panel` with `view: "move"`. The specific move skill maps **Where are we? / continue the move** only to status inspection and an explanation of the next step; it does not require reopening that view. The tool and command already support the destination. This is evidence of an instruction gap, not proof that a panel-opening call failed in this session.
 - **Expected behavior / proposed fix:** inspect current migration state, open or focus the migration panel at its existing step, and give a brief relevant summary in the conversation. Opening the view must not rerun a copy, create services or advance live steps. Keep `/move-off-lovable` as an optional fallback. Cover both a hidden panel and a panel currently showing another view.
 - **Evidence:** the F44 screenshots, the owner's clarification, and `plugin/skills/clodable-move/SKILL.md` / `plugin/skills/clodable-guide/SKILL.md`. No implementation or UI change made.
+
+- **F46 implementation:** both guides and the navigation tool now explicitly open/focus the move view on progress/resume requests, including read-only checkpoints. Model replays passed with a closed panel and with History open, without copying, service creation or live actions.

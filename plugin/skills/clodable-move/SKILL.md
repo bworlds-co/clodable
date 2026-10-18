@@ -27,7 +27,7 @@ Run `move status --json` first if the current state is not already available. Us
 
 | Request | Next action |
 |---|---|
-| "Where are we?", "continue the move" | `move status --json`; explain the next unfinished step. Do not treat "continue" as consent for a live change or an account/cost choice. |
+| "Where are we?", "continue the move" | Read current status if not already supplied, then call `mcp__clodable__open_panel` with `view: "move"` to open or focus the existing migration panel. Briefly explain the current stage and next action. This applies even to a read-only status request or when another view is open; opening controls changes no app data. Do not rerun a copy, create a service, advance a step, or treat "continue" as consent for a live change or an account/cost choice. |
 | "Try the copy", "switch my preview to the copy" | `move preview copy --json`, then `move diagnose --json`. Open the existing preview with Desktop's preview tools, or start its configured `app` entry if needed. Check the requested app features; a successful database check alone does not establish they work. |
 | "Check the copy", "is my new backend ready?" | `move diagnose --json`. Keep what was checked separate from features or data that could not be tested. |
 | "Show live data in my preview" | `move preview live --json`, only when explicitly requested; remind them that edits in this preview affect live data. |
