@@ -395,6 +395,12 @@ describe("what Claude may do on its own", () => {
     const facts = (body: string) =>
       `${moveCommandLine(PLUGIN_ROOT, ["facts", "--set"])} <<'JSON'\n${body}\nJSON`;
     expect(isFactsRecord(PLUGIN_ROOT, facts('{"ai": []}'))).toBe(true);
+    expect(
+      isFactsRecord(
+        PLUGIN_ROOT,
+        facts('{"observations": []}').replace("move facts", "move rehearsal"),
+      ),
+    ).toBe(true);
     expect(isFactsRecord(PLUGIN_ROOT, facts('{"ai": []}\nJSON\nrm -rf ~'))).toBe(false);
   });
 

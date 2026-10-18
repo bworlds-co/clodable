@@ -105,7 +105,7 @@ export function moveCommandLine(root: string, args: string[]): string {
 /** Claude's own runs of the move's steps, exactly as the panel's requests spell them. */
 export function isMoveStep(root: string, command: string): boolean {
   return new RegExp(
-    `^node "${escapeRegExp(root)}/cli/clodable\\.mjs" move (status|check|facts|choices|create|export|copy|verify|diagnose|files|functions|secrets|preview|teams|site|settings|emails|pause|golive|domain|services|app-emails)( --?[\\w-]+| [\\w.:@-]+)*$`,
+    `^node "${escapeRegExp(root)}/cli/clodable\\.mjs" move (status|check|facts|rehearsal|choices|create|export|copy|verify|diagnose|files|functions|secrets|preview|teams|site|settings|emails|pause|golive|domain|services|app-emails)( --?[\\w-]+| [\\w.:@-]+)*$`,
   ).test(command);
 }
 
@@ -135,7 +135,7 @@ export function isRuntimeRead(root: string, command: string): boolean {
 export function isFactsRecord(root: string, command: string): boolean {
   const m = command.match(
     new RegExp(
-      `^node "${escapeRegExp(root)}/cli/clodable\\.mjs" move facts --set <<'(\\w+)'\n([\\s\\S]*)\n(\\w+)$`,
+      `^node "${escapeRegExp(root)}/cli/clodable\\.mjs" move (?:facts|rehearsal) --set <<'(\\w+)'\n([\\s\\S]*)\n(\\w+)$`,
     ),
   );
   if (!m || m[1] !== m[3]) return false;

@@ -1753,7 +1753,17 @@ export const register: Register = (on) => {
   on("tool.call", { tool: "mcp__clodable__app_context" }, async ($) => {
     await syncFolder($);
     await refreshStatus($);
-    return { result: JSON.stringify(await read($, status)) };
+    const current = await read($, status);
+    if (current?.ready && (current.movingOffLovable || current.finishingMove)) {
+      const record = await cli($, ["move", "rehearsal"]);
+      return {
+        result: JSON.stringify({
+          ...current,
+          rehearsal: record.ok ? record.data : { unavailable: true },
+        }),
+      };
+    }
+    return { result: JSON.stringify(current) };
   });
 
   on("tool.call", { tool: "mcp__clodable__remember_app" }, async ($, e) => {

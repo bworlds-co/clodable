@@ -6,6 +6,8 @@ description: Runs the steps of a builder's move off Lovable in the conversation,
 
 # Moving off Lovable, step by step
 
+When reporting progress, preserve the evidence exactly. **No record is not proof that a test never happened.** Say “I don't have a recorded check for … on this copy,” never “it hasn't been tried” from missing records. Use **Still to confirm** for unknowns, not a “Not checked yet” heading. Say which features were previously checked and which still depend on Lovable; do not generalize database checks to the whole app.
+
 The builder may press a step in the Clodable panel or ask naturally in the conversation. A panel request includes its exact command beside their message. A conversational request may not. Use the installed Clodable command from the app's `AGENTS.md`; in a set-up app it is `node ".clodable/local/clodable.mjs"`. Never fetch another version or inspect Clodable's implementation to discover an ordinary command. The panel shows where the move stands; explain choices and investigate problems in the conversation.
 
 Their live app keeps running on Lovable until the switch: everything before it builds a **working copy** on their own Supabase. The switch (below) moves the live app over.
@@ -33,6 +35,20 @@ Run `move status --json` first if the current state is not already available. Us
 | "Copy my data" | Check status and prerequisites, then `move copy --json` when that operation is requested. Copying again replaces the rehearsal's data and accounts; explain that effect before repeating it. |
 
 For a command not listed here or supplied by the panel, consult the installed command's `move --help` before exploring files. Secret entry, account consent, Publish and live-switch boundaries remain unchanged. Keep the builder-facing reply brief; do not repeat command syntax or local addresses.
+
+## Remembering checks on the copy
+
+`move status --json` includes `rehearsal`: dated feature observations and the current copy identity. `move rehearsal --json` reads just that local record without contacting a service; `app_context` also includes it during a move. Use this record when resuming, rather than searching old conversations. Missing evidence means **unknown**, not “never tried.” Describe earlier checks as previously verified, not checked now. `scope: earlier-copy` means a recopy or different destination invalidated the evidence for today's copy. An automated check, a builder's report and a browser rehearsal are different evidence; preserve that distinction and each limitation. A later failure supersedes an earlier pass for the same feature. Preserve who did what: an anonymous visitor seeing a cover does not mean the post was created anonymously. A recorded blocked action was tried and failed; do not describe it as untested. Database transfer checks do not establish app readiness; name any remaining AI, email or other service dependency.
+
+After an actual feature check, save its safe result for the next conversation. Read `move rehearsal --json` for its exact `copy` first; use the same installed command prefix:
+
+```
+node "…/cli/clodable.mjs" move rehearsal --set <<'EOF'
+{"copy":{"ref":"COPY_REF_FROM_STATUS","dataAt":"COPY_DATE_FROM_STATUS"},"observations":[{"feature":"Open a note attachment","result":"passed","method":"browser","observedAt":"ACTUAL_CHECK_DATE_ISO","evidence":"Uploaded a disposable text file, reloaded and opened it.","limitation":"Does not verify transfer of existing users' files."}]}
+EOF
+```
+
+Allowed results: `passed`, `failed`, `blocked`. Methods: `browser`, `automated`, `builder-report`. Include an actual date and a short evidence description (a session or test reference is useful); never include credentials, user identities or the contents of their data. Do not mark untested features as passed, invent historical checks or refresh old dates. If the copy changes before recording, stop and check what was tested; do not relabel old evidence. Reading status never creates a rehearsal entry or authorizes tests that change live data.
 
 ## Looking at the app first
 

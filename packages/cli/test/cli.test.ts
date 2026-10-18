@@ -43,6 +43,45 @@ function clodableWith(env: Record<string, string>, ...args: string[]) {
 }
 
 describe("clodable --json", () => {
+  it("records dated rehearsal evidence over stdin and reads it in a fresh process", async () => {
+    const copy = { ref: "test-copy", dataAt: "2026-10-10T10:00:00.000Z" };
+    await sb.write(
+      ".clodable/local/move.json",
+      JSON.stringify({ version: 1, home: { ref: copy.ref }, data: { at: copy.dataAt, ok: true } }),
+    );
+    expect(clodable("move", "rehearsal").result).toMatchObject({
+      ok: true,
+      data: { copy, observations: [] },
+    });
+    const run = spawnSync(tsx, [entry, "move", "rehearsal", "--set", "--json"], {
+      cwd: sb.work,
+      env: { ...process.env, CLODABLE_FAKE_GITHUB: sb.bare },
+      encoding: "utf8",
+      input: JSON.stringify({
+        copy,
+        observations: [
+          {
+            feature: "Add a note",
+            result: "passed",
+            method: "browser",
+            observedAt: "2026-10-10T11:00:00.000Z",
+            evidence: "Created and reloaded a disposable note.",
+          },
+        ],
+      }),
+    });
+    expect(run.status).toBe(0);
+    expect(JSON.parse(run.stdout.trim().split("\n").at(-1)!)).toMatchObject({
+      type: "result",
+      ok: true,
+    });
+    expect(clodable("move", "rehearsal").result.data.observations[0]).toMatchObject({
+      feature: "Add a note",
+      scope: "current-copy",
+      method: "browser",
+    });
+  });
+
   it("reports retained failed delivery and confirms the same version on retry", async () => {
     await sb.write("src/app.txt", "New welcome\n");
     const failed = clodableWith({ CLODABLE_FAKE_HOST: "failed" }, "publish");
@@ -287,7 +326,7 @@ describe("clodable --json", () => {
       expect(move.code).toBe(1);
       expect(move.result.error).toMatchObject({
         code: "not-found",
-        hint: expect.stringContaining("check, facts, status, connect"),
+        hint: expect.stringContaining("check, facts, status, rehearsal, connect"),
       });
     }
   });

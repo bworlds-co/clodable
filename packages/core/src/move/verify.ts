@@ -239,7 +239,7 @@ async function oldBackendCheck(sql: Sql, sourceRef: string): Promise<MoveCheck> 
     ok: naming.length === 0,
     label:
       naming.length === 0
-        ? "Nothing calls Lovable Cloud anymore"
+        ? "The checked database functions and webhooks no longer name the old backend"
         : `${count(naming.length, "database function or webhook")} still call Lovable Cloud`,
     ...(naming.length > 0 ? { detail: naming.join(", ") } : {}),
   };

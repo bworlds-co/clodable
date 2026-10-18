@@ -26500,7 +26500,7 @@ async function oldBackendCheck(sql, sourceRef) {
   return {
     id: "old-backend",
     ok: naming.length === 0,
-    label: naming.length === 0 ? "Nothing calls Lovable Cloud anymore" : `${count(naming.length, "database function or webhook")} still call Lovable Cloud`,
+    label: naming.length === 0 ? "The checked database functions and webhooks no longer name the old backend" : `${count(naming.length, "database function or webhook")} still call Lovable Cloud`,
     ...naming.length > 0 ? { detail: naming.join(", ") } : {}
   };
 }
@@ -26636,6 +26636,9 @@ async function* copyData(ws) {
   const switching = Boolean(
     state.switch?.frozenAt && state.export.importedAt > state.switch.frozenAt
   );
+  await updateMove(ws.root, (s) => {
+    s.copyStartedAt = (/* @__PURE__ */ new Date()).toISOString();
+  });
   const outcome = yield* copyExport(
     { pg, sql, ref: state.home.ref, keys: keys.legacy },
     dir,
@@ -27847,6 +27850,87 @@ async function skipGoogle(ws) {
   return { skipped: true };
 }
 
+// ../core/src/move/rehearsal.ts
+var copySchema = external_exports.object({ ref: external_exports.string().min(1).max(100), dataAt: external_exports.iso.datetime() }).strict();
+var observationSchema = external_exports.object({
+  feature: external_exports.string().trim().min(1).max(200),
+  result: external_exports.enum(["passed", "failed", "blocked"]),
+  method: external_exports.enum(["browser", "automated", "builder-report"]),
+  observedAt: external_exports.iso.datetime(),
+  evidence: external_exports.string().trim().min(1).max(600),
+  limitation: external_exports.string().trim().max(600).optional()
+}).strict();
+var recordSchema = external_exports.object({
+  copy: copySchema,
+  observations: external_exports.array(observationSchema).min(1).max(30)
+}).strict();
+function currentCopy(state) {
+  if (!state.home || !state.data || state.copyStartedAt && Date.parse(state.copyStartedAt) > Date.parse(state.data.at))
+    return void 0;
+  return { ref: state.home.ref, dataAt: state.data.at };
+}
+function rehearsalSummary(state) {
+  const copy = currentCopy(state);
+  return {
+    copy,
+    observations: (state.rehearsal ?? []).map((observation) => ({
+      ...observation,
+      scope: copy && observation.copy.ref === copy.ref && observation.copy.dataAt === copy.dataAt ? "current-copy" : "earlier-copy"
+    })),
+    limit: "These are dated observations, not a fresh check or proof every feature works. Missing evidence means unknown, not never tested. Earlier-copy observations need checking again after a new copy."
+  };
+}
+async function readRehearsal(ws) {
+  return rehearsalSummary(await loadMove(ws.root));
+}
+async function recordRehearsal(ws, json3) {
+  let raw;
+  try {
+    raw = JSON.parse(json3);
+  } catch {
+    raw = null;
+  }
+  const parsed = recordSchema.safeParse(raw);
+  if (!parsed.success)
+    throw new ClodableError({
+      code: "invalid-config",
+      message: "The rehearsal notes don't have the expected shape.",
+      hint: "Include the copy identity from move rehearsal and dated feature observations, with their result, method and evidence. Never include keys or people's data."
+    });
+  const input2 = parsed.data;
+  const now = (/* @__PURE__ */ new Date()).toISOString();
+  const state = await updateMove(ws.root, (s) => {
+    const copy = currentCopy(s);
+    if (!copy || copy.ref !== input2.copy.ref || copy.dataAt !== input2.copy.dataAt) {
+      throw new ClodableError({
+        code: "move-not-ready",
+        message: "These notes don't match the current copy.",
+        hint: "Read the current rehearsal record and check which copy was actually tested. Don't relabel old checks as new ones."
+      });
+    }
+    if (input2.observations.some(
+      (o) => Date.parse(o.observedAt) < Date.parse(copy.dataAt) || Date.parse(o.observedAt) > Date.now() + 6e4
+    )) {
+      throw new ClodableError({
+        code: "invalid-config",
+        message: "A check's date is outside this copy's lifetime.",
+        hint: "Use the date the check actually happened, after this copy was made."
+      });
+    }
+    const entries = [...s.rehearsal ?? []];
+    for (const observation of input2.observations) {
+      const same = entries.findIndex(
+        (o) => o.copy.ref === copy.ref && o.copy.dataAt === copy.dataAt && o.feature === observation.feature && o.method === observation.method && o.observedAt === observation.observedAt
+      );
+      const entry = { ...observation, copy, recordedAt: now };
+      if (same < 0) entries.push(entry);
+      else entries[same] = entry;
+    }
+    s.rehearsal = entries.slice(-100);
+  });
+  return rehearsalSummary(state);
+}
+
 // ../core/src/move/services.ts
 import { randomBytes as randomBytes2 } from "node:crypto";
 var AI_PROVIDERS = {
@@ -28293,8 +28377,17 @@ async function moveProgress(ws) {
         dashboard: `https://supabase.com/dashboard/project/${state.home.ref}`
       }
     } : {},
+    rehearsal: rehearsalSummary(state),
     preview: state.preview ?? "live",
-    ...state.checks ? { checks: state.checks.items } : {},
+    ...state.checks ? {
+      checksAt: state.checks.at,
+      checks: state.checks.items.map(
+        (item) => item.id === "old-backend" && item.ok ? {
+          ...item,
+          label: "The checked database functions and webhooks no longer name the old backend"
+        } : item
+      )
+    } : {},
     ...state.files ? {
       files: {
         waiting: state.files.waiting,
@@ -48720,6 +48813,27 @@ var STEPS = {
       (progress) => renderProgress(ctx2, progress)
     )
   },
+  rehearsal: {
+    usage: "rehearsal [--set]",
+    run: (ctx2, options) => run(
+      ctx2,
+      async () => {
+        const ws = await ctx2.workspace();
+        return options.set ? recordRehearsal(ws, await readStdin() ?? "") : readRehearsal(ws);
+      },
+      (record2) => {
+        ctx2.out.header("Checks on your copy");
+        for (const observation of record2.observations) {
+          ctx2.out.line(
+            `${observation.feature}: ${observation.result} (${observation.observedAt}, ${observation.method}, ${observation.scope})`
+          );
+          ctx2.out.line(observation.evidence);
+          if (observation.limitation) ctx2.out.line(observation.limitation);
+        }
+        ctx2.out.line(record2.limit);
+      }
+    )
+  },
   connect: {
     run: (ctx2) => run(
       ctx2,
@@ -50130,7 +50244,7 @@ var yes = (value) => value === void 0 ? void 0 : !/^(no|false|0)$/i.test(String(
 cli.command("move [step] [arg]", MOVE_HELP).option("--org <slug>", "create: the Supabase organization").option("--region <code>", "create: where it runs (eu-central-1\u2026)").option("--name <name>", "create: the project's name").option("--file <path>", "export: the zip Lovable gave (else the newest in Downloads)").option("--private", "files: read Lovable Cloud's service key from stdin, for private folders").option("--fix", "diagnose: apply Clodable's own fixes on the copy").option("--account <slug>", "site: the Netlify team the site goes in").option("--domain <domain>", "emails: the domain emails come from").option("--sender <address>", "emails: the sender address (no-reply@ the domain by default)").option(
   "--skip",
   "emails: go live without emails of your own for now; domain: keep the Netlify address; settings, secrets, vault: go on without the ones left"
-).option("--hook", "emails: send sign-in emails through the app's own templates (auth-email-hook)").option("--set", "facts: record what Claude found in the app's code (JSON on stdin)").option("--sign-up <yes|no>", "golive: whether anyone may sign up (no: only invited people)").option("--confirm-email <yes|no>", "golive: whether new people confirm their email first").action(
+).option("--hook", "emails: send sign-in emails through the app's own templates (auth-email-hook)").option("--set", "facts/rehearsal: record app facts or dated copy checks (JSON on stdin)").option("--sign-up <yes|no>", "golive: whether anyone may sign up (no: only invited people)").option("--confirm-email <yes|no>", "golive: whether new people confirm their email first").action(
   (step2, arg, options) => moveCommand(ctx(options), {
     step: text(step2) ?? "check",
     arg: text(arg),

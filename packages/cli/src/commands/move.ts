@@ -34,7 +34,9 @@ import {
   provisionAppEmails,
   putSiteOnNetlify,
   RESEND_KEYS_PAGE,
+  readRehearsal,
   recordFacts,
+  recordRehearsal,
   SUPABASE_TOKEN,
   saveConfig,
   servicesStatus,
@@ -254,6 +256,29 @@ const STEPS = {
         ctx,
         async () => moveProgress(await ctx.workspace()),
         (progress) => renderProgress(ctx, progress),
+      ),
+  },
+
+  rehearsal: {
+    usage: "rehearsal [--set]",
+    run: (ctx, options) =>
+      run(
+        ctx,
+        async () => {
+          const ws = await ctx.workspace();
+          return options.set ? recordRehearsal(ws, (await readStdin()) ?? "") : readRehearsal(ws);
+        },
+        (record) => {
+          ctx.out.header("Checks on your copy");
+          for (const observation of record.observations) {
+            ctx.out.line(
+              `${observation.feature}: ${observation.result} (${observation.observedAt}, ${observation.method}, ${observation.scope})`,
+            );
+            ctx.out.line(observation.evidence);
+            if (observation.limitation) ctx.out.line(observation.limitation);
+          }
+          ctx.out.line(record.limit);
+        },
       ),
   },
 

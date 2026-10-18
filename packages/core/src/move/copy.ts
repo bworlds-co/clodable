@@ -128,6 +128,9 @@ export async function* copyData(ws: Workspace): Flow<{ ok: boolean; checks: Move
   const switching = Boolean(
     state.switch?.frozenAt && state.export.importedAt > state.switch.frozenAt,
   );
+  await updateMove(ws.root, (s) => {
+    s.copyStartedAt = new Date().toISOString();
+  });
   const outcome = yield* copyExport(
     { pg, sql, ref: state.home.ref, keys: keys.legacy },
     dir,
