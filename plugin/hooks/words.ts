@@ -466,7 +466,7 @@ export function fixRequest(error: {
       RECOVERY_VOICE,
       error.files?.length ? `Where: ${error.files.join(", ")}` : "",
       error.details ? `Details:\n${error.details.slice(0, 3000)}` : "",
-      "Fix it so they can publish again. Don't publish yourself: they'll click Publish.",
+      "Fix the actual cause so they can publish again. A saved version is not proof that the host put it live: read pendingPublish in app_context/status. Never edit unrelated copy, metadata or configuration, create an empty save, or force a code change merely to trigger publishing. For access failures, open the site view with open_panel: Use saved connection refreshes this app’s publishing credential, or the builder enters a replacement token there. Do not ask for a new token if the saved connection works. After the cause is fixed, point to Retry Publish when pendingPublish exists (it retries the same version), otherwise Publish. If no supported retry is available, explain that limitation and keep the app unchanged. Don't publish yourself or rerun hosting: the builder clicks Publish.",
     ]
       .filter(Boolean)
       .join("\n\n"),

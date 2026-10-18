@@ -537,7 +537,7 @@ The owner initially requested collection without implementation, then completed 
 
 ## F42 — blocker — A failed host update can leave Publish with no retry path
 
-- **Status:** fixed locally; automated recovery and native retry passed, awaiting CI/merge. Issue: https://github.com/bworlds-co/clodable/issues/93.
+- **Status:** merged in [PR #100](https://github.com/bworlds-co/clodable/pull/100); CI and native recovery passed. Issue: https://github.com/bworlds-co/clodable/issues/93.
 - **Observed:** in the same screenshot, Claude reports that the public site still has old content but Clodable considers the changes already published after the first publication stage succeeded. It says Publish has nothing new to send. The panel still displays **Your site is live.**
 - **Builder impact:** publication can fail halfway and leave the builder unable to retry the intended version. A comparison of code versions is presented as proof that visitors have the changes, obscuring the difference between the saved release and the version actually served.
 - **Source evidence:** `publish()` updates the shared code before `waitForDeploy()` confirms the host. On a later attempt, it throws `nothing-to-publish` when no code changes remain against `ws.liveRef`, with **Your live site already has everything**, before consulting host delivery or retrying it. `waitForDeploy()` can throw `deploy-failed` after that first stage. This supports the reported failure mode; the owner's external publication state and credential failure have not been independently rechecked here.
@@ -548,12 +548,14 @@ The owner initially requested collection without implementation, then completed 
 
 ## F43 — major — Claude edits unrelated content to force a publication retry
 
-- **Status:** open; implementation authorized after the owner completed review. Issue: https://github.com/bworlds-co/clodable/issues/94.
+- **Status:** fixed locally; two model replays passed, awaiting CI/merge. Issue: https://github.com/bworlds-co/clodable/issues/94.
 - **Observed:** Claude announces it will change the shared-link author credit from Lovable to Crumb & Co. “to give Publish something to push.” The screenshot then shows an `index.html` edit. It continues by requesting a new Netlify key in the same panel with no reconnection controls (F40).
 - **Builder impact:** infrastructure recovery changes the product unnecessarily, adds an unrelated saved version and still leaves the original blocker unresolved. The builder is exposed to internal publication mechanics instead of a clear recovery action.
 - **Cause:** the missing delivery retry path (F42) encourages the agent to manufacture a code change; the existing recovery guidance does not explicitly rule this out. The repeated credential prompt also assumes unavailable controls exist.
 - **Proposed fix:** provide the supported delivery retry mechanism, instruct Claude to preserve app content during connection recovery, and require it to describe an actual available next action. Changes to app content should answer the builder's product request or fix an app defect, not exist solely to retrigger publishing.
 - **Evidence:** the F41 screenshot. No app edit or rollback performed by this review agent; defer any cleanup of the incidental edit until the final fix pass and inspection of the owner's latest work.
+
+- **Implemented and verified (October 18):** both the builder guide and hidden **Fix it** request now distinguish saved versions from host delivery, prohibit unrelated edits/empty saves as a publication trigger, route access failures to the existing connection controls, and leave retry to the builder. Two isolated model replays (failed host with an already refreshed local token; earlier assistant suggesting an author-credit edit) chose **Use saved connection** then **Retry Publish**, explicitly preserving app content. Evidence: `~/Clodable Tests/_runs/2026-10-18-owner-review-fixes/recovery-replays/`. The owner’s incidental author-credit edit was not reverted blindly.
 
 ## F44 — major — Resumed migration summary loses rehearsal evidence and overstates readiness
 
