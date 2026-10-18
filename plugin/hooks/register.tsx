@@ -3860,7 +3860,10 @@ function connectStep($: EngineInterface, { ui }: StepView) {
           Prefer a narrower token?
         </Button>
       )}
-      <Text dimColor>Once the move is done, delete the token in Supabase.</Text>
+      <Text dimColor>
+        Keep this connection for later database changes. If you revoke the token in Supabase,
+        reconnect here before making those changes.
+      </Text>
     </Box>
   );
 }

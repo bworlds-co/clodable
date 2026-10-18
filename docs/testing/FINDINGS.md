@@ -226,3 +226,10 @@ Review started 2026-10-17; continued into 2026-10-18. Repository baseline: `c219
 - The marketplace is pinned to release 0.2.2 after installation testing. The working plugin build was then copied into Desktop’s 0.2.2 cache as the brief instructs; this is a local test override, not a release. Existing conversations retain earlier code.
 - Screenshots and model replays: `~/Clodable Tests/_runs/2026-10-17-ux/`. Failed/timed-out replays are not counted. Latest runtime build/check logs are `/tmp/clodable-runtime-final-build.log`, `/tmp/clodable-runtime-contract.log` and `/tmp/clodable-runtime-plugin.log`; earlier logs include `/tmp/clodable-ux-import-status*.log`.
 - No npm release, release tag, new token, sign-out, paid resource, live migration or Lovable change was performed.
+
+## F23 — major — The connection instructions contradict each other
+
+- The Supabase connection panel said Clodable uses the token after the move, then instructed the builder to delete it as soon as the move finishes. Following that advice would break the connection needed for later database changes.
+- Cause: the closing note described a temporary migration token although the connection is retained for ongoing use.
+- Fix: explain that the connection supports later database changes and that revoking the token requires reconnecting before those changes. No account, token, permission or expiry was changed.
+- Validation: plugin validation and all 129 existing plugin tests pass. A fresh Desktop conversation shows the consistent connection guidance; screenshot 48. No token was entered or created.
