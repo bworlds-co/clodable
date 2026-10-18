@@ -641,7 +641,7 @@ derive(sources: readonly (Atom | StateAddress)[], compute: (...values) => T): De
 memberOf(family, e)                                                     // a family's member keyed by e.requestId
 ```
 ```tsx
-const edits = atom({ plugin: 'cloclod', key: 'edits' }, 0)    // top level, const, string literals
+const edits = atom({ plugin: 'cloclod', key: 'edits' }, 0)     // top level, const, string literals
 const n = await read($, edits)                                 // inside ui.render: subscribes; redraws on write
 <Button key="reset" onPress={() => update($, edits, () => 0)}>Reset</Button>   // write from callbacks/other hooks
 ```

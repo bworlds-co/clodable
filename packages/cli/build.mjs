@@ -2,7 +2,7 @@
 // The toolbar's browser bundle (built by @clodable/preview, which pnpm builds first) is embedded,
 // so `npx cloclod dev` works without anything else.
 // The app's own Vite is never bundled: it's loaded from the app's node_modules at run time.
-import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { build } from "esbuild";
 
 const pkg = JSON.parse(readFileSync("package.json", "utf8"));
@@ -13,6 +13,8 @@ if (!existsSync(toolbarPath)) {
 }
 const toolbar = readFileSync(toolbarPath, "utf8");
 
+// A fresh dist: the package ships all of it, so nothing from an earlier build may stay behind.
+rmSync("dist", { recursive: true, force: true });
 mkdirSync("dist", { recursive: true });
 const result = await build({
   entryPoints: ["src/index.ts"],

@@ -39,6 +39,7 @@ import {
   type Version,
 } from "./cli.ts";
 import {
+  CREATE_SERVICE,
   commandInApp,
   dbCommandIn,
   githubRepo,
@@ -55,6 +56,7 @@ import {
   PRIVATE_FOLDER_DENY,
   PUSH_OR_REWRITE,
   SECRET_STEP,
+  SETUP_NEW,
   SUPABASE_READS,
   safeCommand,
 } from "./guards.ts";
@@ -1867,13 +1869,13 @@ export const register: Register = (on) => {
   on("tool.call", { tool: "Bash" }, async (_$, e, next) => {
     const command = String((e as { command?: unknown }).command ?? "");
     if (PRIVATE_FOLDER.test(command)) return { deny: PRIVATE_FOLDER_DENY };
-    if (/\bcloclod(?:\.mjs)?["']?\s+setup\b[^\n]*--new\b/.test(command)) {
+    if (SETUP_NEW.test(command)) {
       return {
         deny: "The builder chooses the GitHub account and creates their private app in Cloclod's Set up saving panel. Ask them to use that button; keep their local work intact.",
       };
     }
     if (!(await isApp())) return next(e);
-    if (/\bcloclod(?:\.mjs)?["']?\s+(site|backend)\s+create\b/.test(command)) {
+    if (CREATE_SERVICE.test(command)) {
       return {
         deny: "The builder selects the account and confirms creation in Cloclod's hosting or backend view. Open it with open_panel; don't create a service from the conversation.",
       };
@@ -1999,10 +2001,7 @@ export const register: Register = (on) => {
     // here also means Auto mode's classifier isn't asked about Cloclod's own call, which no request
     // of Claude's explains, and which it would refuse.
     const input = (e.input ?? {}) as Record<string, unknown>;
-    if (
-      e.tool === "Bash" &&
-      /\bcloclod(?:\.mjs)?["']?\s+(site|backend)\s+create\b/.test(String(input.command ?? ""))
-    )
+    if (e.tool === "Bash" && CREATE_SERVICE.test(String(input.command ?? "")))
       return { ...verdict, decision: "deny" };
     const local =
       input.url === undefined ||

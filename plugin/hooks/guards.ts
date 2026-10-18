@@ -3,7 +3,17 @@
 
 export const PUSH_OR_REWRITE =
   /\bgit\s+(push|reset\s+--hard|rebase|filter-branch|filter-repo|update-ref)\b|\bgh\s+pr\s+merge\b/;
-export const OUR_PUBLISH = /\bcloclod(?:\.mjs)?["']?\s+(publish|undo)\b/;
+/**
+ * Cloclod's command line, as a command names it: `cloclod` (npx), the plugin's `cli/cloclod.mjs`,
+ * or the copy setup puts in each app, which keeps its earlier name for now
+ * (`.clodable/local/clodable.mjs`). A quoted path ends with its quote.
+ */
+export const CLI = String.raw`(?:cloclod(?:\.mjs)?|clodable\.mjs)["']?`;
+export const OUR_PUBLISH = new RegExp(String.raw`\b${CLI}\s+(publish|undo)\b`);
+/** Creating the builder's private app on GitHub: they choose the account in the panel. */
+export const SETUP_NEW = new RegExp(String.raw`\b${CLI}\s+setup\b[^\n]*--new\b`);
+/** Creating the site or the backend: the builder confirms the account and cost in the panel. */
+export const CREATE_SERVICE = new RegExp(String.raw`\b${CLI}\s+(site|backend)\s+create\b`);
 export const LEAVE_DRAFT = /\bgit\s+(checkout|switch)\s+(-[-\w]+\s+)*(main|master)\b/;
 /**
  * Cloclod's private folder on this computer: the Supabase token, database passwords, and the
@@ -17,8 +27,9 @@ export const PRIVATE_FOLDER_DENY =
  * Steps that take a secret (a token, a key): the builder types those in the Cloclod panel, never
  * in the chat.
  */
-export const SECRET_STEP =
-  /cloclod(?:\.mjs"?)?\s+move\s+(connect|secret|vault-secret|disconnect|forget|netlify|setting|resend|ai|google)\b|cloclod(?:\.mjs"?)?\s+move\s+files\b.*--private|cloclod(?:\.mjs"?)?\s+connect\b/;
+export const SECRET_STEP = new RegExp(
+  String.raw`${CLI}\s+move\s+(connect|secret|vault-secret|disconnect|forget|netlify|setting|resend|ai|google)\b|${CLI}\s+move\s+files\b.*--private|${CLI}\s+connect\b`,
+);
 
 /** A copied GitHub address or owner/name, normalized for setup's --repo argument. */
 export function githubRepo(input: string): string | undefined {
@@ -55,14 +66,15 @@ export function inPrivateFolder(input: unknown): boolean {
 }
 
 /**
- * Cloclod's database commands (`npx cloclod db query|run|apply …`, or the plugin's own CLI), with
- * what they act on. `single`: one command and one quoted argument, nothing else for the shell.
+ * Cloclod's database commands (`npx cloclod db query|run|apply …`, the plugin's own CLI, or the
+ * app's installed copy), with what they act on. `single`: one command and one quoted argument,
+ * nothing else for the shell.
  */
 export function dbCommandIn(
   command: string,
 ): { action: "query" | "run" | "apply" | "check"; arg: string; single: boolean } | undefined {
   const m = command.match(
-    /^(?:npx\s+cloclod|node\s+"[^"]*cloclod\.mjs")\s+db\s+(query|run|apply|check)(?:\s+([\s\S]*))?$/,
+    /^(?:npx\s+cloclod|node\s+"[^"]*(?:cloclod|clodable)\.mjs")\s+db\s+(query|run|apply|check)(?:\s+([\s\S]*))?$/,
   );
   if (!m) return undefined;
   const rest = (m[2] ?? "").trim();

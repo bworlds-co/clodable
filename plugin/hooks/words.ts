@@ -1,5 +1,7 @@
 // Plain words for what Claude does. Pure functions: no `$`, so they're easy to test and share.
 
+import { CLI } from "./guards.ts";
+
 const LIVE_DB_WRITE =
   /^\s*(insert|update|delete|merge|upsert|alter|create|drop|truncate|grant|revoke|comment|rename|vacuum|reindex|cluster|copy|call|do|set|reset|lock)\b/im;
 const READ_ONLY = /^\s*(select|with|explain|show|values|table)\b/i;
@@ -171,7 +173,7 @@ export function describeCommand(command: string, running: boolean): FriendlyRow 
       text: verb(running, "Reviewing recent changes", "Reviewed recent changes"),
       tone: "look",
     };
-  const db = c.match(/cloclod(?:\.mjs")?\s+db\s+(query|run|apply|check)\b/);
+  const db = c.match(new RegExp(String.raw`${CLI}\s+db\s+(query|run|apply|check)\b`));
   if (db) {
     return db[1] === "query" || db[1] === "check"
       ? { text: verb(running, "Looking at your database", "Looked at your database"), tone: "look" }
@@ -180,12 +182,12 @@ export function describeCommand(command: string, running: boolean): FriendlyRow 
           tone: "work",
         };
   }
-  const site = c.match(/cloclod(?:\.mjs")?\s+site\s+create\b/);
+  const site = c.match(new RegExp(String.raw`${CLI}\s+site\s+create\b`));
   if (site) return { text: verb(running, "Setting up hosting", "Set up hosting"), tone: "work" };
-  const backend = c.match(/cloclod(?:\.mjs")?\s+backend\s+create\b/);
+  const backend = c.match(new RegExp(String.raw`${CLI}\s+backend\s+create\b`));
   if (backend)
     return { text: verb(running, "Creating your backend", "Created your backend"), tone: "work" };
-  const move = c.match(/cloclod(?:\.mjs")?\s+move\s+(\w+)/);
+  const move = c.match(new RegExp(String.raw`${CLI}\s+move\s+(\w+)`));
   if (move) {
     const words = MOVE_WORDS[move[1]!] ?? MOVE_WORDS.status!;
     return { text: verb(running, words[0], words[1]), tone: words[2] };

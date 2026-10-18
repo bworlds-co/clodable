@@ -16,7 +16,7 @@ The guiding rule is **judgment in Claude, mechanics in the CLI** ([DECISIONS](DE
 └───────────┬───────────────┴───────────────────────────────────────────────────────┘
             │ spawns  `cloclod <command> --json`  (NDJSON events on stdout)
             ▼
-┌────────────────────────── cloclod CLI ─── @clodable/core ────────────────────────┐
+┌────────────────────────── cloclod CLI ─── @clodable/core ─────────────────────────┐
 │ save · status · publish · undo · restore · history · check · dev · setup · doctor │
 │ git ─ GitHub (via `gh`) ─ checks (build, packages, leaked keys) ─ repo kit        │
 └───────────┬──────────────────────────────┬─────────────────────────────────────────┘

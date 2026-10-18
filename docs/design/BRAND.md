@@ -4,11 +4,13 @@
 
 ## Idea
 
-A *clod* is a lump of clay. Cloclod means your app is **moldable**: you shape it with Claude, and when you're happy you publish it, the way you fire clay in a kiln.
+A *clod* is a lump of clay. Cloclod keeps the clod in its name: your app is clay you shape with Claude, and when you're happy you publish it, the way you fire clay in a kiln.
 
 The mark is the clod itself, Cloclod's mascot: a small lump of clay that comes alive, like a pocket golem that's only half sculpted and that you finish shaping. It's the raw material you shape until it walks on its own.
 
-The name also winks at Claude and at Lovable. Keep that wink in the name only. Never use either company's logo, colors as a reference, or wording. Before public launch, see "Trademark check" in [DECISIONS.md](../DECISIONS.md).
+The name also winks at "Cloclo", a French nickname for Claude. Keep that wink in the name only. Never use Anthropic's or Lovable's logos, colors as a reference, or wording. Before public launch, see "Trademark check" in [DECISIONS.md](../DECISIONS.md).
+
+Write **Cloclod** in sentences: one word, with a capital C. Write `cloclod`, all lowercase, in ids, commands and the wordmark.
 
 ## The mark
 
