@@ -23,10 +23,19 @@ describe("the toolbar, from the keyboard", () => {
 
   beforeAll(() => {
     localStorage.clear();
+    localStorage.setItem("clodable:toolbar", JSON.stringify({ minimized: false }));
     // The dev server isn't here: every request finds nothing to report.
     vi.stubGlobal("fetch", async () => Response.json({ error: null }));
     new Toolbar("app").mount();
     shadow = document.querySelector("clodable-toolbar")!.shadowRoot!;
+  });
+
+  it("starts with a named entry instead of a second full preview bar", () => {
+    expect(shadow.querySelector('[role="toolbar"]')).toBeNull();
+    expect(button("Show Clodable tools").textContent).toContain("Tools");
+    press("Show Clodable tools");
+    expect(button("Edit text").textContent).toContain("Edit text");
+    expect(button("Point & ask").textContent).toContain("Point & ask");
   });
 
   it("keeps focus on a tool after pressing it", () => {
@@ -100,7 +109,7 @@ describe("the toolbar, from the keyboard", () => {
     dispatchEvent(new Event("resize"));
     expect(button("Show Clodable tools").textContent).toContain("Tools");
     expect(shadow.querySelector('[role="toolbar"]')).toBeNull();
-    expect(JSON.parse(localStorage.getItem("clodable:toolbar")!).minimized).toBe(false);
+    expect(JSON.parse(localStorage.getItem("clodable:toolbar:v2")!).minimized).toBe(false);
     press("Show Clodable tools");
     expect(button("Edit text").isConnected).toBe(true);
     expect(focused()).toBe("Hide Clodable tools");

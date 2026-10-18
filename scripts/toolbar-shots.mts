@@ -43,6 +43,7 @@ const shot = (
 // 1. Idle: the dock at rest.
 let page = await open("/");
 await shot(page, "01-idle");
+await page.getByRole("button", { name: "Show Clodable tools" }).click();
 await shot(page, "01b-dock", { x: 340, y: 740, width: 600, height: 80 });
 
 // 2. Edit mode: hover a heading, then edit it.
@@ -87,6 +88,7 @@ await page.close();
 
 // 5. Menu.
 page = await open("/");
+await page.getByRole("button", { name: "Show Clodable tools" }).click();
 await page.locator("clodable-toolbar").locator(".brand").click();
 await page.waitForTimeout(350);
 await shot(page, "07-menu");
@@ -106,6 +108,7 @@ await page.close();
 
 // 8. Dark mode, and minimized.
 page = await open("/", "dark");
+await page.getByRole("button", { name: "Show Clodable tools" }).click();
 await shot(page, "10-dark-dock", { x: 340, y: 740, width: 600, height: 80 });
 await page.locator("clodable-toolbar").locator('[aria-label="Hide Clodable tools"]').click();
 await page.waitForTimeout(400);

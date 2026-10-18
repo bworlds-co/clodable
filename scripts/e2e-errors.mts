@@ -40,7 +40,7 @@ try {
   const page = await browser.newPage({ viewport: { width: 1280, height: 820 } });
   await page.goto(base, { waitUntil: "load" });
   await page.waitForFunction(() =>
-    document.querySelector("clodable-toolbar")?.shadowRoot?.querySelector(".dock"),
+    document.querySelector("clodable-toolbar")?.shadowRoot?.querySelector(".pebble"),
   );
 
   // Claude breaks the page while it's open: the card shows, and the page keeps what it had.
