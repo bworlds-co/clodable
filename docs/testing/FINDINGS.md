@@ -391,3 +391,10 @@ F28 merged as [#71](https://github.com/bworlds-co/clodable/pull/71) after CI pas
 - **Builder impact:** actions implemented with the browser's confirmation can appear unresponsive in Desktop's preview. Clodable cannot change Desktop's browser-dialog handling.
 - **Recovery:** keep the confirmation but render it inside the app. A fresh Desktop conversation was asked to apply that change only to Tiny Notes' draft, with **Delete note**, **Cancel**, and explicit failure feedback. Verification of this app-specific repair is recorded separately when complete.
 - The probe has no side effects and is retained outside the repository at `~/Clodable Tests/_runs/2026-10-18-conversation/dialog-check.html`.
+
+
+## F32 — polish — Natural migration requests lack the command a panel button supplies
+
+- **Observed:** a direct request to try the copy spent several minutes inspecting Clodable's implementation and looking up its preview command. The move guide assumed every request came from a panel button carrying a hidden exact command.
+- **Fix:** the guide now supports both entry points, names the installed command, and maps ordinary requests to status, preview and diagnosis. It checks current progress before continuing and keeps consent, secrets and live changes behind their existing boundaries. Repeating a copy explicitly warns that rehearsal data and accounts are replaced.
+- **Checks:** two independent model replays used an inert local CLI. “Let me try the copy” ran status → preview copy → diagnose, without inspecting implementation or touching a real service. “Where were we? Do not change anything” ran status only. Both kept database checks distinct from untested app behavior. Replay evidence is in `~/Clodable Tests/_runs/2026-10-18-conversation/natural-move-replays/`. Lint and 141 plugin tests pass; the preceding toolbar revision passed all 201 package tests and the three end-to-end checks.
