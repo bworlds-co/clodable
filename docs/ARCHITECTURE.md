@@ -85,7 +85,9 @@ The inbox is git-ignored.
 
 ## Apps still on Lovable
 
-`.clodable/config.json` records two facts that setup asks once (the panel asks apps set up before): `backend` (`lovable-cloud`, `supabase` or `none`) and `hosting` (`lovable`, `github` or `none`, not online yet). `clodable config <key> <value>` changes one and refreshes the files that depend on it.
+`.clodable/config.json` records `backend` (`lovable-cloud`, `supabase` or `none`) and `hosting` (`lovable`, `github` or `none`, not online yet). Unknown facts stay `unknown`. Claude reads `app_context` and inspects the app, explains the useful conclusion in the conversation and asks one focused question at a time where evidence is insufficient. After the builder confirms, `remember_app` records the known facts through `clodable config <key> <value>` and refreshes the app's rules. A Supabase URL alone does not prove ownership; missing hosting files do not prove the app is offline.
+
+The mod's navigation-only `open_panel` tool opens a focused view: app overview, History, Settings, hosting consent, backend consent, migration, or private-app saving consent. Ordinary explanations and product choices stay in the conversation. The overview shows the next action and blockers; History and Settings hold their own details. Opening a view never creates a resource, restores, publishes or grants consent.
 - **Lovable Cloud:** Lovable owns the database and backend. AGENTS.md tells Claude it can't change them from here, the mod refuses Supabase writes with that reason, `.mcp.json` gets no Supabase server, and Publish skips backend functions.
 - **Lovable hosting:** Lovable only puts live what was published in Lovable. Publish ends at "Published on GitHub" (`deploy: "lovable"`, with `lovableUrl`), and the bar points to Lovable for the last click.
 - **Moving off Lovable:** `clodable move check` reads the code and says what the move involves, who does each part (`clodable`, `you`, `help`), and how hard it is overall (`simple`, `some-steps`, `needs-help`). The guided move itself is built in steps; see DECISIONS Q5.
@@ -94,7 +96,7 @@ The inbox is git-ignored.
 
 `packages/core/src/move/` runs it; `clodable move <step>` exposes each step (NDJSON steps `move:*`), and the panel's Move off Lovable view draws them one at a time. `/move-off-lovable` opens that view; `/clodable` opens it too once the move has started (`movingOffLovable` in `clodable status`), and the app's view otherwise, where an app on Lovable Cloud gets one quiet line to the move. **Claude pilots the steps:** a step's button sends the builder's request into the conversation ("Moving off Lovable: …" with the exact command), Claude runs it, reports, and investigates with `move diagnose` (safe facts only; `--fix` applies Clodable's own fixes on the copy). The `clodable-move` skill is its playbook. Steps that take a secret (connect, private files' key, function secrets) stay in the panel and go to the CLI on stdin; the plugin blocks Claude from running them and from reading Clodable's private folder. Nothing here touches the live app: Lovable keeps serving it until the switch (step 3, below).
 
-What the panel shows comes from `move status` alone. Only the step the builder is on is open; a done step is one line, and steps after the current one read as later. A step stays open while something of it is left, named in the status: `vaultLeft` (the database's encrypted secrets, in the copy step), `secretsLeft` (the functions' secrets), `settingsLeft` (the app's settings the site doesn't have). `move vault|secrets|settings --skip` goes on without them. The other way to move (carefully, or in one go) is offered at Go live, where it changes something.
+What the panel shows comes from `move status` alone. The current step comes first. **See all steps** reveals completed and later steps; **What moves with my app?** reveals the assessment. Actionable errors remain visible. A step stays open while something of it is left, named in the status: `vaultLeft` (the database's encrypted secrets, in the copy step), `secretsLeft` (the functions' secrets), `settingsLeft` (the app's settings the site doesn't have). `move vault|secrets|settings --skip` goes on without them. The other way to move (carefully, or in one go) is offered at Go live, where it changes something.
 
 | Step | CLI | What happens |
 |---|---|---|
@@ -147,7 +149,7 @@ The live app moves over, with a pause as short as the last export takes. Claude 
 
 ## Apps not online yet, or without a backend
 
-`packages/core/src/online.ts`, with the move's own pieces (DECISIONS Q17). Claude runs the two commands when the builder presses the panel's button (the command reaches it beside their request); the tokens are pasted in the panel and go to the CLI on stdin.
+`packages/core/src/online.ts`, with the move's own pieces (DECISIONS Q17, revised October 18). After the builder chooses an account and sees its cost, the panel runs the exact creation command and draws its progress. Tokens are pasted in the panel and go to the CLI on stdin. Claude cannot run these creation commands from chat. Hosting creation saves its setup and explains that Publish makes it public. Backend creation returns app-specific integration to Claude, with the original feature request retained and live-data confirmation still required. A failed lookup of a remembered resource stops with the access error; it never creates a replacement automatically.
 
 | CLI | What happens |
 |---|---|

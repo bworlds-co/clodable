@@ -165,6 +165,10 @@ function harness(
   on("turn.start", (_$: unknown, e: { turnId: string }) => ({ turnId: e.turnId }));
   on("turn.complete", (_$: unknown, e: { answer: string }) => ({ text: e.answer }));
   on("command.register", () => ({ value: undefined }));
+  on("ui.open", () => ({ value: { isPlaced: true } }));
+  on("tool.register", (_$: unknown, e: { name: string }) => ({
+    value: { tool: `mcp__clodable__${e.name}` },
+  }));
   /** How long each call was allowed to run. */
   const timeouts: Array<number | undefined> = [];
   (calls as unknown as { timeouts: typeof timeouts }).timeouts = timeouts;
@@ -959,30 +963,36 @@ describe("apps still on Lovable", () => {
     return undefined;
   }
 
-  test("an app made with Lovable is asked once where its data and its site are", async ($, on) => {
+  test("unknown setup starts a conversation without changing services", async ($, on) => {
     const calls = harness(on, madeWithLovable);
+    const prompts: string[] = [];
+    const session = mock.session(on);
+    on("prompt.submit", (_$: unknown, e: { text: string }) => {
+      prompts.push(e.text);
+      return { text: e.text };
+    });
     await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
     const pane = await $.ui.mount(PANE);
-    expect(await shows(pane, "Where does your app's data live?")).toBeDefined();
-    expect(await shows(pane, "Where is your site live?")).toBeDefined();
-    await pane.press({ key: "backend-lovable-cloud" });
-    for (let i = 0; i < 30 && !calls.some((c) => c[0] === "config"); i++) await Promise.resolve();
+    expect(await shows(pane, "Let's understand your app")).toBeDefined();
+    expect(await pane.find({ key: "backend-lovable-cloud" })).toBeUndefined();
+    await pane.press({ key: "inspect-app" });
+    for (let i = 0; i < 30 && !prompts.length; i++) await pane.redraw();
+    expect(prompts).toEqual(["Take a look at my app so we can finish setting it up."]);
+    expect(calls.some((c) => ["config", "site", "backend"].includes(c[0]!))).toBe(false);
+    await $.turn.start({ text: prompts[0], turnId: "inspect" } as never);
+    expect(readBy(session).join(" ")).toContain(
+      "A Supabase address alone does not distinguish Lovable Cloud",
+    );
+    expect(readBy(session).join(" ")).toContain("After they confirm or correct");
     await pane.unmount();
-    expect(calls.find((c) => c[0] === "config")).toEqual([
-      "config",
-      "backend",
-      "lovable-cloud",
-      "--json",
-    ]);
   });
 
   test("on Lovable Cloud, /clodable opens the app, with one quiet line to the move and a way back", async ($, on) => {
     harness(on, onLovable({}, false));
-    on("ui.open", () => ({ value: { isOpen: true } }) as never);
     await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
     await $.command.run({ command: "clodable", args: "" } as never);
     const pane = await $.ui.mount(PANE);
-    expect(await shows(pane, "History")).toBeDefined();
+    expect(await pane.find({ key: "nav-history" })).toBeDefined();
     expect(await shows(pane, "Your data is on Lovable Cloud.")).toBeDefined();
     expect((await pane.find({ type: "Button", key: "open-move" }))?.text).toBe("Move off Lovable");
     expect(await pane.find({ type: "Text", text: /Your data, your people/ })).toBeUndefined();
@@ -991,36 +1001,29 @@ describe("apps still on Lovable", () => {
     expect(await shows(pane, /Your data, your people and your backend/)).toBeDefined();
     expect(await pane.find({ type: "Text", text: "History" })).toBeUndefined();
     await pane.press({ key: "back-to-app" });
-    expect(await shows(pane, "History")).toBeDefined();
+    expect(await pane.find({ key: "nav-history" })).toBeDefined();
     await pane.unmount();
   });
 
   test("an app not made with Lovable isn't asked about Lovable, nor offered the move", async ($, on) => {
     harness(on, { ...STATUS, project: { ...STATUS.project, hosting: "unknown" } });
-    on("ui.open", () => ({ value: { isOpen: true } }) as never);
     await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
     await $.command.run({ command: "clodable", args: "" } as never);
     const pane = await $.ui.mount(PANE);
-    expect(await shows(pane, "History")).toBeDefined();
-    // Asked where its data and site are, with no Lovable among the answers.
-    expect(
-      await pane.find({ type: "Text", text: "Where does your app's data live?" }),
-    ).toBeDefined();
-    for (const key of ["backend-supabase", "backend-none", "hosting-github", "hosting-none"]) {
-      expect(await pane.find({ type: "Button", key })).toBeDefined();
-    }
-    for (const key of ["backend-lovable-cloud", "hosting-lovable"]) {
-      expect(await pane.find({ type: "Button", key })).toBeUndefined();
-    }
-    expect(
-      await pane.find({ type: "Text", text: "Your data is on Lovable Cloud." }),
-    ).toBeUndefined();
+    expect(await shows(pane, "Let's understand your app")).toBeDefined();
+    for (const key of [
+      "backend-supabase",
+      "backend-none",
+      "hosting-github",
+      "hosting-none",
+      "open-move",
+    ])
+      expect(await pane.find({ key })).toBeUndefined();
     await pane.unmount();
   });
 
-  test("a move under way opens the panel on it; History opens the app", async ($, on) => {
+  test("a move under way opens the panel on it; History opens its own focused view", async ($, on) => {
     harness(on, onLovable());
-    on("ui.open", () => ({ value: { isOpen: true } }) as never);
     await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
     await $.command.run({ command: "clodable", args: "" } as never);
     let pane = await $.ui.mount(PANE);
@@ -1032,9 +1035,8 @@ describe("apps still on Lovable", () => {
     await band.unmount();
     pane = await $.ui.mount(PANE);
     expect(await shows(pane, "History")).toBeDefined();
-    expect((await pane.find({ type: "Button", key: "open-move" }))?.text).toBe(
-      "Continue moving off Lovable",
-    );
+    expect(await pane.find({ key: "open-move" })).toBeUndefined();
+    expect(await pane.find({ key: "restore-a1" })).toBeDefined();
     await pane.unmount();
   });
 
@@ -1043,7 +1045,6 @@ describe("apps still on Lovable", () => {
       ...STATUS,
       project: { ...STATUS.project, backend: "supabase", hosting: "github" },
     });
-    on("ui.open", () => ({ value: { isOpen: true } }) as never);
     await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
     await $.command.run({ command: "move-off-lovable", args: "" } as never);
     const pane = await $.ui.mount(PANE);
@@ -1057,7 +1058,6 @@ describe("apps still on Lovable", () => {
     let looked = false;
     const prompts: string[] = [];
     const session = mock.session(on);
-    on("ui.open", () => ({ value: { isOpen: true } }) as never);
     on("prompt.submit", (_$: unknown, e: { text: string }) => {
       prompts.push(e.text);
       return { text: e.text };
@@ -1132,9 +1132,11 @@ describe("apps still on Lovable", () => {
     looked = true;
     await $.command.run({ command: "clodable", args: "" } as never);
     pane = await $.ui.mount(PANE);
-    for (let i = 0; i < 30 && !(await pane.find({ type: "Text", text: "What moves" })); i++) {
+    for (let i = 0; i < 30 && !(await pane.find({ key: "move-assessment" })); i++) {
       await pane.redraw();
     }
+    expect(await pane.find({ type: "Text", text: "What moves" })).toBeUndefined();
+    await pane.press({ key: "move-assessment" });
     expect(await shows(pane, "A move with a few steps for you, each one guided.")).toBeDefined();
     expect(await pane.find({ key: "move-facts" })).toBeUndefined();
     expect(
@@ -1155,7 +1157,7 @@ describe("apps still on Lovable", () => {
     expect(await shows(pane, "Get ready: your new backend")).toBeDefined();
     // Stages still ahead are folded to their name. The other way of moving waits for Go live,
     // where it changes something.
-    expect(await shows(pane, "Go live")).toBeDefined();
+    expect(await pane.find({ type: "Text", text: "Go live" })).toBeUndefined();
     expect(
       await pane.find({ type: "Text", text: /Your app moves over in one go/ }),
     ).toBeUndefined();
@@ -1210,13 +1212,15 @@ describe("apps still on Lovable", () => {
     await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
     const pane = await $.ui.mount(PANE);
     expect(await shows(pane, /● Create your new backend/)).toBeDefined();
+    expect(
+      await pane.find({ type: "Text", text: /Connect your Supabase account/ }),
+    ).toBeUndefined();
+    expect(await pane.find({ type: "Text", text: /Export your data/ })).toBeUndefined();
+    await pane.press({ key: "move-progress" });
     const texts = (await pane.findAll({ type: "Text" })).map((t: any) => String(t.text));
     expect(texts).toContain("✓ Connect your Supabase account  · Connected on this computer");
     expect(texts).toContain("· Export your data from Lovable");
     expect(texts).not.toContain("✓ Export your data from Lovable");
-    expect(texts).toContain("Get ready: your website and emails");
-    expect(texts.some((t) => t.includes("Connect your Netlify account"))).toBe(false);
-    expect(texts.some((t) => t.includes("Put your site on Netlify"))).toBe(false);
     await pane.unmount();
   });
 
@@ -1250,10 +1254,10 @@ describe("apps still on Lovable", () => {
       prompts.push(e.text);
       return { text: e.text };
     });
-    on("ui.open", () => ({ value: { isOpen: true } }) as never);
     await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
     // Opening the panel reads the checks again.
     await $.command.run({ command: "clodable", args: "" } as never);
+    await $.tool.call({ tool: "mcp__clodable__open_panel", view: "settings" } as never);
     const pane = await $.ui.mount(PANE);
     expect(await shows(pane, /“Summarize, on each note” doesn't work/)).toBeDefined();
     await pane.press({ key: "worth-lovable-ai" });
@@ -1282,7 +1286,7 @@ describe("apps still on Lovable", () => {
   test("a button keeps its number across redraws, so the first click counts", async ($, on) => {
     // Desktop clicks by the number a drawing gave the button: a redraw that renumbered it would
     // lose a click that lands before Desktop catches up ("ui_press not handled").
-    const calls = harness(on, madeWithLovable, true, {
+    harness(on, madeWithLovable, true, {
       status: (args) =>
         args[0] === "move"
           ? out({ steps: [], preview: "live", vaultKey: false, functions: 0 })
@@ -1290,7 +1294,7 @@ describe("apps still on Lovable", () => {
     });
     await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
     const pane = await $.ui.mount(PANE);
-    expect(await shows(pane, "Where does your app's data live?")).toBeDefined();
+    expect(await shows(pane, "Let's understand your app")).toBeDefined();
     const numberOf = async (key: string) => {
       const find = (node: any): number | undefined => {
         if (Array.isArray(node)) {
@@ -1306,22 +1310,17 @@ describe("apps still on Lovable", () => {
       };
       return find(await pane.drawn());
     };
-    const first = await numberOf("backend-lovable-cloud");
+    const first = await numberOf("nav-settings");
     expect(typeof first).toBe("number");
     await pane.redraw();
     await pane.redraw();
-    expect(await numberOf("backend-lovable-cloud")).toBe(first);
+    expect(await numberOf("nav-settings")).toBe(first);
     // Gone and back (the status still doesn't know): the same button, and it still answers.
-    await pane.press({ key: "backend-lovable-cloud" });
-    for (let i = 0; i < 20 && !(await pane.find({ key: "backend-lovable-cloud" })); i++) {
-      await pane.redraw();
-    }
-    expect(await numberOf("backend-lovable-cloud")).toBe(first);
-    await pane.press({ key: "backend-lovable-cloud" });
-    for (let i = 0; i < 20 && calls.filter((c) => c[0] === "config").length < 2; i++) {
-      await pane.redraw();
-    }
-    expect(calls.filter((c) => c[0] === "config")).toHaveLength(2);
+    await pane.press({ key: "nav-settings" });
+    await pane.press({ key: "nav-app" });
+    expect(typeof (await numberOf("nav-settings"))).toBe("number");
+    await pane.press({ key: "nav-settings" });
+    expect(await pane.find({ type: "Text", text: "Settings" })).toBeDefined();
     await pane.unmount();
   });
 
@@ -1342,13 +1341,8 @@ describe("apps still on Lovable", () => {
             }),
     });
     await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
-    const pane = await $.ui.mount(PANE);
-    expect(await shows(pane, "Where does your app's data live?")).toBeDefined();
-    await pane.press({ key: "backend-lovable-cloud" });
-    expect(await pane.find({ key: "backend-lovable-cloud" })).toBeUndefined();
-    expect(await shows(pane, "One quick question")).toBeDefined();
-    expect(await shows(pane, "Where is your site live?")).toBeDefined();
-    await pane.unmount();
+    await $.tool.call({ tool: "mcp__clodable__remember_app", backend: "lovable-cloud" } as never);
+    await $.tool.call({ tool: "mcp__clodable__remember_app", backend: "lovable-cloud" } as never);
     expect(calls.filter((c) => c[0] === "config")).toEqual([
       ["config", "backend", "lovable-cloud", "--json"],
     ]);
@@ -1643,14 +1637,10 @@ describe("apps still on Lovable", () => {
     // the emails step starts with what it does.
     const texts = (await pane.findAll({ type: "Text" })).map((t: any) => String(t.text));
     const order = [
-      "✓ Get ready: your new backend  · crumb",
       "Get ready: your website and emails",
-      "Your site on your own Netlify, using the working copy.",
-      "✓ Put your site on Netlify  · https://crumb.netlify.app",
       "● Set up emails for your users",
       "Clodable sends your users' sign-up confirmations",
       "No domain of your own yet?",
-      "Go live",
     ].map((t) => texts.findIndex((x) => x.startsWith(t)));
     expect(order.every((at) => at >= 0)).toBe(true);
     expect([...order].sort((a, b) => a - b)).toEqual(order);
@@ -1742,6 +1732,7 @@ describe("apps still on Lovable", () => {
     for (let i = 0; i < 30 && !(await pane.find({ type: "Text", text: /● Set up emails/ })); i++) {
       await pane.redraw();
     }
+    await pane.press({ key: "move-progress" });
     expect(
       await shows(pane, /✓ Put your site on Netlify {2}· https:\/\/crumb\.netlify\.app/),
     ).toBeDefined();
@@ -1800,6 +1791,7 @@ describe("apps still on Lovable", () => {
       await pane.redraw();
     }
     expect(await shows(pane, /● Set up emails/)).toBeDefined();
+    await pane.press({ key: "move-progress" });
     expect(await shows(pane, /✓ Put your site on Netlify/)).toBeDefined();
     const at = calls.findIndex((c) => c[0] === "setting");
     expect(calls[at]).toEqual(["setting", "GREETING", "--json"]);
@@ -1930,6 +1922,7 @@ describe("apps still on Lovable", () => {
       return { text: ev.text };
     });
     await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+    await $.tool.call({ tool: "mcp__clodable__open_panel", view: "settings" } as never);
     const pane = await $.ui.mount(PANE);
     expect(await shows(pane, "Your app is off Lovable")).toBeDefined();
     expect(
@@ -1967,6 +1960,7 @@ describe("apps still on Lovable", () => {
       },
     });
     await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+    await $.tool.call({ tool: "mcp__clodable__open_panel", view: "backend" } as never);
     const pane = await $.ui.mount(PANE);
     expect(await shows(pane, "Let Claude change your database")).toBeDefined();
     await pane.input({ key: "database-token", text: token, kind: "submit" });
@@ -2029,7 +2023,6 @@ describe("apps still on Lovable", () => {
         });
       },
     });
-    on("ui.open", () => ({ value: { isOpen: true } }) as never);
     const spawned: string[][] = [];
     on("process.spawn", async function* (_$: unknown, e: { argv: readonly string[] }) {
       spawned.push(e.argv.slice(2));
@@ -2582,13 +2575,13 @@ describe("worth a look", () => {
     });
     const session = mock.session(on);
     const submitted: string[] = [];
-    on("ui.open", () => ({ value: { isOpen: true } }) as never);
     on("prompt.submit", (_$: unknown, e: { text: string }) => {
       submitted.push(e.text);
       return { text: e.text };
     });
     await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
     await $.command.run({ command: "clodable", args: "" } as never);
+    await $.tool.call({ tool: "mcp__clodable__open_panel", view: "settings" } as never);
     const pane = await $.ui.mount({
       plugin: "clodable",
       surface: "desktop",
@@ -2857,6 +2850,7 @@ describe("restore", () => {
     });
     answerQuestions(on, "Restore");
     await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+    await $.tool.call({ tool: "mcp__clodable__open_panel", view: "history" } as never);
     const pane = await $.ui.mount({
       plugin: "clodable",
       surface: "desktop",
@@ -2882,8 +2876,8 @@ describe("restore", () => {
     expect(await pane.find({ type: "Text", text: "Current" })).toBeDefined();
     expect(await pane.find({ type: "Text", text: "Live" })).toBeDefined();
     // The state card says what's true and offers the next step.
-    expect(await pane.find({ type: "Text", text: "2 changes not live yet" })).toBeDefined();
-    expect(await pane.find({ type: "Button", key: "publish" })).toBeDefined();
+    expect(await pane.find({ type: "Text", text: "2 changes not live yet" })).toBeUndefined();
+    expect(await pane.find({ type: "Button", key: "publish" })).toBeUndefined();
     await pane.press({ key: "restore-p9" });
     expect(await pane.find({ type: "Text", text: /^Go back to “Opening hours”\?/ })).toBeDefined();
     await pane.press({ key: "restore-cancel-p9" });
@@ -2916,6 +2910,7 @@ describe("restore", () => {
       return { value: undefined };
     });
     await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+    await $.tool.call({ tool: "mcp__clodable__open_panel", view: "history" } as never);
     const pane = await $.ui.mount({
       plugin: "clodable",
       surface: "desktop",
@@ -2938,7 +2933,7 @@ describe("restore", () => {
     // The saves are still there to go back to, but the live site already looks like this.
     expect(since).toBeDefined();
     expect(await pane.find({ type: "Text", text: "Not live yet" })).toBeUndefined();
-    expect(await pane.find({ type: "Text", text: "Everything is live" })).toBeDefined();
+    expect(await bandText($, "desktop", /Everything is live/)).toBe("Everything is live");
     expect(await pane.find({ type: "Button", key: "publish" })).toBeUndefined();
 
     await pane.press({ key: "restore-p9" });
@@ -3465,7 +3460,6 @@ describe("everywhere else", () => {
           ? [{ name: "index.html", kind: "file", size: 100, mtimeMs: 0, isLink: false }]
           : [],
       }));
-      on("ui.open", () => ({ value: { isOpen: true } }) as never);
       await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
       await $.command.run({ command: "clodable", args: "" } as never);
       const pane = await $.ui.mount(PANE_PROPS as never);
@@ -3561,72 +3555,81 @@ describe("an app that isn't online, or has no backend", () => {
     return undefined;
   }
 
-  test("Netlify connected in the panel, then Claude puts the site online, as the builder asked", async ($, on) => {
+  test("hosting consent runs the selected operation directly, with no creation request to Claude", async ($, on) => {
     const token = `nfp_${"k7".repeat(20)}`;
     let connected = false;
+    let created = false;
     const calls = harness(on, STATUS, true, {
-      status: () => out({ ...where("supabase", "none"), netlify: { connected } }),
+      status: () =>
+        out({
+          ...where("none", created ? "github" : "none"),
+          netlify: { connected },
+          ...(created ? { site: { url: "https://crumb.netlify.app", live: false } } : {}),
+        }),
       connect: () => {
         connected = true;
         return out({ accounts: [] });
       },
       site: () =>
         out({
-          connected: true,
           teams: [
             { slug: "team-a", name: "Team A" },
             { slug: "team-b", name: "Team B" },
           ],
         }),
     });
+    const spawned: string[][] = [];
     const prompts: string[] = [];
     const session = mock.session(on);
     on("prompt.submit", (_$: unknown, e: { text: string }) => {
       prompts.push(e.text);
       return { text: e.text };
     });
+    on("process.spawn", async function* (_$: unknown, e: { argv: readonly string[] }) {
+      spawned.push(e.argv.slice(2));
+      yield {
+        stream: "stdout",
+        text: `${JSON.stringify({
+          type: "step",
+          id: "site",
+          state: "running",
+          title: "Preparing your address",
+        })}\n`,
+      };
+      created = true;
+      yield {
+        stream: "stdout",
+        text: `${JSON.stringify({ type: "result", ok: true, data: {} })}\n`,
+      };
+      return { value: { code: 0, signal: null } };
+    });
     await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
-    // The bar says it plainly, and offers the way.
-    expect(await bandText($, "desktop", /web/)).toBe("Not on the web yet");
+    await $.tool.call({ tool: "mcp__clodable__open_panel", view: "site" } as never);
     const pane = await $.ui.mount(PANE);
-    expect(await shows(pane, "Set up hosting")).toBeDefined();
     expect(await shows(pane, /Your app becomes public when you press Publish/)).toBeDefined();
-
+    expect(spawned).toHaveLength(0);
     await pane.input({ key: "site-netlify-token", text: token, kind: "submit" });
-    for (let i = 0; i < 30 && !calls.some((c) => c[0] === "connect"); i++) await pane.redraw();
-    const at = calls.findIndex((c) => c[0] === "connect");
-    expect(calls[at]).toEqual(["connect", "netlify", "--json"]);
-    expect((calls as any).stdins[at]).toBe(token);
-
-    let team: any;
-    for (let i = 0; i < 30 && !team; i++) {
-      team = await pane.find({ type: "Select", key: "site-team" });
-      if (!team) await pane.redraw();
-    }
-    expect(team).toBeDefined();
+    for (let i = 0; i < 30 && !(await pane.find({ key: "site-team" })); i++) await pane.redraw();
     await pane.select({ key: "site-team", value: "team-b" });
+    expect(spawned).toHaveLength(0);
     await pane.press({ key: "site-create" });
-    for (let i = 0; i < 30 && prompts.length === 0; i++) await pane.redraw();
-    expect(prompts).toEqual([
-      "Prepare a web address for my app. I’ll press Publish when I’m ready to make it public.",
-    ]);
-    await $.turn.start({ text: prompts[0]!, turnId: "turn-site" } as never);
-    expect(readBy(session)[0]).toMatch(
-      /run `node ".*\/cli\/clodable\.mjs" site create --team team-b`\./,
-    );
-    // Clodable's own command, with no skill to load first; Clodable saves after the reply.
-    expect(readBy(session)[0]).toContain("run it as it is, with nothing to load first");
-    expect(readBy(session)[0]).toContain("never mention git, commits or pushes");
-    expect(await shows(pane, "Claude is on it, in the conversation.")).toBeDefined();
-    await pane.unmount();
-    for (const call of calls) expect(call.join(" ")).not.toContain(token);
+    for (let i = 0; i < 50 && !(await pane.find({ key: "site-publish" })); i++) await pane.redraw();
+    expect(spawned).toEqual([["site", "create", "--team", "team-b", "--json"]]);
+    expect(prompts).toEqual([]);
+    expect(await shows(pane, "Your site is ready to go online")).toBeDefined();
+    expect(await pane.find({ key: "site-create" })).toBeUndefined();
+    const at = calls.findIndex((c) => c[0] === "connect");
+    expect((calls as any).stdins[at]).toBe(token);
     expect(readBy(session).join(" ")).not.toContain(token);
+    expect(calls.some((c) => c[0] === "publish")).toBe(false);
+    await pane.unmount();
   });
 
   for (const hosting of ["none", "unknown", "lovable"]) {
     test(`history does not claim a version is live with ${hosting} hosting`, async ($, on) => {
       harness(on, where("none", hosting));
       await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+      await $.tool.call({ tool: "mcp__clodable__open_panel", view: "history" } as never);
       const pane = await $.ui.mount(PANE);
       expect(await shows(pane, "Saved versions")).toBeDefined();
       expect(await pane.find({ type: "Text", text: "Live" })).toBeUndefined();
@@ -3660,7 +3663,8 @@ describe("an app that isn't online, or has no backend", () => {
       );
       await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
       const pane = await $.ui.mount(PANE);
-      if (kind === "backend") await pane.press({ key: "add-backend" });
+      await $.tool.call({ tool: "mcp__clodable__open_panel", view: kind } as never);
+      await pane.redraw();
       expect(
         await shows(pane, /No (Netlify teams|Supabase organizations) were found/),
       ).toBeDefined();
@@ -3709,6 +3713,7 @@ describe("an app that isn't online, or has no backend", () => {
     });
     await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
     expect(await bandText($, "desktop", /Everything/)).toBe("Everything is saved");
+    await $.tool.call({ tool: "mcp__clodable__open_panel", view: "history" } as never);
     const pane = await $.ui.mount(PANE);
     expect(await shows(pane, "Saved versions")).toBeDefined();
     expect(await shows(pane, "Your site is ready to go online")).toBeUndefined();
@@ -3717,68 +3722,67 @@ describe("an app that isn't online, or has no backend", () => {
     await pane.unmount();
   });
 
-  test("no backend: one quiet line, then Supabase connected and Claude creates it", async ($, on) => {
+  test("backend consent creates once, then returns integration to the conversation without a token", async ($, on) => {
     const token = `sbp_${"c3".repeat(20)}`;
     let connected = false;
+    let created = false;
     const calls = harness(on, STATUS, true, {
-      status: () => out({ ...where("none", "github"), database: { connected } }),
+      status: () =>
+        out({ ...where(created ? "supabase" : "none", "github"), database: { connected } }),
       connect: () => {
         connected = true;
         return out({ organizations: [] });
       },
       backend: () =>
         out({
-          connected: true,
           organizations: [
             { slug: "studio", name: "Studio", plan: "pro" },
             { slug: "acme", name: "Acme", plan: "free", freeLeft: 2 },
           ],
-          costs: { studio: "About $10 a month, added to your Supabase plan", acme: "Free" },
+          costs: { studio: "About $10 a month", acme: "Free" },
           freeProjects: [],
-          region: { code: "eu-central-1", name: "Central EU (Frankfurt)" },
+          region: { code: "eu-central-1", name: "Frankfurt" },
         }),
     });
+    const spawned: string[][] = [];
     const prompts: string[] = [];
     const session = mock.session(on);
     on("prompt.submit", (_$: unknown, e: { text: string }) => {
       prompts.push(e.text);
       return { text: e.text };
     });
-    await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
-    const pane = await $.ui.mount(PANE);
-    expect(await shows(pane, /No backend yet/)).toBeDefined();
-    expect(await pane.find({ type: "Text", text: "Add a backend" })).toBeUndefined();
-    await pane.press({ key: "add-backend" });
-    expect(await shows(pane, /Create legacy token/)).toBeDefined();
-
-    await pane.input({ key: "backend-supabase-token", text: token, kind: "submit" });
-    for (let i = 0; i < 30 && !calls.some((c) => c[0] === "connect"); i++) await pane.redraw();
-    const at = calls.findIndex((c) => c[0] === "connect");
-    expect(calls[at]).toEqual(["connect", "supabase", "--json"]);
-    expect((calls as any).stdins[at]).toBe(token);
-
-    let create: any;
-    for (let i = 0; i < 30 && !create; i++) {
-      create = await pane.find({ type: "Button", key: "backend-create" });
-      if (!create) await pane.redraw();
-    }
-    // The free organization with room comes first: a backend that costs nothing.
-    expect(await pane.find({ type: "Select", key: "backend-org" })).toMatchObject({
-      props: { value: "acme" },
+    on("process.spawn", async function* (_$: unknown, e: { argv: readonly string[] }) {
+      spawned.push(e.argv.slice(2));
+      created = true;
+      yield {
+        stream: "stdout",
+        text: `${JSON.stringify({ type: "result", ok: true, data: {} })}\n`,
+      };
+      return { value: { code: 0, signal: null } };
     });
+    await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+    await $.tool.call({ tool: "mcp__clodable__open_panel", view: "backend" } as never);
+    const pane = await $.ui.mount(PANE);
+    expect(await shows(pane, /Create legacy token/)).toBeDefined();
+    await pane.input({ key: "backend-supabase-token", text: token, kind: "submit" });
+    for (let i = 0; i < 30 && !(await pane.find({ key: "backend-create" })); i++)
+      await pane.redraw();
+    expect(await pane.find({ key: "backend-org" })).toMatchObject({ props: { value: "acme" } });
+    expect(spawned).toHaveLength(0);
     await pane.press({ key: "backend-create" });
-    for (let i = 0; i < 30 && prompts.length === 0; i++) await pane.redraw();
-    expect(prompts).toEqual([
-      "Add a backend to my app in my Supabase organization “Acme”, then tell me what it lets me do.",
+    for (let i = 0; i < 50 && prompts.length === 0; i++) await pane.redraw();
+    expect(spawned).toEqual([
+      ["backend", "create", "--org", "acme", "--region", "eu-central-1", "--json"],
     ]);
-    await $.turn.start({ text: prompts[0]!, turnId: "turn-backend" } as never);
-    const details = readBy(session)[0]!;
-    expect(details).toMatch(
-      /run `node ".*\/cli\/clodable\.mjs" backend create --org acme --region eu-central-1`\./,
-    );
-    expect(details).toContain("src/integrations/supabase/client.ts");
+    expect(prompts).toEqual(["Connect my app to the backend I just created."]);
+    await $.turn.start({ text: prompts[0], turnId: "integrate" } as never);
+    expect(readBy(session).join(" ")).toContain("Do not run backend create again");
+    expect(readBy(session).join(" ")).toContain("feature request, continue it");
+    expect(readBy(session).join(" ")).not.toContain(token);
+    const at = calls.findIndex((c) => c[0] === "connect");
+    expect((calls as any).stdins[at]).toBe(token);
+    expect(calls.some((c) => c[0] === "publish")).toBe(false);
     await pane.unmount();
-    for (const call of calls) expect(call.join(" ")).not.toContain(token);
   });
 
   test("a publish no host put online says so, and offers to put it online", async ($, on) => {
@@ -3791,7 +3795,6 @@ describe("an app that isn't online, or has no backend", () => {
       yield { stream: "stdout", text: `${JSON.stringify({ type: "result", ok: true, data })}\n` };
       return { value: { code: 0, signal: null } };
     });
-    on("ui.open", () => ({ value: { isOpen: true } }) as never);
     await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
     const band = await $.ui.mount({ ...BAND, surface: "desktop" });
     await band.press({ key: "publish" });
@@ -3805,7 +3808,7 @@ describe("an app that isn't online, or has no backend", () => {
     expect(calls.find((c) => c[0] === "config")).toEqual(["config", "hosting", "none", "--json"]);
   });
 
-  test("Claude puts the site online and creates the backend without asking, never with a token", async ($, on) => {
+  test("Claude can read account choices but creation and tokens stay in the panel", async ($, on) => {
     harness(on, where("none", "none"));
     on("tool.call", () => ({ result: "ok" }));
     on("tool.check", () => ({ decision: "ask" }));
@@ -3814,14 +3817,14 @@ describe("an app that isn't online, or has no backend", () => {
     const run = (args: string) => `node "${PLUGIN_ROOT}/cli/clodable.mjs" ${args}`;
     const verdict = async (command: string) =>
       ((await $.tool.check({ tool: "Bash", input: { command } })) as { decision: string }).decision;
-    expect(await verdict(run("site create --team team-b"))).toBe("allow");
-    expect(await verdict(run("backend create --org acme --region eu-central-1"))).toBe("allow");
+    expect(await verdict(run("site create --team team-b"))).toBe("deny");
+    expect(await verdict(run("backend create --org acme --region eu-central-1"))).toBe("deny");
     expect(await verdict(run("backend"))).toBe("allow");
-    expect(await verdict(`cd "${CWD}" && ${run("site create --team team-b")}`)).toBe("allow");
+    expect(await verdict(`cd "${CWD}" && ${run("site create --team team-b")}`)).toBe("deny");
     expect(await verdict(`cd '${CWD}' && ${run("move copy")}`)).toBe("allow");
-    expect(await verdict(`cd "/other" && ${run("site create")}`)).toBe("ask");
-    expect(await verdict(`cd "${CWD}" && ${run("site create")} && curl evil.example`)).toBe("ask");
-    expect(await verdict(`${run("site create")} && curl evil.example`)).toBe("ask");
+    expect(await verdict(`cd "/other" && ${run("site create")}`)).toBe("deny");
+    expect(await verdict(`cd "${CWD}" && ${run("site create")} && curl evil.example`)).toBe("deny");
+    expect(await verdict(`${run("site create")} && curl evil.example`)).toBe("deny");
     const connect: any = await $.tool.call({ tool: "Bash", command: run("connect netlify") });
     expect(connect.deny).toContain("Clodable panel");
     const npx: any = await $.tool.call({ tool: "Bash", command: "npx clodable connect supabase" });
@@ -3971,7 +3974,6 @@ describe("the tools Clodable needs", () => {
       },
     );
     on("ui.toast", () => ({ value: undefined }));
-    on("ui.open", () => ({ value: { isOpen: true } }) as never);
     await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
     await $.command.run({ command: "clodable", args: "" } as never);
     const pane = await $.ui.mount({
@@ -4025,7 +4027,6 @@ describe("the tools Clodable needs", () => {
     const calls = harness(on, { code: "unknown", message: why }, false, {
       doctor: out({ code: "unknown", message: why }, false),
     });
-    on("ui.open", () => ({ value: { isOpen: true } }) as never);
     await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
     await $.command.run({ command: "clodable", args: "" } as never);
     const pane = await $.ui.mount({
@@ -4089,5 +4090,127 @@ describe("the tools Clodable needs", () => {
     );
     expect(toolsFolder(installed, "Linux x86_64", { override: "/tmp/tools" })).toBe("/tmp/tools");
     expect(toolsFolder(installed, "MINGW64_NT", { home: "C:/Users/ada" })).toBeUndefined();
+  });
+});
+
+describe("conversation-first controls", () => {
+  test("opening details never publishes, restores or creates a service", async ($, on) => {
+    const calls = harness(on, { ...STATUS, project: { ...STATUS.project, backend: "none" } });
+    await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+    for (const view of ["app", "history", "settings", "site", "backend", "saving"]) {
+      const result: any = await $.tool.call({ tool: "mcp__clodable__open_panel", view } as never);
+      expect(result.result).toContain("Opened");
+    }
+    const invalid: any = await $.tool.call({
+      tool: "mcp__clodable__open_panel",
+      view: "publish",
+    } as never);
+    expect(invalid.isError).toBe(true);
+    expect(
+      calls.some(
+        (c) =>
+          ["publish", "restore", "undo", "setup", "config"].includes(c[0]!) || c.includes("create"),
+      ),
+    ).toBe(false);
+  });
+
+  test("invalid setup facts make no partial changes", async ($, on) => {
+    const calls = harness(on);
+    await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+    const result: any = await $.tool.call({
+      tool: "mcp__clodable__remember_app",
+      backend: "none",
+      hosting: "invented",
+    } as never);
+    expect(result.isError).toBe(true);
+    expect(calls.some((c) => c[0] === "config")).toBe(false);
+  });
+
+  test("failed recording is reported instead of claiming it was remembered", async ($, on) => {
+    harness(on, STATUS, true, {
+      config: out({ message: "Could not save the app's settings" }, false),
+    });
+    await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+    const result: any = await $.tool.call({
+      tool: "mcp__clodable__remember_app",
+      backend: "none",
+    } as never);
+    expect(result.isError).toBe(true);
+    expect(result.result).toContain("Could not finish");
+  });
+
+  test("Claude cannot bypass the account consent screen with a creation command", async ($, on) => {
+    harness(on);
+    on("tool.call", () => ({ result: "ran" }));
+    await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+    for (const command of [
+      `node "${PLUGIN_ROOT}/cli/clodable.mjs" site create --team acme`,
+      'node ".clodable/local/clodable.mjs" backend create --org acme',
+    ]) {
+      const result: any = await $.tool.call({ tool: "Bash", command });
+      expect(result.deny).toContain("confirms creation");
+    }
+  });
+
+  test("backend creation is unavailable when costs are unknown", async ($, on) => {
+    harness(
+      on,
+      { ...STATUS, project: { ...STATUS.project, backend: "none" }, database: { connected: true } },
+      true,
+      {
+        backend: out({
+          organizations: [{ slug: "acme", name: "Acme", plan: "pro" }],
+          costs: {},
+          freeProjects: [],
+        }),
+      },
+    );
+    await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+    await $.tool.call({ tool: "mcp__clodable__open_panel", view: "backend" } as never);
+    const pane = await $.ui.mount(PANE_PROPS);
+    for (let i = 0; i < 30; i++) await pane.redraw();
+    expect(await pane.find({ key: "backend-create" })).toBeUndefined();
+    await pane.unmount();
+  });
+
+  test("failed direct setup stays recoverable without asking Claude to create again", async ($, on) => {
+    harness(
+      on,
+      {
+        ...STATUS,
+        project: { ...STATUS.project, backend: "none", hosting: "none" },
+        netlify: { connected: true },
+      },
+      true,
+      {
+        site: out({ teams: [{ slug: "acme", name: "Acme" }] }),
+      },
+    );
+    let runs = 0;
+    on("process.spawn", async function* () {
+      runs++;
+      yield {
+        stream: "stdout",
+        text: `${JSON.stringify({ type: "result", ok: false, error: { message: "Netlify could not finish this setup." } })}\n`,
+      };
+      return { value: { code: 1, signal: null } };
+    });
+    const prompts: string[] = [];
+    on("prompt.submit", (_$: unknown, e: { text: string }) => {
+      prompts.push(e.text);
+      return { text: e.text };
+    });
+    await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+    await $.tool.call({ tool: "mcp__clodable__open_panel", view: "site" } as never);
+    const pane = await $.ui.mount(PANE_PROPS);
+    for (let i = 0; i < 30 && !(await pane.find({ key: "site-create" })); i++) await pane.redraw();
+    await pane.press({ key: "site-create" });
+    for (let i = 0; i < 30 && !(await pane.find({ key: "provision-help" })); i++)
+      await pane.redraw();
+    expect(runs).toBe(1);
+    expect(await pane.find({ key: "provision-help" })).toBeDefined();
+    expect(await pane.find({ key: "site-create" })).toBeDefined();
+    expect(prompts).toEqual([]);
+    await pane.unmount();
   });
 });
