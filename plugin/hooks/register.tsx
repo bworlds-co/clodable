@@ -2316,7 +2316,7 @@ export const register: Register = (on) => {
 
   // ── Plain-language activity ─────────────────────────────────────────────
   on("ui.render", { component: "ToolUse" }, async ($, e, next) => {
-    if (!(await isApp())) return next(e);
+    if (!e.props.tool.startsWith("mcp__clodable__") && !(await isApp())) return next(e);
     const row = describeTool(e.props);
     if (!row) return next(e);
     const { Box, Text } = $.ui.resolve(e);
@@ -2349,7 +2349,10 @@ export const register: Register = (on) => {
   });
 
   on("ui.render", { component: "ToolGroup" }, async ($, e, next) => {
-    if (e.props.isExpanded || !(await isApp())) return next(e);
+    const ours =
+      e.props.calls.length > 0 &&
+      e.props.calls.every((call) => call.tool.startsWith("mcp__clodable__"));
+    if (e.props.isExpanded || (!ours && !(await isApp()))) return next(e);
     const { Box, Text } = $.ui.resolve(e);
     return (
       <Box flexDirection="row" columnGap={1}>
