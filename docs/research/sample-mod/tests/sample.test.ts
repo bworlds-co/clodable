@@ -2,7 +2,7 @@ import { expect, test } from 'claude-code/testing'
 
 // What Claude Code passes a ui.render hook for each site, minus `surface`.
 const PANE = {
-  plugin: 'clodable-sample',
+  plugin: 'cloclod-sample',
   component: 'Pane',
   requestId: 'publish',
   viewport: { columns: 100, rows: 30 },
@@ -17,7 +17,7 @@ const PANE = {
 } as const
 
 const BAND = {
-  plugin: 'clodable-sample',
+  plugin: 'cloclod-sample',
   component: 'AbovePrompt',
   props: {
     hasSurvey: false,
@@ -30,7 +30,7 @@ const BAND = {
 } as const
 
 const EDIT_ROW = {
-  plugin: 'clodable-sample',
+  plugin: 'cloclod-sample',
   component: 'ToolUse',
   requestId: 'toolu_1',
   props: {

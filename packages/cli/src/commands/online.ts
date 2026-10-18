@@ -1,6 +1,6 @@
 import {
   backendChoices,
-  ClodableError,
+  CloclodError,
   connectNetlify,
   connectSupabase,
   createBackend,
@@ -51,9 +51,9 @@ export async function connectCommand(ctx: Context, service: string) {
     return;
   }
   await run(ctx, async () => {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "invalid-config",
-      message: `Clodable can't connect “${service}”.`,
+      message: `Cloclod can't connect “${service}”.`,
       hint: "Use supabase or netlify.",
     });
   });
@@ -84,17 +84,17 @@ export async function siteCommand(ctx: Context, options: { action?: string; team
     ctx,
     async () => {
       if (options.action) {
-        throw new ClodableError({
+        throw new CloclodError({
           code: "invalid-config",
           message: `“${options.action}” isn't something site does.`,
-          hint: "Use clodable site to see where it stands, or clodable site create.",
+          hint: "Use cloclod site to see where it stands, or cloclod site create.",
         });
       }
       return siteChoices(await ctx.workspace());
     },
     (choices) => {
       if (choices.site) ctx.out.line(`${celadon("●")} Your site: ${link(choices.site.url)}`);
-      else ctx.out.line(ash("Your site isn't online with Clodable yet."));
+      else ctx.out.line(ash("Your site isn't online with Cloclod yet."));
       if (!choices.connected) ctx.out.line(ash("Netlify isn't connected on this computer."));
       for (const team of choices.teams) ctx.out.line(`${team.name} ${ash(`(${team.slug})`)}`);
     },
@@ -128,10 +128,10 @@ export async function backendCommand(
     ctx,
     async () => {
       if (options.action) {
-        throw new ClodableError({
+        throw new CloclodError({
           code: "invalid-config",
           message: `“${options.action}” isn't something backend does.`,
-          hint: "Use clodable backend to see your choices, or clodable backend create.",
+          hint: "Use cloclod backend to see your choices, or cloclod backend create.",
         });
       }
       await ctx.workspace();

@@ -1,7 +1,7 @@
 import { resolve } from "node:path";
 import { isCancel, password } from "@clack/prompts";
 import {
-  ClodableError,
+  CloclodError,
   type ErrorInfo,
   FakeGitHub,
   type Flow,
@@ -54,7 +54,7 @@ export async function run<T>(
   } catch (error) {
     const info: ErrorInfo = toErrorInfo(error);
     ctx.out.result(false, undefined, info);
-    process.exitCode = error instanceof ClodableError && info.code !== "unknown" ? 1 : 2;
+    process.exitCode = error instanceof CloclodError && info.code !== "unknown" ? 1 : 2;
   }
 }
 
@@ -88,7 +88,7 @@ export async function secretInput(
     const typed = await password({ message });
     if (!isCancel(typed) && typed.trim()) return tidy(typed);
   }
-  throw new ClodableError({
+  throw new CloclodError({
     code: "invalid-config",
     message: "Nothing was given.",
     hint: "Pipe the value in (never as an argument), or run this in a terminal to type it.",

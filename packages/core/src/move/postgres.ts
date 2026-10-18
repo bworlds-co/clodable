@@ -4,7 +4,7 @@ import { writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createInterface } from "node:readline";
-import { ClodableError } from "../errors.js";
+import { CloclodError } from "../errors.js";
 import { exec } from "../exec.js";
 import { postgresTool, ToolUnavailable } from "./postgres-tools.js";
 import type { SupabaseApi } from "./supabase-api.js";
@@ -51,11 +51,11 @@ function pgEnv(target: PgTarget): Record<string, string> {
     PGPASSWORD: target.password,
     PGDATABASE: target.database,
     PGSSLMODE: target.ssl ? "require" : "disable",
-    PGAPPNAME: "clodable",
+    PGAPPNAME: "cloclod",
     PGCONNECT_TIMEOUT: "20",
     // Never read the person's own Postgres settings or saved passwords.
-    PGSERVICEFILE: join(tmpdir(), "clodable-no-pg-service"),
-    PGPASSFILE: join(tmpdir(), "clodable-no-pgpass"),
+    PGSERVICEFILE: join(tmpdir(), "cloclod-no-pg-service"),
+    PGPASSFILE: join(tmpdir(), "cloclod-no-pgpass"),
   };
 }
 
@@ -63,7 +63,7 @@ async function tool(name: "pg_restore" | "psql"): Promise<string> {
   try {
     return await postgresTool(name);
   } catch (error) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "tools-unavailable",
       message:
         error instanceof ToolUnavailable
@@ -90,7 +90,7 @@ export function psqlSql(target: PgTarget): Sql {
   return {
     rows: async <T>(sql: string) => {
       const out = await psql(
-        `select coalesce(json_agg(row_to_json(clodable_row)), '[]'::json) from (${sql.trim().replace(/;$/, "")}) clodable_row;`,
+        `select coalesce(json_agg(row_to_json(cloclod_row)), '[]'::json) from (${sql.trim().replace(/;$/, "")}) cloclod_row;`,
         ["-t", "-A"],
       );
       return JSON.parse(out.trim() || "[]") as T[];
@@ -119,7 +119,7 @@ export async function waitForConnection(
     if (/password authentication failed/i.test(last) && attempt >= 3) break;
     if (attempt < attempts) await new Promise((done) => setTimeout(done, delayMs));
   }
-  throw new ClodableError({
+  throw new CloclodError({
     code: "copy-failed",
     message: "Couldn't connect to your new database.",
     hint: "It can take a few minutes after it's created. Try again shortly.",
@@ -134,9 +134,9 @@ export async function listArchive(backup: string): Promise<string> {
     timeout: 120_000,
   });
   if (result.exitCode !== 0) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "export-unreadable",
-      message: "That file isn't a database export Clodable can read.",
+      message: "That file isn't a database export Cloclod can read.",
       hint: "Download the export again (from Lovable's email, or More → Cloud → Storage), then try again.",
       details: result.stderr.trim().slice(0, 500),
     });
@@ -160,7 +160,7 @@ export async function archiveSql(
     { cwd: dir, timeout: 300_000 },
   );
   if (result.exitCode !== 0) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "export-unreadable",
       message: "Couldn't read part of your export.",
       details: result.stderr.trim().slice(0, 500),
@@ -195,7 +195,7 @@ export async function* archiveLines(
     if (child.exitCode === null) child.kill();
   }
   if ((await done) !== 0) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "export-unreadable",
       message: "Couldn't read your export's data.",
       details: stderr.trim().slice(0, 500),
@@ -297,7 +297,7 @@ export async function restorePass(
   await new Promise((done) => log.end(done));
 
   if (produced !== 0) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "export-unreadable",
       message: "Couldn't read your export while copying it.",
       details: producerError.trim().slice(0, 500),
@@ -305,7 +305,7 @@ export async function restorePass(
   }
   // psql gives up only when the connection itself fails.
   if (consumed !== 0) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "copy-failed",
       message: "The connection to your new database dropped during the copy.",
       hint: "Try again: the copy starts over cleanly on a fresh database.",

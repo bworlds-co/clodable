@@ -82,7 +82,7 @@ export async function statusCommand(ctx: Context, options: { fetch?: boolean }) 
         ? `${s.lastPublish.url ? `${link(s.lastPublish.url)} ${ash("·")} ` : ""}${ash(`published ${formatRelative(s.lastPublish.at)}`)}`
         : s.project.liveUrl
           ? link(s.project.liveUrl)
-          : ash("not published with Clodable yet");
+          : ash("not published with Cloclod yet");
       out.line(`${label("Live")}${live}`);
       if (s.pullRequest) out.line(`${label("On GitHub")}${link(s.pullRequest.url)}`);
       out.line();
@@ -114,7 +114,7 @@ export async function historyCommand(ctx: Context, options: { limit?: number }) 
         );
       }
       out.line();
-      out.line(ash("Bring back any version:  clodable restore <code>"));
+      out.line(ash("Bring back any version:  cloclod restore <code>"));
       out.line();
     },
   );

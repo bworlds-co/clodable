@@ -117,14 +117,14 @@ describe("toolbar injection", () => {
       '<html><head lang="en"><script src="/analytics.js"></script><title>x</title></head><body><header>top</header></body></html>';
     const once = injectToolbar(html)!;
     expect(once).toContain(
-      '<head lang="en"><script src="/__clodable/toolbar.js" data-clodable-toolbar></script><script src="/analytics.js">',
+      '<head lang="en"><script src="/__cloclod/toolbar.js" data-cloclod-toolbar></script><script src="/analytics.js">',
     );
     // Neither deferred nor async: it runs before the app's scripts, not after them.
     expect(once).not.toMatch(/toolbar\.js"[^>]*\b(defer|async)\b/);
     expect(injectToolbar(once)).toBe(once);
     // A <header> isn't a <head>.
     expect(injectToolbar("<body class=a><header>hi</header></body>")).toContain(
-      '<body class=a><script src="/__clodable/toolbar.js"',
+      '<body class=a><script src="/__cloclod/toolbar.js"',
     );
     expect(injectToolbar("<p>fragment</p>")).toBeUndefined();
   });

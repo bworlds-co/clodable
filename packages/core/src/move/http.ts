@@ -1,14 +1,14 @@
-import { ClodableError, type ErrorCode, messageOf } from "../errors.js";
+import { CloclodError, type ErrorCode, messageOf } from "../errors.js";
 
 /** A service's API, called with the builder's own token: what each one means by a refusal. */
 export interface ApiService {
   /** Its name, as builders know it: "Netlify". */
   name: string;
   token: string;
-  /** The code for an answer Clodable can't read. */
+  /** The code for an answer Cloclod can't read. */
   failed: ErrorCode;
   /** The error for a refusal, in this service's terms (a token it didn't accept, and the rest). */
-  refused(status: number, message: string, details: string): ClodableError;
+  refused(status: number, message: string, details: string): CloclodError;
 }
 
 /**
@@ -27,14 +27,14 @@ export async function callApi<T>(
       method,
       headers: {
         Authorization: `Bearer ${service.token}`,
-        "User-Agent": "clodable",
+        "User-Agent": "cloclod",
         ...(body !== undefined ? { "Content-Type": "application/json" } : {}),
       },
       ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
       signal: AbortSignal.timeout(30_000),
     });
   } catch (error) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "offline",
       message: `Couldn't reach ${service.name}.`,
       hint: "Check your internet connection, then try again.",
@@ -56,9 +56,9 @@ export async function callApi<T>(
   try {
     return JSON.parse(text) as T;
   } catch {
-    throw new ClodableError({
+    throw new CloclodError({
       code: service.failed,
-      message: `${service.name} answered in a way Clodable didn't expect.`,
+      message: `${service.name} answered in a way Cloclod didn't expect.`,
       hint: "Try again in a minute. If it keeps happening, share the details with your developer.",
       details: `${service.name} answered ${response.status}: ${text.slice(0, 400)}`,
     });

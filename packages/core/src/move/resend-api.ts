@@ -1,4 +1,4 @@
-import { ClodableError } from "../errors.js";
+import { CloclodError } from "../errors.js";
 import { readSecret } from "../local-secrets.js";
 import { type ApiService, callApi } from "./http.js";
 
@@ -41,7 +41,7 @@ export class ResendApi {
       failed: "resend-failed",
       refused: (status, message, details) =>
         status === 401 || status === 403
-          ? new ClodableError({
+          ? new CloclodError({
               code: "resend-auth",
               message: /restricted|sending/i.test(message)
                 ? "That Resend key can only send emails."
@@ -49,7 +49,7 @@ export class ResendApi {
               hint: "Create a key with Full access in Resend (API Keys → Create API Key), then connect again.",
               details,
             })
-          : new ClodableError({
+          : new CloclodError({
               code: "resend-failed",
               message: "Resend refused the request.",
               hint: "Try again in a minute. If it keeps happening, share the details with your developer.",
@@ -61,10 +61,10 @@ export class ResendApi {
   static async required(): Promise<ResendApi> {
     const key = await readSecret(RESEND_KEY);
     if (!key) {
-      throw new ClodableError({
+      throw new CloclodError({
         code: "resend-auth",
         message: "Resend isn't connected on this computer yet.",
-        hint: "Connect your Resend account in the Clodable panel first.",
+        hint: "Connect your Resend account in the Cloclod panel first.",
       });
     }
     return new ResendApi(key);

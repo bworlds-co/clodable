@@ -235,7 +235,7 @@ async function install(): Promise<string> {
       return home;
     } else {
       throw new ToolUnavailable(
-        `Moving a database needs PostgreSQL's tools, which Clodable can't fetch for ${platform} yet.`,
+        `Moving a database needs PostgreSQL's tools, which Cloclod can't fetch for ${platform} yet.`,
       );
     }
     await rm(home, { recursive: true, force: true });

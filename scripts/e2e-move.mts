@@ -4,8 +4,8 @@
  * 1. A Lovable Cloud-like app: people signed up through Supabase Auth, a new-user trigger, access
  *    rules, an identity column, a private file rule, a function naming the old backend.
  * 2. Its export, made the way Lovable makes it: pg_dump 18, custom format, zstd, zipped.
- * 3. A fresh project, and Clodable's copy into it as Supabase's own `postgres` role (not a
- *    superuser), with the PostgreSQL tools Clodable fetches for builders.
+ * 3. A fresh project, and Cloclod's copy into it as Supabase's own `postgres` role (not a
+ *    superuser), with the PostgreSQL tools Cloclod fetches for builders.
  * 4. Proof: the checks agree, people sign in with their original passwords, a session from before
  *    the move still refreshes, a new sign-up gets its profile, a new post saves, and real public
  *    and private files keep their bytes and access rules.
@@ -13,7 +13,7 @@
  *   pnpm tsx scripts/e2e-move.mts
  *
  * Needs Docker and the supabase CLI. Runs its own target on ports 55320-55329 and source on
- * 55420-55429, under clodable-e2e-move and clodable-e2e-source. Stops only those two projects.
+ * 55420-55429, under cloclod-e2e-move and cloclod-e2e-source. Stops only those two projects.
  */
 import { execFileSync } from "node:child_process";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
@@ -67,7 +67,7 @@ function check(condition: unknown, text: string) {
   ok(text);
 }
 
-const dir = await mkdtemp(join(tmpdir(), "clodable-e2e-move-"));
+const dir = await mkdtemp(join(tmpdir(), "cloclod-e2e-move-"));
 const sourceDir = join(dir, "source");
 const supabase = (workdir: string, ...args: string[]) =>
   execFileSync("supabase", [...args, "--workdir", workdir], {
@@ -81,7 +81,7 @@ async function startFresh(workdir: string, withApp: boolean) {
   let config = await readFile(join(workdir, "supabase", "config.toml"), "utf8");
   config = config.replace(
     /^project_id = .*$/m,
-    `project_id = "${withApp ? "clodable-e2e-source" : "clodable-e2e-move"}"`,
+    `project_id = "${withApp ? "cloclod-e2e-source" : "cloclod-e2e-move"}"`,
   );
   const offset = withApp ? 100 : 0;
   for (const port of Object.values(PORTS)) {
@@ -129,7 +129,7 @@ const target = {
 let filesBridge: Server | undefined;
 const previousProjectUrl = process.env.CLODABLE_SUPABASE_PROJECT_URL;
 
-/** The real source and target have local addresses; route Clodable's project refs to those two. */
+/** The real source and target have local addresses; route Cloclod's project refs to those two. */
 async function bridgeFiles(source: string, destination: string) {
   filesBridge = createServer(async (request, response) => {
     try {
@@ -251,7 +251,7 @@ try {
   const after = await startFresh(dir, false);
   ok("running, empty");
 
-  step("Clodable reads the export and copies it in");
+  step("Cloclod reads the export and copies it in");
   const work = join(dir, "move");
   execFileSync("mkdir", ["-p", work]);
   const { summary, toc } = await readExport(zip, work);

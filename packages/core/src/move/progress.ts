@@ -23,7 +23,7 @@ import { exportTime, STOP_LOVABLE_JOBS } from "./switch.js";
 import { count } from "./words.js";
 
 /**
- * Where the move stands, step by step, for whoever draws it (the Clodable panel, the CLI): each
+ * Where the move stands, step by step, for whoever draws it (the Cloclod panel, the CLI): each
  * step done, next, later or needing attention, and what's left inside the open ones.
  */
 
@@ -152,7 +152,7 @@ export function planLimits(
   return { data, dataLimit: FREE_DATA, files, filesLimit: FREE_FILES };
 }
 
-/** The latest sign-in on the new backend after `since`, if Clodable can look. */
+/** The latest sign-in on the new backend after `since`, if Cloclod can look. */
 async function signInSince(state: MoveState, since: string): Promise<string | undefined> {
   if (!state.home) return undefined;
   const api = await SupabaseApi.onThisComputer();

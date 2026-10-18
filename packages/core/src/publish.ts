@@ -3,10 +3,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { checksFailed, runChecks } from "./checks/index.js";
 import { BEFORE_RESTORE, ensurePullRequest, sameAsLive, save } from "./draft.js";
-import { ClodableError } from "./errors.js";
+import { CloclodError } from "./errors.js";
 import { type Flow, step } from "./events.js";
 import { type Commit, kindTrailer } from "./git.js";
-import { clodableFile, keepIgnored } from "./kit/index.js";
+import { cloclodFile, keepIgnored } from "./kit/index.js";
 import { loadMove, updateMove } from "./move/state.js";
 import { deployChangedFunctions, type FunctionsOutcome } from "./publish-functions.js";
 import { timing, waitForCiIfAny, waitForDeploy } from "./waits.js";
@@ -47,10 +47,10 @@ export interface PublishResult {
   functions: FunctionsOutcome;
 }
 
-/** The save Clodable makes on its own when Publish finds changes not saved yet. */
+/** The save Cloclod makes on its own when Publish finds changes not saved yet. */
 const LAST_TOUCHES = "Last touches before publishing";
 
-/** Saves Clodable makes on its own, around a restore or a publish: they never name a publish. */
+/** Saves Cloclod makes on its own, around a restore or a publish: they never name a publish. */
 const OWN_SAVES = new Set([BEFORE_RESTORE, LAST_TOUCHES]);
 
 /** "Made the header blue", "Made the header blue; added a pricing page", or "… and 3 more changes". */
@@ -78,14 +78,14 @@ export async function* publish(ws: Workspace, options: PublishOptions = {}): Flo
   try {
     saved = await save(ws, { message: options.message ?? LAST_TOUCHES });
   } catch (error) {
-    if (error instanceof ClodableError && error.code === "secret-found") {
+    if (error instanceof CloclodError && error.code === "secret-found") {
       yield step("save", "failed", error.message);
     }
     throw error;
   }
   if (saved.unscanned) {
     yield step("save", "failed", "Couldn't check your changes for secret keys");
-    throw new ClodableError({
+    throw new CloclodError({
       code: "checks-failed",
       message: "Couldn't check your changes for secret keys, so nothing was sent.",
       hint: "Check your internet connection and try again. Nothing went live.",
@@ -94,7 +94,7 @@ export async function* publish(ws: Workspace, options: PublishOptions = {}): Flo
   }
   if (saved.offline || !saved.pushed) {
     yield step("save", "failed", "Couldn't reach GitHub");
-    throw new ClodableError({
+    throw new CloclodError({
       code: "offline",
       message:
         "Your changes are saved on this computer, but GitHub can't be reached to publish them.",
@@ -103,10 +103,10 @@ export async function* publish(ws: Workspace, options: PublishOptions = {}): Flo
   }
   const branch = saved.branch;
   if (branch === ws.liveBranch) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "on-live-branch",
       message: "You're working directly on the live version.",
-      hint: "Run `clodable save` once to move your work onto your draft, then publish.",
+      hint: "Run `cloclod save` once to move your work onto your draft, then publish.",
     });
   }
   yield step(
@@ -123,7 +123,7 @@ export async function* publish(ws: Workspace, options: PublishOptions = {}): Flo
     const compared = await ws.git.checkMerge(ws.liveRef);
     if (!compared.ok) {
       yield step("sync", "failed", "Your draft and the live site changed the same thing");
-      throw new ClodableError({
+      throw new CloclodError({
         code: "conflict",
         message: "Your draft and the live site both changed the same thing.",
         hint: "Ask Claude to review both versions with you. Your preview is unchanged.",
@@ -133,7 +133,7 @@ export async function* publish(ws: Workspace, options: PublishOptions = {}): Flo
     const merged = await ws.git.merge(ws.liveRef, "Caught up with the live site");
     if (!merged.ok) {
       yield step("sync", "failed", "Your draft and the live site changed the same thing");
-      throw new ClodableError({
+      throw new CloclodError({
         code: "conflict",
         message: "Your draft and the live site both changed the same thing.",
         hint: "Ask Claude to combine them. It knows what to do. Then publish again.",
@@ -142,7 +142,7 @@ export async function* publish(ws: Workspace, options: PublishOptions = {}): Flo
     }
     const pushed = await ws.git.push(branch, { remote: ws.remote, setUpstream: true });
     if (!pushed.ok) {
-      throw new ClodableError({
+      throw new CloclodError({
         code: "push-rejected",
         message: "GitHub didn't accept the update.",
         details: pushed.stderr,
@@ -160,8 +160,8 @@ export async function* publish(ws: Workspace, options: PublishOptions = {}): Flo
 
   const saves = await ws.git.log(`${ws.liveRef}..HEAD`, { noMerges: true, limit: 200 });
   // Saves that cancel out leave the files as they're live: publishing them would change nothing.
-  if (saves.length === 0 || (await sameAsLive(ws, { clodablesToo: true }))) {
-    throw new ClodableError({
+  if (saves.length === 0 || (await sameAsLive(ws, { cloclodsToo: true }))) {
+    throw new CloclodError({
       code: "nothing-to-publish",
       message: "There's nothing new to publish. Your live site already has everything.",
     });
@@ -196,7 +196,7 @@ export async function* publish(ws: Workspace, options: PublishOptions = {}): Flo
   yield step("pull-request", "running", "Preparing your draft on GitHub");
   const pr = await ensurePullRequest(ws, branch);
   if (!pr)
-    throw new ClodableError({
+    throw new CloclodError({
       code: "nothing-to-publish",
       message: "There's nothing new to publish.",
     });
@@ -215,7 +215,7 @@ export async function* publish(ws: Workspace, options: PublishOptions = {}): Flo
       .reverse()
       .map((c) => `- ${c.subject}`),
     "",
-    `Published by @${await ws.login()} with Clodable.`,
+    `Published by @${await ws.login()} with Cloclod.`,
     "",
     kindTrailer("publish"),
   ].join("\n");
@@ -256,7 +256,7 @@ export async function* publish(ws: Workspace, options: PublishOptions = {}): Flo
       if (s.site) s.site.liveAt = at;
     });
   }
-  // The site Clodable put on Netlify: online from its first Publish on.
+  // The site Cloclod put on Netlify: online from its first Publish on.
   if (deployed.state === "live" && ws.config.netlify && !(await ws.state()).siteLiveAt) {
     await ws.updateState({ siteLiveAt: at });
   }
@@ -304,9 +304,9 @@ export async function* undoPublish(
     ? await ws.git.log(`${options.sha}^!`)
     : await ws.git.log(ws.liveRef, { firstParent: true, limit: 1 });
   if (!target)
-    throw new ClodableError({ code: "not-found", message: "There's no publish to undo yet." });
+    throw new CloclodError({ code: "not-found", message: "There's no publish to undo yet." });
 
-  const dir = await mkdtemp(join(tmpdir(), "clodable-undo-"));
+  const dir = await mkdtemp(join(tmpdir(), "cloclod-undo-"));
   const branch = `undo/${target.sha.slice(0, 7)}`;
   try {
     const side = await ws.git.worktreeAdd(dir, branch, ws.liveRef);
@@ -314,17 +314,17 @@ export async function* undoPublish(
     if (reverted.exitCode !== 0) {
       await side.run(["revert", "--abort"]);
       yield step("revert", "failed", "This publish can't be undone automatically");
-      throw new ClodableError({
+      throw new CloclodError({
         code: "conflict",
         message:
           "Newer changes on your live site touch the same lines, so this can't be undone automatically.",
         hint: "Ask Claude to undo it by hand. It can see exactly what changed.",
       });
     }
-    // Clodable's own files stay as they're live, as with Restore: undoing a publish mustn't take
-    // back the builder's answers, Clodable's setup or the site's publish workflow.
+    // Cloclod's own files stay as they're live, as with Restore: undoing a publish mustn't take
+    // back the builder's answers, Cloclod's setup or the site's publish workflow.
     const undone = await side.run(["diff", "--cached", "--name-only", "HEAD"]);
-    await side.restorePaths("HEAD", undone.stdout.split("\n").filter(clodableFile));
+    await side.restorePaths("HEAD", undone.stdout.split("\n").filter(cloclodFile));
     await keepIgnored(dir);
     const undoTitle = `Undo: ${target.subject}`;
     const identity = (await ws.git.identity()) ?? undefined;
@@ -336,7 +336,7 @@ export async function* undoPublish(
     });
     const pushed = await side.push(branch, { remote: ws.remote, setUpstream: true });
     if (!pushed.ok) {
-      throw new ClodableError({
+      throw new CloclodError({
         code: pushed.offline ? "offline" : "push-rejected",
         message: "GitHub didn't accept the undo.",
         details: pushed.stderr,
@@ -346,7 +346,7 @@ export async function* undoPublish(
       head: branch,
       base: ws.liveBranch,
       title: undoTitle,
-      body: `Undoes the publish “${target.subject}”, requested with Clodable.`,
+      body: `Undoes the publish “${target.subject}”, requested with Cloclod.`,
     });
     yield step("revert", "done", "Prepared the undo");
 

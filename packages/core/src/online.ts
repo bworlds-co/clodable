@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { type ProjectConfig, saveConfig } from "./config.js";
-import { ClodableError } from "./errors.js";
+import { CloclodError } from "./errors.js";
 import { type Flow, step } from "./events.js";
 import { applyKit, planKit } from "./kit/index.js";
 import { readSecret, storeSecret } from "./local-secrets.js";
@@ -38,7 +38,7 @@ export interface SiteChoices {
   connected: boolean;
   /** The Netlify teams the site can go in, once connected. */
   teams: Array<{ slug: string; name: string }>;
-  /** The app's site, once Clodable put it on Netlify. */
+  /** The app's site, once Cloclod put it on Netlify. */
   site?: ProjectConfig["netlify"];
 }
 
@@ -98,7 +98,7 @@ export async function* putSiteOnline(
 ): Flow<SiteOnlineOutcome> {
   const move = await loadMove(ws.root);
   if (move.site || move.home) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "already-there",
       message: "Your move off Lovable puts your site on Netlify.",
       hint: "Go on with the move: its website step does this, pointed at your new backend.",
@@ -188,14 +188,14 @@ export async function* createBackend(
   options: { org?: string; region?: string } = {},
 ): Flow<BackendOutcome> {
   if (ws.config.backend === "lovable-cloud") {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "already-there",
       message: "Your app's data is on Lovable Cloud.",
       hint: "Moving off Lovable gives your app its own Supabase, with your data and your people.",
     });
   }
   if (ws.config.backend === "supabase" && ws.config.supabase.projectRef) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "already-there",
       message: "Your app already has its own backend on Supabase.",
     });
@@ -213,7 +213,7 @@ export async function* createBackend(
     const { organizations, freeProjects } = await homeChoices();
     const org = pickOrganization(organizations, options.org);
     if (org.plan === "free" && org.freeLeft === 0) {
-      throw new ClodableError({
+      throw new CloclodError({
         code: "supabase-limit",
         message: "Your Supabase account already runs its 2 free projects.",
         hint: `Pause one in Supabase (${freeProjects.map((p) => p.name).join(", ")}), or pick an organization on a paid plan, then try again.`,
@@ -222,7 +222,7 @@ export async function* createBackend(
     const region =
       options.region ?? (await api.regions(org.slug).catch(() => undefined))?.recommended?.code;
     if (!region) {
-      throw new ClodableError({
+      throw new CloclodError({
         code: "needs-choice",
         message: "Which part of the world should your backend run in?",
         hint: "Pick the region closest to the people who use your app.",
@@ -269,7 +269,7 @@ export async function* createBackend(
     SUPABASE_SERVICE_ROLE_KEY: backend.serviceRole,
   });
   await newBackendSignIn(api, ref, ws.config.netlify?.url ?? ws.config.liveUrl);
-  // The site, if Clodable put it online: the same address and keys for its build and server.
+  // The site, if Cloclod put it online: the same address and keys for its build and server.
   const netlify = ws.config.netlify ? await NetlifyApi.onThisComputer() : undefined;
   if (ws.config.netlify && netlify) {
     await setSiteEnv(
@@ -302,7 +302,7 @@ function pickOrganization(organizations: OrganizationChoice[], slug: string | un
     organizations.find((o) => o.slug === slug) ??
     (organizations.length === 1 ? organizations[0] : undefined);
   if (!org) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "needs-choice",
       message: "Which Supabase organization should your backend go in?",
       hint: `Pick one: ${organizations.map((o) => `${o.name} (${costOf(o)})`).join(", ")}.`,

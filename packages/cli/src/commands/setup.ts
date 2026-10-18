@@ -3,7 +3,7 @@ import { join, resolve } from "node:path";
 import { confirm, isCancel, select } from "@clack/prompts";
 import {
   applyKit,
-  ClodableError,
+  CloclodError,
   detectProject,
   exec,
   GH_VERSION,
@@ -50,7 +50,7 @@ const MIN_NODE = [20, 19] as const;
 /** What setup can't go on without. */
 const REQUIRED = ["node", "git", "gh", "github"];
 
-/** Everything Clodable needs, then, in an app on GitHub, how the app stands. */
+/** Everything Cloclod needs, then, in an app on GitHub, how the app stands. */
 export async function doctor(cwd: string): Promise<DoctorItem[]> {
   const items = await toolChecks(cwd);
   const git = new Git(cwd);
@@ -76,7 +76,7 @@ export async function doctor(cwd: string): Promise<DoctorItem[]> {
       ? { detail: `${parsed.owner}/${parsed.repo}` }
       : standIn
         ? { detail: "a stand-in for GitHub on this computer" }
-        : { fix: "Run `clodable setup` in an empty folder to bring your app in from GitHub" }),
+        : { fix: "Run `cloclod setup` in an empty folder to bring your app in from GitHub" }),
   });
   if (!isRepo) return items;
   return [...items, ...(await appChecks(git))];
@@ -129,7 +129,7 @@ async function toolChecks(cwd: string): Promise<DoctorItem[]> {
         }),
   });
 
-  // Clodable fetches its own copy when none is installed, the first time it's asked for.
+  // Cloclod fetches its own copy when none is installed, the first time it's asked for.
   const gh = new GhCli(cwd);
   const ready = await gh.ready();
   items.push({
@@ -138,10 +138,10 @@ async function toolChecks(cwd: string): Promise<DoctorItem[]> {
     status: ready.installed ? "ok" : "fail",
     ...(ready.installed
       ? (await ghIsOurs())
-        ? { detail: `${GH_VERSION}, Clodable's own` }
+        ? { detail: `${GH_VERSION}, Cloclod's own` }
         : {}
       : {
-          fix: "Check your internet connection: Clodable downloads it. Or install it from https://cli.github.com",
+          fix: "Check your internet connection: Cloclod downloads it. Or install it from https://cli.github.com",
         }),
   });
   if (ready.installed) {
@@ -163,7 +163,7 @@ async function toolChecks(cwd: string): Promise<DoctorItem[]> {
   return items;
 }
 
-/** The app in this repository: what it is, its packages, Clodable's files, its database. */
+/** The app in this repository: what it is, its packages, Cloclod's files, its database. */
 async function appChecks(git: Git): Promise<DoctorItem[]> {
   const items: DoctorItem[] = [];
   const root = await git.root();
@@ -194,11 +194,11 @@ async function appChecks(git: Git): Promise<DoctorItem[]> {
   const missing = kit.filter((c) => c.action === "create");
   items.push({
     id: "kit",
-    label: "Clodable in this project",
+    label: "Cloclod in this project",
     status: missing.length === 0 ? "ok" : "warn",
     ...(missing.length === 0
       ? {}
-      : { detail: `${missing.length} file(s) missing`, fix: "Run `clodable kit --apply`" }),
+      : { detail: `${missing.length} file(s) missing`, fix: "Run `cloclod kit --apply`" }),
   });
 
   const ref = supabaseRef(config, project);
@@ -209,7 +209,7 @@ async function appChecks(git: Git): Promise<DoctorItem[]> {
           label: "Database",
           status: "info",
           detail: "On Lovable Cloud: Lovable owns it, so Claude can't change it from here",
-          fix: "Move off Lovable, in the Clodable panel, to make it yours",
+          fix: "Move off Lovable, in the Cloclod panel, to make it yours",
         }
       : {
           id: "supabase",
@@ -417,7 +417,7 @@ async function whereItRuns(
         {
           value: "none" as const,
           label: "Not online yet",
-          hint: "Clodable can put it on your own Netlify",
+          hint: "Cloclod can put it on your own Netlify",
         },
       ],
     });
@@ -427,7 +427,7 @@ async function whereItRuns(
 }
 
 /**
- * A step of the setup, for the Clodable panel. The terminal shows the tools and the files in full
+ * A step of the setup, for the Cloclod panel. The terminal shows the tools and the files in full
  * instead, so these two are the panel's only.
  */
 function panelStep(ctx: Context, id: StepId, state: StepState, title: string) {
@@ -447,7 +447,7 @@ async function requireTools(ctx: Context): Promise<void> {
     blocking.length > 0 ? "A few tools are needed first" : "Your tools are ready",
   );
   if (blocking.length > 0) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: blocking.some((b) => b.id === "github") ? "gh-auth" : "gh-missing",
       message: "A few tools are needed first.",
       hint: blocking
@@ -464,16 +464,16 @@ async function pickRepo(ctx: Context, given: string | undefined, interactive: bo
   if (interactive) {
     const repos = await new GhCli(ctx.cwd).repositories();
     const choice = await select({
-      message: "Which app should Clodable open?",
+      message: "Which app should Cloclod open?",
       options: repos.map((r) => ({ value: r.name, label: r.name, hint: r.description ?? "" })),
     });
-    if (isCancel(choice)) throw new ClodableError({ code: "unknown", message: "Setup cancelled." });
+    if (isCancel(choice)) throw new CloclodError({ code: "unknown", message: "Setup cancelled." });
     return choice;
   }
-  throw new ClodableError({
+  throw new CloclodError({
     code: "not-a-repo",
-    message: "Which app should Clodable open?",
-    hint: "Run `clodable setup --repo owner/name`.",
+    message: "Which app should Cloclod open?",
+    hint: "Run `cloclod setup --repo owner/name`.",
   });
 }
 
@@ -487,11 +487,11 @@ async function bringIn(ctx: Context, repo: string): Promise<string> {
   } catch (error) {
     ctx.out.event(step("setup:app", "failed", `Couldn't bring in ${repo}`));
     // Not connected or offline says so; anything else is about this repository.
-    if (error instanceof ClodableError && error.code !== "unknown") throw error;
-    throw new ClodableError({
+    if (error instanceof CloclodError && error.code !== "unknown") throw error;
+    throw new CloclodError({
       code: "not-found",
       message: `Couldn't bring in ${repo}.`,
-      details: error instanceof ClodableError ? error.details : messageOf(error),
+      details: error instanceof CloclodError ? error.details : messageOf(error),
     });
   }
   ctx.out.event(step("setup:app", "done", `Brought in ${repo}`));
@@ -519,7 +519,7 @@ export async function setupCommand(
       await requireTools(ctx);
       const git = new Git(ctx.cwd);
       if (options.new !== undefined && (!options.account || options.repo || options.publish)) {
-        throw new ClodableError({
+        throw new CloclodError({
           code: "invalid-config",
           message:
             "Choose the account for your new private app in Set up saving. Publishing comes later.",
@@ -540,7 +540,7 @@ export async function setupCommand(
 
       const project = await detectProject(root);
       const loaded = await loadConfig(root);
-      // Where the data and the live site are decides what Clodable can do for this app.
+      // Where the data and the live site are decides what Cloclod can do for this app.
       const config = {
         ...loaded,
         ...(started ? { liveBranch: started.liveBranch } : {}),
@@ -553,20 +553,20 @@ export async function setupCommand(
       const changes = await planKit(project, config);
       if (!ctx.out.json) {
         ctx.out.line();
-        ctx.out.line(pc.bold("Clodable adds a few plain files to your project:"));
+        ctx.out.line(pc.bold("Cloclod adds a few plain files to your project:"));
         renderKit(ctx, changes, true);
       }
       if (interactive) {
         const ok = await confirm({ message: "Add them?" });
         if (isCancel(ok) || !ok)
-          throw new ClodableError({
+          throw new CloclodError({
             code: "unknown",
             message: "Setup cancelled. Nothing was changed.",
           });
       }
-      panelStep(ctx, "setup:files", "running", "Adding Clodable's files");
+      panelStep(ctx, "setup:files", "running", "Adding Cloclod's files");
       await applyKit(root, changes);
-      panelStep(ctx, "setup:files", "done", "Added Clodable's files");
+      panelStep(ctx, "setup:files", "done", "Added Cloclod's files");
 
       if (!existsSync(join(root, "node_modules"))) {
         ctx.out.event(
@@ -590,7 +590,7 @@ export async function setupCommand(
 
       ctx.out.event(step("setup:save", "running", "Saving it to your draft on GitHub"));
       const ws = await Workspace.open({ cwd: root, ...(ctx.github ? { github: ctx.github } : {}) });
-      const saved = await save(ws, { message: "Set up Clodable", kind: "setup" });
+      const saved = await save(ws, { message: "Set up Cloclod", kind: "setup" });
       ctx.out.event(
         !saved.saved
           ? step("setup:save", "skipped", "Nothing new to save")
@@ -607,7 +607,7 @@ export async function setupCommand(
       );
       let published = false;
       if (saved.saved && (options.publish || (interactive && (await confirmPublish())))) {
-        await drive(ctx, publish(ws, { message: "Set up Clodable" }));
+        await drive(ctx, publish(ws, { message: "Set up Cloclod" }));
         published = true;
       }
       return {
@@ -633,7 +633,7 @@ export async function setupCommand(
 
 async function confirmPublish(): Promise<boolean> {
   const ok = await confirm({
-    message: "Publish the setup now? It only adds Clodable's files. Your site looks the same.",
+    message: "Publish the setup now? It only adds Cloclod's files. Your site looks the same.",
     initialValue: true,
   });
   return !isCancel(ok) && ok;

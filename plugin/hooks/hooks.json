@@ -1,4 +1,4 @@
 {
-  "description": "Clodable: the Publish bar and panel, plain-language activity, safety guards and auto-save",
+  "description": "Cloclod: the Publish bar and panel, plain-language activity, safety guards and auto-save",
   "modules": ["./register.tsx"]
 }

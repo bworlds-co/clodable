@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ClodableError } from "../errors.js";
+import { CloclodError } from "../errors.js";
 import { CODE_DIRS, LOVABLE_AI } from "../project.js";
 import { appSettings } from "../settings.js";
 import type { Workspace } from "../workspace.js";
@@ -11,7 +11,7 @@ import { loadMove, updateMove } from "./state.js";
  * What the app uses, as Claude found it in its code: its AI features, how people sign in, the
  * emails it sends itself, its connected services, payments, scheduled jobs and uploads, each named
  * the way the builder knows it. Claude checks them first, before the move starts: `move facts`
- * hands it Clodable's own scan as hints, Claude reads the code to confirm each, and `move facts
+ * hands it Cloclod's own scan as hints, Claude reads the code to confirm each, and `move facts
  * --set` records what it found. The facts decide which steps the move has; the scan still says
  * when a switch is done (the code reads the builder's own key), which it can tell exactly.
  */
@@ -62,7 +62,7 @@ export const AppFactsSchema = z
 export type AppFacts = z.infer<typeof AppFactsSchema>;
 export type RecordedFacts = AppFacts & { at: string };
 
-/** Where Clodable's scan sees each thing: Claude's starting points, never the last word. */
+/** Where Cloclod's scan sees each thing: Claude's starting points, never the last word. */
 export interface FactsHints {
   /** Files calling Lovable's AI (its gateway, or TanStack AI's Lovable adapter). */
   ai: string[];
@@ -142,7 +142,7 @@ export async function recordFacts(ws: Workspace, json: string): Promise<Recorded
   try {
     raw = JSON.parse(json);
   } catch {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "invalid-config",
       message: "The facts aren't JSON.",
       hint: "Pipe one JSON object to `move facts --set`, shaped as the move skill shows.",
@@ -150,7 +150,7 @@ export async function recordFacts(ws: Workspace, json: string): Promise<Recorded
   }
   const parsed = AppFactsSchema.safeParse(raw);
   if (!parsed.success) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "invalid-config",
       message: "The facts don't have the expected shape.",
       details: parsed.error.issues

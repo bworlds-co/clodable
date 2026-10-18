@@ -19,7 +19,7 @@ let dir: string;
 let root: string;
 let github: FakeGitHub;
 beforeEach(async () => {
-  dir = await mkdtemp(join(tmpdir(), "clodable-idea-test-"));
+  dir = await mkdtemp(join(tmpdir(), "cloclod-idea-test-"));
   root = join(dir, "book-swap");
   await mkdir(root);
   await writeFile(

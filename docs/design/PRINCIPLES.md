@@ -1,4 +1,4 @@
-# Clodable UX principles
+# Cloclod UX principles
 
 Our builder made an app with Lovable. They think in pages, words, buttons and "make it feel more premium". They are afraid of breaking things. They want to **see** changes, **feel safe**, **publish with confidence**, and **undo easily**.
 

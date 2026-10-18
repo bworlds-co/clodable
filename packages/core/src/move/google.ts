@@ -1,4 +1,4 @@
-import { ClodableError } from "../errors.js";
+import { CloclodError } from "../errors.js";
 import { setSetting } from "../settings.js";
 import type { Workspace } from "../workspace.js";
 import { textFiles } from "./assess.js";
@@ -8,7 +8,7 @@ import { projectUrl, SupabaseApi } from "./supabase-api.js";
 /**
  * Google sign-in. On Lovable it goes through Lovable's own sign-in broker
  * (@lovable.dev/cloud-auth-js), which only works on Lovable. On the new backend the builder's own
- * Google client signs people in: Clodable turns Google on in Supabase with it, and Claude switches
+ * Google client signs people in: Cloclod turns Google on in Supabase with it, and Claude switches
  * the app's button to Supabase's own sign-in (Lovable's broker stays the fallback until the switch).
  */
 
@@ -52,18 +52,18 @@ export async function setGoogleSignIn(
 ): Promise<GoogleStatus> {
   const id = (clientId ?? "").trim();
   if (!/^[\w-]+\.apps\.googleusercontent\.com$/.test(id)) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "invalid-config",
       message: "That doesn't look like a Google client ID.",
       hint: "It ends with .apps.googleusercontent.com.",
     });
   }
   if (secret.trim().length < 10) {
-    throw new ClodableError({ code: "invalid-config", message: "That client secret is empty." });
+    throw new CloclodError({ code: "invalid-config", message: "That client secret is empty." });
   }
   const state = await loadMove(ws.root);
   if (!state.home) {
-    throw new ClodableError({ code: "move-not-ready", message: "Create your new backend first." });
+    throw new CloclodError({ code: "move-not-ready", message: "Create your new backend first." });
   }
   const api = await SupabaseApi.required();
   await api.updateAuthConfig(state.home.ref, {

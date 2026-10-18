@@ -25,7 +25,7 @@ if (broken === healthy) throw new Error(`Couldn't find the testimonials in ${fil
 const card = (page: Page) =>
   page.evaluate(() => {
     const el = document
-      .querySelector("clodable-toolbar")
+      .querySelector("cloclod-toolbar")
       ?.shadowRoot?.querySelector(".error") as HTMLElement | null;
     return el ? el.innerText.replace(/\s+/g, " ").trim() : null;
   });
@@ -40,7 +40,7 @@ try {
   const page = await browser.newPage({ viewport: { width: 1280, height: 820 } });
   await page.goto(base, { waitUntil: "load" });
   await page.waitForFunction(() =>
-    document.querySelector("clodable-toolbar")?.shadowRoot?.querySelector(".dock"),
+    document.querySelector("cloclod-toolbar")?.shadowRoot?.querySelector(".dock"),
   );
 
   // Claude breaks the page while it's open: the card shows, and the page keeps what it had.

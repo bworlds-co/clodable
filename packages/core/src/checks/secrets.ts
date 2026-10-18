@@ -72,12 +72,12 @@ const named = (rule: string) =>
     .replace(/\b(api|aws|gcp|jwt|pat|id|url|ci)\b/g, (w) => w.toUpperCase())
     .replace(/^./, (c) => c.toUpperCase());
 
-/** Clodable's rules that find gitleaks' patterns anywhere, read as the rule they mirror. */
+/** Cloclod's rules that find gitleaks' patterns anywhere, read as the rule they mirror. */
 const MIRRORS: Record<string, string> = {
-  "clodable-stripe-key": "stripe-access-token",
-  "clodable-jwt": "jwt",
-  "clodable-anthropic-key": "anthropic-api-key",
-  "clodable-sendgrid-key": "sendgrid-api-token",
+  "cloclod-stripe-key": "stripe-access-token",
+  "cloclod-jwt": "jwt",
+  "cloclod-anthropic-key": "anthropic-api-key",
+  "cloclod-sendgrid-key": "sendgrid-api-token",
 };
 
 /** Decide what a gitleaks finding means for a Lovable app. Undefined: public on purpose. */
@@ -153,9 +153,9 @@ export async function scanUnsent(root: string, remote: string): Promise<SecretFi
 
 /** Every tracked file of a version, as it would go live. */
 export async function scanVersion(root: string, ref = "HEAD"): Promise<SecretFinding[]> {
-  const snapshot = await mkdtemp(join(tmpdir(), "clodable-scan-"));
+  const snapshot = await mkdtemp(join(tmpdir(), "cloclod-scan-"));
   try {
-    const archive = join(snapshot, ".clodable-version.tar");
+    const archive = join(snapshot, ".cloclod-version.tar");
     const packed = await exec("git", ["archive", "--format=tar", "-o", archive, ref], {
       cwd: root,
       timeout: 60_000,

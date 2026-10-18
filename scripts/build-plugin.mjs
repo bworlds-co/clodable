@@ -35,13 +35,13 @@ if (commands.length === 0 || clash.length > 0) {
   );
   process.exit(1);
 }
-const bundle = resolve(root, "packages/cli/dist/clodable.mjs");
+const bundle = resolve(root, "packages/cli/dist/cloclod.mjs");
 if (!existsSync(bundle)) {
-  console.error("Build the CLI first: pnpm --filter clodable build");
+  console.error("Build the CLI first: pnpm --filter cloclod build");
   process.exit(1);
 }
 mkdirSync(resolve(root, "plugin/cli"), { recursive: true });
-copyFileSync(bundle, resolve(root, "plugin/cli/clodable.mjs"));
+copyFileSync(bundle, resolve(root, "plugin/cli/cloclod.mjs"));
 
 // Keep the plugin, the CLI and the marketplace on one version.
 const version = JSON.parse(
@@ -55,4 +55,4 @@ for (const file of ["plugin/.claude-plugin/plugin.json", ".claude-plugin/marketp
   for (const plugin of json.plugins ?? []) plugin.version = version;
   writeFileSync(path, `${JSON.stringify(json, null, 2)}\n`);
 }
-console.log(`plugin/cli/clodable.mjs · v${version}`);
+console.log(`plugin/cli/cloclod.mjs · v${version}`);

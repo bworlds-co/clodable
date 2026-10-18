@@ -1,5 +1,5 @@
 /**
- * "clodable" in Fraunces 600 (optical size 38) at 38 px with −0.5 px tracking, as outlines.
+ * "cloclod" in Fraunces 600 (optical size 38) at 38 px with −0.5 px tracking, as outlines.
  * GitHub and other image viewers draw an SVG's text in the reader's own fonts, so the lockup carries
  * the letters as shapes: everyone sees the same word. Converted with opentype.js; baseline at y = 0,
  * ink from x = 1.3 to 146.9 and y = −28.2 to 0.5. Fraunces is under the SIL Open Font License.

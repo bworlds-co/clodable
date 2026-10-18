@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 
 /** Replaced with the toolbar bundle when the CLI is built into a single file. */
-declare const __CLODABLE_TOOLBAR__: string | undefined;
+declare const __CLOCLOD_TOOLBAR__: string | undefined;
 
 let cached: string | undefined;
 
@@ -13,7 +13,7 @@ let cached: string | undefined;
  * page load while designing.
  */
 export async function toolbarSource(): Promise<string> {
-  if (typeof __CLODABLE_TOOLBAR__ === "string") return __CLODABLE_TOOLBAR__;
+  if (typeof __CLOCLOD_TOOLBAR__ === "string") return __CLOCLOD_TOOLBAR__;
   const live = Boolean(process.env.CLODABLE_TOOLBAR_DEV);
   if (cached && !live) return cached;
   const dist = fileURLToPath(new URL("../dist/toolbar.js", import.meta.url));

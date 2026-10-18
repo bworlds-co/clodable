@@ -16,10 +16,10 @@ import {
 } from "./commands/work.js";
 import { createContext, type GlobalOptions } from "./context.js";
 
-declare const __CLODABLE_VERSION__: string | undefined;
-const version = typeof __CLODABLE_VERSION__ === "string" ? __CLODABLE_VERSION__ : "0.1.0-dev";
+declare const __CLOCLOD_VERSION__: string | undefined;
+const version = typeof __CLOCLOD_VERSION__ === "string" ? __CLOCLOD_VERSION__ : "0.1.0-dev";
 
-const cli = cac("clodable");
+const cli = cac("cloclod");
 cli.option("--json", "Print one JSON event per line (for programs)");
 cli.option("--cwd <dir>", "Run in another folder");
 
@@ -78,7 +78,7 @@ cli
   .action((options) => checkCommand(ctx(options)));
 
 cli
-  .command("setup", "Bring your app home: connect GitHub, add Clodable's files")
+  .command("setup", "Bring your app home: connect GitHub, add Cloclod's files")
   .option("--repo <owner/name>", "The GitHub repository of your app")
   .option("--new <name>", "Set up saving for a local prototype in a new private GitHub app")
   .option("--account <login>", "The connected GitHub account approved for the new app")
@@ -103,7 +103,7 @@ cli
   );
 
 cli
-  .command("doctor", "Check that everything Clodable needs is in place")
+  .command("doctor", "Check that everything Cloclod needs is in place")
   .action((options) => doctorCommand(ctx(options)));
 
 cli
@@ -183,7 +183,7 @@ cli
   .option("--name <name>", "create: the project's name")
   .option("--file <path>", "export: the zip Lovable gave (else the newest in Downloads)")
   .option("--private", "files: read Lovable Cloud's service key from stdin, for private folders")
-  .option("--fix", "diagnose: apply Clodable's own fixes on the copy")
+  .option("--fix", "diagnose: apply Cloclod's own fixes on the copy")
   .option("--account <slug>", "site: the Netlify team the site goes in")
   .option("--domain <domain>", "emails: the domain emails come from")
   .option("--sender <address>", "emails: the sender address (no-reply@ the domain by default)")
@@ -217,7 +217,7 @@ cli
   );
 
 cli
-  .command("kit", "Show (or add) the files Clodable keeps in your project")
+  .command("kit", "Show (or add) the files Cloclod keeps in your project")
   .option("--apply", "Write them")
   .option("--runtime", "Refresh only the installed runtime and its instructions")
   .option("--live-url <url>", "Your live site's address")

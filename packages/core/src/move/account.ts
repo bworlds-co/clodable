@@ -1,4 +1,4 @@
-import { ClodableError } from "../errors.js";
+import { CloclodError } from "../errors.js";
 import { storeSecret } from "../local-secrets.js";
 import {
   type Organization,
@@ -26,7 +26,7 @@ export async function connectSupabase(
 ): Promise<{ organizations: OrganizationChoice[] }> {
   const trimmed = token.trim();
   if (!/^sbp_[A-Za-z0-9_-]{20,}$/.test(trimmed)) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "supabase-auth",
       message: "That doesn't look like a Supabase access token.",
       hint: "It starts with sbp_. Create one in Supabase: Account → Access Tokens → Generate new token.",

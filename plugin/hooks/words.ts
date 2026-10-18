@@ -85,14 +85,14 @@ export function describeTool(call: ToolLike): FriendlyRow | undefined {
   const running = call.isRunning;
   const file = typeof input.file_path === "string" ? friendlyFile(input.file_path) : "a file";
   switch (call.tool) {
-    case "mcp__clodable__open_panel":
-      return { text: verb(running, "Opening Clodable", "Opened Clodable"), tone: "quiet" };
-    case "mcp__clodable__app_context":
+    case "mcp__cloclod__open_panel":
+      return { text: verb(running, "Opening Cloclod", "Opened Cloclod"), tone: "quiet" };
+    case "mcp__cloclod__app_context":
       return {
         text: verb(running, "Looking at your app's setup", "Checked your app's setup"),
         tone: "look",
       };
-    case "mcp__clodable__remember_app":
+    case "mcp__cloclod__remember_app":
       return {
         text: verb(running, "Remembering your app's setup", "Remembered your app's setup"),
         tone: "quiet",
@@ -171,7 +171,7 @@ export function describeCommand(command: string, running: boolean): FriendlyRow 
       text: verb(running, "Reviewing recent changes", "Reviewed recent changes"),
       tone: "look",
     };
-  const db = c.match(/clodable(?:\.mjs")?\s+db\s+(query|run|apply|check)\b/);
+  const db = c.match(/cloclod(?:\.mjs")?\s+db\s+(query|run|apply|check)\b/);
   if (db) {
     return db[1] === "query" || db[1] === "check"
       ? { text: verb(running, "Looking at your database", "Looked at your database"), tone: "look" }
@@ -180,17 +180,17 @@ export function describeCommand(command: string, running: boolean): FriendlyRow 
           tone: "work",
         };
   }
-  const site = c.match(/clodable(?:\.mjs")?\s+site\s+create\b/);
+  const site = c.match(/cloclod(?:\.mjs")?\s+site\s+create\b/);
   if (site) return { text: verb(running, "Setting up hosting", "Set up hosting"), tone: "work" };
-  const backend = c.match(/clodable(?:\.mjs")?\s+backend\s+create\b/);
+  const backend = c.match(/cloclod(?:\.mjs")?\s+backend\s+create\b/);
   if (backend)
     return { text: verb(running, "Creating your backend", "Created your backend"), tone: "work" };
-  const move = c.match(/clodable(?:\.mjs")?\s+move\s+(\w+)/);
+  const move = c.match(/cloclod(?:\.mjs")?\s+move\s+(\w+)/);
   if (move) {
     const words = MOVE_WORDS[move[1]!] ?? MOVE_WORDS.status!;
     return { text: verb(running, words[0], words[1]), tone: words[2] };
   }
-  if (/^(npx\s+)?clodable\s+/.test(c)) return { text: "Checked your draft", tone: "quiet" };
+  if (/^(npx\s+)?cloclod\s+/.test(c)) return { text: "Checked your draft", tone: "quiet" };
   if (/^(ls|cat|head|tail|find|grep|rg|wc|pwd)\b/.test(c))
     return {
       text: verb(running, "Looking around the project", "Looked around the project"),
@@ -304,7 +304,7 @@ export function ago(iso: string | number, now: number): string {
 }
 
 /**
- * The Supabase tool a call names, whichever server provides it: the one Clodable sets up
+ * The Supabase tool a call names, whichever server provides it: the one Cloclod sets up
  * (`mcp__supabase__…`) or the claude.ai Supabase connector (`mcp__claude_ai_Supabase__…`).
  */
 export function supabaseTool(name: string): string | undefined {
@@ -343,7 +343,7 @@ export const pageName = (path: string | undefined) =>
 
 /** A commit subject from what the builder asked: first meaningful line, trimmed, at most 72 characters. */
 export function saveMessage(request: string): string {
-  // Requests Clodable wrote for the builder get the builder's words, not the error's.
+  // Requests Cloclod wrote for the builder get the builder's words, not the error's.
   if (/^Fix (?:the home page|the \/\S* page): it's broken in the preview\.$/.test(request)) {
     return "Fixed a page that broke";
   }
@@ -398,19 +398,19 @@ export function shortReason(error: { code: string; message: string }): string {
 }
 
 /**
- * Beside a command the panel hands Claude. The builder's earlier `/clodable` in the transcript
- * reads like a skill to load first, and isn't one. And Clodable saves after the reply, so its
+ * Beside a command the panel hands Claude. The builder's earlier `/cloclod` in the transcript
+ * reads like a skill to load first, and isn't one. And Cloclod saves after the reply, so its
  * files and git aren't the builder's concern.
  */
 export const OWN_COMMAND =
-  "That's Clodable's own command: run it as it is, with nothing to load first. Clodable saves what it changes after your reply, so don't list the files it touched, and never mention git, commits or pushes.";
+  "That's Cloclod's own command: run it as it is, with nothing to load first. Cloclod saves what it changes after your reply, so don't list the files it touched, and never mention git, commits or pushes.";
 
 /**
  * Setup just wrote the folder's AGENTS.md, which Claude reads when a conversation starts: one that
  * started before it gets it as it is, out of the builder's sight.
  */
 export const appRules = (agentsMd: string) =>
-  `Clodable just set itself up in this folder, after this conversation started, so you haven't read its AGENTS.md yet. Here it is: follow it from now on.\n\n${agentsMd.trim()}`;
+  `Cloclod just set itself up in this folder, after this conversation started, so you haven't read its AGENTS.md yet. Here it is: follow it from now on.\n\n${agentsMd.trim()}`;
 
 /** Fix it's requests, in the builder's words: one per kind of stop, the same each time. */
 export const FIX_TEXT = {
@@ -436,7 +436,7 @@ export function fixRequest(error: {
     return {
       text: FIX_TEXT.conflict,
       details: [
-        "From Clodable's Fix it: publishing stopped because the builder's draft and the live site both changed the same files.",
+        "From Cloclod's Fix it: publishing stopped because the builder's draft and the live site both changed the same files.",
         RECOVERY_VOICE,
         error.files?.length ? `Files: ${error.files.join(", ")}.` : "",
         "Compare both versions with read-only inspection first (git show / git diff against the live branch). Keep the working files and preview intact while the builder decides: do not start git merge or write conflict markers before asking. Keep compatible changes from each. If both versions replace the same wording or behavior and cannot both be kept, show the builder the two choices in plain words and ask which to keep BEFORE choosing or removing either. Do not decide by timestamps or assume their draft should win. Only after they choose, combine the files and finish the merge so nothing is left unresolved, then check the app still builds. If a merge was already in progress before this request, preserve all work and explain the preview's temporary state; never abort it or discard files blindly. Say exactly what was kept; never claim both changes were kept if one was replaced. Then tell them it's ready to publish.",
@@ -449,11 +449,11 @@ export function fixRequest(error: {
     return {
       text: FIX_TEXT.secret,
       details: [
-        `From Clodable's Fix it: saving stopped. ${error.message}. Nothing went to GitHub.`,
+        `From Cloclod's Fix it: saving stopped. ${error.message}. Nothing went to GitHub.`,
         RECOVERY_VOICE,
         error.files?.length ? `Where: ${error.files.join(", ")}` : "",
         error.details ? `What the check found (masked):\n${error.details}` : "",
-        "Move it out of the code. Anything in the app's files reaches visitors' browsers and GitHub, so a secret key belongs on the server: for example a Supabase Edge Function secret, used from that function. If this key was ever shared or published before, tell them to replace it with its provider. Don't save or commit yourself: Clodable saves when you're done.",
+        "Move it out of the code. Anything in the app's files reaches visitors' browsers and GitHub, so a secret key belongs on the server: for example a Supabase Edge Function secret, used from that function. If this key was ever shared or published before, tell them to replace it with its provider. Don't save or commit yourself: Cloclod saves when you're done.",
       ]
         .filter(Boolean)
         .join("\n\n"),
@@ -462,7 +462,7 @@ export function fixRequest(error: {
   return {
     text: FIX_TEXT.publish,
     details: [
-      `From Clodable's Fix it: publishing stopped. ${error.message}`,
+      `From Cloclod's Fix it: publishing stopped. ${error.message}`,
       RECOVERY_VOICE,
       error.files?.length ? `Where: ${error.files.join(", ")}` : "",
       error.details ? `Details:\n${error.details.slice(0, 3000)}` : "",

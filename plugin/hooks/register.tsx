@@ -1,8 +1,8 @@
-// Clodable for Claude Desktop: the Publish bar above the prompt, the Clodable panel, plain-language
+// Cloclod for Claude Desktop: the Publish bar above the prompt, the Cloclod panel, plain-language
 // activity rows, safety guards, auto-save, and the bridge from the preview toolbar to Claude.
 //
-// This file is the only Claude-specific part of Clodable. Every real action goes through the
-// vendor-neutral `clodable` CLI, bundled next to this plugin in cli/clodable.mjs, which prints
+// This file is the only Claude-specific part of Cloclod. Every real action goes through the
+// vendor-neutral `cloclod` CLI, bundled next to this plugin in cli/cloclod.mjs, which prints
 // NDJSON events. Any other front end can drive the same commands.
 import type {
   Elements,
@@ -13,17 +13,17 @@ import type {
 } from "claude-code";
 import { atom, read, update } from "claude-code";
 import type {
-  ClodableActivity,
-  ClodableAssessment,
-  ClodableCheck,
-  ClodableDnsRecord,
-  ClodableMove,
-  ClodableMoveChoices,
-  ClodableMoveStep,
-  ClodableNotReady,
-  ClodableRequest,
-  ClodableStatus,
-  ClodableStep,
+  CloclodActivity,
+  CloclodAssessment,
+  CloclodCheck,
+  CloclodDnsRecord,
+  CloclodMove,
+  CloclodMoveChoices,
+  CloclodMoveStep,
+  CloclodNotReady,
+  CloclodRequest,
+  CloclodStatus,
+  CloclodStep,
 } from "../types/index.d.ts";
 import { DONE_SHOWN_MS, doneSaid, justDone, savingNow, stoppedBy } from "./activity.ts";
 import {
@@ -108,7 +108,7 @@ import {
   versionName,
 } from "./words.ts";
 
-const PANE = "clodable";
+const PANE = "cloclod";
 /** One panel, opened on the detail or consent the builder actually needs. */
 const PANE_VIEWS = ["app", "history", "settings", "site", "backend", "move", "saving"] as const;
 type PaneView = (typeof PANE_VIEWS)[number];
@@ -148,16 +148,16 @@ function heldButton<B>(draw: B): B {
 }
 
 const status = atom(
-  { plugin: "clodable", key: "status" },
-  null as ClodableStatus | ClodableNotReady | null,
+  { plugin: "cloclod", key: "status" },
+  null as CloclodStatus | CloclodNotReady | null,
 );
-const activity = atom({ plugin: "clodable", key: "activity" }, {
+const activity = atom({ plugin: "cloclod", key: "activity" }, {
   kind: "idle",
   steps: [],
-} as ClodableActivity);
-const checks = atom({ plugin: "clodable", key: "checks" }, [] as ClodableCheck[]);
+} as CloclodActivity);
+const checks = atom({ plugin: "cloclod", key: "checks" }, [] as CloclodCheck[]);
 
-/** The clod, Clodable's mark (packages/design/src/logo.ts). Its pixels stay whole at 16 and 24 px. */
+/** The clod, Cloclod's mark (packages/design/src/logo.ts). Its pixels stay whole at 16 and 24 px. */
 const LOGO =
   '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" shape-rendering="crispEdges"><path fill="#3B1A10" d="M9 0h3v1h-3zM7 1h2v1h-2zM12 1h1v1h-1zM6 2h1v1h-1zM12 2h1v1h-1zM4 3h2v1h-2zM12 3h1v1h-1zM3 4h1v1h-1zM13 4h1v1h-1zM2 5h1v1h-1zM14 5h1v1h-1zM1 6h1v1h-1zM14 6h1v1h-1zM1 7h1v1h-1zM14 7h1v1h-1zM0 8h1v1h-1zM15 8h1v1h-1zM0 9h1v1h-1zM15 9h1v1h-1zM0 10h1v1h-1zM15 10h1v1h-1zM0 11h2v1h-2zM15 11h1v1h-1zM2 12h1v1h-1zM14 12h1v1h-1zM2 13h2v1h-2zM7 13h3v1h-3zM13 13h2v1h-2zM4 14h1v1h-1zM6 14h1v1h-1zM10 14h1v1h-1zM12 14h1v1h-1zM4 15h3v1h-3zM10 15h3v1h-3z"/><path fill="#E88858" d="M9 1h3v1h-3zM7 2h5v1h-5zM6 3h6v1h-6zM4 4h9v1h-9zM3 5h11v1h-11zM2 6h12v1h-12zM2 7h2v1h-2zM6 7h4v1h-4zM12 7h2v1h-2zM1 8h3v1h-3zM6 8h4v1h-4zM12 8h3v1h-3zM1 9h6v1h-6zM9 9h6v1h-6zM1 10h14v1h-14zM2 11h13v1h-13zM3 12h11v1h-11zM4 13h3v1h-3zM10 13h3v1h-3zM5 14h1v1h-1zM11 14h1v1h-1z"/><path fill="#2A140C" d="M4 7h2v1h-2zM10 7h2v1h-2zM4 8h2v1h-2zM10 8h2v1h-2zM7 9h2v1h-2z"/></svg>';
 
@@ -166,7 +166,7 @@ const LOGO =
 let cwd = "";
 let showDetails = false;
 /**
- * Undo or a Restore, waiting for the builder's yes, asked in Clodable's own buttons where they
+ * Undo or a Restore, waiting for the builder's yes, asked in Cloclod's own buttons where they
  * pressed. Desktop's question (`$.ui.ask`) showed its "working" spinner until the work was done.
  */
 let confirming:
@@ -182,7 +182,7 @@ let ideaRequested = false;
 let deviceCode = "";
 const requests = new Map<string, string>();
 /**
- * What Claude also needs about a request Clodable sends in the builder's name (the element and its
+ * What Claude also needs about a request Cloclod sends in the builder's name (the element and its
  * code, the error, the preview's address), by the builder's words. When that request's turn
  * starts, it joins the conversation as a row Claude reads and the builder doesn't see: their
  * message stays their own.
@@ -192,7 +192,7 @@ const detailsFor = new Map<string, string>();
 let turnActive = false;
 /**
  * This conversation, among all the ones open on this app. Desktop keeps older conversations running,
- * and every one sees the preview's requests: the one its person used last takes them (`clodable
+ * and every one sees the preview's requests: the one its person used last takes them (`cloclod
  * inbox --claim`). Each says it's there in `.clodable/local/session-<id>.json`.
  */
 const me = `s${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
@@ -205,17 +205,17 @@ let polling = false;
  */
 let fixing: { at: number; turnId?: string } | null = null;
 /** What the move off Lovable involves for this app, read from its code. */
-let assessment: ClodableAssessment | { error: string } | null = null;
+let assessment: CloclodAssessment | { error: string } | null = null;
 let assessing = false;
 /** When the facts the assessment was read with were recorded ("" before Claude looked). */
 let assessedFacts = "";
 /**
- * Where the move stands (`clodable move status`), the Supabase choices for the new backend, the
+ * Where the move stands (`cloclod move status`), the Supabase choices for the new backend, the
  * step running now, and its last problem. Keys and tokens typed in the panel go straight to the
  * CLI's stdin: never into this state, the chat or a log.
  */
-let move: ClodableMove | null = null;
-let moveChoices: ClodableMoveChoices | null = null;
+let move: CloclodMove | null = null;
+let moveChoices: CloclodMoveChoices | null = null;
 let moveRun: { title: string; detail?: string } | null = null;
 let moveError: { message: string; hint?: string } | null = null;
 let moveSecrets: { wanted: string[]; set: string[] } | null = null;
@@ -247,7 +247,7 @@ let googleClientId = "";
 let aiChoice: AiProvider = "openrouter";
 /** Going live: who may create an account. "confirm" needs emails. */
 let newPeople: "confirm" | "open" | "invite" = "confirm";
-/** The way chosen a moment ago, shown at once while Clodable records it. */
+/** The way chosen a moment ago, shown at once while Cloclod records it. */
 let choosingMethod: MoveMethod | null = null;
 let moveOrg = "";
 let moveRegion = "";
@@ -283,14 +283,14 @@ const optionsError: Partial<Record<"site" | "backend", string>> = {};
 /** Setup running: its button gives way to its steps until it's done. */
 let settingUp = false;
 /** The setup's steps as they come in; kept after one that stopped, to show where. */
-let setupSteps: ClodableStep[] = [];
+let setupSteps: CloclodStep[] = [];
 const isFixing = () => fixing !== null && Date.now() - fixing.at < 10 * 60_000;
 /** Edge functions Claude may deploy right now: only the ones a Publish just put live. */
 let deployable: string[] = [];
 /**
- * Whether this session's folder is an app Clodable set up (null until known). Everywhere else,
- * such as a developer's other projects, Clodable stays out of the way: no bar, no saves, no guards,
- * no rewording. Only /clodable answers there.
+ * Whether this session's folder is an app Cloclod set up (null until known). Everywhere else,
+ * such as a developer's other projects, Cloclod stays out of the way: no bar, no saves, no guards,
+ * no rewording. Only /cloclod answers there.
  */
 let inApp: boolean | null = null;
 /** The session's first status check, for hooks that run before it's back. */
@@ -328,7 +328,7 @@ async function folderIsEmpty($: EngineInterface): Promise<boolean> {
   }
 }
 
-/** A local prototype can appear during a reply, before Clodable has an app it can save. */
+/** A local prototype can appear during a reply, before Cloclod has an app it can save. */
 async function refreshEmptyFolder($: EngineInterface) {
   const empty = await folderIsEmpty($);
   if (empty === emptyFolder) return;
@@ -340,7 +340,7 @@ async function refreshEmptyFolder($: EngineInterface) {
  * The session's folder, read again: Desktop starts a conversation's engine ahead of time in a
  * folder of its own (`~/.claude/spares/…`, gone once used) and moves it into the project when the
  * conversation opens, after `session.start` saw the spare. Commands run in the folder this
- * returns; when it moved, Clodable looks at the new one as a session start would.
+ * returns; when it moved, Cloclod looks at the new one as a session start would.
  */
 async function syncFolder($: EngineInterface): Promise<string> {
   const now = await $.session.cwd().catch(() => "");
@@ -355,7 +355,7 @@ async function syncFolder($: EngineInterface): Promise<string> {
   return cwd;
 }
 
-/** What Clodable knows of the session's folder, found out anew: at start, and after a move. */
+/** What Cloclod knows of the session's folder, found out anew: at start, and after a move. */
 async function lookAtFolder($: EngineInterface) {
   inApp = (await $.fs.exists(".clodable/config.json").catch(() => false)) ? true : null;
   emptyFolder = false;
@@ -393,7 +393,7 @@ async function lookAtFolder($: EngineInterface) {
   await runtimeReady;
   // The bar says "getting ready" until the new folder's status is in.
   if ((await read($, status)) !== null) {
-    await update<ClodableStatus | ClodableNotReady | null>($, status, () => null);
+    await update<CloclodStatus | CloclodNotReady | null>($, status, () => null);
   }
   $.ui.invalidate("ui.render");
   background(present($));
@@ -411,12 +411,12 @@ async function lookAtFolder($: EngineInterface) {
   );
 }
 
-/** Recent notes on what Clodable tried, for developers: .clodable/local/clodable.log (never saved). */
+/** Recent notes on what Cloclod tried, for developers: .clodable/local/clodable.log (never saved). */
 const notes: string[] = [];
 function note($: EngineInterface, line: string) {
   notes.push(`${new Date().toISOString()} ${line}`);
   if (notes.length > 200) notes.shift();
-  // Only in an app Clodable set up: anywhere else, nothing is written, not even a log.
+  // Only in an app Cloclod set up: anywhere else, nothing is written, not even a log.
   if (cwd && inApp === true) {
     background($.fs.write(".clodable/local/clodable.log", `${notes.join("\n")}\n`));
   }
@@ -427,25 +427,25 @@ function background(work: Promise<unknown>): void {
   work.catch(() => {});
 }
 
-// ── The tools Clodable needs: the builder's, or its own ─────────────────────
+// ── The tools Cloclod needs: the builder's, or its own ─────────────────────
 
-/** Clodable's tools are on the session's PATH, once per session. */
+/** Cloclod's tools are on the session's PATH, once per session. */
 let toolsReady: Promise<void> | null = null;
 /** Node.js being fetched: the setup screen says so. */
 let fetchingNode = false;
 /** Why the tool check failed, when it did: the setup screen says so instead of "Checking…". */
 let checksFailed: string | null = null;
-/** The Node.js Clodable's CLI runs with, by its full path once found: no PATH lookup can miss it. */
+/** The Node.js Cloclod's CLI runs with, by its full path once found: no PATH lookup can miss it. */
 let nodePath = "node";
-/** Where the tools Clodable fetched live (`toolsFolder`), for the CLI: `CLODABLE_TOOLS_DIR`. */
+/** Where the tools Cloclod fetched live (`toolsFolder`), for the CLI: `CLODABLE_TOOLS_DIR`. */
 let toolsDir = "";
 
 /**
- * Node.js and the GitHub CLI, for Clodable, the preview and Claude's own commands. The builder's
- * own come first; Clodable's bin folder, in the plugin's data folder (where the CLI links the
- * GitHub CLI it fetched), comes after. With no recent enough Node.js on this computer, Clodable
+ * Node.js and the GitHub CLI, for Cloclod, the preview and Claude's own commands. The builder's
+ * own come first; Cloclod's bin folder, in the plugin's data folder (where the CLI links the
+ * GitHub CLI it fetched), comes after. With no recent enough Node.js on this computer, Cloclod
  * fetches one into that folder, and it comes first. `$.env.set` reaches every command started
- * after: Claude's Bash, MCP servers. Clodable runs its own CLI with that Node.js's full path.
+ * after: Claude's Bash, MCP servers. Cloclod runs its own CLI with that Node.js's full path.
  */
 function ensureTools($: EngineInterface): Promise<void> {
   toolsReady ??= prepareTools($).catch((error: unknown) => {
@@ -530,10 +530,10 @@ async function setPath($: EngineInterface, before: string, after: string) {
   await $.env.set("PATH", after);
   if (await nodeAt($, "node")) return;
   await $.env.set("PATH", before);
-  note($, "tools: Node.js didn't run with Clodable's PATH; the session's own is back");
+  note($, "tools: Node.js didn't run with Cloclod's PATH; the session's own is back");
 }
 
-/** The full path of this Node.js, when it runs and is recent enough for Clodable. */
+/** The full path of this Node.js, when it runs and is recent enough for Cloclod. */
 async function nodeAt($: EngineInterface, node: string): Promise<string | undefined> {
   const run = await $.process
     .run([node, "-e", NODE_FACTS], { timeoutMs: 15_000 })
@@ -544,13 +544,13 @@ async function nodeAt($: EngineInterface, node: string): Promise<string | undefi
 // ── The CLI, from this plugin's own folder ──────────────────────────────────
 
 function argv($: EngineInterface, args: string[]): string[] {
-  return [nodePath, `${$.plugin.root}/cli/clodable.mjs`, ...args, "--json"];
+  return [nodePath, `${$.plugin.root}/cli/cloclod.mjs`, ...args, "--json"];
 }
 
-/** What the CLI needs to know beside its arguments: where the tools Clodable fetched live. */
+/** What the CLI needs to know beside its arguments: where the tools Cloclod fetched live. */
 const cliEnv = ($: EngineInterface): Record<string, string> => ({
   ...(toolsDir ? { CLODABLE_TOOLS_DIR: toolsDir } : {}),
-  CLODABLE_RUNTIME_SOURCE: `${$.plugin.root}/cli/clodable.mjs`,
+  CLODABLE_RUNTIME_SOURCE: `${$.plugin.root}/cli/cloclod.mjs`,
 });
 
 /** The longest the engine lets `$.process.run` take; it refuses to start anything asking for more. */
@@ -578,7 +578,7 @@ async function cli(
       ok: false,
       error: {
         code: "unknown",
-        message: `Clodable couldn't run that: ${String(error)
+        message: `Cloclod couldn't run that: ${String(error)
           .replace(/^Error:\s*/, "")
           .slice(0, 160)}`,
         details: String(error),
@@ -625,11 +625,11 @@ async function flow(
   args: string[],
   kind: "publishing" | "undoing",
 ): Promise<Result> {
-  await update<ClodableActivity>($, activity, () => ({ kind, steps: [] }));
-  const steps: ClodableStep[] = [];
+  await update<CloclodActivity>($, activity, () => ({ kind, steps: [] }));
+  const steps: CloclodStep[] = [];
   const { result, failure } = await streamCli($, args, async (event) => {
     const index = steps.findIndex((s) => s.id === event.id);
-    const next: ClodableStep = {
+    const next: CloclodStep = {
       id: event.id,
       state: event.state,
       title: event.title,
@@ -637,7 +637,7 @@ async function flow(
     };
     if (index >= 0) steps[index] = next;
     else steps.push(next);
-    await update<ClodableActivity>($, activity, (a) => ({ ...a, steps: [...steps] }));
+    await update<CloclodActivity>($, activity, (a) => ({ ...a, steps: [...steps] }));
   });
   if (failure !== undefined) {
     return {
@@ -645,7 +645,7 @@ async function flow(
       ok: false,
       error: {
         code: "unknown",
-        message: "Clodable stopped unexpectedly.",
+        message: "Cloclod stopped unexpectedly.",
         details: String(failure),
       },
     };
@@ -654,7 +654,7 @@ async function flow(
     result ?? {
       type: "result",
       ok: false,
-      error: { code: "unknown", message: "Clodable didn't finish." },
+      error: { code: "unknown", message: "Cloclod didn't finish." },
     }
   );
 }
@@ -674,14 +674,14 @@ async function refreshStatus($: EngineInterface) {
   // "unknown" (the CLI didn't run) keeps what the quick look at the folder found.
   else if (code !== "unknown") inApp = true;
   if (code === "not-a-repo") await refreshEmptyFolder($);
-  // Sites drawn before Clodable knew where it is draw again.
+  // Sites drawn before Cloclod knew where it is draw again.
   if (inApp !== before) $.ui.invalidate("ui.render");
   if (versions && inApp === true) background(refreshVersions($));
-  const next: ClodableStatus | ClodableNotReady = result.ok
-    ? ({ ...toStatus(result.data), ...savingWhere } as ClodableStatus)
+  const next: CloclodStatus | CloclodNotReady = result.ok
+    ? ({ ...toStatus(result.data), ...savingWhere } as CloclodStatus)
     : notReady(result.error);
   if (!same(await read($, status), next)) {
-    await update<ClodableStatus | ClodableNotReady | null>($, status, () => next);
+    await update<CloclodStatus | CloclodNotReady | null>($, status, () => next);
   }
 }
 
@@ -694,7 +694,7 @@ async function refreshChecks($: EngineInterface) {
   }
   if (result.ok && Array.isArray(result.data))
     if (!same(await read($, checks), result.data)) {
-      await update<ClodableCheck[]>($, checks, () => result.data as ClodableCheck[]);
+      await update<CloclodCheck[]>($, checks, () => result.data as CloclodCheck[]);
     }
 }
 
@@ -703,9 +703,9 @@ async function refreshChecks($: EngineInterface) {
 async function saveNow($: EngineInterface, message: string): Promise<string | undefined> {
   const a = await read($, activity);
   if (a.kind === "publishing" || a.kind === "undoing") return undefined;
-  await update<ClodableActivity>($, activity, savingNow);
+  await update<CloclodActivity>($, activity, savingNow);
   const result = await cli($, ["save", "-m", message]);
-  await update<ClodableActivity>($, activity, (x) =>
+  await update<CloclodActivity>($, activity, (x) =>
     x.kind !== "saving"
       ? x
       : result.error?.code === "secret-found"
@@ -733,7 +733,7 @@ async function publishNow($: EngineInterface) {
     const data = result.data ?? {};
     const onLovable = data.deploy === "lovable";
     const at = Date.now();
-    await update<ClodableActivity>($, activity, (x) => ({
+    await update<CloclodActivity>($, activity, (x) => ({
       kind: "published",
       steps: x.steps,
       title: data.title,
@@ -758,12 +758,12 @@ async function publishNow($: EngineInterface) {
       deployable = pending;
       background(
         $.prompt.submit({
-          text: `Clodable just published. These backend functions changed and need to go live now: ${pending.join(", ")}. Deploy each one to Supabase with deploy_edge_function, from the code in supabase/functions/. Then tell me in one sentence.`,
+          text: `Cloclod just published. These backend functions changed and need to go live now: ${pending.join(", ")}. Deploy each one to Supabase with deploy_edge_function, from the code in supabase/functions/. Then tell me in one sentence.`,
         }),
       );
     }
   } else {
-    await update<ClodableActivity>($, activity, stoppedBy(result.error));
+    await update<CloclodActivity>($, activity, stoppedBy(result.error));
   }
   await refreshStatus($);
   // Moving off Lovable: a Publish moves the move on (the site is live there now).
@@ -776,7 +776,7 @@ async function publishNow($: EngineInterface) {
  */
 function sayDoneUntil($: EngineInterface, at: number) {
   $.clock.after(DONE_SHOWN_MS, () => {
-    background(update<ClodableActivity>($, activity, doneSaid(at)).then(() => refreshStatus($)));
+    background(update<CloclodActivity>($, activity, doneSaid(at)).then(() => refreshStatus($)));
   });
 }
 
@@ -813,7 +813,7 @@ async function undoNow($: EngineInterface, title: string) {
   if (result.ok) {
     const onLovable = result.data?.deploy === "lovable";
     const at = Date.now();
-    await update<ClodableActivity>($, activity, (x) => ({
+    await update<CloclodActivity>($, activity, (x) => ({
       kind: "undone",
       steps: x.steps,
       title,
@@ -836,7 +836,7 @@ async function undoNow($: EngineInterface, title: string) {
       );
     }
   } else {
-    await update<ClodableActivity>($, activity, stoppedBy(result.error));
+    await update<CloclodActivity>($, activity, stoppedBy(result.error));
   }
   await refreshStatus($);
 }
@@ -861,8 +861,8 @@ async function setWhere($: EngineInterface, key: "backend" | "hosting", value: s
   if (savingWhere[key]) return false;
   savingWhere[key] = value;
   // Shown as answered right away; saving it takes a second or two.
-  await update<ClodableStatus | ClodableNotReady | null>($, status, (current) =>
-    current?.ready ? ({ ...current, [key]: value } as ClodableStatus) : current,
+  await update<CloclodStatus | CloclodNotReady | null>($, status, (current) =>
+    current?.ready ? ({ ...current, [key]: value } as CloclodStatus) : current,
   );
   $.ui.invalidate("ui.render");
   let saved = false;
@@ -908,7 +908,7 @@ async function readMove($: EngineInterface) {
     moveError = problemOf(result.error, "Couldn't read the move.");
     return;
   }
-  const progress: ClodableMove = result.data;
+  const progress: CloclodMove = result.data;
   move = progress;
   // What Claude found in the app changes what the move involves: read the assessment again.
   const factsAt = progress.facts?.at ?? "";
@@ -922,7 +922,7 @@ async function readMove($: EngineInterface) {
   if (next?.id === "create") {
     const choices = await cli($, ["move", "choices"]);
     if (choices.ok) {
-      const offered: ClodableMoveChoices = choices.data;
+      const offered: CloclodMoveChoices = choices.data;
       moveChoices = offered;
       const orgs = offered.organizations ?? [];
       // Free first, never a paid organization unless the builder picks it: it costs money.
@@ -1000,7 +1000,7 @@ async function moveStep($: EngineInterface, args: string[], input?: string): Pro
   const done = result ?? {
     type: "result" as const,
     ok: false,
-    error: { code: "unknown", message: "Clodable stopped before finishing that step." },
+    error: { code: "unknown", message: "Cloclod stopped before finishing that step." },
   };
   if (!done.ok) {
     moveError = problemOf(done.error, "That step didn't finish.");
@@ -1010,23 +1010,23 @@ async function moveStep($: EngineInterface, args: string[], input?: string): Pro
   return done;
 }
 
-/** How Claude runs a move step: Clodable's own command line, next to this plugin. */
+/** How Claude runs a move step: Cloclod's own command line, next to this plugin. */
 function moveCommand($: EngineInterface, args: string[]): string {
   return moveCommandLine($.plugin.root, args);
 }
 
 /**
- * A request Clodable sends in the builder's name: their words, and what Claude also needs (the
+ * A request Cloclod sends in the builder's name: their words, and what Claude also needs (the
  * exact command, how to change the code), which reaches it beside the message, out of their sight.
  */
 type Ask = { text: string; details?: string };
 
 /** What Claude needs for a step of the move, said once for all of them. */
 function stepDetails(...lines: string[]): string {
-  return `From Clodable, for this step of the move: ${lines.join(" ")}`;
+  return `From Cloclod, for this step of the move: ${lines.join(" ")}`;
 }
 
-/** "Run `node …/clodable.mjs move copy`.": the step's own command, for Claude. */
+/** "Run `node …/cloclod.mjs move copy`.": the step's own command, for Claude. */
 function runStep($: EngineInterface, args: string[]): string {
   return `Run \`${moveCommand($, args)}\`.`;
 }
@@ -1035,7 +1035,7 @@ function runStep($: EngineInterface, args: string[]): string {
 function createRequest(
   $: EngineInterface,
   org: { name: string } | undefined,
-  choices: ClodableMoveChoices,
+  choices: CloclodMoveChoices,
   slug: string,
   region: string,
 ): Ask {
@@ -1160,7 +1160,7 @@ async function checkSignIn($: EngineInterface) {
   moveRun = null;
   if (move?.signIn?.needed && !move.signIn.at) {
     moveError = {
-      message: "Clodable doesn't see a sign-in on your new site yet.",
+      message: "Cloclod doesn't see a sign-in on your new site yet.",
       hint: "Sign in there (not on Lovable), then press it again.",
     };
   }
@@ -1196,7 +1196,7 @@ async function openPane($: EngineInterface, view: PaneView | null = "app") {
   if (view === "backend") addingBackend = true;
   if (view === "saving") setupChoice = "saving";
   $.ui.invalidate("ui.render");
-  const opened = await $.ui.open({ id: PANE, title: "Clodable", focus: true, closeOnEscape: true });
+  const opened = await $.ui.open({ id: PANE, title: "Cloclod", focus: true, closeOnEscape: true });
   background(refreshChecks($));
   background(refreshStatus($));
   if (view === "settings" || view === "site") background(loadSettings($));
@@ -1291,9 +1291,9 @@ async function restoreNow($: EngineInterface, sha: string) {
   }
   const a = await read($, activity);
   if (a.kind === "publishing" || a.kind === "undoing" || a.kind === "saving") return;
-  await update<ClodableActivity>($, activity, savingNow);
+  await update<CloclodActivity>($, activity, savingNow);
   const result = await cli($, ["restore", sha]);
-  await update<ClodableActivity>($, activity, (x) =>
+  await update<CloclodActivity>($, activity, (x) =>
     x.kind === "saving" ? { kind: "idle", steps: [] } : x,
   );
   $.ui.toast(
@@ -1307,7 +1307,7 @@ async function restoreNow($: EngineInterface, sha: string) {
 }
 
 /**
- * Lovable shows the app first, so Clodable starts its preview as the session opens, through
+ * Lovable shows the app first, so Cloclod starts its preview as the session opens, through
  * Desktop's own preview tools and the `app` entry the kit writes in .claude/launch.json. No
  * message goes to Claude. The tools connect as the session starts, so it tries a few times.
  */
@@ -1317,7 +1317,7 @@ let runtimeReady: Promise<boolean> = Promise.resolve(true);
 async function refreshRuntime($: EngineInterface): Promise<boolean> {
   const result = await cli($, ["kit", "--apply", "--runtime"]);
   if (!result.ok) {
-    note($, "The installed Clodable couldn't be prepared for this app's preview.");
+    note($, "The installed Cloclod couldn't be prepared for this app's preview.");
     return false;
   }
   if (
@@ -1426,12 +1426,12 @@ function markActive($: EngineInterface) {
 }
 
 /**
- * Clodable's slash commands, each on its own: a name that's taken must not stop the others. Our
+ * Cloclod's slash commands, each on its own: a name that's taken must not stop the others. Our
  * skills' names are taken too (Claude Code refuses `/x` when a skill is `x`): the build checks.
  */
 async function registerCommands($: EngineInterface) {
   for (const command of [
-    { name: "clodable", description: "Open Clodable: your draft, your live site, setup" },
+    { name: "cloclod", description: "Open Cloclod: your draft, your live site, setup" },
     { name: "publish", description: "Put your draft live (checks first)" },
     { name: "undo-publish", description: "Put the previous version live again" },
     { name: "move-off-lovable", description: "Move your app off Lovable, step by step" },
@@ -1439,7 +1439,7 @@ async function registerCommands($: EngineInterface) {
     try {
       await $.command.register({ ...command, immediate: true });
     } catch (error) {
-      $.ui.log(`Clodable couldn't add /${command.name}: ${String(error)}`, { to: "debug" });
+      $.ui.log(`Cloclod couldn't add /${command.name}: ${String(error)}`, { to: "debug" });
     }
   }
 }
@@ -1449,7 +1449,7 @@ async function registerAppTools($: EngineInterface) {
   await $.tool.register({
     name: "open_panel",
     description:
-      "Open a focused Clodable view when the builder needs controls: app, history, settings (including secret fields), site (hosting consent), backend (database account consent), move, or saving (private GitHub app consent). This only opens the view; it never creates accounts, publishes, restores, or confirms anything. Answer ordinary questions in the conversation without opening a panel. Use this instead of asking the builder to type a slash command.",
+      "Open a focused Cloclod view when the builder needs controls: app, history, settings (including secret fields), site (hosting consent), backend (database account consent), move, or saving (private GitHub app consent). This only opens the view; it never creates accounts, publishes, restores, or confirms anything. Answer ordinary questions in the conversation without opening a panel. Use this instead of asking the builder to type a slash command.",
     inputSchema: {
       type: "object",
       properties: { view: { type: "string", enum: [...PANE_VIEWS] } },
@@ -1461,14 +1461,14 @@ async function registerAppTools($: EngineInterface) {
   await $.tool.register({
     name: "app_context",
     description:
-      "Read Clodable's current app status and recorded hosting/database arrangement. Safe facts only, no keys. Before setup decisions, inspect the app's code too. Recorded URLs or database clients may be stale or placeholders: they do not prove a live site, a connected database or ownership. If hosting is unknown, first ask whether people already use the site. Explain the useful conclusion briefly and ask one relevant question at a time; wait for the answer. Do not guess unknown facts.",
+      "Read Cloclod's current app status and recorded hosting/database arrangement. Safe facts only, no keys. Before setup decisions, inspect the app's code too. Recorded URLs or database clients may be stale or placeholders: they do not prove a live site, a connected database or ownership. If hosting is unknown, first ask whether people already use the site. Explain the useful conclusion briefly and ask one relevant question at a time; wait for the answer. Do not guess unknown facts.",
     inputSchema: { type: "object", properties: {}, additionalProperties: false },
     isDeferred: false,
   });
   await $.tool.register({
     name: "remember_app",
     description:
-      "Record where this app's data and website live after inspecting the code and discussing the conclusion with the builder. Ask about anything uncertain first. A Supabase URL cannot distinguish Lovable Cloud from a personally owned Supabase. No hosting file does not prove the site is offline; a recorded address or database client may be stale or a placeholder and does not prove a live service. Unsupported or unresolved arrangements must stay unknown. This updates Clodable's setup notes, not the live services; it creates nothing and grants no consent to change live data.",
+      "Record where this app's data and website live after inspecting the code and discussing the conclusion with the builder. Ask about anything uncertain first. A Supabase URL cannot distinguish Lovable Cloud from a personally owned Supabase. No hosting file does not prove the site is offline; a recorded address or database client may be stale or a placeholder and does not prove a live service. Unsupported or unresolved arrangements must stay unknown. This updates Cloclod's setup notes, not the live services; it creates nothing and grants no consent to change live data.",
     inputSchema: {
       type: "object",
       properties: {
@@ -1481,7 +1481,7 @@ async function registerAppTools($: EngineInterface) {
   });
 }
 
-const INSPECT_APP_DETAILS = `Read Clodable's app_context, then inspect the app's code and safe configuration to understand how it saves data and how visitors reach it. Don't read secret stores or print environment values. Existing source files, package names and deployment configuration are clues, not proof of ownership or whether a site is live. A Supabase address alone does not distinguish Lovable Cloud from the builder's own Supabase. A recorded website address or database client may be stale or a placeholder; neither proves a live website or a connected database. When hosting is unknown, establish whether people already use the site before asking how it is updated. Do not call an unsupported backend "none". Explain the useful conclusion in one plain sentence, without listing filenames or technical clues. Ask one focused question at a time, only when it affects the next step, and wait for the answer before asking about another unknown. Ask in terms of what the builder does (for example, "Do you update the public site by pressing Publish in Lovable?" or "Do people already use this at a web address?"). Don't ask them to name infrastructure types. After they confirm or correct your conclusion, call remember_app for the known facts; leave anything unresolved unknown. Do not create services, connect accounts, publish or change live data. If they already asked for a feature, continue towards that request once these facts are clear. Open a consent view only when an action needs it.`;
+const INSPECT_APP_DETAILS = `Read Cloclod's app_context, then inspect the app's code and safe configuration to understand how it saves data and how visitors reach it. Don't read secret stores or print environment values. Existing source files, package names and deployment configuration are clues, not proof of ownership or whether a site is live. A Supabase address alone does not distinguish Lovable Cloud from the builder's own Supabase. A recorded website address or database client may be stale or a placeholder; neither proves a live website or a connected database. When hosting is unknown, establish whether people already use the site before asking how it is updated. Do not call an unsupported backend "none". Explain the useful conclusion in one plain sentence, without listing filenames or technical clues. Ask one focused question at a time, only when it affects the next step, and wait for the answer before asking about another unknown. Ask in terms of what the builder does (for example, "Do you update the public site by pressing Publish in Lovable?" or "Do people already use this at a web address?"). Don't ask them to name infrastructure types. After they confirm or correct your conclusion, call remember_app for the known facts; leave anything unresolved unknown. Do not create services, connect accounts, publish or change live data. If they already asked for a feature, continue towards that request once these facts are clear. Open a consent view only when an action needs it.`;
 
 async function inspectApp($: EngineInterface) {
   if (inspectingApp || turnActive) return;
@@ -1551,7 +1551,7 @@ async function provisionService($: EngineInterface, kind: "site" | "backend") {
     await askClaude(
       $,
       "Connect my app to the backend I just created.",
-      `Clodable has already created the backend with the builder's account and cost consent. Do not run backend create again. Its public address and key are in .env (VITE_SUPABASE_URL, VITE_SUPABASE_PUBLISHABLE_KEY); server keys stay on this computer. Read AGENTS.md for the app's database commands. If no Supabase client exists, install @supabase/supabase-js and add src/integrations/supabase/client.ts using those public environment variables. Preserve the existing app. If the conversation already contains a feature request, continue it; otherwise just connect the client and say what is ready in one sentence. Every live database change still needs the builder's explicit confirmation. Never print keys or publish.`,
+      `Cloclod has already created the backend with the builder's account and cost consent. Do not run backend create again. Its public address and key are in .env (VITE_SUPABASE_URL, VITE_SUPABASE_PUBLISHABLE_KEY); server keys stay on this computer. Read AGENTS.md for the app's database commands. If no Supabase client exists, install @supabase/supabase-js and add src/integrations/supabase/client.ts using those public environment variables. Preserve the existing app. If the conversation already contains a feature request, continue it; otherwise just connect the client and say what is ready in one sentence. Every live database change still needs the builder's explicit confirmation. Never print keys or publish.`,
     );
   } else {
     background(saveNow($, "Set up hosting"));
@@ -1563,7 +1563,7 @@ async function provisionService($: EngineInterface, kind: "site" | "backend") {
           content: [
             {
               type: "text",
-              text: "Clodable finished the hosting setup the builder approved in its panel. The address is ready; no Publish was performed. Use app_context for current status. Don't repeat site creation or publish.",
+              text: "Cloclod finished the hosting setup the builder approved in its panel. The address is ready; no Publish was performed. Use app_context for current status. Don't repeat site creation or publish.",
             },
           ],
         },
@@ -1588,7 +1588,7 @@ async function pollInbox($: EngineInterface) {
   if (polling) return;
   polling = true;
   try {
-    // Also how Clodable notices Desktop moved the session into the project.
+    // Also how Cloclod notices Desktop moved the session into the project.
     await syncFolder($);
     if (!cwd || inApp !== true) return;
     if (Date.now() - lastPresence > 5000) await present($).catch(() => {});
@@ -1601,7 +1601,7 @@ async function pollInbox($: EngineInterface) {
     if (!entries.some((e) => e.kind === "file" && e.name.endsWith(".json"))) return;
     // Every open conversation sees the request; only the one its person used last takes it.
     const claimed = await cli($, ["inbox", "--claim", me], 15_000);
-    const items: ClodableRequest[] = claimed.ok && Array.isArray(claimed.data) ? claimed.data : [];
+    const items: CloclodRequest[] = claimed.ok && Array.isArray(claimed.data) ? claimed.data : [];
     for (const item of items) handleRequest($, item);
   } finally {
     polling = false;
@@ -1609,7 +1609,7 @@ async function pollInbox($: EngineInterface) {
 }
 
 /** One request from the preview, now this conversation's to handle. */
-function handleRequest($: EngineInterface, item: ClodableRequest) {
+function handleRequest($: EngineInterface, item: CloclodRequest) {
   if (item.kind === "fix") {
     const where = item.error?.source
       ? ` (around ${item.error.source.file}:${item.error.source.line})`
@@ -1646,8 +1646,8 @@ function handleRequest($: EngineInterface, item: ClodableRequest) {
 
 // ── Hooks ───────────────────────────────────────────────────────────────────
 
-// Plain-language rows and a save after every reply are what Clodable is, so they aren't options: a
-// developer who'd rather not turns the plugin off for themselves, with "clodable@clodable": false in
+// Plain-language rows and a save after every reply are what Cloclod is, so they aren't options: a
+// developer who'd rather not turns the plugin off for themselves, with "cloclod@cloclod": false in
 // the project's .claude/settings.local.json.
 export const register: Register = (on) => {
   on("session.start", async ($, e, next) => {
@@ -1672,7 +1672,7 @@ export const register: Register = (on) => {
     return next(e);
   }).catch((_$, e, next) => next(e));
 
-  on("command.run", { command: "clodable" }, async ($) => {
+  on("command.run", { command: "cloclod" }, async ($) => {
     await syncFolder($);
     await openPane($, null);
     return {};
@@ -1698,10 +1698,10 @@ export const register: Register = (on) => {
     return {};
   });
 
-  on("tool.call", { tool: "mcp__clodable__open_panel" }, async ($, e) => {
+  on("tool.call", { tool: "mcp__cloclod__open_panel" }, async ($, e) => {
     const view = (e as { view?: unknown }).view;
     if (!PANE_VIEWS.includes(view as PaneView))
-      return { result: "Choose an available Clodable view.", isError: true };
+      return { result: "Choose an available Cloclod view.", isError: true };
     await syncFolder($);
     const opened = await openPane($, view as PaneView);
     const blocked =
@@ -1709,21 +1709,21 @@ export const register: Register = (on) => {
         ? ` Site setup is unavailable: ${moveTeamsProblem.message} ${moveTeamsProblem.reconnect ? "The panel offers Netlify reconnection; the builder enters the token there." : "The panel offers Check again."} Explain this blocker briefly; don't describe site setup as ready.`
         : "";
     return {
-      result: `${opened.isPlaced ? "Opened" : "Requested"} Clodable's ${view} view.${opened.isPlaced ? "" : " The interface has not confirmed it is visible; don't claim it is open."} No account was created, action confirmed or site published.${blocked} Acknowledge briefly; do not repeat the panel's contents in chat unless the builder asks you to explain them. Never ask for a token here.`,
+      result: `${opened.isPlaced ? "Opened" : "Requested"} Cloclod's ${view} view.${opened.isPlaced ? "" : " The interface has not confirmed it is visible; don't claim it is open."} No account was created, action confirmed or site published.${blocked} Acknowledge briefly; do not repeat the panel's contents in chat unless the builder asks you to explain them. Never ask for a token here.`,
     };
   });
 
-  on("tool.call", { tool: "mcp__clodable__app_context" }, async ($) => {
+  on("tool.call", { tool: "mcp__cloclod__app_context" }, async ($) => {
     await syncFolder($);
     await refreshStatus($);
     return { result: JSON.stringify(await read($, status)) };
   });
 
-  on("tool.call", { tool: "mcp__clodable__remember_app" }, async ($, e) => {
+  on("tool.call", { tool: "mcp__cloclod__remember_app" }, async ($, e) => {
     await syncFolder($);
     const current = await read($, status);
     if (!current?.ready)
-      return { result: "Set up Clodable first. The local app is unchanged.", isError: true };
+      return { result: "Set up Cloclod first. The local app is unchanged.", isError: true };
     if (current.movingOffLovable || current.finishingMove)
       return {
         result:
@@ -1774,7 +1774,7 @@ export const register: Register = (on) => {
   on("turn.start", async ($, e, next) => {
     await syncFolder($);
     requests.set(e.turnId, e.text);
-    // A request Clodable sent in the builder's name: its details, for Claude only.
+    // A request Cloclod sent in the builder's name: its details, for Claude only.
     const details = detailsFor.get(e.text);
     if (details !== undefined) {
       detailsFor.delete(e.text);
@@ -1791,8 +1791,8 @@ export const register: Register = (on) => {
     return next(e);
   });
 
-  // Pressing Clodable's buttons, or Desktop showing this conversation, also means "here".
-  on("ui.press", { plugin: "clodable" }, ($, e, next) => {
+  // Pressing Cloclod's buttons, or Desktop showing this conversation, also means "here".
+  on("ui.press", { plugin: "cloclod" }, ($, e, next) => {
     markActive($);
     return next(e);
   });
@@ -1818,7 +1818,7 @@ export const register: Register = (on) => {
     if (fixing?.turnId === e.turnId) {
       // Claude is done with it: the save below shows where things stand now.
       fixing = null;
-      await update<ClodableActivity>($, activity, (x) =>
+      await update<CloclodActivity>($, activity, (x) =>
         x.kind === "failed" ? { kind: "idle", steps: [] } : x,
       );
       $.ui.invalidate("ui.render");
@@ -1867,45 +1867,45 @@ export const register: Register = (on) => {
   on("tool.call", { tool: "Bash" }, async (_$, e, next) => {
     const command = String((e as { command?: unknown }).command ?? "");
     if (PRIVATE_FOLDER.test(command)) return { deny: PRIVATE_FOLDER_DENY };
-    if (/\bclodable(?:\.mjs)?["']?\s+setup\b[^\n]*--new\b/.test(command)) {
+    if (/\bcloclod(?:\.mjs)?["']?\s+setup\b[^\n]*--new\b/.test(command)) {
       return {
-        deny: "The builder chooses the GitHub account and creates their private app in Clodable's Set up saving panel. Ask them to use that button; keep their local work intact.",
+        deny: "The builder chooses the GitHub account and creates their private app in Cloclod's Set up saving panel. Ask them to use that button; keep their local work intact.",
       };
     }
     if (!(await isApp())) return next(e);
-    if (/\bclodable(?:\.mjs)?["']?\s+(site|backend)\s+create\b/.test(command)) {
+    if (/\bcloclod(?:\.mjs)?["']?\s+(site|backend)\s+create\b/.test(command)) {
       return {
-        deny: "The builder selects the account and confirms creation in Clodable's hosting or backend view. Open it with open_panel; don't create a service from the conversation.",
+        deny: "The builder selects the account and confirms creation in Cloclod's hosting or backend view. Open it with open_panel; don't create a service from the conversation.",
       };
     }
     if (SECRET_STEP.test(command)) {
       return {
-        deny: "This step takes a secret (a token, a key, a password), so the builder does it in the Clodable panel, never through the chat. Ask them to use the panel (type /clodable), then carry on.",
+        deny: "This step takes a secret (a token, a key, a password), so the builder does it in the Cloclod panel, never through the chat. Ask them to use the panel (type /cloclod), then carry on.",
       };
     }
     if (OUR_PUBLISH.test(command)) {
       return {
-        deny: "Publishing is the builder's decision. Ask them to click Publish in the Clodable bar above the message box.",
+        deny: "Publishing is the builder's decision. Ask them to click Publish in the Cloclod bar above the message box.",
       };
     }
     if (PUSH_OR_REWRITE.test(command)) {
       return {
-        deny: "Clodable saves and publishes for the builder: don't push, merge, reset or rewrite history. Just edit the files; their work is saved automatically after your reply.",
+        deny: "Cloclod saves and publishes for the builder: don't push, merge, reset or rewrite history. Just edit the files; their work is saved automatically after your reply.",
       };
     }
     if (LEAVE_DRAFT.test(command)) {
-      return { deny: "Stay on the builder's draft branch. Clodable handles branches." };
+      return { deny: "Stay on the builder's draft branch. Cloclod handles branches." };
     }
     return next(e);
   }).catch((_$, e, next) =>
     next.called
       ? next(e)
       : {
-          deny: "Clodable couldn't check this command, so it was blocked for safety. Try a simpler command.",
+          deny: "Cloclod couldn't check this command, so it was blocked for safety. Try a simpler command.",
         },
   );
 
-  // Clodable's private folder stays out of every conversation, whatever tool asks.
+  // Cloclod's private folder stays out of every conversation, whatever tool asks.
   on("tool.call", { tool: "Read" }, async (_$, e, next) =>
     inPrivateFolder(e) ? { deny: PRIVATE_FOLDER_DENY } : next(e),
   );
@@ -1916,7 +1916,7 @@ export const register: Register = (on) => {
     inPrivateFolder(e) ? { deny: PRIVATE_FOLDER_DENY } : next(e),
   );
 
-  // Any Supabase server: Clodable's own, or the claude.ai Supabase connector.
+  // Any Supabase server: Cloclod's own, or the claude.ai Supabase connector.
   on("tool.call", async ($, e, next) => {
     const tool = supabaseTool(e.tool);
     if (!tool || !(await isApp())) return next(e);
@@ -1932,7 +1932,7 @@ export const register: Register = (on) => {
         /^(create|delete|update|merge|reset|restore|pause)_/.test(tool);
       if (writes) {
         return {
-          deny: "This app's database and backend run on Lovable Cloud, which Lovable owns, so they can't be changed from here. Tell the builder plainly, and offer two ways forward: make this change in Lovable, or first move the app to their own Supabase (Move off Lovable, in the Clodable panel).",
+          deny: "This app's database and backend run on Lovable Cloud, which Lovable owns, so they can't be changed from here. Tell the builder plainly, and offer two ways forward: make this change in Lovable, or first move the app to their own Supabase (Move off Lovable, in the Cloclod panel).",
         };
       }
     }
@@ -1951,7 +1951,7 @@ export const register: Register = (on) => {
       : next(e),
   );
 
-  // Whoever starts the preview, Clodable or Claude checking its work, the bar links to it, and a
+  // Whoever starts the preview, Cloclod or Claude checking its work, the bar links to it, and a
   // new tab in this conversation's preview pane gets its name.
   on(
     "tool.call",
@@ -1988,20 +1988,20 @@ export const register: Register = (on) => {
     if (verdict.decision === "deny") return verdict;
     if (
       [
-        "mcp__clodable__open_panel",
-        "mcp__clodable__app_context",
-        "mcp__clodable__remember_app",
+        "mcp__cloclod__open_panel",
+        "mcp__cloclod__app_context",
+        "mcp__cloclod__remember_app",
       ].includes(e.tool)
     )
       return { ...verdict, decision: "allow" };
     if (!(await isApp())) return verdict;
     // Starting the app's own preview (its entry in .claude/launch.json) is always fine. Allowing it
-    // here also means Auto mode's classifier isn't asked about Clodable's own call, which no request
+    // here also means Auto mode's classifier isn't asked about Cloclod's own call, which no request
     // of Claude's explains, and which it would refuse.
     const input = (e.input ?? {}) as Record<string, unknown>;
     if (
       e.tool === "Bash" &&
-      /\bclodable(?:\.mjs)?["']?\s+(site|backend)\s+create\b/.test(String(input.command ?? ""))
+      /\bcloclod(?:\.mjs)?["']?\s+(site|backend)\s+create\b/.test(String(input.command ?? ""))
     )
       return { ...verdict, decision: "deny" };
     const local =
@@ -2028,7 +2028,7 @@ export const register: Register = (on) => {
         isFactsRecord($.plugin.root, ownCommand))
     )
       return { ...verdict, decision: "allow" };
-    // The app's database through Clodable: reading is quiet, every change is the builder's to allow.
+    // The app's database through Cloclod: reading is quiet, every change is the builder's to allow.
     const db = e.tool === "Bash" ? dbCommandIn(String(input.command ?? "").trim()) : undefined;
     if ((db?.action === "query" && db.single) || db?.action === "check")
       return { ...verdict, decision: "allow" };
@@ -2075,7 +2075,7 @@ export const register: Register = (on) => {
     const now = Date.now();
     // The logo on Desktop. In the terminal the status dot alone says enough.
     const mark = desktop
-      ? $.ui.resolve(e).Svg({ source: LOGO, alt: "Clodable", width: 16, height: 16 })
+      ? $.ui.resolve(e).Svg({ source: LOGO, alt: "Cloclod", width: 16, height: 16 })
       : null;
     const theirs = await next(e);
     const { left, right = [] } = barSides($, ui, s, a, now, desktop);
@@ -2101,7 +2101,7 @@ export const register: Register = (on) => {
     );
   });
 
-  // ── The Clodable panel ──────────────────────────────────────────────────
+  // ── The Cloclod panel ──────────────────────────────────────────────────
   on("ui.render", { component: "Pane" }, async ($, e, next) => {
     if (e.requestId !== PANE) return next(e);
     const table = $.ui.resolve(e);
@@ -2122,11 +2122,11 @@ export const register: Register = (on) => {
     const header = (
       <Box flexDirection="row" columnGap={1} alignItems="center">
         {e.surface === "desktop" ? (
-          $.ui.resolve(e).Svg({ source: LOGO, alt: "Clodable", width: 24, height: 24 })
+          $.ui.resolve(e).Svg({ source: LOGO, alt: "Cloclod", width: 24, height: 24 })
         ) : (
           <Text color="claude">●</Text>
         )}
-        <Text bold>{s?.ready ? s.project : "Clodable"}</Text>
+        <Text bold>{s?.ready ? s.project : "Cloclod"}</Text>
       </Box>
     );
 
@@ -2242,7 +2242,7 @@ export const register: Register = (on) => {
                     askClaude(
                       $,
                       "Help me finish this account setup.",
-                      `Clodable's ${view} setup stopped: ${provisionProblem?.message}. Read app_context and investigate safely. Do not create another service or retry creation through commands; the builder controls that in the panel. Explain the next step briefly.`,
+                      `Cloclod's ${view} setup stopped: ${provisionProblem?.message}. Read app_context and investigate safely. Do not create another service or retry creation through commands; the builder controls that in the panel. Explain the next step briefly.`,
                     ),
                   )
                 }
@@ -2356,7 +2356,7 @@ export const register: Register = (on) => {
 
   // ── Plain-language activity ─────────────────────────────────────────────
   on("ui.render", { component: "ToolUse" }, async ($, e, next) => {
-    if (!e.props.tool.startsWith("mcp__clodable__") && !(await isApp())) return next(e);
+    if (!e.props.tool.startsWith("mcp__cloclod__") && !(await isApp())) return next(e);
     const row = describeTool(e.props);
     if (!row) return next(e);
     const { Box, Text } = $.ui.resolve(e);
@@ -2391,7 +2391,7 @@ export const register: Register = (on) => {
   on("ui.render", { component: "ToolGroup" }, async ($, e, next) => {
     const ours =
       e.props.calls.length > 0 &&
-      e.props.calls.every((call) => call.tool.startsWith("mcp__clodable__"));
+      e.props.calls.every((call) => call.tool.startsWith("mcp__cloclod__"));
     if (e.props.isExpanded || (!ours && !(await isApp()))) return next(e);
     const { Box, Text } = $.ui.resolve(e);
     return (
@@ -2477,8 +2477,8 @@ type BarSides = { left: RenderChildren[]; right?: RenderChildren[] };
 function barSides(
   $: EngineInterface,
   ui: BarUi,
-  s: ClodableStatus | ClodableNotReady | null,
-  a: ClodableActivity,
+  s: CloclodStatus | CloclodNotReady | null,
+  a: CloclodActivity,
   now: number,
   desktop: boolean,
 ): BarSides {
@@ -2608,7 +2608,7 @@ function barSides(
   }
   if (a.kind === "saving")
     return { left: [<Text dimColor>Saving…</Text>], right: [history, preview] };
-  if (!s) return { left: [<Text dimColor>Clodable is getting ready…</Text>] };
+  if (!s) return { left: [<Text dimColor>Cloclod is getting ready…</Text>] };
   if (!s.ready) {
     return {
       left: [
@@ -2651,7 +2651,7 @@ function barSides(
       ],
     };
   }
-  // The site Clodable put on Netlify, waiting for its first Publish.
+  // The site Cloclod put on Netlify, waiting for its first Publish.
   if (s.site && !s.site.live && s.site.statusKnown !== false) {
     return {
       left: [dot("warning"), <Text>Your site is ready to go online</Text>],
@@ -2752,7 +2752,7 @@ function setupProgress(ui: PaneUi, starting: string) {
 }
 
 /** One step of a publish, an undo or the setup, as it went. */
-function stepLine(ui: PaneUi, step: ClodableStep) {
+function stepLine(ui: PaneUi, step: CloclodStep) {
   const { Text } = ui;
   const mark =
     step.state === "done"
@@ -2838,8 +2838,8 @@ function setupPane(
   $: EngineInterface,
   ui: PaneUi,
   header: RenderElement,
-  s: ClodableNotReady | null,
-  doctor: ClodableCheck[],
+  s: CloclodNotReady | null,
+  doctor: CloclodCheck[],
 ) {
   const { Box, Text, Button, Link, Select, Input } = ui;
   if (!s) {
@@ -2863,7 +2863,7 @@ function setupPane(
         {header}
         <Text bold>Your local app</Text>
         <Text>Keep shaping your local app with Claude.</Text>
-        <Text dimColor>Your files are on this computer. Clodable isn't saving them yet.</Text>
+        <Text dimColor>Your files are on this computer. Cloclod isn't saving them yet.</Text>
         <Button
           key="set-up-saving"
           variant="primary"
@@ -2983,7 +2983,7 @@ function setupPane(
       ) : tools.length === 0 && (checksFailed || s?.reason === "unknown") ? (
         <Box flexDirection="column" rowGap={1}>
           <Text color="error">
-            {checksFailed ?? s?.message ?? "Clodable couldn't check your tools."}
+            {checksFailed ?? s?.message ?? "Cloclod couldn't check your tools."}
           </Text>
           <Button key="check-again" variant="secondary" onPress={() => background(checkAgain($))}>
             Check again
@@ -3049,7 +3049,7 @@ function setupPane(
         <Box flexDirection="column" rowGap={1}>
           <Text>Save to {github?.detail ?? "your GitHub account"} · Private</Text>
           <Text dimColor>
-            Clodable creates a private app in this account and saves your files there. Only you and
+            Cloclod creates a private app in this account and saves your files there. Only you and
             people you give access can see the code. This doesn't put your site online.
           </Text>
           {setupProgress(ui, "Setting up saving…")}
@@ -3064,7 +3064,7 @@ function setupPane(
                     background(
                       askClaude(
                         $,
-                        "Prepare my local app for saving with Clodable, keeping my design and content.",
+                        "Prepare my local app for saving with Cloclod, keeping my design and content.",
                         IDEA_PREPARE_DETAILS,
                       ),
                     )
@@ -3103,21 +3103,21 @@ function setupPane(
         </Box>
       ) : s?.reason === "no-kit" ? (
         <Box flexDirection="column" rowGap={1}>
-          <Text>This folder already holds an app. Clodable can set itself up right here.</Text>
-          {setupProgress(ui, "Setting up Clodable…")}
+          <Text>This folder already holds an app. Cloclod can set itself up right here.</Text>
+          {setupProgress(ui, "Setting up Cloclod…")}
           {settingUp ? null : (
             <Button key="set-up-here" variant="primary" onPress={() => background(setUpHere($))}>
-              Set up Clodable here
+              Set up Cloclod here
             </Button>
           )}
         </Box>
       ) : s?.reason === "not-a-repo" && !emptyFolder ? (
         <Box flexDirection="column" rowGap={1}>
-          <Text>Your files are on this computer. Clodable isn't saving them yet.</Text>
+          <Text>Your files are on this computer. Cloclod isn't saving them yet.</Text>
           <Text dimColor>
-            Clodable currently needs an app on GitHub to save and publish. You can keep shaping this
+            Cloclod currently needs an app on GitHub to save and publish. You can keep shaping this
             local version with Claude. To bring in an app from GitHub, open an empty folder and type
-            /clodable there.
+            /cloclod there.
           </Text>
         </Box>
       ) : repoChoices.length > 0 && Select ? (
@@ -3162,16 +3162,16 @@ function setupPane(
           )}
         </Box>
       ) : (
-        <Text dimColor>Open Clodable in Claude Desktop or the terminal to pick your app.</Text>
+        <Text dimColor>Open Cloclod in Claude Desktop or the terminal to pick your app.</Text>
       )}
       <Text dimColor>
         {setupChoice === "saving"
           ? "Publishing stays a separate choice. You can set up hosting after saving."
           : s?.reason === "no-kit"
-            ? "Clodable adds a few plain files and saves them, with any changes in progress, to your draft on GitHub. Nothing goes live."
+            ? "Cloclod adds a few plain files and saves them, with any changes in progress, to your draft on GitHub. Nothing goes live."
             : s?.reason === "not-a-repo" && !emptyFolder
               ? "Your local files stay as they are. Nothing goes live."
-              : "Clodable copies your app from GitHub into this folder and adds a few plain files. Nothing goes live."}
+              : "Cloclod copies your app from GitHub into this folder and adds a few plain files. Nothing goes live."}
       </Text>
       {setupChoice === "saving" && !settingUp ? (
         <Button
@@ -3194,8 +3194,8 @@ function setupPane(
 function stateCard(
   $: EngineInterface,
   ui: PaneUi,
-  s: ClodableStatus,
-  a: ClodableActivity,
+  s: CloclodStatus,
+  a: CloclodActivity,
   now: number,
   desktop: boolean,
 ): RenderElement | null {
@@ -3261,8 +3261,8 @@ function stateCard(
       ui,
       <Text bold>Published on GitHub</Text>,
       <Text dimColor>
-        Clodable didn't see a host put it on the web. If your site didn't change, Clodable can put
-        it online on your own Netlify.
+        Cloclod didn't see a host put it on the web. If your site didn't change, Cloclod can put it
+        online on your own Netlify.
       </Text>,
       [
         <Button key="go-online" variant="primary" onPress={() => background(goOnline($))}>
@@ -3334,7 +3334,7 @@ function stateCard(
       ui,
       <Text bold>Published on GitHub</Text>,
       <Text dimColor>
-        {`Published ${ago(s.lastPublish.at, now)}, but Clodable didn't see a host put it on the web. If your site didn't change, Clodable can put it online.`}
+        {`Published ${ago(s.lastPublish.at, now)}, but Cloclod didn't see a host put it on the web. If your site didn't change, Cloclod can put it online.`}
       </Text>,
       [
         <Button key="go-online" variant="secondary" onPress={() => background(goOnline($))}>
@@ -3406,7 +3406,7 @@ function siteLink(ui: Pick<PaneUi, "Link">, url: string) {
 }
 
 /** Just moved off Lovable: from here, the app changes in this conversation. Until the next Publish. */
-function movedOffCard($: EngineInterface, ui: PaneUi, s: ClodableStatus, desktop: boolean) {
+function movedOffCard($: EngineInterface, ui: PaneUi, s: CloclodStatus, desktop: boolean) {
   const { Box, Text, Button } = ui;
   if (!s.movedAt || (s.lastPublish && s.lastPublish.at > s.movedAt)) return null;
   const url = s.lastPublish?.url ?? s.liveUrl;
@@ -3434,7 +3434,7 @@ function movedOffCard($: EngineInterface, ui: PaneUi, s: ClodableStatus, desktop
 }
 
 /** On its own Supabase, with no connection here yet: Claude can't change the database. */
-function databaseCard($: EngineInterface, ui: PaneUi, s: ClodableStatus) {
+function databaseCard($: EngineInterface, ui: PaneUi, s: CloclodStatus) {
   const { Box, Text, Link, Input } = ui;
   if (s.backend !== "supabase" || s.databaseConnected !== false) return null;
   return card(
@@ -3466,10 +3466,10 @@ function databaseCard($: EngineInterface, ui: PaneUi, s: ClodableStatus) {
 const NETLIFY_TOKENS = "https://app.netlify.com/user/applications#personal-access-tokens";
 
 /**
- * Not online yet: Netlify connected here, then Clodable creates the address after consent
+ * Not online yet: Netlify connected here, then Cloclod creates the address after consent
  * and the next Publish makes it public. Once it's there, until that Publish, the card says so.
  */
-function siteCard($: EngineInterface, ui: PaneUi, s: ClodableStatus) {
+function siteCard($: EngineInterface, ui: PaneUi, s: CloclodStatus) {
   const { Box, Text, Button, Link, Select } = ui;
   if (s.movingOffLovable || s.finishingMove) return null;
   if (s.site && !s.site.live && s.site.statusKnown !== false) {
@@ -3502,7 +3502,7 @@ function siteCard($: EngineInterface, ui: PaneUi, s: ClodableStatus) {
         {about}
         {numbered(ui, [
           "Sign in to Netlify, or sign up (it's free).",
-          "Open Netlify's token page and create a personal access token named Clodable.",
+          "Open Netlify's token page and create a personal access token named Cloclod.",
           "Paste it here. It stays on this computer.",
         ])}
         <Link href={NETLIFY_TOKENS} label="Open Netlify's token page ↗" />
@@ -3576,10 +3576,10 @@ function siteCard($: EngineInterface, ui: PaneUi, s: ClodableStatus) {
 }
 
 /**
- * No backend yet: Supabase account and cost consent here, then Clodable creates it
+ * No backend yet: Supabase account and cost consent here, then Cloclod creates it
  * and returns the app-specific integration to the conversation.
  */
-function backendCard($: EngineInterface, ui: PaneUi, s: ClodableStatus) {
+function backendCard($: EngineInterface, ui: PaneUi, s: CloclodStatus) {
   const { Box, Text, Button, Link, Select } = ui;
   if (s.backend !== "none" || s.movingOffLovable || s.finishingMove) return null;
   if (!addingBackend) {
@@ -3627,7 +3627,7 @@ function backendCard($: EngineInterface, ui: PaneUi, s: ClodableStatus) {
         {numbered(ui, [
           "Open Supabase's token page (sign up first if you need to).",
           "Click “Create legacy token”: the full-access kind.",
-          "Name it Clodable, choose the longest expiry it offers, and generate it.",
+          "Name it Cloclod, choose the longest expiry it offers, and generate it.",
           "Paste it here. It stays on this computer.",
         ])}
         <Link
@@ -3740,7 +3740,7 @@ function backendCard($: EngineInterface, ui: PaneUi, s: ClodableStatus) {
 }
 
 /** Missing values to add, and saved values to replace without revealing them. */
-function settingsCard($: EngineInterface, ui: PaneUi, s: ClodableStatus) {
+function settingsCard($: EngineInterface, ui: PaneUi, s: CloclodStatus) {
   const { Box, Text, Button } = ui;
   const fields = settingsFields($, ui, "app-setting", s.backend === "lovable-cloud");
   const st = appSettingsStatus;
@@ -3803,7 +3803,7 @@ function settingsCard($: EngineInterface, ui: PaneUi, s: ClodableStatus) {
 }
 
 /** Missing setup facts are a conversation, not an infrastructure questionnaire. */
-function appQuestions($: EngineInterface, ui: PaneUi, s: ClodableStatus) {
+function appQuestions($: EngineInterface, ui: PaneUi, s: CloclodStatus) {
   const { Text, Button } = ui;
   if (s.backend !== "unknown" && s.hosting !== "unknown") return null;
   return card(
@@ -3822,7 +3822,7 @@ function appQuestions($: EngineInterface, ui: PaneUi, s: ClodableStatus) {
   );
 }
 
-function setupFacts($: EngineInterface, ui: PaneUi, s: ClodableStatus) {
+function setupFacts($: EngineInterface, ui: PaneUi, s: CloclodStatus) {
   const { Box, Text, Button } = ui;
   if (s.backend === "unknown" || s.hosting === "unknown") return appQuestions($, ui, s);
   const data =
@@ -3850,7 +3850,7 @@ function setupFacts($: EngineInterface, ui: PaneUi, s: ClodableStatus) {
 }
 
 /** On Lovable Cloud: one quiet line to the move, never more until the builder asks. */
-function moveLine($: EngineInterface, ui: PaneUi, s: ClodableStatus) {
+function moveLine($: EngineInterface, ui: PaneUi, s: CloclodStatus) {
   const { Box, Text, Button } = ui;
   if (s.backend !== "lovable-cloud" && !s.movingOffLovable) return null;
   return (
@@ -3871,7 +3871,7 @@ function moveLine($: EngineInterface, ui: PaneUi, s: ClodableStatus) {
 }
 
 /** On Lovable's hosting only: where the last click is. */
-function lovableHostingCard(ui: PaneUi, s: ClodableStatus) {
+function lovableHostingCard(ui: PaneUi, s: CloclodStatus) {
   const { Text } = ui;
   if (s.hosting !== "lovable") return null;
   return card(
@@ -3882,7 +3882,7 @@ function lovableHostingCard(ui: PaneUi, s: ClodableStatus) {
 }
 
 /** An unknown host, a pending site or a publish with no host is never evidence of being live. */
-function siteIsLive(s: ClodableStatus): boolean {
+function siteIsLive(s: CloclodStatus): boolean {
   if (s.site) return s.site.live;
   return s.hosting === "github" && !s.lastPublish?.noHost;
 }
@@ -3891,7 +3891,7 @@ function siteIsLive(s: ClodableStatus): boolean {
 function historySection(
   $: EngineInterface,
   ui: PaneUi,
-  s: ClodableStatus,
+  s: CloclodStatus,
   desktop: boolean,
   now: number,
 ) {
@@ -3928,8 +3928,8 @@ function historySection(
   );
 }
 
-/** What `clodable doctor` found worth a look, each with its fix. */
-function warningsSection($: EngineInterface, ui: PaneUi, doctor: ClodableCheck[]) {
+/** What `cloclod doctor` found worth a look, each with its fix. */
+function warningsSection($: EngineInterface, ui: PaneUi, doctor: CloclodCheck[]) {
   const { Box, Text, Button } = ui;
   const warnings = doctor.filter((c) => c.status === "warn" || c.status === "fail");
   if (warnings.length === 0) return null;
@@ -3955,7 +3955,7 @@ function warningsSection($: EngineInterface, ui: PaneUi, doctor: ClodableCheck[]
                       pilot($, {
                         text: "Switch my app's AI features off Lovable's AI to an AI provider of my own (OpenRouter, Google Gemini or OpenAI), and tell me where to create the key.",
                         details:
-                          "From Clodable: keep the provider's address and model in the code, and read the key from a setting named AI_API_KEY, which the builder pastes in the Clodable panel.",
+                          "From Cloclod: keep the provider's address and model in the code, and read the key from a setting named AI_API_KEY, which the builder pastes in the Cloclod panel.",
                       }),
                     )
                   }
@@ -3974,8 +3974,8 @@ function warningsSection($: EngineInterface, ui: PaneUi, doctor: ClodableCheck[]
                   background(
                     askClaude(
                       $,
-                      `Fix “${c.label}”, as Clodable's check suggests.`,
-                      `Clodable's check “${c.label}” (${c.id}) found: ${c.detail ?? "a problem"}. Its fix: ${c.fix}. Do it if it's safe here; if it needs the builder, say what to do in plain words, with no commands.`,
+                      `Fix “${c.label}”, as Cloclod's check suggests.`,
+                      `Cloclod's check “${c.label}” (${c.id}) found: ${c.detail ?? "a problem"}. Its fix: ${c.fix}. Do it if it's safe here; if it needs the builder, say what to do in plain words, with no commands.`,
                     ),
                   )
                 }
@@ -4114,7 +4114,7 @@ function movePane(
   $: EngineInterface,
   ui: PaneUi,
   header: RenderElement,
-  s: ClodableStatus,
+  s: CloclodStatus,
   now: number,
 ) {
   const { Box, Text, Button } = ui;
@@ -4173,7 +4173,7 @@ function movePane(
   );
 }
 
-/** What the move involves for this app, as Clodable's look at it found: until it starts. */
+/** What the move involves for this app, as Cloclod's look at it found: until it starts. */
 function whatMoves(ui: PaneUi) {
   const { Box, Text } = ui;
   if (assessment && "error" in assessment) {
@@ -4217,7 +4217,7 @@ function whatMoves(ui: PaneUi) {
 }
 
 /** The move itself, one step at a time: every step listed, only the current one with its controls. */
-function moveSection($: EngineInterface, ui: PaneUi, s: ClodableStatus, now: number) {
+function moveSection($: EngineInterface, ui: PaneUi, s: CloclodStatus, now: number) {
   const { Box, Text } = ui;
   const steps = move?.steps ?? [];
   const method = moveMethod();
@@ -4286,7 +4286,7 @@ function moveSection($: EngineInterface, ui: PaneUi, s: ClodableStatus, now: num
 }
 
 /** One step of the move: its mark and title, and under the current one, what to do now. */
-function stepRow(ui: PaneUi, step: ClodableMoveStep, state: string, under: RenderElement | null) {
+function stepRow(ui: PaneUi, step: CloclodMoveStep, state: string, under: RenderElement | null) {
   const { Box, Text } = ui;
   return (
     <Box key={`step-${step.id}`} flexDirection="column" rowGap={1}>
@@ -4403,9 +4403,9 @@ function otherWay($: EngineInterface, ui: PaneUi, method: MoveMethod | undefined
 // ── The move off Lovable, one function per step (top level, so they can use $) ──
 
 /** What the move's steps draw with, besides the module's own state. */
-type MoveView = { ui: PaneUi; s: ClodableStatus; now: number };
+type MoveView = { ui: PaneUi; s: CloclodStatus; now: number };
 /** …and the step they draw. */
-type StepView = MoveView & { step: ClodableMoveStep };
+type StepView = MoveView & { step: CloclodMoveStep };
 
 /** How the app moves: as chosen in the panel a moment ago, or as the move recorded it. */
 function moveMethod(): MoveMethod | undefined {
@@ -4416,7 +4416,7 @@ function moveMethod(): MoveMethod | undefined {
 function moveControlsFor(
   $: EngineInterface,
   view: MoveView,
-  step: ClodableMoveStep | undefined,
+  step: CloclodMoveStep | undefined,
 ): RenderElement | null {
   const { Text } = view.ui;
   if (isPiloting()) return <Text dimColor>Claude is on it, in the conversation.</Text>;
@@ -4484,13 +4484,13 @@ function connectStep($: EngineInterface, { ui }: StepView) {
   return (
     <Box flexDirection="column" rowGap={1}>
       <Text>
-        Your data goes to Supabase, under your own account (free to start). Clodable needs an access
+        Your data goes to Supabase, under your own account (free to start). Cloclod needs an access
         token that can create your new backend and copy your data into it.
       </Text>
       {numbered(ui, [
         "Open Supabase's token page.",
         "Click “Create legacy token”: the full-access kind.",
-        "Name it Clodable, choose the longest expiry it offers, and generate it. Clodable uses it after the move too, for changes to your database.",
+        "Name it Cloclod, choose the longest expiry it offers, and generate it. Cloclod uses it after the move too, for changes to your database.",
         "Paste it here. It stays on this computer.",
       ])}
       <Link
@@ -4624,7 +4624,7 @@ function exportStep($: EngineInterface, { ui, s }: StepView) {
         {openLovable(ui, s)}
       </Box>
       <Text dimColor>
-        Clodable looks for this app's export in Downloads. Have a file from Lovable support? Tell
+        Cloclod looks for this app's export in Downloads. Have a file from Lovable support? Tell
         Claude where you saved it. Lovable allows one export a day while your backend is running.
       </Text>
     </Box>
@@ -4824,7 +4824,7 @@ function netlifyStep($: EngineInterface, { ui }: StepView) {
       </Text>
       {numbered(ui, [
         "Open Netlify's token page.",
-        "Create a personal access token named Clodable.",
+        "Create a personal access token named Cloclod.",
         "Paste it here. It stays on this computer.",
       ])}
       <Link
@@ -4877,7 +4877,7 @@ function siteStep($: EngineInterface, { ui }: StepView) {
   return (
     <Box flexDirection="column" rowGap={1}>
       <Text dimColor>
-        Clodable prepares a Netlify site for your copy. Nothing goes online at this step. Then
+        Cloclod prepares a Netlify site for your copy. Nothing goes online at this step. Then
         continue preparing your move in this panel.
       </Text>
       {teams.length > 1 && Select ? (
@@ -4912,7 +4912,7 @@ function emailsStep($: EngineInterface, { ui }: StepView) {
     return (
       <Box flexDirection="column" rowGap={1}>
         <Text>
-          Clodable sends your users' sign-up confirmations and password resets from your own domain
+          Cloclod sends your users' sign-up confirmations and password resets from your own domain
           (like yourapp.com), through your Resend account.
         </Text>
         {numbered(ui, [
@@ -5001,8 +5001,8 @@ function serviceToSwitch($: EngineInterface, ui: PaneUi): RenderElement | null {
     return (
       <Box flexDirection="column" rowGap={1}>
         <Text>
-          Your app's AI features run on Lovable's AI, which stops when it leaves. Clodable moves
-          them to an AI provider of your own.
+          Your app's AI features run on Lovable's AI, which stops when it leaves. Cloclod moves them
+          to an AI provider of your own.
         </Text>
         {Select ? (
           <Select
@@ -5035,7 +5035,7 @@ function serviceToSwitch($: EngineInterface, ui: PaneUi): RenderElement | null {
         {pilotButton($, ui, "move-ai-switch", "Switch my AI features", {
           text: `Moving off Lovable: switch my app's AI features from Lovable's AI to ${name}, then check it works in the preview.`,
           details: stepDetails(
-            `Clodable saved AI_API_URL and AI_API_KEY for the preview, the site and the backend functions: make the code call \`\${AI_API_URL}/chat/completions\` with AI_API_KEY (the same OpenAI-style API).`,
+            `Cloclod saved AI_API_URL and AI_API_KEY for the preview, the site and the backend functions: make the code call \`\${AI_API_URL}/chat/completions\` with AI_API_KEY (the same OpenAI-style API).`,
             KEEP_LOVABLE_WORKING,
             `Deploy the backend functions with \`${moveCommand($, ["functions"])}\` if you changed any.`,
           ),
@@ -5047,7 +5047,7 @@ function serviceToSwitch($: EngineInterface, ui: PaneUi): RenderElement | null {
     return (
       <Box flexDirection="column" rowGap={1}>
         <Text>
-          Your app sends its own emails through Lovable. Clodable gives it a Resend key of its own,
+          Your app sends its own emails through Lovable. Cloclod gives it a Resend key of its own,
           sending from {move?.emails?.sender}, and Claude switches the sending.
         </Text>
         {pilotButton($, ui, "move-app-emails", "Switch my emails", {
@@ -5073,7 +5073,7 @@ function serviceToSwitch($: EngineInterface, ui: PaneUi): RenderElement | null {
     return (
       <Box flexDirection="column" rowGap={1}>
         <Text>
-          Your app has its own sign-in emails (from Lovable). Clodable turns them on, so
+          Your app has its own sign-in emails (from Lovable). Cloclod turns them on, so
           confirmations and password resets look like your app.
         </Text>
         {pilotButton($, ui, "move-email-hook", "Turn on my sign-in emails", {
@@ -5125,7 +5125,7 @@ function googleStep($: EngineInterface, { ui }: StepView) {
         {pilotButton($, ui, "move-google-switch", "Switch my Google sign-in", {
           text: "Moving off Lovable: switch my Google sign-in to my new backend, then check it in the preview.",
           details: stepDetails(
-            "The app signs in with Google through Lovable's broker (@lovable.dev/cloud-auth-js), which only works on Lovable. Clodable turned Google on in the new backend and set VITE_GOOGLE_SIGN_IN=supabase for the preview and the site. Make the Google button call supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin } }) when import.meta.env.VITE_GOOGLE_SIGN_IN is 'supabase', and keep Lovable's broker otherwise, so the app keeps working on Lovable until the switch.",
+            "The app signs in with Google through Lovable's broker (@lovable.dev/cloud-auth-js), which only works on Lovable. Cloclod turned Google on in the new backend and set VITE_GOOGLE_SIGN_IN=supabase for the preview and the site. Make the Google button call supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin } }) when import.meta.env.VITE_GOOGLE_SIGN_IN is 'supabase', and keep Lovable's broker otherwise, so the app keeps working on Lovable until the switch.",
           ),
         })}
       </Box>
@@ -5136,7 +5136,7 @@ function googleStep($: EngineInterface, { ui }: StepView) {
     <Box flexDirection="column" rowGap={1}>
       <Text>
         People sign in to your app with Google. On your new backend that needs a Google client of
-        your own: Clodable turns it on with it.
+        your own: Cloclod turns it on with it.
       </Text>
       {numbered(ui, [
         "In Google Cloud: APIs & Services → Credentials → Create credentials → OAuth client ID → Web application.",
@@ -5202,7 +5202,7 @@ function freezeStep($: EngineInterface, { ui, s, now }: StepView) {
         app's scheduled jobs there:
       </Text>
       {pausePlan ? sqlBlock($, ui, "move-freeze", pausePlan.freeze) : <Text dimColor>…</Text>}
-      <Text>2. Then tell Clodable.</Text>
+      <Text>2. Then tell Cloclod.</Text>
       <Box flexDirection="row" columnGap={2} alignItems="center">
         <Button
           key="move-paused"
@@ -5277,7 +5277,7 @@ function goLiveStep($: EngineInterface, { ui }: StepView) {
   return (
     <Box flexDirection="column" rowGap={1}>
       <Text dimColor>
-        Clodable points your app's files and its sign-in at your new backend and at{" "}
+        Cloclod points your app's files and its sign-in at your new backend and at{" "}
         {move?.site?.url ?? "your site"}. Then Publish puts it live.
       </Text>
       {Select ? (
@@ -5354,7 +5354,7 @@ function domainStep($: EngineInterface, { ui }: StepView) {
     // Right after going live, one thing only: Publish puts it there.
     return (
       <Text>
-        First, Publish (in the Clodable bar): it puts your app live at{" "}
+        First, Publish (in the Cloclod bar): it puts your app live at{" "}
         {move?.site?.url ?? "its new address"}.
       </Text>
     );
@@ -5382,7 +5382,7 @@ function domainStep($: EngineInterface, { ui }: StepView) {
     <Box flexDirection="column" rowGap={1}>
       <Text>
         Your app is live at {move?.site ? new URL(move.site.url).host : "its new address"}. Does it
-        have its own domain, like yourapp.com? Clodable moves it to your new site before Lovable
+        have its own domain, like yourapp.com? Cloclod moves it to your new site before Lovable
         goes.
       </Text>
       {domainField($, ui, "move-domain", "yourapp.com", "Move it", false, (domain) =>
@@ -5416,7 +5416,7 @@ function lovableStep($: EngineInterface, { ui, s, now }: StepView) {
       <Box flexDirection="column" rowGap={1}>
         <Text>
           Sign in on your new site with your own account and change something. Lovable's last steps
-          show once Clodable sees you signed in there.
+          show once Cloclod sees you signed in there.
         </Text>
         <Box flexDirection="row" columnGap={2} alignItems="center">
           <Link href={liveAddress} label="Open your site ↗" />
@@ -5498,7 +5498,7 @@ function numbered(ui: PaneUi, lines: string[]) {
 }
 
 /** The project in Lovable, when its address is known. */
-function openLovable(ui: PaneUi, s: ClodableStatus) {
+function openLovable(ui: PaneUi, s: CloclodStatus) {
   const { Link } = ui;
   return s.lovableUrl ? <Link href={s.lovableUrl} label="Open Lovable ↗" /> : null;
 }
@@ -5546,7 +5546,7 @@ function domainField(
 }
 
 /** DNS records to add at the domain's provider, each part with its Copy button. */
-function dnsRecords($: EngineInterface, ui: PaneUi, key: string, records: ClodableDnsRecord[]) {
+function dnsRecords($: EngineInterface, ui: PaneUi, key: string, records: CloclodDnsRecord[]) {
   const { Box, Text } = ui;
   return records.map((r, i) => (
     <Box key={`${key}-${i}`} flexDirection="column">
@@ -5709,7 +5709,7 @@ async function loadRepos($: EngineInterface) {
 }
 
 /**
- * `clodable setup` from the panel: its button gives way to its steps as they come (the packages
+ * `cloclod setup` from the panel: its button gives way to its steps as they come (the packages
  * alone can take a minute or two), and a setup that didn't finish says why. Its result when it did.
  */
 async function runSetup($: EngineInterface, args: string[]): Promise<Result | undefined> {
@@ -5721,7 +5721,7 @@ async function runSetup($: EngineInterface, args: string[]): Promise<Result | un
   let outcome: { result?: Result; failure?: unknown } = {};
   try {
     outcome = await streamCli($, ["setup", ...args, "--yes"], (event) => {
-      const next: ClodableStep = {
+      const next: CloclodStep = {
         id: event.id,
         state: event.state,
         title: event.title,
@@ -5752,8 +5752,8 @@ async function runSetup($: EngineInterface, args: string[]): Promise<Result | un
   return result;
 }
 
-const IDEA_DETAILS = `The builder chose Start from an idea. Make a small, working local prototype with Vite and React in this folder, with dev and build scripts and .gitignore excluding node_modules, dist and .env files. Use sample data and browser storage only; explain what is local when relevant. Do not create a GitHub app, connect accounts, add a backend or publish. Do not initialize git or add Clodable's setup files yet. Open the preview in Desktop, try its main interaction, and say it is a local first version. Clodable is not saving to GitHub yet. When they want saving, tell them to press Set up saving in the Clodable panel; that panel gets account consent. Keep progress and final replies free of git vocabulary and local addresses.`;
-const IDEA_PREPARE_DETAILS = `Keep the existing app's design, content and local work. Prepare it as a supported Vite + React app with dev and build scripts, checking that it builds. Keep environment files and generated dependencies ignored. Do not create a remote app, connect accounts or publish. Once ready, ask the builder to try Set up saving in Clodable again. All account consent and GitHub creation happen in the panel. Use plain builder language.`;
+const IDEA_DETAILS = `The builder chose Start from an idea. Make a small, working local prototype with Vite and React in this folder, with dev and build scripts and .gitignore excluding node_modules, dist and .env files. Use sample data and browser storage only; explain what is local when relevant. Do not create a GitHub app, connect accounts, add a backend or publish. Do not initialize git or add Cloclod's setup files yet. Open the preview in Desktop, try its main interaction, and say it is a local first version. Cloclod is not saving to GitHub yet. When they want saving, tell them to press Set up saving in the Cloclod panel; that panel gets account consent. Keep progress and final replies free of git vocabulary and local addresses.`;
+const IDEA_PREPARE_DETAILS = `Keep the existing app's design, content and local work. Prepare it as a supported Vite + React app with dev and build scripts, checking that it builds. Keep environment files and generated dependencies ignored. Do not create a remote app, connect accounts or publish. Once ready, ask the builder to try Set up saving in Cloclod again. All account consent and GitHub creation happen in the panel. Use plain builder language.`;
 
 async function setUpSaving($: EngineInterface, account: string) {
   if (turnActive) return;
@@ -5771,7 +5771,7 @@ async function setUpSaving($: EngineInterface, account: string) {
   $.ui.toast(
     result.data?.pushed
       ? "Saved to your private app on GitHub."
-      : "Your app is connected. Your latest changes are still on this computer; Clodable will try saving them again.",
+      : "Your app is connected. Your latest changes are still on this computer; Cloclod will try saving them again.",
   );
   await refreshStatus($);
   await refreshChecks($);

@@ -1,12 +1,12 @@
-# Clodable brand
+# Cloclod brand
 
-<img src="../assets/lockup.svg" alt="Clodable" height="48">
+<img src="../assets/lockup.svg" alt="Cloclod" height="48">
 
 ## Idea
 
-A *clod* is a lump of clay. Clodable means your app is **moldable**: you shape it with Claude, and when you're happy you publish it, the way you fire clay in a kiln.
+A *clod* is a lump of clay. Cloclod means your app is **moldable**: you shape it with Claude, and when you're happy you publish it, the way you fire clay in a kiln.
 
-The mark is the clod itself, Clodable's mascot: a small lump of clay that comes alive, like a pocket golem that's only half sculpted and that you finish shaping. It's the raw material you shape until it walks on its own.
+The mark is the clod itself, Cloclod's mascot: a small lump of clay that comes alive, like a pocket golem that's only half sculpted and that you finish shaping. It's the raw material you shape until it walks on its own.
 
 The name also winks at Claude and at Lovable. Keep that wink in the name only. Never use either company's logo, colors as a reference, or wording. Before public launch, see "Trademark check" in [DECISIONS.md](../DECISIONS.md).
 
@@ -19,7 +19,7 @@ The name also winks at Claude and at Lovable. Keep that wink in the name only. N
 - Use it at 16, 24, 32, 48 or 64 px. At these sizes every square lands on whole pixels of a 2x screen; other sizes blur its edges.
 - One version works on light and dark backgrounds.
 - Keep its pixels square: never rotate it, scale it in an animation, or smooth it. On hover it hops.
-- The lockup adds "clodable" in Fraunces 600, stored as shapes, so every reader sees the same letters.
+- The lockup adds "cloclod" in Fraunces 600, stored as shapes, so every reader sees the same letters.
 - `packages/design/src/logo.ts` draws both, and `scripts/export-brand.mts` writes the files in `docs/assets`. The plugin keeps a copy of the mark in `plugin/hooks/register.tsx`.
 
 ## The drawings

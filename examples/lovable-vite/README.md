@@ -1,7 +1,7 @@
 # Crumb & Co. (Lovable classic template)
 
 A fictional bakery site built as a copy of what Lovable generates with its **classic template**
-(`vite_react_shadcn_ts`). Lovable used this template for apps created before May 13, 2026. Clodable's
+(`vite_react_shadcn_ts`). Lovable used this template for apps created before May 13, 2026. Cloclod's
 dev tooling (preview toolbar, source tagger, inline text editing, CLI) is developed and tested
 against it.
 
@@ -94,7 +94,7 @@ page imports the client, and the app runs offline.
   files (`tailwind.config.ts` `require()`, empty interfaces and fast-refresh warnings in
   `src/components/ui`). The app's own files lint clean.
 
-## Notes for Clodable tooling
+## Notes for Cloclod tooling
 
 - `lovable-tagger@1.1.13` does nothing outside Lovable's sandbox. Every feature is gated on
   `LOVABLE_DEV_SERVER=true`, so locally `componentTagger()` is an empty plugin. To reproduce the

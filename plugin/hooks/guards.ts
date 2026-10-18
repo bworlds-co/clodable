@@ -1,24 +1,24 @@
-// What Claude may do on its own in an app Clodable set up, and what stays the builder's: the
+// What Claude may do on its own in an app Cloclod set up, and what stays the builder's: the
 // commands and paths the guards and the permission checks look for. Pure functions: no `$`.
 
 export const PUSH_OR_REWRITE =
   /\bgit\s+(push|reset\s+--hard|rebase|filter-branch|filter-repo|update-ref)\b|\bgh\s+pr\s+merge\b/;
-export const OUR_PUBLISH = /\bclodable(?:\.mjs)?["']?\s+(publish|undo)\b/;
+export const OUR_PUBLISH = /\bcloclod(?:\.mjs)?["']?\s+(publish|undo)\b/;
 export const LEAVE_DRAFT = /\bgit\s+(checkout|switch)\s+(-[-\w]+\s+)*(main|master)\b/;
 /**
- * Clodable's private folder on this computer: the Supabase token, database passwords, and the
+ * Cloclod's private folder on this computer: the Supabase token, database passwords, and the
  * export with people's emails and password hashes. It never goes into a conversation.
  */
 export const PRIVATE_FOLDER =
   /Library\/Application Support\/clodable|\.config\/clodable|AppData[\\/]Roaming[\\/]clodable|clodable[\\/]secrets\.json/i;
 export const PRIVATE_FOLDER_DENY =
-  "That folder holds Clodable's keys and the people's data from the Lovable export, so it stays out of the conversation. Use `clodable move status` or `clodable move diagnose` instead: they report what's safe to see.";
+  "That folder holds Cloclod's keys and the people's data from the Lovable export, so it stays out of the conversation. Use `cloclod move status` or `cloclod move diagnose` instead: they report what's safe to see.";
 /**
- * Steps that take a secret (a token, a key): the builder types those in the Clodable panel, never
+ * Steps that take a secret (a token, a key): the builder types those in the Cloclod panel, never
  * in the chat.
  */
 export const SECRET_STEP =
-  /clodable(?:\.mjs"?)?\s+move\s+(connect|secret|vault-secret|disconnect|forget|netlify|setting|resend|ai|google)\b|clodable(?:\.mjs"?)?\s+move\s+files\b.*--private|clodable(?:\.mjs"?)?\s+connect\b/;
+  /cloclod(?:\.mjs"?)?\s+move\s+(connect|secret|vault-secret|disconnect|forget|netlify|setting|resend|ai|google)\b|cloclod(?:\.mjs"?)?\s+move\s+files\b.*--private|cloclod(?:\.mjs"?)?\s+connect\b/;
 
 /** A copied GitHub address or owner/name, normalized for setup's --repo argument. */
 export function githubRepo(input: string): string | undefined {
@@ -46,7 +46,7 @@ export function githubRepo(input: string): string | undefined {
   return name === "." || name === ".." ? undefined : value;
 }
 
-/** Whether a tool's file or path is inside Clodable's private folder. */
+/** Whether a tool's file or path is inside Cloclod's private folder. */
 export function inPrivateFolder(input: unknown): boolean {
   const fields = input as Record<string, unknown>;
   return [fields.file_path, fields.path, fields.notebook_path].some((v) =>
@@ -55,14 +55,14 @@ export function inPrivateFolder(input: unknown): boolean {
 }
 
 /**
- * Clodable's database commands (`npx clodable db query|run|apply …`, or the plugin's own CLI), with
+ * Cloclod's database commands (`npx cloclod db query|run|apply …`, or the plugin's own CLI), with
  * what they act on. `single`: one command and one quoted argument, nothing else for the shell.
  */
 export function dbCommandIn(
   command: string,
 ): { action: "query" | "run" | "apply" | "check"; arg: string; single: boolean } | undefined {
   const m = command.match(
-    /^(?:npx\s+clodable|node\s+"[^"]*clodable\.mjs")\s+db\s+(query|run|apply|check)(?:\s+([\s\S]*))?$/,
+    /^(?:npx\s+cloclod|node\s+"[^"]*cloclod\.mjs")\s+db\s+(query|run|apply|check)(?:\s+([\s\S]*))?$/,
   );
   if (!m) return undefined;
   const rest = (m[2] ?? "").trim();
@@ -97,34 +97,34 @@ export function commandInApp(command: string, cwd: string): string {
   return value;
 }
 
-/** How Claude runs a move step: Clodable's own command line, next to the plugin at `root`. */
+/** How Claude runs a move step: Cloclod's own command line, next to the plugin at `root`. */
 export function moveCommandLine(root: string, args: string[]): string {
-  return `node "${root}/cli/clodable.mjs" move ${args.join(" ")}`;
+  return `node "${root}/cli/cloclod.mjs" move ${args.join(" ")}`;
 }
 
 /** Claude's own runs of the move's steps, exactly as the panel's requests spell them. */
 export function isMoveStep(root: string, command: string): boolean {
   return new RegExp(
-    `^node "${escapeRegExp(root)}/cli/clodable\\.mjs" move (status|check|facts|choices|create|export|copy|verify|diagnose|files|functions|secrets|preview|teams|site|settings|emails|pause|golive|domain|services|app-emails)( --?[\\w-]+| [\\w.:@-]+)*$`,
+    `^node "${escapeRegExp(root)}/cli/cloclod\\.mjs" move (status|check|facts|choices|create|export|copy|verify|diagnose|files|functions|secrets|preview|teams|site|settings|emails|pause|golive|domain|services|app-emails)( --?[\\w-]+| [\\w.:@-]+)*$`,
   ).test(command);
 }
 
-/** How Claude puts the site online or creates the backend: Clodable's own command line. */
+/** How Claude puts the site online or creates the backend: Cloclod's own command line. */
 export function onlineCommandLine(root: string, args: string[]): string {
-  return `node "${root}/cli/clodable.mjs" ${args.join(" ")}`;
+  return `node "${root}/cli/cloclod.mjs" ${args.join(" ")}`;
 }
 
 /** Claude's own runs of those, exactly as the panel's requests spell them. */
 export function isOnlineStep(root: string, command: string): boolean {
   return new RegExp(
-    `^node "${escapeRegExp(root)}/cli/clodable\\.mjs" (site|backend)( create)?( --(team|org|region) [\\w.-]+)*$`,
+    `^node "${escapeRegExp(root)}/cli/cloclod\\.mjs" (site|backend)( create)?( --(team|org|region) [\\w.-]+)*$`,
   ).test(command);
 }
 
 /** Only informational commands from the installed bundle or its project-local copy. */
 export function isRuntimeRead(root: string, command: string): boolean {
   return new RegExp(
-    `^node "(?:${escapeRegExp(root)}/cli/clodable\\.mjs|\\.clodable/local/clodable\\.mjs)" (status|history|doctor|check|settings)( --json)?$`,
+    `^node "(?:${escapeRegExp(root)}/cli/cloclod\\.mjs|\\.clodable/local/clodable\\.mjs)" (status|history|doctor|check|settings)( --json)?$`,
   ).test(command);
 }
 
@@ -135,7 +135,7 @@ export function isRuntimeRead(root: string, command: string): boolean {
 export function isFactsRecord(root: string, command: string): boolean {
   const m = command.match(
     new RegExp(
-      `^node "${escapeRegExp(root)}/cli/clodable\\.mjs" move facts --set <<'(\\w+)'\n([\\s\\S]*)\n(\\w+)$`,
+      `^node "${escapeRegExp(root)}/cli/cloclod\\.mjs" move facts --set <<'(\\w+)'\n([\\s\\S]*)\n(\\w+)$`,
     ),
   );
   if (!m || m[1] !== m[3]) return false;
@@ -146,7 +146,7 @@ export const SAFE_BASH = [
   /^(npm|pnpm|yarn|bun)\s+(install|i|ci|add)\b/,
   /^(npm|pnpm|yarn|bun)\s+run\s+(build|lint|test|typecheck|check)\b/,
   /^(npm|pnpm|yarn|bun)\s+(test|lint)\b/,
-  /^npx\s+(tsc|eslint|prettier|vitest|clodable\s+(status|check|history|doctor))\b/,
+  /^npx\s+(tsc|eslint|prettier|vitest|cloclod\s+(status|check|history|doctor))\b/,
   /^git\s+(status|diff|log|show|blame)\b/,
   /^(ls|pwd|cat|head|tail|wc|grep|rg)\b/,
 ];

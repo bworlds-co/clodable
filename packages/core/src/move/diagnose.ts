@@ -1,4 +1,4 @@
-import { ClodableError } from "../errors.js";
+import { CloclodError } from "../errors.js";
 import type { Workspace } from "../workspace.js";
 import { apiSeesTables } from "./copy.js";
 import { homeSql, localTarget } from "./home.js";
@@ -16,7 +16,7 @@ export interface MoveFinding extends MoveCheck {
   fixed?: boolean;
 }
 
-const LOOK_AGAIN = "Run `clodable move diagnose --fix`.";
+const LOOK_AGAIN = "Run `cloclod move diagnose --fix`.";
 
 /** Fine as it was, put right just now by `--fix`, or what's wrong and the way forward. */
 function verdict(
@@ -30,7 +30,7 @@ function verdict(
 
 /**
  * Everything worth knowing about the copy when something seems off, in safe facts only: counts,
- * times, settings and names; never a key, a password or a row. `fix` applies Clodable's own
+ * times, settings and names; never a key, a password or a row. `fix` applies Cloclod's own
  * fixes on the copy (its API's list of tables, the preview's sign-in settings); nothing else.
  */
 export async function diagnoseCopy(
@@ -39,7 +39,7 @@ export async function diagnoseCopy(
 ): Promise<{ findings: MoveFinding[] }> {
   const state = await loadMove(ws.root);
   if (!state.home) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "move-not-ready",
       message: "There's no new backend to look at yet.",
       hint: "Create it first: it's an early step of the move.",
@@ -80,7 +80,7 @@ export async function diagnoseCopy(
     findings.push({
       ...check,
       ...verdict(check.ok, Boolean(options.fix), {
-        fix: "Run `clodable move diagnose --fix`: it asks the API to refresh its list of tables.",
+        fix: "Run `cloclod move diagnose --fix`: it asks the API to refresh its list of tables.",
       }),
     });
   }

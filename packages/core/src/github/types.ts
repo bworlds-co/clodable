@@ -1,4 +1,4 @@
-/** The GitHub operations Clodable needs, behind one interface, so tests and future front ends can swap them. */
+/** The GitHub operations Cloclod needs, behind one interface, so tests and future front ends can swap them. */
 
 export interface Viewer {
   login: string;

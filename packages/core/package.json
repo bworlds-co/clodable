@@ -1,7 +1,7 @@
 {
   "name": "@clodable/core",
   "version": "0.2.2",
-  "description": "Clodable's vendor-neutral engine: drafts, publish, undo, checks and the repo kit. Plain git and GitHub underneath.",
+  "description": "Cloclod's vendor-neutral engine: drafts, publish, undo, checks and the repo kit. Plain git and GitHub underneath.",
   "license": "MIT",
   "type": "module",
   "sideEffects": false,

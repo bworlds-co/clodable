@@ -2,22 +2,22 @@ import { existsSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { ClodableError } from "./errors.js";
+import { CloclodError } from "./errors.js";
 import { type ExecResult, exec } from "./exec.js";
 
 const COMMIT_KINDS = ["save", "restore", "sync", "publish", "undo", "setup"] as const;
 
-/** What a commit was, recorded as a `Clodable-Kind` trailer so history can be read back. */
+/** What a commit was, recorded as a `Cloclod-Kind` trailer so history can be read back. */
 export type CommitKind = (typeof COMMIT_KINDS)[number];
 
-const KIND_KEY = "Clodable-Kind";
+const KIND_KEY = "Cloclod-Kind";
 
-/** The trailer a commit's message ends with: `Clodable-Kind: publish`. */
+/** The trailer a commit's message ends with: `Cloclod-Kind: publish`. */
 export const kindTrailer = (kind: CommitKind) => `${KIND_KEY}: ${kind}`;
 
 const KIND_LINE = new RegExp(`\\n?${KIND_KEY}:.*$`, "m");
 
-/** A trailer's value, if it's a kind Clodable knows. */
+/** A trailer's value, if it's a kind Cloclod knows. */
 function kindOf(value: string): CommitKind | undefined {
   const kind = value.trim();
   return (COMMIT_KINDS as readonly string[]).includes(kind) ? (kind as CommitKind) : undefined;
@@ -59,7 +59,7 @@ export class Git {
   async ok(args: string[], options: { input?: string; timeout?: number } = {}): Promise<string> {
     const result = await this.run(args, options);
     if (result.exitCode !== 0) {
-      throw new ClodableError({
+      throw new CloclodError({
         code: "unknown",
         message: "Something unexpected went wrong.",
         hint: "Try again. If it keeps happening, share the details with your developer.",
@@ -153,14 +153,14 @@ export class Git {
     );
     if (result.exitCode !== 0) {
       if (/tell me who you are|user\.email|empty ident/i.test(result.stderr)) {
-        throw new ClodableError({
+        throw new CloclodError({
           code: "git-identity",
           message: "Saving needs to know who you are.",
-          hint: "Run `clodable setup` once to connect your GitHub account.",
+          hint: "Run `cloclod setup` once to connect your GitHub account.",
           details: result.stderr,
         });
       }
-      throw new ClodableError({
+      throw new CloclodError({
         code: "unknown",
         message: "Your changes couldn't be saved.",
         details: result.stderr || result.stdout,
@@ -214,7 +214,7 @@ export class Git {
 
   /** Check a merge away from the preview; never put conflict markers in the builder's files. */
   async checkMerge(ref: string): Promise<{ ok: boolean; conflicts: string[] }> {
-    const dir = await mkdtemp(join(tmpdir(), "clodable-combine-"));
+    const dir = await mkdtemp(join(tmpdir(), "cloclod-combine-"));
     try {
       await this.ok(["worktree", "add", "--quiet", "--detach", dir, "HEAD"]);
       const side = new Git(dir);
@@ -222,7 +222,7 @@ export class Git {
       if (result.exitCode === 0) return { ok: true, conflicts: [] };
       const conflicts = await side.conflictedFiles();
       if (conflicts.length > 0) return { ok: false, conflicts };
-      throw new ClodableError({
+      throw new CloclodError({
         code: "unknown",
         message: "Your draft couldn't be compared with the live site.",
         details: result.stderr || result.stdout,
@@ -239,7 +239,7 @@ export class Git {
     if (result.exitCode === 0) return { ok: true, conflicts: [] };
     const conflicts = await this.conflictedFiles();
     if (conflicts.length === 0) {
-      throw new ClodableError({
+      throw new CloclodError({
         code: "unknown",
         message: "Your draft couldn't be brought up to date.",
         details: result.stderr || result.stdout,

@@ -1,6 +1,6 @@
 import {
   applyMigration,
-  ClodableError,
+  CloclodError,
   checkDatabase,
   queryDatabase,
   runOnDatabase,
@@ -62,10 +62,10 @@ export async function dbCommand(ctx: Context, options: { action?: string; arg?: 
       );
     default:
       return run(ctx, async () => {
-        throw new ClodableError({
+        throw new CloclodError({
           code: "invalid-config",
           message: `There's no “${options.action ?? ""}” for the database.`,
-          hint: 'clodable db query "select …", clodable db run "update …", or clodable db apply supabase/migrations/<file>.sql',
+          hint: 'cloclod db query "select …", cloclod db run "update …", or cloclod db apply supabase/migrations/<file>.sql',
         });
       });
   }

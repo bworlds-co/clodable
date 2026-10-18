@@ -1,5 +1,5 @@
 /**
- * The Clodable mark: the clod, Clodable's mascot. A lump of clay that comes alive, half sculpted,
+ * The Cloclod mark: the clod, Cloclod's mascot. A lump of clay that comes alive, half sculpted,
  * that you finish shaping. This is its front pose, drawn flat on a 16 × 16 pixel grid.
  *
  * Each pixel is a square, drawn with crisp edges. At multiples of 8 px (16, 24, 32, 48, 64) every
@@ -87,7 +87,7 @@ export function lockupSvg(
 ): string {
   const h = options.height ?? 48;
   const w = Math.round((h * LOCKUP_WIDTH) / 48);
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${LOCKUP_WIDTH} 48" role="img" aria-label="Clodable"><g shape-rendering="crispEdges" transform="scale(3)">${markPaths(
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${LOCKUP_WIDTH} 48" role="img" aria-label="Cloclod"><g shape-rendering="crispEdges" transform="scale(3)">${markPaths(
     { ...MARK_COLORS, ...options.colors },
   )}</g><path transform="translate(58.7 39)" fill="${options.ink ?? "#1F1A16"}" d="${WORDMARK_PATH}"/></svg>`;
 }
@@ -96,5 +96,5 @@ export function lockupSvg(
 export function wordmarkSvg(options: { height?: number; ink?: string } = {}): string {
   const h = options.height ?? 30;
   const w = Math.round((h * 148) / 30);
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 -29 148 30" role="img" aria-label="Clodable"><path fill="${options.ink ?? "#1F1A16"}" d="${WORDMARK_PATH}"/></svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 -29 148 30" role="img" aria-label="Cloclod"><path fill="${options.ink ?? "#1F1A16"}" d="${WORDMARK_PATH}"/></svg>`;
 }

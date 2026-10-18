@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { realpathSync } from "node:fs";
 import { join } from "node:path";
-import { ClodableError } from "./errors.js";
+import { CloclodError } from "./errors.js";
 import { readSecret, storeSecret } from "./local-secrets.js";
 import { textFiles } from "./move/assess.js";
 import { NetlifyApi } from "./move/netlify-api.js";
@@ -12,11 +12,11 @@ import type { Workspace } from "./workspace.js";
 /**
  * The settings the app's server code reads (`process.env.GREETING`), on this computer, for the
  * preview. On Lovable they live in More → Cloud → Secrets; on the builder's own site, in its host's
- * settings. Their values stay in Clodable's private store, never in the project, and `clodable dev`
+ * settings. Their values stay in Cloclod's private store, never in the project, and `cloclod dev`
  * gives them to the app. A setting pasted once goes to both: here, and the site on Netlify.
  */
 
-/** Settings the host provides on its own, or that Clodable sets from the new backend. */
+/** Settings the host provides on its own, or that Cloclod sets from the new backend. */
 const PROVIDED =
   /^(NODE_ENV|PORT|CI|HOST|NETLIFY.*|CONTEXT|URL|DEPLOY_URL|VERCEL.*|SUPABASE_[A-Z_]+|VITE_[A-Z_]+)$/;
 
@@ -50,7 +50,7 @@ export async function appSettings(root: string): Promise<{ wanted: string[]; lov
   };
 }
 
-/** Names only (never values): `clodable dev` watches it to restart when a setting changes. */
+/** Names only (never values): `cloclod dev` watches it to restart when a setting changes. */
 export const SETTINGS_PATH = ".clodable/local/settings.json";
 
 function storeKey(root: string): string {
@@ -86,7 +86,7 @@ export interface SettingsStatus {
 }
 
 /**
- * The app's site on Netlify, put there by Clodable (on its own, or moving off Lovable), with the
+ * The app's site on Netlify, put there by Cloclod (on its own, or moving off Lovable), with the
  * names of the settings set there and how to record a new one.
  */
 async function siteOf(ws: Workspace): Promise<
@@ -138,7 +138,7 @@ export async function settingsStatus(ws: Workspace): Promise<SettingsStatus> {
 }
 
 /**
- * Values the preview's server code gets on this computer, set by Clodable itself (a new backend's
+ * Values the preview's server code gets on this computer, set by Cloclod itself (a new backend's
  * address and keys): never in the project, never shown.
  */
 export async function rememberSettings(root: string, add: Record<string, string>): Promise<void> {
@@ -157,7 +157,7 @@ export async function setSetting(
   value: string,
 ): Promise<SettingsStatus> {
   if (!name || !/^[A-Z][A-Z0-9_]*$/.test(name)) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "invalid-config",
       message: name ? `“${name}” isn't a setting name.` : "Which setting?",
       hint: "Use capitals, digits and underscores, like GREETING.",
@@ -165,7 +165,7 @@ export async function setSetting(
   }
   const clean = value.replace(/\r?\n$/, "");
   if (!clean.trim()) {
-    throw new ClodableError({ code: "invalid-config", message: "That setting is empty." });
+    throw new CloclodError({ code: "invalid-config", message: "That setting is empty." });
   }
   const values = await localSettings(ws.root);
   values[name] = clean;

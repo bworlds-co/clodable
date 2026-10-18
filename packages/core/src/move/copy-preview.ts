@@ -1,4 +1,4 @@
-import { ClodableError } from "../errors.js";
+import { CloclodError } from "../errors.js";
 import type { Workspace } from "../workspace.js";
 import { backendOf, type PreviewBackend } from "./backend.js";
 import { homeKeys } from "./home.js";
@@ -12,7 +12,7 @@ import { SupabaseApi } from "./supabase-api.js";
 export async function setPreview(ws: Workspace, target: "live" | "copy"): Promise<void> {
   const state = await loadMove(ws.root);
   if (target === "copy" && !state.data) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "move-not-ready",
       message: "Copy your data first: the preview would show an empty app.",
     });

@@ -42,14 +42,14 @@ export {
   status,
 } from "./draft.js";
 export {
-  ClodableError,
+  CloclodError,
   type ErrorCode,
   type ErrorInfo,
   messageOf,
   toErrorInfo,
 } from "./errors.js";
 export {
-  type ClodableEvent,
+  type CloclodEvent,
   type Flow,
   type LogEvent,
   log,

@@ -1,7 +1,7 @@
 import {
   applyKit,
   assessMove,
-  ClodableError,
+  CloclodError,
   checkCopy,
   connectNetlify,
   connectResend,
@@ -79,7 +79,7 @@ export async function configCommand(ctx: Context, options: { key?: string; value
       const current = { backend: ws.config.backend, hosting: ws.config.hosting };
       if (!options.key) return current;
       if (!(options.key in SETTINGS)) {
-        throw new ClodableError({
+        throw new CloclodError({
           code: "invalid-config",
           message: `There's no setting called “${options.key}”.`,
           hint: "Use backend or hosting.",
@@ -89,7 +89,7 @@ export async function configCommand(ctx: Context, options: { key?: string; value
       if (options.value === undefined) return { [key]: current[key] };
       const allowed: readonly string[] = SETTINGS[key];
       if (!allowed.includes(options.value)) {
-        throw new ClodableError({
+        throw new CloclodError({
           code: "invalid-config",
           message: `“${options.value}” isn't a value for ${key}.`,
           hint: `Use one of: ${allowed.join(", ")}.`,
@@ -109,7 +109,7 @@ export async function configCommand(ctx: Context, options: { key?: string; value
 }
 
 const LEVEL: Record<MoveAssessment["level"], string> = {
-  simple: "A simple move: Clodable does nearly everything, and you click a few buttons.",
+  simple: "A simple move: Cloclod does nearly everything, and you click a few buttons.",
   "some-steps": "A move with a few steps for you, each one guided.",
   "needs-help": "A move where some parts are best done with someone technical.",
 };
@@ -123,7 +123,7 @@ export interface MoveOptions {
   file?: string;
   /** `files`: read Lovable Cloud's service key from stdin, for private folders. */
   private?: boolean;
-  /** `diagnose`: apply Clodable's own fixes on the copy. */
+  /** `diagnose`: apply Cloclod's own fixes on the copy. */
   fix?: boolean;
   /** `site`: the Netlify team the site goes in. */
   account?: string;
@@ -163,7 +163,7 @@ function checklist(ctx: Context, status: { wanted: string[]; set: string[] }) {
 
 /** The step's argument, or what it should have been. */
 function argument(options: MoveOptions, message: string, hint: string): string {
-  if (!options.arg) throw new ClodableError({ code: "invalid-config", message, hint });
+  if (!options.arg) throw new CloclodError({ code: "invalid-config", message, hint });
   return options.arg;
 }
 
@@ -207,7 +207,7 @@ const STEPS = {
           ctx.out.line(LEVEL[assessment.level]);
           ctx.out.line("");
           const mark = { clodable: celadon("✓"), you: clay("●"), help: ochre("!") };
-          const who = { clodable: "Clodable", you: "You", help: "Help" };
+          const who = { clodable: "Cloclod", you: "You", help: "Help" };
           for (const item of assessment.items) {
             ctx.out.line(`${mark[item.by]} ${item.label} ${ash(`· ${who[item.by]}`)}`);
             ctx.out.line(ash(`  ${item.detail}`));
@@ -225,7 +225,7 @@ const STEPS = {
             async () => {
               const json = (await readStdin())?.trim();
               if (!json) {
-                throw new ClodableError({
+                throw new CloclodError({
                   code: "invalid-config",
                   message: "Nothing was given.",
                   hint: "Pipe the facts in, as one JSON object.",
@@ -242,7 +242,7 @@ const STEPS = {
               ctx.out.header("what your app uses");
               ctx.out.line(facts ? factsSummary(facts) : ash("Not checked yet."));
               ctx.out.line("");
-              ctx.out.line(ash("Clodable's scan, for Claude to check:"));
+              ctx.out.line(ash("Cloclod's scan, for Claude to check:"));
               ctx.out.line(JSON.stringify(hints, null, 2));
             },
           ),
@@ -385,7 +385,7 @@ const STEPS = {
           const name = argument(
             options,
             "Which secret?",
-            "clodable move secret RESEND_API_KEY, with the value piped in.",
+            "cloclod move secret RESEND_API_KEY, with the value piped in.",
           );
           return setFunctionSecret(ws, name, await secretInput(ctx, `The value of ${name}`));
         },
@@ -418,10 +418,10 @@ const STEPS = {
           const ws = await ctx.workspace();
           const target = options.arg;
           if (target !== "copy" && target !== "live") {
-            throw new ClodableError({
+            throw new CloclodError({
               code: "invalid-config",
               message: "Preview which backend?",
-              hint: "clodable move preview copy, or clodable move preview live.",
+              hint: "cloclod move preview copy, or cloclod move preview live.",
             });
           }
           await setPreview(ws, target);
@@ -519,7 +519,7 @@ const STEPS = {
           const name = argument(
             options,
             "Which setting?",
-            "clodable move setting GREETING, with the value piped in.",
+            "cloclod move setting GREETING, with the value piped in.",
           );
           // For the preview too, not only the site: one paste, both places.
           await setSetting(ws, name, await secretInput(ctx, `The value of ${name}`));
@@ -771,7 +771,7 @@ const STEPS = {
         async () => markFinished(await ctx.workspace()),
         () =>
           ctx.out.line(
-            `${celadon("✓")} Your app is off Lovable. Clodable deleted its copy of your export from this computer.`,
+            `${celadon("✓")} Your app is off Lovable. Cloclod deleted its copy of your export from this computer.`,
           ),
       ),
   },
@@ -811,14 +811,14 @@ type MoveStepName = keyof typeof STEPS;
 const COMMANDS: Record<MoveStepName, MoveStepCommand> = STEPS;
 const MOVE_STEPS = Object.keys(COMMANDS) as MoveStepName[];
 
-/** The move's line in `clodable --help`: every step, in order, with what it takes. */
+/** The move's line in `cloclod --help`: every step, in order, with what it takes. */
 export const MOVE_HELP = `Move off Lovable, step by step: ${MOVE_STEPS.map((name) => COMMANDS[name].usage ?? name).join(", ")}`;
 
 /** Moving off Lovable, step by step. Every step is safe to run again. */
 export async function moveCommand(ctx: Context, options: MoveOptions) {
   if (!Object.hasOwn(COMMANDS, options.step)) {
     return run(ctx, async () => {
-      throw new ClodableError({
+      throw new CloclodError({
         code: "not-found",
         message: `There's no move step called “${options.step}”.`,
         hint: `Use one of: ${MOVE_STEPS.join(", ")}.`,

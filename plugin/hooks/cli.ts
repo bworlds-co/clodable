@@ -1,18 +1,18 @@
-// What the Clodable CLI prints with --json, read back: one event per line, the result last. Pure
+// What the Cloclod CLI prints with --json, read back: one event per line, the result last. Pure
 // functions: no `$`, so they're easy to test and share.
 import type {
-  ClodableError,
-  ClodableNotReady,
-  ClodableStatus,
-  ClodableStep,
+  CloclodError,
+  CloclodNotReady,
+  CloclodStatus,
+  CloclodStep,
 } from "../types/index.d.ts";
 
-export type Result = { type: "result"; ok: boolean; data?: any; error?: ClodableError };
+export type Result = { type: "result"; ok: boolean; data?: any; error?: CloclodError };
 
 export type Step = {
   type: "step";
   id: string;
-  state: ClodableStep["state"];
+  state: CloclodStep["state"];
   title: string;
   detail?: string;
 };
@@ -33,7 +33,7 @@ export function lastResult(stdout: string, stderr: string): Result {
     ok: false,
     error: {
       code: "unknown",
-      message: "Clodable didn't answer.",
+      message: "Cloclod didn't answer.",
       details: (stderr || stdout).slice(0, 2000),
     },
   };
@@ -61,8 +61,8 @@ export function eventReader(): (chunk: string) => Array<Step | Result> {
   };
 }
 
-/** `clodable status --json`, as the bar and the panel draw it. */
-export function toStatus(data: any): ClodableStatus {
+/** `cloclod status --json`, as the bar and the panel draw it. */
+export function toStatus(data: any): CloclodStatus {
   return {
     ready: true,
     project: String(data?.project?.name ?? "your app"),
@@ -106,8 +106,8 @@ export function toStatus(data: any): ClodableStatus {
   };
 }
 
-/** Why Clodable isn't ready here, from the error `clodable status` gave. */
-export function notReady(error: ClodableError | undefined): ClodableNotReady {
+/** Why Cloclod isn't ready here, from the error `cloclod status` gave. */
+export function notReady(error: CloclodError | undefined): CloclodNotReady {
   const code = error?.code;
   return {
     ready: false,
@@ -119,14 +119,14 @@ export function notReady(error: ClodableError | undefined): ClodableNotReady {
           : code === "gh-auth"
             ? "no-github"
             : "unknown",
-    message: error?.message ?? "Clodable isn't ready here.",
+    message: error?.message ?? "Cloclod isn't ready here.",
     ...(error?.hint ? { fix: error.hint } : {}),
   };
 }
 
 /** A problem to show in the panel: what the CLI said, and what to do, or `fallback`. */
 export function problemOf(
-  error: ClodableError | undefined,
+  error: CloclodError | undefined,
   fallback: string,
 ): { message: string; hint?: string } {
   return { message: error?.message ?? fallback, ...(error?.hint ? { hint: error.hint } : {}) };
@@ -134,7 +134,7 @@ export function problemOf(
 
 export type Version = { sha: string; subject: string; date: string; kind: string | null };
 
-/** One version from `clodable history`. */
+/** One version from `cloclod history`. */
 export const toVersion = (c: any): Version => ({
   sha: String(c.sha),
   subject: String(c.subject ?? ""),
@@ -143,7 +143,7 @@ export const toVersion = (c: any): Version => ({
 });
 
 /**
- * Values are written only when they changed. Every redraw hands Clodable's buttons new handles,
+ * Values are written only when they changed. Every redraw hands Cloclod's buttons new handles,
  * and Desktop drops a press that names an old one: a redraw for nothing costs the next click.
  */
 export const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);

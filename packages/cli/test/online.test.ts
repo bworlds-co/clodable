@@ -9,7 +9,7 @@ import { type FakeSupabase, startFakeSupabase } from "../../core/test/fake-supab
 import { createSandbox, type Sandbox } from "../../core/test/sandbox.js";
 
 /**
- * An app that isn't online and has no backend gets both from Clodable, on the builder's own
+ * An app that isn't online and has no backend gets both from Cloclod, on the builder's own
  * Netlify and Supabase (fakes here): the commands the panel's buttons and Claude run, in order.
  */
 
@@ -30,7 +30,7 @@ let netlify: FakeNetlify;
 let config = "";
 
 /** The CLI, run without blocking: the fakes answer from this same process. */
-function clodable(args: string[], input?: string, extra: Record<string, string> = {}) {
+function cloclod(args: string[], input?: string, extra: Record<string, string> = {}) {
   return new Promise<{ events: Loose[]; result: Loose; code: number | null }>((done, fail) => {
     const child = spawn(tsx, [entry, ...args, "--json"], {
       cwd: sb.work,
@@ -66,7 +66,7 @@ const file = (path: string) => readFileSync(join(sb.work, path), "utf8");
 
 beforeAll(async () => {
   sb = await createSandbox();
-  config = await mkdtemp(join(tmpdir(), "clodable-config-"));
+  config = await mkdtemp(join(tmpdir(), "cloclod-config-"));
   fake = await startFakeSupabase({ token: TOKEN, nextRef: REF, sourceKey: "unused" });
   netlify = await startFakeNetlify({ token: NETLIFY });
 });
@@ -80,9 +80,9 @@ afterAll(async () => {
 
 describe("an app with no backend and no site", () => {
   it("says so, and what's connected on this computer", async () => {
-    expect((await clodable(["config", "backend", "none"])).result.ok).toBe(true);
-    expect((await clodable(["config", "hosting", "none"])).result.ok).toBe(true);
-    const status = (await clodable(["status"])).result.data;
+    expect((await cloclod(["config", "backend", "none"])).result.ok).toBe(true);
+    expect((await cloclod(["config", "hosting", "none"])).result.ok).toBe(true);
+    const status = (await cloclod(["status"])).result.data;
     expect(status.project).toMatchObject({ backend: "none", hosting: "none" });
     expect(status.database).toEqual({ connected: false });
     expect(status.netlify).toEqual({ connected: false });
@@ -93,13 +93,13 @@ describe("an app with no backend and no site", () => {
   });
 
   it("needs Supabase connected first, then offers its organizations with what it costs", async () => {
-    const refused = (await clodable(["backend", "create"])).result;
+    const refused = (await cloclod(["backend", "create"])).result;
     expect(refused).toMatchObject({ ok: false, error: { code: "supabase-auth" } });
-    expect((await clodable(["backend"])).result.data).toEqual({ connected: false });
+    expect((await cloclod(["backend"])).result.data).toEqual({ connected: false });
 
-    const connected = (await clodable(["connect", "supabase"], TOKEN)).result;
+    const connected = (await cloclod(["connect", "supabase"], TOKEN)).result;
     expect(connected.ok).toBe(true);
-    const choices = (await clodable(["backend"])).result.data;
+    const choices = (await cloclod(["backend"])).result.data;
     expect(choices.connected).toBe(true);
     expect(choices.organizations).toEqual([
       { slug: "acme", name: "Acme", plan: "free", freeLeft: 2 },
@@ -109,7 +109,7 @@ describe("an app with no backend and no site", () => {
   });
 
   it("gets its own backend: the project, its public address in .env, its server keys kept here", async () => {
-    const run = await clodable(["backend", "create"]);
+    const run = await cloclod(["backend", "create"]);
     expect(run.result.ok).toBe(true);
     expect(run.result.data).toMatchObject({ ref: REF, region: "eu-central-1", files: [".env"] });
     expect(run.events.filter((e) => e.type === "step").map((e) => e.id)).toEqual(
@@ -136,27 +136,27 @@ describe("an app with no backend and no site", () => {
       "SUPABASE_SERVICE_ROLE_KEY",
       "SUPABASE_URL",
     ]);
-    expect((await clodable(["settings"])).result.data.wanted).toEqual([]);
+    expect((await cloclod(["settings"])).result.data.wanted).toEqual([]);
 
-    expect((await clodable(["backend", "create"])).result).toMatchObject({
+    expect((await cloclod(["backend", "create"])).result).toMatchObject({
       ok: false,
       error: { code: "already-there" },
     });
-    expect((await clodable(["status"])).result.data.database).toEqual({ connected: true });
+    expect((await cloclod(["status"])).result.data.database).toEqual({ connected: true });
   });
 
   it("goes online on Netlify: the site, its settings, and Publish set up through GitHub", async () => {
-    expect((await clodable(["site", "create"])).result).toMatchObject({
+    expect((await cloclod(["site", "create"])).result).toMatchObject({
       ok: false,
       error: { code: "netlify-auth" },
     });
-    expect((await clodable(["connect", "netlify"], NETLIFY)).result.ok).toBe(true);
-    expect((await clodable(["site"])).result.data).toMatchObject({
+    expect((await cloclod(["connect", "netlify"], NETLIFY)).result.ok).toBe(true);
+    expect((await cloclod(["site"])).result.data).toMatchObject({
       connected: true,
       teams: [{ slug: "builder-team", name: "Builder's team" }],
     });
 
-    const run = await clodable(["site", "create"]);
+    const run = await cloclod(["site", "create"]);
     expect(run.result.ok).toBe(true);
     const url = "https://crumb-site.netlify.app";
     expect(run.result.data.site).toMatchObject({
@@ -166,15 +166,15 @@ describe("an app with no backend and no site", () => {
     });
     expect(run.result.data.files).toEqual([
       "netlify.toml",
-      ".github/workflows/clodable-netlify.yml",
+      ".github/workflows/cloclod-netlify.yml",
     ]);
 
     const vars = netlify.env.get("site-1")!;
     expect(vars.get("VITE_SUPABASE_URL")?.secret).toBe(false);
     expect(vars.get("SUPABASE_SERVICE_ROLE_KEY")).toMatchObject({ secret: true });
-    const secrets = JSON.parse(readFileSync(join(sb.bare, "clodable-fake-secrets.json"), "utf8"));
+    const secrets = JSON.parse(readFileSync(join(sb.bare, "cloclod-fake-secrets.json"), "utf8"));
     expect(secrets).toEqual({ NETLIFY_AUTH_TOKEN: NETLIFY, NETLIFY_SITE_ID: "site-1" });
-    expect(file(".github/workflows/clodable-netlify.yml")).toContain("netlify-cli@");
+    expect(file(".github/workflows/cloclod-netlify.yml")).toContain("netlify-cli@");
     expect(JSON.parse(file(".clodable/config.json"))).toMatchObject({
       hosting: "github",
       liveUrl: url,
@@ -184,7 +184,7 @@ describe("an app with no backend and no site", () => {
     expect(fake.projects.get(REF)?.auth).toMatchObject({ site_url: url });
     expect(file("AGENTS.md")).not.toContain("**Set up hosting**");
 
-    const status = (await clodable(["status"])).result.data;
+    const status = (await cloclod(["status"])).result.data;
     expect(status.site).toEqual({
       url,
       admin: "https://app.netlify.com/sites/crumb-site",
@@ -192,21 +192,21 @@ describe("an app with no backend and no site", () => {
     });
     expect(status.netlify).toBeUndefined();
     // Running it again finds the same site.
-    expect((await clodable(["site", "create"])).result.data.site.url).toBe(url);
+    expect((await cloclod(["site", "create"])).result.data.site.url).toBe(url);
     expect(netlify.sites.size).toBe(1);
   });
 
   it("is online after the next Publish", async () => {
-    expect((await clodable(["save", "-m", "Put my site online"])).result.data.unpublished).toBe(1);
-    const published = await clodable(["publish"]);
+    expect((await cloclod(["save", "-m", "Put my site online"])).result.data.unpublished).toBe(1);
+    const published = await cloclod(["publish"]);
     expect(published.result.ok).toBe(true);
     expect(published.result.data.deploy).toBe("live");
     expect(published.result.data.noHost).toBeUndefined();
-    expect((await clodable(["status"])).result.data.site.live).toBe(true);
+    expect((await cloclod(["status"])).result.data.site.live).toBe(true);
   });
 
   it("a setting pasted here goes to the site too", async () => {
-    const set = await clodable(["setting", "GREETING"], "Bonjour");
+    const set = await cloclod(["setting", "GREETING"], "Bonjour");
     expect(set.result.ok).toBe(true);
     expect(netlify.env.get("site-1")?.get("GREETING")).toEqual({ value: "Bonjour", secret: true });
   });
@@ -220,13 +220,13 @@ describe("an app with no backend and no site", () => {
     const site = netlify.sites.get("site-1")!;
     // A failed host lookup must not invite a first Publish or claim the site is live.
     netlify.sites.delete("site-1");
-    expect((await clodable(["status"])).result.data.site).toMatchObject({
+    expect((await cloclod(["status"])).result.data.site).toMatchObject({
       live: false,
       statusKnown: false,
     });
     site.published_deploy = { state: "ready", published_at: "2026-10-17T10:00:00Z" };
     netlify.sites.set("site-1", site);
-    expect((await clodable(["status"])).result.data.site).toMatchObject({ live: true });
+    expect((await cloclod(["status"])).result.data.site).toMatchObject({ live: true });
     expect(JSON.parse(file(".clodable/local/state.json")).siteLiveAt).toBe("2026-10-17T10:00:00Z");
   });
 
@@ -235,7 +235,7 @@ describe("an app with no backend and no site", () => {
     const before = file(".clodable/config.json");
     netlify.sites.delete("site-1");
     try {
-      expect((await clodable(["site", "create"])).result.ok).toBe(false);
+      expect((await cloclod(["site", "create"])).result.ok).toBe(false);
       expect(netlify.sites.size).toBe(0);
       expect(file(".clodable/config.json")).toBe(before);
     } finally {
@@ -251,7 +251,7 @@ describe("an app with no backend and no site", () => {
     writeFileSync(join(sb.work, ".clodable/config.json"), JSON.stringify(pending));
     const start = fake.requests.length;
     try {
-      expect((await clodable(["backend", "create"])).result.ok).toBe(false);
+      expect((await cloclod(["backend", "create"])).result.ok).toBe(false);
       expect(
         fake.requests.slice(start).some((r) => r.method === "POST" && r.path === "/v1/projects"),
       ).toBe(false);

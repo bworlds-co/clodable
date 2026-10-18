@@ -1,4 +1,4 @@
-import { ClodableError, type ErrorInfo } from "../errors.js";
+import { CloclodError, type ErrorInfo } from "../errors.js";
 import { type ExecResult, exec } from "../exec.js";
 import { ghBinary } from "./gh-binary.js";
 import type {
@@ -93,7 +93,7 @@ export class GhCli implements GitHubAdapter {
     for (const value of ["", `!'${await ghBinary()}' auth git-credential`]) {
       const result = await git(["config", "--local", "--add", key, value]);
       if (result.exitCode !== 0)
-        throw new ClodableError({
+        throw new CloclodError({
           code: "gh-auth",
           message: "Couldn't connect this app to your GitHub account.",
           hint: "Try Set up saving again.",
@@ -120,7 +120,7 @@ export class GhCli implements GitHubAdapter {
   /**
    * Clone over HTTPS, signed in as the GitHub CLI's account whatever protocol gh is set to: an SSH
    * key on this computer may belong to another account, or have no access. The clone keeps gh as
-   * its sign-in for github.com, so Clodable's fetches and pushes there are that account too (what
+   * its sign-in for github.com, so Cloclod's fetches and pushes there are that account too (what
    * `gh auth setup-git` does, for this folder only).
    */
   async clone(repo: string, target: string): Promise<void> {
@@ -214,7 +214,7 @@ export class GhCli implements GitHubAdapter {
     ]);
     const created = await this.findOpenPullRequest(input.head);
     if (!created) {
-      throw new ClodableError({
+      throw new CloclodError({
         code: "unknown",
         message: "The draft's page on GitHub couldn't be created.",
       });
@@ -279,7 +279,7 @@ export class GhCli implements GitHubAdapter {
       "mergeCommit,state",
     ]);
     if (!merged.mergeCommit?.oid) {
-      throw new ClodableError({
+      throw new CloclodError({
         code: "merge-blocked",
         message: "GitHub didn't publish your draft.",
         hint: "Your repository may require something before publishing. Open the draft on GitHub to see why.",
@@ -390,25 +390,25 @@ const OFFLINE =
  * A failed `gh` call in the builder's words: not connected to GitHub, offline (gh says "error
  * connecting to api.github.com" when nothing resolves), or else the caller's own message.
  */
-function ghError(result: ExecResult, otherwise: ErrorInfo): ClodableError {
+function ghError(result: ExecResult, otherwise: ErrorInfo): CloclodError {
   const text = `${result.stderr}\n${result.stdout}`.trim();
   if (/auth login|not logged|authentication/i.test(text)) {
-    return new ClodableError({
+    return new CloclodError({
       code: "gh-auth",
-      message: "Clodable isn't connected to your GitHub account.",
-      hint: "Run `clodable setup` to connect it.",
+      message: "Cloclod isn't connected to your GitHub account.",
+      hint: "Run `cloclod setup` to connect it.",
       details: text,
     });
   }
   if (OFFLINE.test(text)) {
-    return new ClodableError({
+    return new CloclodError({
       code: "offline",
       message: "GitHub can't be reached right now.",
       hint: "Check your internet connection and try again.",
       details: text,
     });
   }
-  return new ClodableError(otherwise);
+  return new CloclodError(otherwise);
 }
 
 const PR_FIELDS = "number,url,title,body,headRefName,baseRefName,state,mergeCommit";

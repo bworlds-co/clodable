@@ -1,5 +1,5 @@
 /**
- * Clodable's icon set: 20×20, 1.6 px rounded strokes, drawn in `currentColor`.
+ * Cloclod's icon set: 20×20, 1.6 px rounded strokes, drawn in `currentColor`.
  * Drawn for this project. Each shape sits on whole or half pixels, so it stays crisp at 1x.
  */
 

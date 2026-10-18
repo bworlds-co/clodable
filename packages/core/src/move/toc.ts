@@ -135,7 +135,7 @@ export function parseToc(text: string): Toc {
       owner = last < 0 ? "" : tail.slice(last + 1);
     }
     // The pause's guard (switch.ts) lives on Lovable only: never read, never brought over.
-    if (/\bclodable_pause\b/.test(tag)) continue;
+    if (/\bcloclod_pause\b/.test(tag)) continue;
     entries.push({
       id: Number(match[1]),
       type,

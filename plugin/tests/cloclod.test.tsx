@@ -50,7 +50,7 @@ describe("GitHub import addresses", () => {
       expect(githubRepo(input)).toBeUndefined();
   });
 });
-/** Where the plugin is loaded from: Claude's runs of Clodable name its CLI there. */
+/** Where the plugin is loaded from: Claude's runs of Cloclod name its CLI there. */
 const PLUGIN_ROOT = new URL("..", (import.meta as unknown as { url: string }).url).pathname.replace(
   /\/$/,
   "",
@@ -78,7 +78,7 @@ const STATUS = {
 };
 
 const BAND = {
-  plugin: "clodable",
+  plugin: "cloclod",
   component: "AbovePrompt",
   props: {
     hasSurvey: false,
@@ -106,14 +106,14 @@ const HISTORY = {
   published: [{ sha: "p9", subject: "Opening hours", date: "2026-10-09T09:00:00Z", kind: null }],
 };
 
-/** The Clodable panel, docked in Desktop. */
+/** The Cloclod panel, docked in Desktop. */
 const PANE_PROPS = {
-  plugin: "clodable",
+  plugin: "cloclod",
   surface: "desktop",
   component: "Pane",
-  requestId: "clodable",
+  requestId: "cloclod",
   props: {
-    title: "Clodable",
+    title: "Cloclod",
     isFocused: true,
     bodyColumns: 80,
     placement: "dock",
@@ -167,7 +167,7 @@ function harness(
   on("command.register", () => ({ value: undefined }));
   on("ui.open", () => ({ value: { isPlaced: true } }));
   on("tool.register", (_$: unknown, e: { name: string }) => ({
-    value: { tool: `mcp__clodable__${e.name}` },
+    value: { tool: `mcp__cloclod__${e.name}` },
   }));
   /** How long each call was allowed to run. */
   const timeouts: Array<number | undefined> = [];
@@ -230,17 +230,17 @@ describe("save names", () => {
   test("a step of the move is named for what it did, not its command", () => {
     expect(
       saveMessage(
-        'Moving off Lovable: put my site on Netlify with `node "/x/cli/clodable.mjs" move site`, then tell me what\'s left.',
+        'Moving off Lovable: put my site on Netlify with `node "/x/cli/cloclod.mjs" move site`, then tell me what\'s left.',
       ),
     ).toBe("Put my site on Netlify");
     expect(
       saveMessage(
-        'Moving off Lovable: look at my app\'s code to see what it uses (AI, sign-in, emails, payments). Start from `node "/x/cli/clodable.mjs" move facts`, check each thing.',
+        'Moving off Lovable: look at my app\'s code to see what it uses (AI, sign-in, emails, payments). Start from `node "/x/cli/cloclod.mjs" move facts`, check each thing.',
       ),
     ).toBe("Look at my app's code to see what it uses");
     expect(
       saveMessage(
-        'Switch my preview back to my live data with `node "/x/cli/clodable.mjs" move preview live`.',
+        'Switch my preview back to my live data with `node "/x/cli/cloclod.mjs" move preview live`.',
       ),
     ).toBe("Switch my preview back to my live data");
     expect(saveMessage("make the header blue")).toBe("Make the header blue");
@@ -362,7 +362,7 @@ describe("what Claude may do on its own", () => {
 
   test("a setup command may repeat only its own app folder, with no shell expansion", () => {
     const cwd = "/Users/ada/My app";
-    const command = `node "${PLUGIN_ROOT}/cli/clodable.mjs" site create --team acme`;
+    const command = `node "${PLUGIN_ROOT}/cli/cloclod.mjs" site create --team acme`;
     for (const prefix of [`cd "${cwd}" && `, `cd '${cwd}' && `, `cd -- "${cwd}" && `, ""]) {
       expect(isOnlineStep(PLUGIN_ROOT, commandInApp(prefix + command, cwd))).toBe(true);
     }
@@ -394,13 +394,13 @@ describe("what Claude may do on its own", () => {
   });
 
   test("database commands: one quoted query reads quietly, anything else asks", () => {
-    expect(dbCommandIn('npx clodable db query "select 1"')).toEqual({
+    expect(dbCommandIn('npx cloclod db query "select 1"')).toEqual({
       action: "query",
       arg: "select 1",
       single: true,
     });
-    expect(dbCommandIn('npx clodable db query "select 1" && rm -rf ~')?.single).toBe(false);
-    expect(dbCommandIn("npx clodable status")).toBeUndefined();
+    expect(dbCommandIn('npx cloclod db query "select 1" && rm -rf ~')?.single).toBe(false);
+    expect(dbCommandIn("npx cloclod status")).toBeUndefined();
   });
 
   test("edits stay inside the project, out of .git, .env files and packages", () => {
@@ -423,7 +423,7 @@ describe("what the CLI prints", () => {
       { type: "step", id: "save", state: "done", title: "Saved" },
       { type: "result", ok: true },
     ]);
-    expect(lastResult("", "boom").error).toMatchObject({ message: "Clodable didn't answer." });
+    expect(lastResult("", "boom").error).toMatchObject({ message: "Cloclod didn't answer." });
   });
 });
 
@@ -476,8 +476,8 @@ describe("guards", () => {
     on("tool.call", () => ({ result: { stdout: "", stderr: "", interrupted: false } }));
     await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
     for (const command of [
-      `node "${PLUGIN_ROOT}/cli/clodable.mjs" setup --new books --account ada --yes`,
-      `cd "${CWD}" && node "${PLUGIN_ROOT}/cli/clodable.mjs" setup --new books --account ada --yes`,
+      `node "${PLUGIN_ROOT}/cli/cloclod.mjs" setup --new books --account ada --yes`,
+      `cd "${CWD}" && node "${PLUGIN_ROOT}/cli/cloclod.mjs" setup --new books --account ada --yes`,
     ]) {
       const result: any = await $.tool.call({ tool: "Bash", command });
       expect(result.deny).toContain("Set up saving");
@@ -491,9 +491,9 @@ describe("guards", () => {
       "git push origin draft/ada",
       "git push --force",
       "gh pr merge 3",
-      "npx clodable publish",
+      "npx cloclod publish",
       'node ".clodable/local/clodable.mjs" publish',
-      `node "${PLUGIN_ROOT}/cli/clodable.mjs" undo`,
+      `node "${PLUGIN_ROOT}/cli/cloclod.mjs" undo`,
       "git reset --hard HEAD~1",
     ]) {
       const result: any = await $.tool.call({ tool: "Bash", command });
@@ -524,13 +524,13 @@ describe("permissions", () => {
     const check = (tool: string, input: unknown) =>
       $.tool.check({ tool, input }) as Promise<{ decision: string }>;
 
-    // Starting the app's preview never goes to Auto mode's classifier (which refuses Clodable's
+    // Starting the app's preview never goes to Auto mode's classifier (which refuses Cloclod's
     // own call, since no request of Claude's explains it).
     expect((await check("mcp__Claude_Browser__preview_start", { name: "app" })).decision).toBe(
       "allow",
     );
     // Labelling this conversation's preview pane is allowed, but only that exact script.
-    const label = `/* Clodable: label this preview */ location.protocol.startsWith("http") ? (sessionStorage.setItem("clodable:conversation", "s1abc"), "labelled") : "not ready"`;
+    const label = `/* Cloclod: label this preview */ location.protocol.startsWith("http") ? (sessionStorage.setItem("cloclod:conversation", "s1abc"), "labelled") : "not ready"`;
     const js = (text: string) =>
       check("mcp__Claude_Browser__javascript_tool", {
         action: "javascript_exec",
@@ -554,15 +554,15 @@ describe("permissions", () => {
         .decision,
     ).toBe("ask");
     expect((await check("Write", { file_path: "/etc/hosts", content: "x" })).decision).toBe("ask");
-    // The app's own database through Clodable: reading is quiet, every change asks.
+    // The app's own database through Cloclod: reading is quiet, every change asks.
     const db = (command: string) => check("Bash", { command });
-    expect((await db(`npx clodable db query "select * from public.notes"`)).decision).toBe("allow");
-    expect((await db(`npx clodable db query "select 1" && rm -rf ~`)).decision).toBe("ask");
-    expect((await db(`npx clodable db run "update public.notes set body = 'x'"`)).decision).toBe(
+    expect((await db(`npx cloclod db query "select * from public.notes"`)).decision).toBe("allow");
+    expect((await db(`npx cloclod db query "select 1" && rm -rf ~`)).decision).toBe("ask");
+    expect((await db(`npx cloclod db run "update public.notes set body = 'x'"`)).decision).toBe(
       "ask",
     );
     expect(
-      (await db("npx clodable db apply supabase/migrations/20261011120000_add_notes.sql")).decision,
+      (await db("npx cloclod db apply supabase/migrations/20261011120000_add_notes.sql")).decision,
     ).toBe("ask");
     expect((await check("Bash", { command: "npm install zod" })).decision).toBe("allow");
     expect(
@@ -598,7 +598,7 @@ describe("plain-language activity", () => {
     await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
     const row = async (tool: string, input: unknown) => {
       const mounted = await $.ui.mount({
-        plugin: "clodable",
+        plugin: "cloclod",
         surface: "desktop",
         component: "ToolUse",
         requestId: "t1",
@@ -800,7 +800,7 @@ describe("after a publish", () => {
 });
 
 describe("undo", () => {
-  test("asks in the bar with Clodable's own buttons, never Desktop's question", async ($, on) => {
+  test("asks in the bar with Cloclod's own buttons, never Desktop's question", async ($, on) => {
     harness(on, {
       ...STATUS,
       lastPublish: { sha: "p9", title: "Menu", at: "2026-10-14T09:00:00Z" },
@@ -932,12 +932,12 @@ describe("buttons that can't be used right now", () => {
 
 describe("apps still on Lovable", () => {
   const PANE = {
-    plugin: "clodable",
+    plugin: "cloclod",
     surface: "desktop",
     component: "Pane",
-    requestId: "clodable",
+    requestId: "cloclod",
     props: {
-      title: "Clodable",
+      title: "Cloclod",
       isFocused: true,
       bodyColumns: 80,
       placement: "dock",
@@ -987,10 +987,10 @@ describe("apps still on Lovable", () => {
     await pane.unmount();
   });
 
-  test("on Lovable Cloud, /clodable opens the app, with one quiet line to the move and a way back", async ($, on) => {
+  test("on Lovable Cloud, /cloclod opens the app, with one quiet line to the move and a way back", async ($, on) => {
     harness(on, onLovable({}, false));
     await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
-    await $.command.run({ command: "clodable", args: "" } as never);
+    await $.command.run({ command: "cloclod", args: "" } as never);
     const pane = await $.ui.mount(PANE);
     expect(await pane.find({ key: "nav-history" })).toBeDefined();
     expect(await shows(pane, "Your data is on Lovable Cloud.")).toBeDefined();
@@ -1008,7 +1008,7 @@ describe("apps still on Lovable", () => {
   test("an app not made with Lovable isn't asked about Lovable, nor offered the move", async ($, on) => {
     harness(on, { ...STATUS, project: { ...STATUS.project, hosting: "unknown" } });
     await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
-    await $.command.run({ command: "clodable", args: "" } as never);
+    await $.command.run({ command: "cloclod", args: "" } as never);
     const pane = await $.ui.mount(PANE);
     expect(await shows(pane, "Let's understand your app")).toBeDefined();
     for (const key of [
@@ -1025,7 +1025,7 @@ describe("apps still on Lovable", () => {
   test("a move under way opens the panel on it; History opens its own focused view", async ($, on) => {
     harness(on, onLovable());
     await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
-    await $.command.run({ command: "clodable", args: "" } as never);
+    await $.command.run({ command: "cloclod", args: "" } as never);
     let pane = await $.ui.mount(PANE);
     expect(await shows(pane, /Your data, your people and your backend/)).toBeDefined();
     await pane.unmount();
@@ -1130,7 +1130,7 @@ describe("apps still on Lovable", () => {
     await pane.unmount();
     // Claude recorded what it found: the panel, opened again, says what the move involves.
     looked = true;
-    await $.command.run({ command: "clodable", args: "" } as never);
+    await $.command.run({ command: "cloclod", args: "" } as never);
     pane = await $.ui.mount(PANE);
     for (let i = 0; i < 30 && !(await pane.find({ key: "move-assessment" })); i++) {
       await pane.redraw();
@@ -1175,7 +1175,7 @@ describe("apps still on Lovable", () => {
     // The command reached Claude beside the builder's words, when that turn started.
     await $.turn.start({ text: prompts[0]!, turnId: "turn-facts" } as never);
     expect(readBy(session)[0]).toMatch(
-      /Start from `node ".*\/cli\/clodable\.mjs" move facts`, check each thing in the code/,
+      /Start from `node ".*\/cli\/cloclod\.mjs" move facts`, check each thing in the code/,
     );
   });
 
@@ -1256,8 +1256,8 @@ describe("apps still on Lovable", () => {
     });
     await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
     // Opening the panel reads the checks again.
-    await $.command.run({ command: "clodable", args: "" } as never);
-    await $.tool.call({ tool: "mcp__clodable__open_panel", view: "settings" } as never);
+    await $.command.run({ command: "cloclod", args: "" } as never);
+    await $.tool.call({ tool: "mcp__cloclod__open_panel", view: "settings" } as never);
     const pane = await $.ui.mount(PANE);
     expect(await shows(pane, /“Summarize, on each note” doesn't work/)).toBeDefined();
     await pane.press({ key: "worth-lovable-ai" });
@@ -1341,8 +1341,8 @@ describe("apps still on Lovable", () => {
             }),
     });
     await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
-    await $.tool.call({ tool: "mcp__clodable__remember_app", backend: "lovable-cloud" } as never);
-    await $.tool.call({ tool: "mcp__clodable__remember_app", backend: "lovable-cloud" } as never);
+    await $.tool.call({ tool: "mcp__cloclod__remember_app", backend: "lovable-cloud" } as never);
+    await $.tool.call({ tool: "mcp__cloclod__remember_app", backend: "lovable-cloud" } as never);
     expect(calls.filter((c) => c[0] === "config")).toEqual([
       ["config", "backend", "lovable-cloud", "--json"],
     ]);
@@ -1429,7 +1429,7 @@ describe("apps still on Lovable", () => {
     expect(lookup.deny).toBeUndefined();
   });
 
-  test("the move goes one step at a time; the token goes to Clodable, never to Claude", async ($, on) => {
+  test("the move goes one step at a time; the token goes to Cloclod, never to Claude", async ($, on) => {
     const token = `sbp_${"c3".repeat(20)}`;
     let connected = false;
     const progress = () => ({
@@ -1517,7 +1517,7 @@ describe("apps still on Lovable", () => {
     );
     await $.turn.start({ text: prompts[0]!, turnId: "turn-create" } as never);
     expect(readBy(session)[0]).toMatch(
-      /Run `node ".*\/cli\/clodable\.mjs" move create --org studio --region us-east-1`\./,
+      /Run `node ".*\/cli\/cloclod\.mjs" move create --org studio --region us-east-1`\./,
     );
     expect(readBy(session).join(" ")).not.toContain(token);
     expect(spawned).toEqual([]);
@@ -1617,7 +1617,7 @@ describe("apps still on Lovable", () => {
     on("tool.check", () => ({ decision: "ask" }));
     await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
     for (let i = 0; i < 30; i++) await Promise.resolve();
-    const step = (args: string) => `node "${PLUGIN_ROOT}/cli/clodable.mjs" move ${args}`;
+    const step = (args: string) => `node "${PLUGIN_ROOT}/cli/cloclod.mjs" move ${args}`;
     const verdict = async (command: string) =>
       ((await $.tool.check({ tool: "Bash", input: { command } })) as { decision: string }).decision;
     expect(await verdict(step("copy"))).toBe("allow");
@@ -1635,21 +1635,21 @@ describe("apps still on Lovable", () => {
     expect(await verdict(`${step("facts --set")} <<EOF\n${facts}\nEOF`)).toBe("ask");
 
     const connect: any = await $.tool.call({ tool: "Bash", command: step("connect") });
-    expect(connect.deny).toContain("Clodable panel");
+    expect(connect.deny).toContain("Cloclod panel");
     expect(await verdict(step("site --account builder-team"))).toBe("allow");
     const netlifyToken: any = await $.tool.call({ tool: "Bash", command: step("netlify") });
-    expect(netlifyToken.deny).toContain("Clodable panel");
+    expect(netlifyToken.deny).toContain("Cloclod panel");
     const setting: any = await $.tool.call({ tool: "Bash", command: step("setting GREETING") });
-    expect(setting.deny).toContain("Clodable panel");
+    expect(setting.deny).toContain("Cloclod panel");
     const resendKey: any = await $.tool.call({ tool: "Bash", command: step("resend") });
-    expect(resendKey.deny).toContain("Clodable panel");
+    expect(resendKey.deny).toContain("Cloclod panel");
     expect(await verdict(step("emails --domain crumb.app"))).toBe("allow");
     expect(await verdict(step("golive --confirm-email yes"))).toBe("allow");
     // What the builder did in Lovable is theirs to say, in the panel.
     expect(await verdict(step("paused"))).toBe("ask");
     expect(await verdict(step("finished"))).toBe("ask");
     const privateFiles: any = await $.tool.call({ tool: "Bash", command: step("files --private") });
-    expect(privateFiles.deny).toContain("Clodable panel");
+    expect(privateFiles.deny).toContain("Cloclod panel");
     const peek: any = await $.tool.call({
       tool: "Bash",
       command: 'cat "$HOME/Library/Application Support/clodable/secrets.json"',
@@ -1662,7 +1662,7 @@ describe("apps still on Lovable", () => {
     expect(read.deny).toContain("stays out of the conversation");
   });
 
-  test("emails: the Resend key goes to Clodable, the domain goes to Claude", async ($, on) => {
+  test("emails: the Resend key goes to Cloclod, the domain goes to Claude", async ($, on) => {
     const key = `re_${"e5".repeat(16)}`;
     let resend = false;
     const calls = harness(on, onLovable(), true, {
@@ -1722,7 +1722,7 @@ describe("apps still on Lovable", () => {
     const order = [
       "Get ready: your website and emails",
       "● Set up emails for your users",
-      "Clodable sends your users' sign-up confirmations",
+      "Cloclod sends your users' sign-up confirmations",
       "No domain of your own yet?",
     ].map((t) => texts.findIndex((x) => x.startsWith(t)));
     expect(order.every((at) => at >= 0)).toBe(true);
@@ -1754,7 +1754,7 @@ describe("apps still on Lovable", () => {
     );
     await $.turn.start({ text: prompts[0]!, turnId: "turn-emails" } as never);
     expect(readBy(session)[0]).toMatch(
-      /Run `node ".*\/cli\/clodable\.mjs" move emails --domain crumb\.app`\./,
+      /Run `node ".*\/cli\/cloclod\.mjs" move emails --domain crumb\.app`\./,
     );
     expect(readBy(session).join(" ")).not.toContain(key);
     await pane.unmount();
@@ -1950,7 +1950,7 @@ describe("apps still on Lovable", () => {
     for (let i = 0; i < 30 && !(await pane.find({ type: "Code" })); i++) await pane.redraw();
     expect((await pane.find({ type: "Code" }))?.props.source).toBe(FREEZE);
     expect(calls.some((c) => c[1] === "pause")).toBe(true);
-    // Saying it's paused is the builder's word: Clodable records it at once, no Claude needed.
+    // Saying it's paused is the builder's word: Cloclod records it at once, no Claude needed.
     await pane.press({ key: "move-paused" });
     for (let i = 0; i < 30 && spawned.length === 0; i++) await pane.redraw();
     expect(spawned[0]?.slice(0, 2)).toEqual(["move", "paused"]);
@@ -2005,7 +2005,7 @@ describe("apps still on Lovable", () => {
       return { text: ev.text };
     });
     await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
-    await $.tool.call({ tool: "mcp__clodable__open_panel", view: "settings" } as never);
+    await $.tool.call({ tool: "mcp__cloclod__open_panel", view: "settings" } as never);
     const pane = await $.ui.mount(PANE);
     expect(await shows(pane, "Your app is off Lovable")).toBeDefined();
     expect(
@@ -2043,7 +2043,7 @@ describe("apps still on Lovable", () => {
       },
     });
     await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
-    await $.tool.call({ tool: "mcp__clodable__open_panel", view: "backend" } as never);
+    await $.tool.call({ tool: "mcp__cloclod__open_panel", view: "backend" } as never);
     const pane = await $.ui.mount(PANE);
     expect(await shows(pane, "Let Claude change your database")).toBeDefined();
     await pane.input({ key: "database-token", text: token, kind: "submit" });
@@ -2119,13 +2119,13 @@ describe("apps still on Lovable", () => {
     await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
     const pane = await $.ui.mount(PANE);
     // Right after going live: Publish, and nothing else.
-    expect(await shows(pane, /First, Publish \(in the Clodable bar\)/)).toBeDefined();
+    expect(await shows(pane, /First, Publish \(in the Cloclod bar\)/)).toBeDefined();
     expect(await pane.find({ type: "Text", text: /own domain/ })).toBeUndefined();
     await pane.unmount();
 
     // Publish done: opening the panel again shows where the move stands now.
     phase = "domain";
-    await $.command.run({ command: "clodable", args: "" } as never);
+    await $.command.run({ command: "cloclod", args: "" } as never);
     const again = await $.ui.mount(PANE);
     expect(await shows(again, /Does it have its own domain, like yourapp\.com\?/)).toBeDefined();
     await again.press({ key: "move-domain-skip" });
@@ -2137,7 +2137,7 @@ describe("apps still on Lovable", () => {
     await again.unmount();
 
     phase = "lovable";
-    await $.command.run({ command: "clodable", args: "" } as never);
+    await $.command.run({ command: "cloclod", args: "" } as never);
     const last = await $.ui.mount(PANE);
     expect(await shows(last, /✓ You signed in on your new site/)).toBeDefined();
     const texts = (await last.findAll({ type: "Text" })).map((t: any) => String(t.text));
@@ -2212,7 +2212,7 @@ describe("apps still on Lovable", () => {
     await pane.unmount();
   });
 
-  test("Lovable's AI: the key goes to Clodable, the code change goes to Claude, one part at a time", async ($, on) => {
+  test("Lovable's AI: the key goes to Cloclod, the code change goes to Claude, one part at a time", async ($, on) => {
     const key = `sk-or-v1-${"b7".repeat(20)}`;
     let provider: string | undefined;
     const prompts: string[] = [];
@@ -2276,7 +2276,7 @@ describe("apps still on Lovable", () => {
     expect(prompts.join(" ")).not.toContain(key);
   });
 
-  test("Google sign-in: the client ID, then its secret to Clodable only, then Claude switches the button", async ($, on) => {
+  test("Google sign-in: the client ID, then its secret to Cloclod only, then Claude switches the button", async ($, on) => {
     const secret = "GOCSPX-panel-secret-value";
     const calls = harness(on, onLovable(), true, {
       move: (args) =>
@@ -2346,12 +2346,12 @@ describe("apps still on Lovable", () => {
 
 describe("every step of the move", () => {
   const PANE = {
-    plugin: "clodable",
+    plugin: "cloclod",
     surface: "desktop",
     component: "Pane",
-    requestId: "clodable",
+    requestId: "cloclod",
     props: {
-      title: "Clodable",
+      title: "Cloclod",
       isFocused: true,
       bodyColumns: 80,
       placement: "dock",
@@ -2399,7 +2399,7 @@ describe("every step of the move", () => {
       await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
       const pane = await $.ui.mount(PANE);
       const opened: any = await $.tool.call({
-        tool: "mcp__clodable__open_panel",
+        tool: "mcp__cloclod__open_panel",
         view: "move",
       } as never);
       expect(opened.result).toContain("Site setup is unavailable:");
@@ -2614,7 +2614,7 @@ describe("every step of the move", () => {
       name: "domain: Publish first",
       step: "domain",
       move: { site: SITE },
-      texts: [/^First, Publish \(in the Clodable bar\)/],
+      texts: [/^First, Publish \(in the Cloclod bar\)/],
     },
     {
       name: "domain: which one",
@@ -2743,7 +2743,7 @@ describe("saved app settings", () => {
       return { text: e.text };
     });
     await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
-    await $.tool.call({ tool: "mcp__clodable__open_panel", view: "settings" } as never);
+    await $.tool.call({ tool: "mcp__cloclod__open_panel", view: "settings" } as never);
     const pane = await $.ui.mount(PANE_PROPS);
     for (let i = 0; i < 30 && !(await pane.find({ key: "app-setting-GREETING" })); i++)
       await pane.redraw();
@@ -2787,7 +2787,7 @@ describe("saved app settings", () => {
       setting: out({ message: "Couldn't reach your site." }, false),
     });
     await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
-    await $.tool.call({ tool: "mcp__clodable__open_panel", view: "settings" } as never);
+    await $.tool.call({ tool: "mcp__cloclod__open_panel", view: "settings" } as never);
     const pane = await $.ui.mount(PANE_PROPS);
     for (let i = 0; i < 30 && !(await pane.find({ key: "setting-change-GREETING" })); i++)
       await pane.redraw();
@@ -2825,15 +2825,15 @@ describe("worth a look", () => {
       return { text: e.text };
     });
     await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
-    await $.command.run({ command: "clodable", args: "" } as never);
-    await $.tool.call({ tool: "mcp__clodable__open_panel", view: "settings" } as never);
+    await $.command.run({ command: "cloclod", args: "" } as never);
+    await $.tool.call({ tool: "mcp__cloclod__open_panel", view: "settings" } as never);
     const pane = await $.ui.mount({
-      plugin: "clodable",
+      plugin: "cloclod",
       surface: "desktop",
       component: "Pane",
-      requestId: "clodable",
+      requestId: "cloclod",
       props: {
-        title: "Clodable",
+        title: "Cloclod",
         isFocused: true,
         bodyColumns: 80,
         placement: "dock",
@@ -2851,7 +2851,7 @@ describe("worth a look", () => {
     await pane.press({ key: "worth-fix-packages" });
     for (let i = 0; i < 30 && submitted.length === 0; i++) await pane.redraw();
     await pane.unmount();
-    expect(submitted).toEqual(["Fix “Packages”, as Clodable's check suggests."]);
+    expect(submitted).toEqual(["Fix “Packages”, as Cloclod's check suggests."]);
     await $.turn.start({ text: submitted[0]!, turnId: "turn-worth" } as never);
     expect(readBy(session)[0]).toContain("Run `npm install`");
   });
@@ -2863,7 +2863,7 @@ describe("questions about live data", () => {
     await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
     const ask = async (question: string, header: string) => {
       const mounted = await $.ui.mount({
-        plugin: "clodable",
+        plugin: "cloclod",
         surface: "desktop",
         component: "AskUserQuestion",
         requestId: "q1",
@@ -3049,7 +3049,7 @@ describe("restore", () => {
     } as never);
     for (let i = 0; i < 30 && !calls.some((c) => c[0] === "save"); i++) await Promise.resolve();
     const reply = await $.ui.mount({
-      plugin: "clodable",
+      plugin: "cloclod",
       surface: "desktop",
       component: "AssistantMessage",
       requestId: "m1",
@@ -3062,7 +3062,7 @@ describe("restore", () => {
     }
     expect(await reply.find({ type: "Text", text: "✓ Saved" })).toBeDefined();
     await reply.press({ key: "restore-c4" });
-    // Asked in place, with Clodable's own buttons: Desktop's question would keep its spinner going.
+    // Asked in place, with Cloclod's own buttons: Desktop's question would keep its spinner going.
     let question: any;
     for (let i = 0; i < 30 && !question; i++) {
       question = await reply.find({ type: "Text", text: /^Go back to “Make the header blue”\?/ });
@@ -3078,7 +3078,7 @@ describe("restore", () => {
 
     // A reply that changed nothing gets nothing.
     const chat = await $.ui.mount({
-      plugin: "clodable",
+      plugin: "cloclod",
       surface: "desktop",
       component: "AssistantMessage",
       requestId: "m2",
@@ -3095,14 +3095,14 @@ describe("restore", () => {
     });
     answerQuestions(on, "Restore");
     await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
-    await $.tool.call({ tool: "mcp__clodable__open_panel", view: "history" } as never);
+    await $.tool.call({ tool: "mcp__cloclod__open_panel", view: "history" } as never);
     const pane = await $.ui.mount({
-      plugin: "clodable",
+      plugin: "cloclod",
       surface: "desktop",
       component: "Pane",
-      requestId: "clodable",
+      requestId: "cloclod",
       props: {
-        title: "Clodable",
+        title: "Cloclod",
         isFocused: true,
         bodyColumns: 80,
         placement: "dock",
@@ -3155,14 +3155,14 @@ describe("restore", () => {
       return { value: undefined };
     });
     await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
-    await $.tool.call({ tool: "mcp__clodable__open_panel", view: "history" } as never);
+    await $.tool.call({ tool: "mcp__cloclod__open_panel", view: "history" } as never);
     const pane = await $.ui.mount({
-      plugin: "clodable",
+      plugin: "cloclod",
       surface: "desktop",
       component: "Pane",
-      requestId: "clodable",
+      requestId: "cloclod",
       props: {
-        title: "Clodable",
+        title: "Cloclod",
         isFocused: true,
         bodyColumns: 80,
         placement: "dock",
@@ -3196,7 +3196,7 @@ describe("the preview", () => {
     harness(on, STATUS, true, {}, (argv, init) => {
       if (!argv.includes("kit")) return;
       expect(argv.slice(2)).toEqual(["kit", "--apply", "--runtime", "--json"]);
-      expect(init?.env?.CLODABLE_RUNTIME_SOURCE).toBe(`${PLUGIN_ROOT}/cli/clodable.mjs`);
+      expect(init?.env?.CLODABLE_RUNTIME_SOURCE).toBe(`${PLUGIN_ROOT}/cli/cloclod.mjs`);
       order.push("runtime");
       return out({ changes: [] });
     });
@@ -3212,7 +3212,7 @@ describe("the preview", () => {
   });
 
   test("allows only informational commands from the installed runtime", () => {
-    for (const path of [`${PLUGIN_ROOT}/cli/clodable.mjs`, ".clodable/local/clodable.mjs"]) {
+    for (const path of [`${PLUGIN_ROOT}/cli/cloclod.mjs`, ".clodable/local/clodable.mjs"]) {
       expect(isRuntimeRead(PLUGIN_ROOT, `node "${path}" status --json`)).toBe(true);
       expect(isRuntimeRead(PLUGIN_ROOT, `node "${path}" history --json`)).toBe(true);
       for (const tail of [
@@ -3225,7 +3225,7 @@ describe("the preview", () => {
         expect(isRuntimeRead(PLUGIN_ROOT, `node "${path}" ${tail}`)).toBe(false);
       }
     }
-    expect(isRuntimeRead(PLUGIN_ROOT, 'node "/another/clodable.mjs" status --json')).toBe(false);
+    expect(isRuntimeRead(PLUGIN_ROOT, 'node "/another/cloclod.mjs" status --json')).toBe(false);
   });
 
   test("opens with the session on Desktop, and the bar's Preview asks for it in the conversation", async ($, on) => {
@@ -3302,7 +3302,7 @@ describe("the preview, when Desktop attaches late", () => {
 });
 
 describe("a conversation Desktop started ahead of time", () => {
-  test("follows the session into the project: Clodable runs there, and the bar appears", async ($, on) => {
+  test("follows the session into the project: Cloclod runs there, and the bar appears", async ($, on) => {
     // Desktop starts the engine in a spare folder of its own, then moves it into the project when
     // the conversation opens: session.start saw the spare, which is gone once used.
     const SPARE = "/Users/ada/.claude/spares/spare-ZbIpL3";
@@ -3310,7 +3310,7 @@ describe("a conversation Desktop started ahead of time", () => {
     on("session.cwd", () => ({ value: folder }));
     const ranIn: string[] = [];
     const calls = harness(on, STATUS, true, {}, (argv, init) => {
-      if (!argv[1]?.endsWith("/cli/clodable.mjs")) return undefined;
+      if (!argv[1]?.endsWith("/cli/cloclod.mjs")) return undefined;
       ranIn.push(init?.cwd ?? "");
       return init?.cwd === SPARE
         ? out({ code: "not-a-repo", message: "No app here." }, false)
@@ -3393,7 +3393,7 @@ describe("the preview, when Claude starts it", () => {
     expect(labels).toHaveLength(1);
     expect(labels[0]!.args).toMatchObject({ action: "javascript_exec", tabId: "seed" });
     expect(labels[0]!.args.text).toMatch(
-      /sessionStorage\.setItem\("clodable:conversation", "s\w+"\)/,
+      /sessionStorage\.setItem\("cloclod:conversation", "s\w+"\)/,
     );
     await $.tool.call({ tool: "mcp__Claude_Browser__preview_start", name: "app" } as never);
     expect(asked.filter((a) => a.tool === "javascript_tool")).toHaveLength(1);
@@ -3415,7 +3415,7 @@ describe("everywhere else", () => {
     expect(await pane.find({ key: "connect-github" })).toBeUndefined();
     await pane.press({ key: "start-idea" });
     await $.ui.input({
-      plugin: "clodable",
+      plugin: "cloclod",
       key: "idea-description",
       text: "A neighbourhood book swap",
     });
@@ -3457,7 +3457,7 @@ describe("everywhere else", () => {
       await pane.redraw();
     expect(await pane.find({ type: "Text", text: /Save to @ada/ })).toBeDefined();
     await $.ui.input({
-      plugin: "clodable",
+      plugin: "cloclod",
       key: "new-app-name",
       kind: "change",
       text: "books-nearby",
@@ -3487,18 +3487,18 @@ describe("everywhere else", () => {
     for (let i = 0; i < 30; i++) await Promise.resolve();
     const band = await $.ui.mount({ ...BAND, surface: "desktop" });
     for (let i = 0; i < 3; i++) await band.redraw();
-    const ours = await band.find({ type: "Text", text: /live|Publish|Bring your app|Clodable/ });
+    const ours = await band.find({ type: "Text", text: /live|Publish|Bring your app|Cloclod/ });
     await band.unmount();
     return ours === undefined;
   };
 
   for (const importing of [false, true]) {
-    test(`${importing ? "Import" : "Set up Clodable here"} shows each step as it goes, the packages' minute included`, async ($, on) => {
+    test(`${importing ? "Import" : "Set up Cloclod here"} shows each step as it goes, the packages' minute included`, async ($, on) => {
       harness(
         on,
         {
           code: importing ? "not-a-repo" : "not-set-up",
-          message: "Clodable isn't set up in this project.",
+          message: "Cloclod isn't set up in this project.",
         },
         false,
       );
@@ -3528,7 +3528,7 @@ describe("everywhere else", () => {
       on("process.spawn", async function* (_$: unknown, e: { argv: readonly string[] }) {
         ran.push(e.argv.slice(2));
         yield said("setup:tools", "done", "Your tools are ready");
-        yield said("setup:files", "done", "Added Clodable's files");
+        yield said("setup:files", "done", "Added Cloclod's files");
         yield said("setup:packages", "running", "Installing your app's packages");
         await installing;
         yield said("setup:packages", "done", "Installed your app's packages");
@@ -3547,7 +3547,7 @@ describe("everywhere else", () => {
       for (let i = 0; i < 30 && !(await pane.find({ key: control })); i++) await pane.redraw();
       if (importing)
         await $.ui.input({
-          plugin: "clodable",
+          plugin: "cloclod",
           key: control,
           text: "https://github.com/acme/website",
         });
@@ -3560,7 +3560,7 @@ describe("everywhere else", () => {
       }
       expect(running).toBeDefined();
       expect(await pane.find({ type: "Text", text: /✓ Your tools are ready/ })).toBeDefined();
-      expect(await pane.find({ type: "Text", text: /✓ Added Clodable's files/ })).toBeDefined();
+      expect(await pane.find({ type: "Text", text: /✓ Added Cloclod's files/ })).toBeDefined();
       expect(await pane.find({ key: control })).toBeUndefined();
       if (importing) expect(await pane.find({ key: "list-repos" })).toBeUndefined();
       installed();
@@ -3580,8 +3580,8 @@ describe("everywhere else", () => {
     });
   }
 
-  test("a setup that stopped shows where, and Set up Clodable here comes back", async ($, on) => {
-    harness(on, { code: "not-set-up", message: "Clodable isn't set up in this project." }, false);
+  test("a setup that stopped shows where, and Set up Cloclod here comes back", async ($, on) => {
+    harness(on, { code: "not-set-up", message: "Cloclod isn't set up in this project." }, false);
     const toasts: string[] = [];
     on("ui.toast", (_$: unknown, e: { text: string }) => {
       toasts.push(e.text);
@@ -3614,10 +3614,10 @@ describe("everywhere else", () => {
     await pane.unmount();
   });
 
-  test("a project Clodable wasn't set up in stays Claude's own", async ($, on) => {
+  test("a project Cloclod wasn't set up in stays Claude's own", async ($, on) => {
     const calls = harness(
       on,
-      { code: "not-set-up", message: "Clodable isn't set up in this project." },
+      { code: "not-set-up", message: "Cloclod isn't set up in this project." },
       false,
     );
     on("tool.call", () => ({ result: { stdout: "", stderr: "", interrupted: false } }));
@@ -3660,7 +3660,7 @@ describe("everywhere else", () => {
 
     // Tool rows keep Claude's own wording.
     const row = await $.ui.mount({
-      plugin: "clodable",
+      plugin: "cloclod",
       surface: "desktop",
       component: "ToolUse",
       requestId: "t2",
@@ -3694,7 +3694,7 @@ describe("everywhere else", () => {
   });
 
   for (const hasLocalPage of [false, true]) {
-    test(`opening Clodable in ${hasLocalPage ? "a local prototype explains its limits" : "an empty folder still offers import"}`, async ($, on) => {
+    test(`opening Cloclod in ${hasLocalPage ? "a local prototype explains its limits" : "an empty folder still offers import"}`, async ($, on) => {
       harness(
         on,
         { code: "not-a-repo", message: "This folder isn't connected to GitHub yet." },
@@ -3706,7 +3706,7 @@ describe("everywhere else", () => {
           : [],
       }));
       await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
-      await $.command.run({ command: "clodable", args: "" } as never);
+      await $.command.run({ command: "cloclod", args: "" } as never);
       const pane = await $.ui.mount(PANE_PROPS as never);
       if (!hasLocalPage) {
         expect(await pane.find({ key: "start-idea" })).toBeDefined();
@@ -3716,7 +3716,7 @@ describe("everywhere else", () => {
       expect(Boolean(await pane.find({ key: "list-repos" }))).toBe(!hasLocalPage);
       expect(await pane.find({ key: "set-up-here" })).toBeUndefined();
       expect(
-        Boolean(await pane.find({ type: "Text", text: /Clodable isn't saving them yet/ })),
+        Boolean(await pane.find({ type: "Text", text: /Cloclod isn't saving them yet/ })),
       ).toBe(hasLocalPage);
       if (hasLocalPage) {
         expect(await pane.find({ type: "Text", text: /It takes a minute/ })).toBeUndefined();
@@ -3765,7 +3765,7 @@ describe("everywhere else", () => {
     expect(
       await pane.find({ type: "Text", text: "Keep shaping your local app with Claude." }),
     ).toBeDefined();
-    expect(await pane.find({ type: "Text", text: /Clodable isn't saving them yet/ })).toBeDefined();
+    expect(await pane.find({ type: "Text", text: /Cloclod isn't saving them yet/ })).toBeDefined();
     expect(calls.some((c) => c[0] === "save")).toBe(false);
     await pane.unmount();
   });
@@ -3773,12 +3773,12 @@ describe("everywhere else", () => {
 
 describe("an app that isn't online, or has no backend", () => {
   const PANE = {
-    plugin: "clodable",
+    plugin: "cloclod",
     surface: "desktop",
     component: "Pane",
-    requestId: "clodable",
+    requestId: "cloclod",
     props: {
-      title: "Clodable",
+      title: "Cloclod",
       isFocused: true,
       bodyColumns: 80,
       placement: "dock",
@@ -3849,7 +3849,7 @@ describe("an app that isn't online, or has no backend", () => {
       return { value: { code: 0, signal: null } };
     });
     await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
-    await $.tool.call({ tool: "mcp__clodable__open_panel", view: "site" } as never);
+    await $.tool.call({ tool: "mcp__cloclod__open_panel", view: "site" } as never);
     const pane = await $.ui.mount(PANE);
     expect(await shows(pane, /Your app becomes public when you press Publish/)).toBeDefined();
     expect(spawned).toHaveLength(0);
@@ -3874,7 +3874,7 @@ describe("an app that isn't online, or has no backend", () => {
     test(`history does not claim a version is live with ${hosting} hosting`, async ($, on) => {
       harness(on, where("none", hosting));
       await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
-      await $.tool.call({ tool: "mcp__clodable__open_panel", view: "history" } as never);
+      await $.tool.call({ tool: "mcp__cloclod__open_panel", view: "history" } as never);
       const pane = await $.ui.mount(PANE);
       expect(await shows(pane, "Saved versions")).toBeDefined();
       expect(await pane.find({ type: "Text", text: "Live" })).toBeUndefined();
@@ -3908,7 +3908,7 @@ describe("an app that isn't online, or has no backend", () => {
       );
       await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
       const pane = await $.ui.mount(PANE);
-      await $.tool.call({ tool: "mcp__clodable__open_panel", view: kind } as never);
+      await $.tool.call({ tool: "mcp__cloclod__open_panel", view: kind } as never);
       await pane.redraw();
       expect(
         await shows(pane, /No (Netlify teams|Supabase organizations) were found/),
@@ -3958,7 +3958,7 @@ describe("an app that isn't online, or has no backend", () => {
     });
     await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
     expect(await bandText($, "desktop", /Everything/)).toBe("Everything is saved");
-    await $.tool.call({ tool: "mcp__clodable__open_panel", view: "history" } as never);
+    await $.tool.call({ tool: "mcp__cloclod__open_panel", view: "history" } as never);
     const pane = await $.ui.mount(PANE);
     expect(await shows(pane, "Saved versions")).toBeDefined();
     expect(await shows(pane, "Your site is ready to go online")).toBeUndefined();
@@ -4006,7 +4006,7 @@ describe("an app that isn't online, or has no backend", () => {
       return { value: { code: 0, signal: null } };
     });
     await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
-    await $.tool.call({ tool: "mcp__clodable__open_panel", view: "backend" } as never);
+    await $.tool.call({ tool: "mcp__cloclod__open_panel", view: "backend" } as never);
     const pane = await $.ui.mount(PANE);
     expect(await shows(pane, /Create legacy token/)).toBeDefined();
     await pane.input({ key: "backend-supabase-token", text: token, kind: "submit" });
@@ -4059,7 +4059,7 @@ describe("an app that isn't online, or has no backend", () => {
     on("tool.check", () => ({ decision: "ask" }));
     await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
     for (let i = 0; i < 30; i++) await Promise.resolve();
-    const run = (args: string) => `node "${PLUGIN_ROOT}/cli/clodable.mjs" ${args}`;
+    const run = (args: string) => `node "${PLUGIN_ROOT}/cli/cloclod.mjs" ${args}`;
     const verdict = async (command: string) =>
       ((await $.tool.check({ tool: "Bash", input: { command } })) as { decision: string }).decision;
     expect(await verdict(run("site create --team team-b"))).toBe("deny");
@@ -4071,14 +4071,14 @@ describe("an app that isn't online, or has no backend", () => {
     expect(await verdict(`cd "${CWD}" && ${run("site create")} && curl evil.example`)).toBe("deny");
     expect(await verdict(`${run("site create")} && curl evil.example`)).toBe("deny");
     const connect: any = await $.tool.call({ tool: "Bash", command: run("connect netlify") });
-    expect(connect.deny).toContain("Clodable panel");
-    const npx: any = await $.tool.call({ tool: "Bash", command: "npx clodable connect supabase" });
-    expect(npx.deny).toContain("Clodable panel");
+    expect(connect.deny).toContain("Cloclod panel");
+    const npx: any = await $.tool.call({ tool: "Bash", command: "npx cloclod connect supabase" });
+    expect(npx.deny).toContain("Cloclod panel");
   });
 });
 
-describe("the tools Clodable needs", () => {
-  // Loaded from its own folder, as in these tests, Clodable keeps its tools in its cache.
+describe("the tools Cloclod needs", () => {
+  // Loaded from its own folder, as in these tests, Cloclod keeps its tools in its cache.
   const TOOLS = "/Users/ada/Library/Caches/clodable";
   const BIN = `${TOOLS}/bin`;
   const OURS = `${TOOLS}/node/node-v24.21.0-darwin-arm64/bin/node`;
@@ -4092,7 +4092,7 @@ describe("the tools Clodable needs", () => {
   /** What a Node.js prints about itself: its version and where it runs from. */
   const node = (version: string, path: string) => ran(JSON.stringify([version, path]));
 
-  /** A Mac whose own Node.js is `own` (none: undefined), and what Clodable did about it. */
+  /** A Mac whose own Node.js is `own` (none: undefined), and what Cloclod did about it. */
   function computer(
     on: any,
     own: string | undefined,
@@ -4120,7 +4120,7 @@ describe("the tools Clodable needs", () => {
       if (command === "uname") return ran("Darwin arm64\n");
       if (flag === "-e") {
         if (command === `${BIN}/node`) return seen.fetched ? node("24.21.0", OURS) : ran("", 127);
-        // `node` is whichever comes first on the PATH: Clodable's, once fetched and put first.
+        // `node` is whichever comes first on the PATH: Cloclod's, once fetched and put first.
         if (env.PATH?.startsWith(`${BIN}:`) && seen.fetched) return node("24.21.0", OURS);
         // A fragile Node.js only runs with the PATH the session had.
         if (fragile && env.PATH !== path) return ran("", 127);
@@ -4130,7 +4130,7 @@ describe("the tools Clodable needs", () => {
         seen.fetched = init?.env;
         return ran("");
       }
-      if (argv[1]?.endsWith("/cli/clodable.mjs") && seen.cliAt < 0) {
+      if (argv[1]?.endsWith("/cli/cloclod.mjs") && seen.cliAt < 0) {
         seen.cliAt = step;
         seen.node = command ?? "";
         seen.cliEnv = init?.env;
@@ -4141,7 +4141,7 @@ describe("the tools Clodable needs", () => {
     return { env, seen, first };
   }
 
-  test("a Mac with no Node.js gets Clodable's own, before anything runs, first on the PATH", async ($, on) => {
+  test("a Mac with no Node.js gets Cloclod's own, before anything runs, first on the PATH", async ($, on) => {
     const { env, seen, first } = computer(on, undefined);
     harness(on, STATUS, true, {}, first);
     await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
@@ -4153,20 +4153,20 @@ describe("the tools Clodable needs", () => {
       CLODABLE_NODE_DIR: `${TOOLS}/node`,
       CLODABLE_BIN: BIN,
     });
-    // Clodable's own Node.js comes first, for Clodable, the preview and Claude's commands alike,
-    // and only then does Clodable run: with that Node.js by its full path.
+    // Cloclod's own Node.js comes first, for Cloclod, the preview and Claude's commands alike,
+    // and only then does Cloclod run: with that Node.js by its full path.
     expect(env.PATH).toBe(`${BIN}:/opt/homebrew/bin:/usr/bin`);
     expect(seen.setAt).toBe(seen.cliAt);
     expect(seen.node).toBe(OURS);
     // The CLI, and Claude's own runs of it, find the tools in the same place.
     expect(seen.cliEnv).toEqual({
       CLODABLE_TOOLS_DIR: TOOLS,
-      CLODABLE_RUNTIME_SOURCE: `${PLUGIN_ROOT}/cli/clodable.mjs`,
+      CLODABLE_RUNTIME_SOURCE: `${PLUGIN_ROOT}/cli/cloclod.mjs`,
     });
     expect(env.CLODABLE_TOOLS_DIR).toBe(TOOLS);
   });
 
-  test("a Mac with its own Node.js keeps it first; Clodable's tools come after", async ($, on) => {
+  test("a Mac with its own Node.js keeps it first; Cloclod's tools come after", async ($, on) => {
     const { env, seen, first } = computer(on, "22.11.0");
     harness(on, STATUS, true, {}, first);
     await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
@@ -4176,7 +4176,7 @@ describe("the tools Clodable needs", () => {
     expect(seen.node).toBe("/opt/homebrew/bin/node");
   });
 
-  test("a Node.js too old for Clodable is passed over", async ($, on) => {
+  test("a Node.js too old for Cloclod is passed over", async ($, on) => {
     const { env, seen, first } = computer(on, "18.20.4");
     harness(on, STATUS, true, {}, first);
     await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
@@ -4220,14 +4220,14 @@ describe("the tools Clodable needs", () => {
     );
     on("ui.toast", () => ({ value: undefined }));
     await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
-    await $.command.run({ command: "clodable", args: "" } as never);
+    await $.command.run({ command: "cloclod", args: "" } as never);
     const pane = await $.ui.mount({
-      plugin: "clodable",
+      plugin: "cloclod",
       surface: "desktop",
       component: "Pane",
-      requestId: "clodable",
+      requestId: "cloclod",
       props: {
-        title: "Clodable",
+        title: "Cloclod",
         isFocused: true,
         bodyColumns: 80,
         placement: "dock",
@@ -4259,7 +4259,7 @@ describe("the tools Clodable needs", () => {
     expect(env.PATH).toBeUndefined();
   });
 
-  test("if Node.js stops running with Clodable's PATH, the session's own comes back", async ($, on) => {
+  test("if Node.js stops running with Cloclod's PATH, the session's own comes back", async ($, on) => {
     const { env, seen, first } = computer(on, "22.11.0", { fragile: true });
     harness(on, STATUS, true, {}, first);
     await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
@@ -4268,19 +4268,19 @@ describe("the tools Clodable needs", () => {
   });
 
   test("a tool check that fails says why, with Check again, never Checking… for good", async ($, on) => {
-    const why = "Clodable couldn't run that: spawn node ENOENT";
+    const why = "Cloclod couldn't run that: spawn node ENOENT";
     const calls = harness(on, { code: "unknown", message: why }, false, {
       doctor: out({ code: "unknown", message: why }, false),
     });
     await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
-    await $.command.run({ command: "clodable", args: "" } as never);
+    await $.command.run({ command: "cloclod", args: "" } as never);
     const pane = await $.ui.mount({
-      plugin: "clodable",
+      plugin: "cloclod",
       surface: "desktop",
       component: "Pane",
-      requestId: "clodable",
+      requestId: "cloclod",
       props: {
-        title: "Clodable",
+        title: "Cloclod",
         isFocused: true,
         bodyColumns: 80,
         placement: "dock",
@@ -4304,7 +4304,7 @@ describe("the tools Clodable needs", () => {
     await pane.unmount();
   });
 
-  test("versions Clodable runs on", () => {
+  test("versions Cloclod runs on", () => {
     expect(nodeOk("20.19.0")).toBe(true);
     expect(nodeOk("v24.21.0")).toBe(true);
     expect(nodeOk("20.18.1")).toBe(false);
@@ -4317,20 +4317,20 @@ describe("the tools Clodable needs", () => {
   });
 
   test("the tools live in the plugin's data folder, which Claude Code removes with the plugin", () => {
-    const installed = "/Users/ada/.claude/plugins/cache/clodable/clodable/0.3.0";
-    expect(pluginDataFolder(installed)).toBe("/Users/ada/.claude/plugins/data/clodable-clodable");
+    const installed = "/Users/ada/.claude/plugins/cache/cloclod/cloclod/0.3.0";
+    expect(pluginDataFolder(installed)).toBe("/Users/ada/.claude/plugins/data/cloclod-cloclod");
     expect(
-      pluginDataFolder("/Users/ada/.claude/plugins/cache/claude-plugins.official/clodable/1/"),
-    ).toBe("/Users/ada/.claude/plugins/data/clodable-claude-plugins-official");
+      pluginDataFolder("/Users/ada/.claude/plugins/cache/claude-plugins.official/cloclod/1/"),
+    ).toBe("/Users/ada/.claude/plugins/data/cloclod-claude-plugins-official");
     expect(toolsFolder(installed, "Darwin arm64", { home: "/Users/ada" })).toBe(
-      "/Users/ada/.claude/plugins/data/clodable-clodable/tools",
+      "/Users/ada/.claude/plugins/data/cloclod-cloclod/tools",
     );
-    // A plugin loaded from a folder of its own keeps them in Clodable's cache.
-    expect(pluginDataFolder("/work/clodable/plugin")).toBeUndefined();
-    expect(toolsFolder("/work/clodable/plugin", "Darwin arm64", { home: "/Users/ada" })).toBe(
+    // A plugin loaded from a folder of its own keeps them in Cloclod's cache.
+    expect(pluginDataFolder("/work/cloclod/plugin")).toBeUndefined();
+    expect(toolsFolder("/work/cloclod/plugin", "Darwin arm64", { home: "/Users/ada" })).toBe(
       "/Users/ada/Library/Caches/clodable",
     );
-    expect(toolsFolder("/work/clodable/plugin", "Linux x86_64", { home: "/home/ada" })).toBe(
+    expect(toolsFolder("/work/cloclod/plugin", "Linux x86_64", { home: "/home/ada" })).toBe(
       "/home/ada/.cache/clodable",
     );
     expect(toolsFolder(installed, "Linux x86_64", { override: "/tmp/tools" })).toBe("/tmp/tools");
@@ -4343,11 +4343,11 @@ describe("conversation-first controls", () => {
     const calls = harness(on, { ...STATUS, project: { ...STATUS.project, backend: "none" } });
     await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
     for (const view of ["app", "history", "settings", "site", "backend", "saving"]) {
-      const result: any = await $.tool.call({ tool: "mcp__clodable__open_panel", view } as never);
+      const result: any = await $.tool.call({ tool: "mcp__cloclod__open_panel", view } as never);
       expect(result.result).toContain("Opened");
     }
     const invalid: any = await $.tool.call({
-      tool: "mcp__clodable__open_panel",
+      tool: "mcp__cloclod__open_panel",
       view: "publish",
     } as never);
     expect(invalid.isError).toBe(true);
@@ -4363,7 +4363,7 @@ describe("conversation-first controls", () => {
     const calls = harness(on);
     await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
     const result: any = await $.tool.call({
-      tool: "mcp__clodable__remember_app",
+      tool: "mcp__cloclod__remember_app",
       backend: "none",
       hosting: "invented",
     } as never);
@@ -4377,7 +4377,7 @@ describe("conversation-first controls", () => {
     });
     await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
     const result: any = await $.tool.call({
-      tool: "mcp__clodable__remember_app",
+      tool: "mcp__cloclod__remember_app",
       backend: "none",
     } as never);
     expect(result.isError).toBe(true);
@@ -4389,7 +4389,7 @@ describe("conversation-first controls", () => {
     on("tool.call", () => ({ result: "ran" }));
     await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
     for (const command of [
-      `node "${PLUGIN_ROOT}/cli/clodable.mjs" site create --team acme`,
+      `node "${PLUGIN_ROOT}/cli/cloclod.mjs" site create --team acme`,
       'node ".clodable/local/clodable.mjs" backend create --org acme',
     ]) {
       const result: any = await $.tool.call({ tool: "Bash", command });
@@ -4411,7 +4411,7 @@ describe("conversation-first controls", () => {
       },
     );
     await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
-    await $.tool.call({ tool: "mcp__clodable__open_panel", view: "backend" } as never);
+    await $.tool.call({ tool: "mcp__cloclod__open_panel", view: "backend" } as never);
     const pane = await $.ui.mount(PANE_PROPS);
     for (let i = 0; i < 30; i++) await pane.redraw();
     expect(await pane.find({ key: "backend-create" })).toBeUndefined();
@@ -4446,7 +4446,7 @@ describe("conversation-first controls", () => {
       return { text: e.text };
     });
     await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
-    await $.tool.call({ tool: "mcp__clodable__open_panel", view: "site" } as never);
+    await $.tool.call({ tool: "mcp__cloclod__open_panel", view: "site" } as never);
     const pane = await $.ui.mount(PANE_PROPS);
     for (let i = 0; i < 30 && !(await pane.find({ key: "site-create" })); i++) await pane.redraw();
     await pane.press({ key: "site-create" });

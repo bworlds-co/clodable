@@ -63,7 +63,7 @@ describe("trying the app on a move's copy", () => {
         const base = server.urls[0]!.replace(/\/$/, "");
         const module = async () =>
           (await fetch(`${base}/src/integrations/supabase/client.js`)).text();
-        const toolbar = async () => (await fetch(`${base}/__clodable/toolbar.js`)).text();
+        const toolbar = async () => (await fetch(`${base}/__cloclod/toolbar.js`)).text();
 
         const onCopy = await module();
         expect(onCopy).toContain(`https://${DST}.supabase.co`);
@@ -97,7 +97,7 @@ describe("trying the app on a move's copy", () => {
 });
 
 describe("the app's settings in the preview", () => {
-  it("gives the server side the settings pasted in Clodable, and restarts when one changes", async () => {
+  it("gives the server side the settings pasted in Cloclod, and restarts when one changes", async () => {
     const root = mkdtempSync(join(import.meta.dirname, "tmp-settings-"));
     const cwd = process.cwd();
     const before = process.env.CLODABLE_TEST_GREETING;

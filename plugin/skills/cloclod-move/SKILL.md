@@ -1,18 +1,18 @@
 ---
-name: clodable-move
+name: cloclod-move
 user-invocable: false
-description: Runs the steps of a builder's move off Lovable in the conversation, with Clodable's own `move` commands (first look at the app's code and record what it uses, then create their own Supabase backend, read Lovable's export, copy data, people and files, deploy functions, switch the preview to the copy, put the website on Netlify, set up emails, switch off Lovable's AI, email and connectors, Google sign-in, then the switch: pause, final export and copy, go live, the app's domain, finishing in Lovable), and finds and fixes what goes wrong. Use when the builder's message starts with "Moving off Lovable:", or when they ask to continue, check or fix their move off Lovable or Lovable Cloud, their working copy or their new backend.
+description: Runs the steps of a builder's move off Lovable in the conversation, with Cloclod's own `move` commands (first look at the app's code and record what it uses, then create their own Supabase backend, read Lovable's export, copy data, people and files, deploy functions, switch the preview to the copy, put the website on Netlify, set up emails, switch off Lovable's AI, email and connectors, Google sign-in, then the switch: pause, final export and copy, go live, the app's domain, finishing in Lovable), and finds and fixes what goes wrong. Use when the builder's message starts with "Moving off Lovable:", or when they ask to continue, check or fix their move off Lovable or Lovable Cloud, their working copy or their new backend.
 ---
 
 # Moving off Lovable, step by step
 
-The builder may press a step in the Clodable panel or ask naturally in the conversation. A panel request includes its exact command beside their message. A conversational request may not. Use the installed Clodable command from the app's `AGENTS.md`; in a set-up app it is `node ".clodable/local/clodable.mjs"`. Never fetch another version or inspect Clodable's implementation to discover an ordinary command. The panel shows where the move stands; explain choices and investigate problems in the conversation.
+The builder may press a step in the Cloclod panel or ask naturally in the conversation. A panel request includes its exact command beside their message. A conversational request may not. Use the installed Cloclod command from the app's `AGENTS.md`; in a set-up app it is `node ".clodable/local/clodable.mjs"`. Never fetch another version or inspect Cloclod's implementation to discover an ordinary command. The panel shows where the move stands; explain choices and investigate problems in the conversation.
 
 Their live app keeps running on Lovable until the switch: everything before it builds a **working copy** on their own Supabase. The switch (below) moves the live app over.
 
 ## Running a step
 
-- Run the exact command Clodable gives you for the step with Bash. It's Clodable's own command line, `node "…/cli/clodable.mjs" move <step>`. Don't add `cd …&&`, pipes or redirections: the exact command runs without a permission prompt.
+- Run the exact command Cloclod gives you for the step with Bash. It's Cloclod's own command line, `node "…/cli/cloclod.mjs" move <step>`. Don't add `cd …&&`, pipes or redirections: the exact command runs without a permission prompt.
 - `copy` and `files` can take minutes: give them a 10-minute timeout. If a very large copy needs longer, run it in the background and follow it with `move status`.
 - Read the output: the steps, the checks (✓ fine, ! needs a look), the counts.
 - Answer in two to four sentences: what happened, what it means for them, and what comes next (the panel shows the next step's button). Use their words: backend, copy, data, people, files, live. Never git words.
@@ -38,13 +38,13 @@ For a command not listed here or supplied by the panel, consult the installed co
 
 The move starts with you reading the app's code ("Moving off Lovable: look at my app's code…"). What you record decides which steps the move has and how the panel names things, so be exact.
 
-1. Run `move facts`. Its `hints` are Clodable's own scan: files calling Lovable's AI, sign-in providers named in the code, files sending emails through Lovable, connector services, payment files, scheduled jobs, uploads, backend functions and the settings the server code reads. They're starting points: confirm each in the code, and look for what a scan misses (an address built in pieces, a helper in another folder).
+1. Run `move facts`. Its `hints` are Cloclod's own scan: files calling Lovable's AI, sign-in providers named in the code, files sending emails through Lovable, connector services, payment files, scheduled jobs, uploads, backend functions and the settings the server code reads. They're starting points: confirm each in the code, and look for what a scan misses (an address built in pieces, a helper in another folder).
 2. Leave out dead code: a file nothing imports, a page nothing links to.
 3. Name each feature the way the builder sees it in the app, by its button or page: "Summarize, on each note", not `summarizeNote`. Add `where` (the file) for your later turns.
 4. Record it, in one command, exactly like this (a quoted heredoc runs without a permission prompt; every field is optional, an empty list means "not used"):
 
    ```
-   node "…/cli/clodable.mjs" move facts --set <<'EOF'
+   node "…/cli/cloclod.mjs" move facts --set <<'EOF'
    {"ai":[{"feature":"Summarize, on each note","where":"src/lib/app.functions.ts"}],
     "signIn":{"email":true,"google":false,"apple":false,"other":[]},
     "appEmails":[],"connectors":[],"payments":[],
@@ -64,15 +64,15 @@ The move starts with you reading the app's code ("Moving off Lovable: look at my
 
 ## Secrets never pass through you
 
-- The Supabase and Netlify tokens, the Resend key, Lovable Cloud's service key, AI and Google keys, secret values and the app's settings are typed in the panel and go straight to Clodable. Never ask for them in the chat. Never run `move connect`, `move netlify`, `move resend`, `move ai`, `move google`, `move secret`, `move vault-secret`, `move setting`, `move files --private`, `move forget` or `move disconnect`: Clodable blocks them and the builder uses the panel.
-- Never read Clodable's private folder (`~/Library/Application Support/clodable`, `~/.config/clodable`): it holds keys and the people's data from the export. Clodable blocks it. `move status` and `move diagnose` report everything that's safe to see.
+- The Supabase and Netlify tokens, the Resend key, Lovable Cloud's service key, AI and Google keys, secret values and the app's settings are typed in the panel and go straight to Cloclod. Never ask for them in the chat. Never run `move connect`, `move netlify`, `move resend`, `move ai`, `move google`, `move secret`, `move vault-secret`, `move setting`, `move files --private`, `move forget` or `move disconnect`: Cloclod blocks them and the builder uses the panel.
+- Never read Cloclod's private folder (`~/Library/Application Support/clodable`, `~/.config/clodable`): it holds keys and the people's data from the export. Cloclod blocks it. `move status` and `move diagnose` report everything that's safe to see.
 - Never show rows of people's data. Counts, times and the names of tables are fine.
 - `move export` matches Downloads filenames to this app's Lovable project. If it cannot match one, ask for the file's name and location, then use `move export --file <path>`. A manual `.dump`, `.backup` or zip containing one of them is supported. Never rename another app's export to bypass a mismatch. Report the archive's date; an older manual export can rehearse a copy but cannot serve as a fresh final export. Database archives include storage metadata, not the uploaded files themselves; those copy in the separate files step.
 
 ## When something's wrong
 
 1. Run `move diagnose`. It says whether the new backend is running, whether its API sees every table, whether the preview can sign people in on the copy, how many people there are with their last sign-up and sign-in times, whether the data's checks pass, what Postgres noted during the copy, and which backend the preview uses.
-2. Explain the finding plainly. Clodable's own fixes touch only the copy (the API's list of tables, the preview's sign-in settings): run `move diagnose --fix` and say what changed.
+2. Explain the finding plainly. Cloclod's own fixes touch only the copy (the API's list of tables, the preview's sign-in settings): run `move diagnose --fix` and say what changed.
 3. For a problem in the app's code, read the code, explain the cause, and propose the change. Make it when they agree. It's saved to their draft and reaches their live site only when they publish (and on Lovable's hosting, only when they also publish in Lovable).
 4. For anything on Lovable, on their live app, or in their Supabase account beyond the copy (pausing or deleting projects, plans, billing), explain and give them the exact clicks. They do it.
 5. If you can't find the cause, say what you checked and what you'd look at next. Don't guess.
@@ -80,14 +80,14 @@ The move starts with you reading the app's code ("Moving off Lovable: look at my
 ### When the copy cannot be checked
 
 - Keep a blocked-check reply to two to four plain sentences unless the builder asks for detail: say what is unknown, name any other confirmed blocker, and give the immediate next step. Say "I can't confirm the copy is ready", rather than turning an unsuccessful check into a claim that it is not ready.
-- A missing connection, an access error or an address that does not answer is not proof that the backend is paused, deleted or empty. Local move records describe earlier progress, not its current condition. Report the exact limit: what Clodable checked, what it could not check, and what is still unknown.
+- A missing connection, an access error or an address that does not answer is not proof that the backend is paused, deleted or empty. Local move records describe earlier progress, not its current condition. Report the exact limit: what Cloclod checked, what it could not check, and what is still unknown.
 - If `move diagnose` asks for a Supabase connection, ask the builder to reconnect in the panel, then check again. Never ask for a token in the conversation. Only describe a project as paused when Supabase reports that state; only give current data or people counts when a successful check returned them.
-- A remembered destination is checked and reused. Clodable has no automatic replacement flow for an unavailable destination. Do not promise a Create again button, clear its saved record, create a replacement or delete anything as a workaround. Restore connection/access first; if that does not resolve it, explain that the destination needs to be reviewed before continuing.
+- A remembered destination is checked and reused. Cloclod has no automatic replacement flow for an unavailable destination. Do not promise a Create again button, clear its saved record, create a replacement or delete anything as a workaround. Restore connection/access first; if that does not resolve it, explain that the destination needs to be reviewed before continuing.
 - If Lovable refuses an export because of its size limit, say the export was refused and copying cannot continue without a usable export. The refusal does not establish the database's actual size or why it exceeds that limit. Ask the builder to resolve the export with Lovable; do not substitute an old export, suggest changing live data, run SQL or contact support on their behalf without their request.
 
 ## The website on Netlify
 
-`move site` creates the Netlify site (or finds the one it made), points it at the new backend, writes `netlify.toml` and `.github/workflows/clodable-netlify.yml`, and gives GitHub the two secrets the workflow deploys with. Netlify's free plan can't watch a private repository owned by a GitHub organization; the workflow can, and it records a GitHub deployment so Clodable's Publish knows when the site is live.
+`move site` creates the Netlify site (or finds the one it made), points it at the new backend, writes `netlify.toml` and `.github/workflows/cloclod-netlify.yml`, and gives GitHub the two secrets the workflow deploys with. Netlify's free plan can't watch a private repository owned by a GitHub organization; the workflow can, and it records a GitHub deployment so Cloclod's Publish knows when the site is live.
 
 - This is hosting preparation, not publication or a completed move. After it, run `move status --json` and explain the next unfinished step, usually emails or services. Say the website is prepared and nothing was published. Do not tell them Publish is the only remaining step while those preparations and the switch are pending.
 - Publish updates the app's shared code as well as starting the Netlify workflow. With Lovable's GitHub sync still connected, those changes can also reach the live Lovable app. Never present Publish as an isolated test of the copy. If the builder requested copy-only work or no live changes, do not recommend or perform Publish; continue the authorized preparation and wait for explicit publication/live-change consent. Do not skip emails or services, pause the app, copy again, or run the switch just to make a prepared address show a page.
@@ -99,7 +99,7 @@ The move starts with you reading the app's code ("Moving off Lovable: look at my
 Lovable sent sign-up confirmations and password resets for them. Supabase's built-in mailer only writes to the project's own team, so real people need the builder's own sender: Resend, from a domain they own.
 
 - `move emails --domain <domain>` adds the domain to their Resend account and prints the DNS records. Tell them where these go: wherever they manage the domain (where they bought it). The panel shows each record with a Copy button. Records can take minutes, sometimes hours, to show.
-- "Check again" runs `move emails`: once Resend sees the records, Clodable gives Supabase a key that can only send from that domain. Say that their sign-up and reset emails now come from that address.
+- "Check again" runs `move emails`: once Resend sees the records, Cloclod gives Supabase a key that can only send from that domain. Say that their sign-up and reset emails now come from that address.
 - If a record isn't seen after a while, the usual causes: the name was entered with the domain repeated (`send.example.com.example.com`; many providers add the domain themselves), quotes around a TXT value, or another SPF record already on `send`.
 - Without a domain, the panel offers to go on without emails: new people sign in without confirming, and nobody can reset a forgotten password. Make sure they understand that before they choose it.
 
@@ -113,7 +113,7 @@ Lovable sent sign-up confirmations and password resets for them. Supabase's buil
 
 They stop working off Lovable. The panel's "Switch off Lovable's services" step takes one at a time:
 
-- **AI**: the builder picks a provider (OpenRouter has the same models as Lovable's AI; Gemini; OpenAI) and pastes a key in the panel (`move ai <provider>`): Clodable saves `AI_API_URL` and `AI_API_KEY` for their preview, their site and their backend functions. Then you point the code at them: the same OpenAI-style API (`${AI_API_URL}/chat/completions`). Keep Lovable's gateway as the fallback when `AI_API_KEY` isn't set: until the switch the app still runs on Lovable.
+- **AI**: the builder picks a provider (OpenRouter has the same models as Lovable's AI; Gemini; OpenAI) and pastes a key in the panel (`move ai <provider>`): Cloclod saves `AI_API_URL` and `AI_API_KEY` for their preview, their site and their backend functions. Then you point the code at them: the same OpenAI-style API (`${AI_API_URL}/chat/completions`). Keep Lovable's gateway as the fallback when `AI_API_KEY` isn't set: until the switch the app still runs on Lovable.
 - **The app's own emails** (through `api.lovable.dev`): `move app-emails` gives the app a Resend key that sends only from their domain (`RESEND_API_KEY`, `EMAIL_FROM`). Change the sending code to Resend's API, with Lovable's as the fallback, then `move functions`.
 - **Their own sign-in emails** (`supabase/functions/auth-email-hook`, Lovable's templates): once the functions are deployed and send through Resend, `move emails --hook` turns Supabase's send-email hook on, signed with a secret both share.
 - **Connectors** (`connector-gateway.lovable.dev/<service>`): the builder pastes their own key for each service in the panel (`<SERVICE>_API_KEY`); change the code to call the service's own API with it.
@@ -121,7 +121,7 @@ They stop working off Lovable. The panel's "Switch off Lovable's services" step 
 
 ## Google sign-in
 
-On Lovable, Google sign-in goes through Lovable's broker (`@lovable.dev/cloud-auth-js`), which only works on Lovable. The panel walks the builder through creating their own Google client (with the redirect address it shows) and takes its ID and secret (`move google <id>`, the secret on stdin): Clodable turns Google on in the new backend and sets `VITE_GOOGLE_SIGN_IN=supabase` for their preview and site. Then change the button: `supabase.auth.signInWithOAuth({ provider: "google", options: { redirectTo: window.location.origin } })` when `import.meta.env.VITE_GOOGLE_SIGN_IN` is `supabase`, Lovable's broker otherwise.
+On Lovable, Google sign-in goes through Lovable's broker (`@lovable.dev/cloud-auth-js`), which only works on Lovable. The panel walks the builder through creating their own Google client (with the redirect address it shows) and takes its ID and secret (`move google <id>`, the secret on stdin): Cloclod turns Google on in the new backend and sets `VITE_GOOGLE_SIGN_IN=supabase` for their preview and site. Then change the button: `supabase.auth.signInWithOAuth({ provider: "google", options: { redirectTo: window.location.origin } })` when `import.meta.env.VITE_GOOGLE_SIGN_IN` is `supabase`, Lovable's broker otherwise.
 
 ## Two ways to move
 
@@ -135,16 +135,16 @@ They change it in the panel until the pause or going live. Never run `move metho
 
 The live app moves over in one sitting, with a short pause:
 
-1. **Pause** (the builder, in Lovable's SQL editor: More → Cloud → SQL editor): the panel shows the SQL with a Copy button. It takes away the app's right to change data, holds new sign-ups and password or email changes (a guard named `clodable_pause` that never comes over to the new backend), holds uploads where Lovable allows it, and stops scheduled jobs; people still see everything and sign in. The builder presses "I've paused it" in the panel (`move paused`). Lovable allows one export a day: if the last one is recent, the panel says when the next is possible, and the pause should wait until then.
+1. **Pause** (the builder, in Lovable's SQL editor: More → Cloud → SQL editor): the panel shows the SQL with a Copy button. It takes away the app's right to change data, holds new sign-ups and password or email changes (a guard named `cloclod_pause` that never comes over to the new backend), holds uploads where Lovable allows it, and stops scheduled jobs; people still see everything and sign in. The builder presses "I've paused it" in the panel (`move paused`). Lovable allows one export a day: if the last one is recent, the panel says when the next is possible, and the pause should wait until then.
 2. **Final export**: `move export` refuses an export made before the pause, because it would miss what people wrote since. If that happens, the pause wasn't applied or the zip is the old one: help them check.
 3. **Final copy**: `move copy` (then `move files` when the app has uploads). It gives the app its writes back on the new backend, starts its scheduled jobs there, and brings the messages waiting in its queues. If a check says "!", run `move diagnose` before going further.
-4. **Go live**: `move golive --sign-up yes|no --confirm-email yes|no` (the builder chose who may sign up in the panel) points sign-in at their site, rewrites the app's `.env` and `supabase/config.toml` (and files in `src/` naming the old project), and makes Publish follow their Netlify site. Tell them what changed, then that **Publish** puts it live at their site's address. Read the changes yourself: if the app names the old backend somewhere Clodable didn't rewrite (`server/`, `app/`, functions), fix it. In one go, the panel first gives the line that stops Lovable's scheduled jobs (so they don't run twice). If the app takes payments, the panel shows the Stripe webhook's new address to set at the same time.
-5. **The app's address** (`move domain <name>`): after Publish, if the app has its own domain, Clodable adds it to the Netlify site and prints the records to change at their domain's provider; `move domain` checks them again, and once they point to Netlify, sign-in links use the domain. Or they keep the Netlify address (`--skip`, from the panel).
-6. **Finish in Lovable** (the builder), only once Clodable has seen them sign in on the new site: unpublish the app in Lovable (More → Settings → General → Unpublish project), disconnect Lovable's GitHub sync (More → Settings → Git → GitHub → Disconnect, so Lovable doesn't change their code), then remove Lovable Cloud, which deletes Lovable's copy of their data. "I've done it" also deletes Clodable's copy of the export from this computer.
+4. **Go live**: `move golive --sign-up yes|no --confirm-email yes|no` (the builder chose who may sign up in the panel) points sign-in at their site, rewrites the app's `.env` and `supabase/config.toml` (and files in `src/` naming the old project), and makes Publish follow their Netlify site. Tell them what changed, then that **Publish** puts it live at their site's address. Read the changes yourself: if the app names the old backend somewhere Cloclod didn't rewrite (`server/`, `app/`, functions), fix it. In one go, the panel first gives the line that stops Lovable's scheduled jobs (so they don't run twice). If the app takes payments, the panel shows the Stripe webhook's new address to set at the same time.
+5. **The app's address** (`move domain <name>`): after Publish, if the app has its own domain, Cloclod adds it to the Netlify site and prints the records to change at their domain's provider; `move domain` checks them again, and once they point to Netlify, sign-in links use the domain. Or they keep the Netlify address (`--skip`, from the panel).
+6. **Finish in Lovable** (the builder), only once Cloclod has seen them sign in on the new site: unpublish the app in Lovable (More → Settings → General → Unpublish project), disconnect Lovable's GitHub sync (More → Settings → Git → GitHub → Disconnect, so Lovable doesn't change their code), then remove Lovable Cloud, which deletes Lovable's copy of their data. "I've done it" also deletes Cloclod's copy of the export from this computer.
 
 In one go, steps 4 to 6 apply.
 
-When their message says "I've finished in Lovable", the move is over and they change their app here from now on. Open the preview (`preview_start` with the `url` Clodable gives beside their message; by `name` it opens nothing when the server already runs), then say in three or four lines: they describe a change here and watch it in the preview; Clodable saves each reply; **Publish** puts it live at their site's address; History and **Restore** bring back any earlier version. When a step asks to open the preview, do it the same way.
+When their message says "I've finished in Lovable", the move is over and they change their app here from now on. Open the preview (`preview_start` with the `url` Cloclod gives beside their message; by `name` it opens nothing when the server already runs), then say in three or four lines: they describe a change here and watch it in the preview; Cloclod saves each reply; **Publish** puts it live at their site's address; History and **Restore** bring back any earlier version. When a step asks to open the preview, do it the same way.
 
 Never run `move paused` or `move finished` yourself: they record what the builder did in Lovable, and they press them in the panel. Server code that writes with the service key (a payment webhook, say) isn't paused: if the app has some, say so before the pause.
 

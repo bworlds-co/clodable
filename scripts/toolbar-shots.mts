@@ -27,7 +27,7 @@ async function open(
   await page.goto(base + path, { waitUntil: "networkidle" });
   await page.waitForFunction(() =>
     document
-      .querySelector("clodable-toolbar")
+      .querySelector("cloclod-toolbar")
       ?.shadowRoot?.querySelector(".dock, .pebble, .devicebar"),
   );
   await page.waitForTimeout(450);
@@ -87,7 +87,7 @@ await page.close();
 
 // 5. Menu.
 page = await open("/");
-await page.locator("clodable-toolbar").locator(".brand").click();
+await page.locator("cloclod-toolbar").locator(".brand").click();
 await page.waitForTimeout(350);
 await shot(page, "07-menu");
 await page.close();
@@ -99,7 +99,7 @@ await shot(page, "08-error");
 await page.close();
 
 // 7. Phone frame.
-page = await open("/__clodable/frame?device=phone&path=%2F");
+page = await open("/__cloclod/frame?device=phone&path=%2F");
 await page.waitForTimeout(1200);
 await shot(page, "09-phone");
 await page.close();
@@ -107,7 +107,7 @@ await page.close();
 // 8. Dark mode, and minimized.
 page = await open("/", "dark");
 await shot(page, "10-dark-dock", { x: 340, y: 740, width: 600, height: 80 });
-await page.locator("clodable-toolbar").locator('[aria-label="Hide Clodable tools"]').click();
+await page.locator("cloclod-toolbar").locator('[aria-label="Hide Cloclod tools"]').click();
 await page.waitForTimeout(400);
 await shot(page, "11-minimized", { x: 1080, y: 700, width: 200, height: 120 });
 await page.close();

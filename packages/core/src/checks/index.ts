@@ -1,7 +1,7 @@
 import { realpathSync } from "node:fs";
 import { sep } from "node:path";
 import type { ProjectConfig } from "../config.js";
-import { ClodableError } from "../errors.js";
+import { CloclodError } from "../errors.js";
 import { type Flow, step } from "../events.js";
 import { exec } from "../exec.js";
 import { type ProjectInfo, packageManagerHere, runScriptCommand } from "../project.js";
@@ -196,8 +196,8 @@ const RUNNING: Record<CheckId, string> = {
  * The error for checks that failed: the first one's summary, everything for developers, and the
  * files the fix should look at, for Claude.
  */
-export function checksFailed(failed: CheckResult[], hint: string): ClodableError {
-  return new ClodableError({
+export function checksFailed(failed: CheckResult[], hint: string): CloclodError {
+  return new CloclodError({
     code: "checks-failed",
     message: failed[0]?.summary ?? "A check failed.",
     hint,

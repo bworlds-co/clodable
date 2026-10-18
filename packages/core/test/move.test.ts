@@ -157,7 +157,7 @@ CREATE TRIGGER update_objects_updated_at BEFORE UPDATE ON storage.objects FOR EA
   });
 
   it("takes the backup out of a zip, checked", async () => {
-    const dir = await mkdtemp(join(tmpdir(), "clodable-zip-"));
+    const dir = await mkdtemp(join(tmpdir(), "cloclod-zip-"));
     try {
       const data = Buffer.from("PGDMP".repeat(5000));
       await writeFile(
@@ -199,7 +199,7 @@ CREATE TRIGGER update_objects_updated_at BEFORE UPDATE ON storage.objects FOR EA
 
 describe("the app's own settings", () => {
   it("lists every setting the server code reads, whatever its name", async () => {
-    const root = await mkdtemp(join(tmpdir(), "clodable-settings-"));
+    const root = await mkdtemp(join(tmpdir(), "cloclod-settings-"));
     try {
       await mkdir(join(root, "src/server"), { recursive: true });
       await writeFile(
@@ -237,7 +237,7 @@ describe("the pause", () => {
     expect(freeze).not.toContain("from anon;");
     // Sign-ups, password and email changes wait too (Auth writes as itself: a revoke can't).
     expect(freeze).toContain(
-      "create trigger clodable_pause before insert or update of encrypted_password, email on auth.users",
+      "create trigger cloclod_pause before insert or update of encrypted_password, email on auth.users",
     );
     // Uploads, where Lovable allows it; a refusal doesn't stop the rest.
     expect(freeze).toContain(
@@ -246,7 +246,7 @@ describe("the pause", () => {
     expect(freeze).toContain("exception when others then raise notice 'Uploads stay open: %'");
     expect(undo).toContain('grant delete, insert, update on "public"."posts" to authenticated;');
     expect(undo).toContain("select cron.alter_job(jobid, active := true) from cron.job;");
-    expect(undo).toContain("drop trigger if exists clodable_pause on auth.users");
+    expect(undo).toContain("drop trigger if exists cloclod_pause on auth.users");
     // Without the export's grants: every table in public.
     expect(freezeSql(undefined, false).freeze).toContain(
       "revoke insert, update, delete on all tables in schema public from anon, authenticated;",
@@ -371,7 +371,7 @@ describe("Netlify and Resend", () => {
     try {
       await expect(new NetlifyApi("nfp_x", base).user()).rejects.toMatchObject({
         code: "netlify-failed",
-        message: "Netlify answered in a way Clodable didn't expect.",
+        message: "Netlify answered in a way Cloclod didn't expect.",
         details: "Netlify answered 200: <html>Maintenance</html>",
       });
       await expect(new NetlifyApi("nfp_x", base).user()).rejects.toMatchObject({
@@ -393,7 +393,7 @@ describe("copying files", () => {
     const fake = await startFakeSupabase({ token: "sbp_test", nextRef: DST, sourceKey: "src" });
     const previous = process.env.CLODABLE_SUPABASE_PROJECT_URL;
     process.env.CLODABLE_SUPABASE_PROJECT_URL = fake.projectUrl;
-    const dir = await mkdtemp(join(tmpdir(), "clodable-files-"));
+    const dir = await mkdtemp(join(tmpdir(), "cloclod-files-"));
     try {
       fake.publicBuckets.add(`${SRC}/images`);
       fake.files.set(`${SRC}/images/here.png`, { body: Buffer.from("png"), type: "image/png" });

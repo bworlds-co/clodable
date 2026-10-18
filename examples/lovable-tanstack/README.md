@@ -3,7 +3,7 @@
 A fictional bakery site built as a copy of what Lovable generates with its **current template**
 (`tanstack_start_ts_current`). Lovable has used this template for new apps since May 13, 2026. It
 uses TanStack Start with SSR, React 19, Tailwind CSS 4 and Vite 8, wired through
-`@lovable.dev/vite-tanstack-config`. Clodable's dev tooling is developed and tested against it.
+`@lovable.dev/vite-tanstack-config`. Cloclod's dev tooling is developed and tested against it.
 
 This is a standalone **npm** project with its own `package-lock.json`. It is not part of the pnpm
 workspace.
@@ -121,7 +121,7 @@ projects also get.
   fast-refresh warnings in `src/components/ui`. The app's own files are Prettier-formatted and lint
   clean. `npx tsc --noEmit` passes.
 
-## Notes for Clodable tooling
+## Notes for Cloclod tooling
 
 - **Source tagging.** In dev, `@lovable.dev/vite-tanstack-config` registers
   `@tanstack/devtools-vite` with `injectSource: { enabled: true }`. JSX host elements in project

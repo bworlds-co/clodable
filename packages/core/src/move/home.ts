@@ -1,5 +1,5 @@
 import { randomInt } from "node:crypto";
-import { ClodableError } from "../errors.js";
+import { CloclodError } from "../errors.js";
 import { type Flow, step } from "../events.js";
 import { readSecret, storeSecret } from "../local-secrets.js";
 import type { Workspace } from "../workspace.js";
@@ -10,7 +10,7 @@ import { loadMove, type MoveState, updateMove } from "./state.js";
 import { SupabaseApi } from "./supabase-api.js";
 
 /**
- * The new backend: the builder's own Supabase project, made by Clodable. Its keys, and how Clodable
+ * The new backend: the builder's own Supabase project, made by Cloclod. Its keys, and how Cloclod
  * reaches its database (Supabase's API for SQL, its pooler for Postgres's tools).
  */
 
@@ -32,7 +32,7 @@ export async function* createHome(
     yield step("move:create", "running", "Checking your new backend");
     const project = await api.project(state.home.ref);
     if (project.status === "INACTIVE" || project.status === "GOING_DOWN") {
-      throw new ClodableError({
+      throw new CloclodError({
         code: "move-not-ready",
         message: "Your new backend is paused.",
         hint: "Restore it on its page in Supabase, then try this step again. Your live app hasn't changed.",
@@ -48,7 +48,7 @@ export async function* createHome(
     organizations.find((o) => o.slug === options.org) ??
     (organizations.length === 1 ? organizations[0] : undefined);
   if (!org) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "move-not-ready",
       message: "Which Supabase organization should it go in?",
       hint: `Pick one: ${organizations.map((o) => o.name).join(", ")}.`,
@@ -57,7 +57,7 @@ export async function* createHome(
   const region =
     options.region ?? (await api.regions(org.slug).catch(() => undefined))?.recommended?.code;
   if (!region) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "move-not-ready",
       message: "Which part of the world should your backend run in?",
       hint: "Pick the region closest to your users.",
@@ -100,10 +100,10 @@ export async function waitUntilUp(api: SupabaseApi, ref: string): Promise<void> 
   while (true) {
     const project = await api.project(ref);
     if (project?.status === "INIT_FAILED") {
-      throw new ClodableError({
+      throw new CloclodError({
         code: "supabase-failed",
         message: "Supabase couldn't start your new backend.",
-        hint: "Delete it in Supabase, then create it again from Clodable.",
+        hint: "Delete it in Supabase, then create it again from Cloclod.",
       });
     }
     if (project?.status === "ACTIVE_HEALTHY") {
@@ -111,10 +111,10 @@ export async function waitUntilUp(api: SupabaseApi, ref: string): Promise<void> 
       if (health.length > 0 && health.every((s) => s.healthy)) return;
     }
     if (Date.now() - started > 15 * 60_000)
-      throw new ClodableError({
+      throw new CloclodError({
         code: "supabase-failed",
         message: "Your new backend is taking unusually long to start.",
-        hint: "Check it in Supabase, then try this step again: Clodable picks up where it was.",
+        hint: "Check it in Supabase, then try this step again: Cloclod picks up where it was.",
       });
     await new Promise((done) => setTimeout(done, 5000));
   }
@@ -158,20 +158,20 @@ export async function homeConnection(
   let password = await readSecret(passwordKey(home.ref));
   if (!password) {
     if (!home.createdByClodable) {
-      throw new ClodableError({
+      throw new CloclodError({
         code: "move-not-ready",
-        message: "Clodable doesn't have this backend's database password.",
+        message: "Cloclod doesn't have this backend's database password.",
         hint: "Run the move from the computer that created it.",
       });
     }
-    // Clodable made this project: a new password changes nothing for anyone else.
+    // Cloclod made this project: a new password changes nothing for anyone else.
     password = newPassword();
     await api.setPassword(home.ref, password);
     await storeSecret(passwordKey(home.ref), password);
   }
   const pooler = await api.pooler(home.ref);
   if (!pooler) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "supabase-failed",
       message: "Supabase didn't say how to connect to your new database.",
       hint: "Try again in a minute.",

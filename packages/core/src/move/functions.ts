@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { readdir, readFile } from "node:fs/promises";
 import { dirname, join, normalize, relative, sep } from "node:path";
-import { ClodableError } from "../errors.js";
+import { CloclodError } from "../errors.js";
 import { type Flow, step } from "../events.js";
 import type { SupabaseApi } from "./supabase-api.js";
 
@@ -168,7 +168,7 @@ export async function* deployFunctions(
 ): Flow<DeployOutcome> {
   const functions = await localFunctions(root);
   if (functions.length === 0) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "move-not-ready",
       message: "This app has no backend functions to deploy.",
     });
@@ -189,7 +189,7 @@ export async function* deployFunctions(
     } catch (error) {
       failed.push(fn.name);
       problems.push(
-        `${fn.name}: ${error instanceof ClodableError ? (error.details ?? error.message) : String(error)}`,
+        `${fn.name}: ${error instanceof CloclodError ? (error.details ?? error.message) : String(error)}`,
       );
     }
   }

@@ -14,7 +14,7 @@ import { agentsMd } from "./agents-md.js";
 import { hasLocalRuntime, installRuntime, LOCAL_CLI, LOCAL_PREVIEW } from "./runtime.js";
 
 /**
- * The repo kit: the handful of plain files that make a Lovable project a Clodable project.
+ * The repo kit: the handful of plain files that make a Lovable project a Cloclod project.
  * Every file is merged with what's already there. Nothing the project owns is overwritten.
  */
 
@@ -23,7 +23,7 @@ export interface KitOptions {
   devCommand?: { executable: string; args: string[] };
   /** Default port for the preview (Lovable apps use 8080). */
   port?: number;
-  /** GitHub repository that hosts the Clodable plugin marketplace. */
+  /** GitHub repository that hosts the Cloclod plugin marketplace. */
   marketplaceRepo?: string;
   liveUrl?: string;
   /** Refresh only the installed runtime and its instructions, without changing account settings. */
@@ -39,13 +39,13 @@ export interface KitChange {
 }
 
 /**
- * Clodable's own files in a project: its settings and this computer's state, how Claude works here,
+ * Cloclod's own files in a project: its settings and this computer's state, how Claude works here,
  * and what publishes the site to Netlify (the workflow, and how Netlify builds the app). Restoring
  * or undoing an earlier version of the app leaves them as they are now: going back past the day
  * the site went online mustn't stop it updating. `.gitignore` is the app's: it's restored, then
- * keepIgnored() puts Clodable's lines back.
+ * keepIgnored() puts Cloclod's lines back.
  */
-export const CLODABLE_FILES = [
+export const CLOCLOD_FILES = [
   ".clodable",
   ".claude",
   "AGENTS.md",
@@ -55,12 +55,12 @@ export const CLODABLE_FILES = [
   NETLIFY_TOML,
 ];
 
-/** One of Clodable's own files, or a file inside one of its folders (a path from the top). */
-export function clodableFile(path: string): boolean {
-  return CLODABLE_FILES.some((own) => path === own || path.startsWith(`${own}/`));
+/** One of Cloclod's own files, or a file inside one of its folders (a path from the top). */
+export function cloclodFile(path: string): boolean {
+  return CLOCLOD_FILES.some((own) => path === own || path.startsWith(`${own}/`));
 }
 
-/** Put Clodable's lines back in `.gitignore` if they're missing, so this computer's state stays out of git. */
+/** Put Cloclod's lines back in `.gitignore` if they're missing, so this computer's state stays out of git. */
 export async function keepIgnored(root: string): Promise<void> {
   await applyKit(root, [await gitignorePlan(root)]);
 }
@@ -96,7 +96,7 @@ export function mergeManagedBlock(existing: string | undefined, generated: strin
   if (start >= 0 && end > start) {
     return existing.slice(0, start) + block + existing.slice(end + END.length);
   }
-  return `${existing.trimEnd()}\n\n## Working with Clodable\n\n${block}\n`;
+  return `${existing.trimEnd()}\n\n## Working with Cloclod\n\n${block}\n`;
 }
 
 /** The kit for this project, file by file: what each change is for, and its new content. */
@@ -187,11 +187,11 @@ async function launchPlan(root: string, options: KitOptions): Promise<KitChange>
     {},
   );
   const existing = launch.configurations?.find((configuration) => configuration.name === "app");
-  const override = clodableDev(launch.configurations ?? []);
+  const override = cloclodDev(launch.configurations ?? []);
   if (options.runtimeOnly && override && before) {
     return change(
       ".claude/launch.json",
-      "Keeps your explicit Clodable preview command",
+      "Keeps your explicit Cloclod preview command",
       before,
       before,
     );
@@ -213,12 +213,12 @@ async function launchPlan(root: string, options: KitOptions): Promise<KitChange>
   };
   const others = (launch.configurations ?? []).filter(
     (c) =>
-      !(Array.isArray(c.runtimeArgs) && (c.runtimeArgs as string[]).includes("clodable")) &&
+      !(Array.isArray(c.runtimeArgs) && (c.runtimeArgs as string[]).includes("cloclod")) &&
       c.name !== "app",
   );
   return change(
     ".claude/launch.json",
-    "Starts your app in the preview, with the Clodable toolbar",
+    "Starts your app in the preview, with the Cloclod toolbar",
     before,
     json({ version: launch.version ?? "0.0.1", configurations: [ours, ...others] }),
   );
@@ -227,9 +227,9 @@ async function launchPlan(root: string, options: KitOptions): Promise<KitChange>
 /**
  * Where the plugin keeps the tools it fetched for a builder who has none (Node.js, the GitHub CLI),
  * as a shell spells it on macOS and Linux: `bin` in the tools folder of the data folder Claude
- * Code gives `clodable@clodable`, the plugin these settings turn on.
+ * Code gives `cloclod@cloclod`, the plugin these settings turn on.
  */
-const TOOLS_PATH = "$HOME/.claude/plugins/data/clodable-clodable/tools/bin";
+const TOOLS_PATH = "$HOME/.claude/plugins/data/cloclod-cloclod/tools/bin";
 
 function installedPreviewCommand(): { executable: string; args: string[] } {
   return process.platform === "win32"
@@ -238,28 +238,28 @@ function installedPreviewCommand(): { executable: string; args: string[] } {
 }
 
 /**
- * How Desktop starts the preview: `npx clodable dev`. Desktop starts it with its own PATH, where
- * the Node.js Clodable fetched isn't, so on macOS and Linux it goes through `sh`, with Clodable's
+ * How Desktop starts the preview: `npx cloclod dev`. Desktop starts it with its own PATH, where
+ * the Node.js Cloclod fetched isn't, so on macOS and Linux it goes through `sh`, with Cloclod's
  * tools after the builder's own.
  */
 export function previewCommand(platform: NodeJS.Platform = process.platform): {
   executable: string;
   args: string[];
 } {
-  if (platform === "win32") return { executable: "npx", args: ["clodable", "dev"] };
+  if (platform === "win32") return { executable: "npx", args: ["cloclod", "dev"] };
   return {
     executable: "/bin/sh",
-    args: ["-c", `PATH="$PATH:${TOOLS_PATH}" exec npx clodable dev`],
+    args: ["-c", `PATH="$PATH:${TOOLS_PATH}" exec npx cloclod dev`],
   };
 }
 
 /**
- * The preview's command already in launch.json, when it runs Clodable's own: a demo, or a test of
- * an unreleased Clodable, runs it from a folder rather than from npm, and planning the kit again
- * (answering a question, say) keeps it. Earlier versions' own, plain `npx clodable dev` or through
+ * The preview's command already in launch.json, when it runs Cloclod's own: a demo, or a test of
+ * an unreleased Cloclod, runs it from a folder rather than from npm, and planning the kit again
+ * (answering a question, say) keeps it. Earlier versions' own, plain `npx cloclod dev` or through
  * `sh` with another tools folder, becomes today's.
  */
-function clodableDev(
+function cloclodDev(
   configurations: Array<Record<string, unknown>>,
 ): { executable: string; args: string[] } | undefined {
   const app = configurations.find((c) => c.name === "app");
@@ -269,9 +269,9 @@ function clodableDev(
   const words = [executable, ...args].map(String);
   const command = words.join(" ");
   if (args.includes(LOCAL_PREVIEW) || args.includes(LOCAL_CLI)) return undefined;
-  if (command === "npx clodable dev") return undefined;
-  if (/^\/bin\/sh -c PATH="\$PATH:[^"]*" exec npx clodable dev$/.test(command)) return undefined;
-  return words.some((w) => w.includes("clodable")) && words.includes("dev")
+  if (command === "npx cloclod dev") return undefined;
+  if (/^\/bin\/sh -c PATH="\$PATH:[^"]*" exec npx cloclod dev$/.test(command)) return undefined;
+  return words.some((w) => w.includes("cloclod")) && words.includes("dev")
     ? { executable, args: args.map(String) }
     : undefined;
 }
@@ -281,26 +281,26 @@ async function settingsPlan(root: string, options: KitOptions): Promise<KitChang
   const before = await read(root, ".claude/settings.json");
   // biome-ignore lint/suspicious/noExplicitAny: the person's own settings file, in whatever shape it has
   const settings = parseJson<Record<string, any>>(before, {});
-  const marketplace = options.marketplaceRepo ?? "bworlds-co/clodable";
+  const marketplace = options.marketplaceRepo ?? "bworlds-co/cloclod";
   const permissions = settings.permissions ?? {};
   return change(
     ".claude/settings.json",
-    "Turns on Clodable for this project and keeps the live site safe",
+    "Turns on Cloclod for this project and keeps the live site safe",
     before,
     json({
       ...settings,
-      enabledPlugins: { ...settings.enabledPlugins, "clodable@clodable": true },
+      enabledPlugins: { ...settings.enabledPlugins, "cloclod@cloclod": true },
       extraKnownMarketplaces: {
         ...settings.extraKnownMarketplaces,
         // Kept up to date on its own: a marketplace that isn't Anthropic's doesn't auto-update otherwise.
-        clodable: { source: { source: "github", repo: marketplace }, autoUpdate: true },
+        cloclod: { source: { source: "github", repo: marketplace }, autoUpdate: true },
       },
       permissions: {
         ...permissions,
         allow: union(permissions.allow, [
-          "Bash(npx clodable status:*)",
-          "Bash(npx clodable check:*)",
-          "Bash(npx clodable history:*)",
+          "Bash(npx cloclod status:*)",
+          "Bash(npx cloclod check:*)",
+          "Bash(npx cloclod history:*)",
           "Bash(npm run build)",
           "Bash(npm run lint)",
           "Bash(npm install)",
@@ -314,8 +314,8 @@ async function settingsPlan(root: string, options: KitOptions): Promise<KitChang
           "Bash(git push:*)",
           "Bash(git reset --hard:*)",
           "Bash(gh pr merge:*)",
-          "Bash(npx clodable publish:*)",
-          "Bash(npx clodable undo:*)",
+          "Bash(npx cloclod publish:*)",
+          "Bash(npx cloclod undo:*)",
           "mcp__supabase__deploy_edge_function",
         ]),
       },
@@ -383,12 +383,7 @@ async function configPlan(
     supabase: { ...config.supabase, ...(ref ? { projectRef: ref } : {}) },
     ...(options.liveUrl ? { liveUrl: options.liveUrl } : {}),
   });
-  return change(
-    CONFIG_PATH,
-    "Clodable's settings for this project",
-    before,
-    json(configFile(next)),
-  );
+  return change(CONFIG_PATH, "Cloclod's settings for this project", before, json(configFile(next)));
 }
 
 /** .gitignore: keep this computer's state and the inbox out of git. */
@@ -400,11 +395,11 @@ async function gitignorePlan(root: string): Promise<KitChange> {
   );
   return change(
     ".gitignore",
-    "Keeps Clodable's local files out of your project history",
+    "Keeps Cloclod's local files out of your project history",
     before,
     missing.length === 0
       ? (before ?? "")
-      : `${(before ?? "").trimEnd()}${before ? "\n\n" : ""}# Clodable (this computer only)\n${missing.join("\n")}\n`,
+      : `${(before ?? "").trimEnd()}${before ? "\n\n" : ""}# Cloclod (this computer only)\n${missing.join("\n")}\n`,
   );
 }
 

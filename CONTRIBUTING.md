@@ -1,6 +1,6 @@
-# Contributing to Clodable
+# Contributing to Cloclod
 
-Thank you for helping. Clodable is for builders, not developers. Every change should make their day calmer.
+Thank you for helping. Cloclod is for builders, not developers. Every change should make their day calmer.
 
 ## Before you start
 
@@ -36,13 +36,13 @@ With `CLODABLE_TOOLBAR_DEV=1`, the toolbar is rebuilt on every page load. Check 
 
 ## Releasing
 
-People install Clodable from this repository, which is its own plugin marketplace (`.claude-plugin/marketplace.json`). Claude Code updates an installed plugin only when its version changes, so every release bumps it:
+People install Cloclod from this repository, which is its own plugin marketplace (`.claude-plugin/marketplace.json`). Claude Code updates an installed plugin only when its version changes, so every release bumps it:
 
 1. `pnpm release patch` (or `minor`, `major`, or an exact `x.y.z`). It sets one version on the packages, the plugin and the marketplace, and rebuilds the plugin's bundled CLI.
 2. Run the checks, commit and push.
-3. `claude plugin tag plugin --push` tags the release as `clodable--v<version>`.
+3. `claude plugin tag plugin --push` tags the release as `cloclod--v<version>`.
 
-Apps Clodable set up get the new version on their own: the setup turns on auto-update for this marketplace in the app's `.claude/settings.json`. Anyone else updates with `claude plugin update clodable@clodable`.
+Apps Cloclod set up get the new version on their own: the setup turns on auto-update for this marketplace in the app's `.claude/settings.json`. Anyone else updates with `claude plugin update cloclod@cloclod`.
 
 ## Pull requests
 

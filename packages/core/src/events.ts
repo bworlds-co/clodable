@@ -1,5 +1,5 @@
 /**
- * The event protocol between Clodable's engine and every front end (the CLI's pretty view, the
+ * The event protocol between Cloclod's engine and every front end (the CLI's pretty view, the
  * Claude mod, a future web shell). With `--json`, the CLI prints one event per line (NDJSON),
  * and the last line is always a `result`.
  */
@@ -23,7 +23,7 @@ export type StepId =
   // An app that isn't online, or has no backend, gets one
   | "site"
   | "backend"
-  // Setting Clodable up in an app
+  // Setting Cloclod up in an app
   | "setup:tools"
   | "setup:app"
   | "setup:files"
@@ -67,9 +67,9 @@ export interface ResultEvent<T = unknown> {
   error?: ErrorInfo;
 }
 
-export type ClodableEvent = StepEvent | LogEvent | ResultEvent;
+export type CloclodEvent = StepEvent | LogEvent | ResultEvent;
 
-/** A long-running operation: yields progress, returns its data or throws a ClodableError. */
+/** A long-running operation: yields progress, returns its data or throws a CloclodError. */
 export type Flow<T> = AsyncGenerator<StepEvent | LogEvent, T, void>;
 
 export const step = (id: StepId, state: StepState, title: string, detail?: string): StepEvent => ({

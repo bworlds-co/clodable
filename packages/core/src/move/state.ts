@@ -31,7 +31,7 @@ export interface MoveState {
     name: string;
     region: string;
     createdAt: string;
-    /** Clodable made it, so Clodable may reset its database password. */
+    /** Cloclod made it, so Cloclod may reset its database password. */
     createdByClodable: boolean;
   };
   /** The Lovable export read into the protected folder. */
@@ -43,7 +43,7 @@ export interface MoveState {
     at: string;
     copied: number;
     total: number;
-    /** Buckets whose files need the old backend's service key, which Clodable doesn't have yet. */
+    /** Buckets whose files need the old backend's service key, which Cloclod doesn't have yet. */
     waiting: string[];
     tooBig: number;
     failed: number;
@@ -123,13 +123,13 @@ export interface MoveState {
   };
   /** The switch: the live app moves over. */
   switch?: {
-    /** The builder paused changes on the live app (Lovable Cloud) with the line Clodable gave. */
+    /** The builder paused changes on the live app (Lovable Cloud) with the line Cloclod gave. */
     frozenAt?: string;
     /** The builder goes live without emails of their own (no domain yet). */
     noEmailsAt?: string;
     /** What the app's API roles could do before the pause, to give back on the new backend. */
     grants?: Record<string, Record<string, string[]>>;
-    /** Clodable pointed everything at the new backend and site; the next Publish puts it live. */
+    /** Cloclod pointed everything at the new backend and site; the next Publish puts it live. */
     liveAt?: string;
     /** The builder finished in Lovable (Cloud removed, GitHub sync off). */
     finishedAt?: string;

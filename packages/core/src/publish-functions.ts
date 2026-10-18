@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { supabaseRef } from "./config.js";
-import { ClodableError, messageOf } from "./errors.js";
+import { CloclodError, messageOf } from "./errors.js";
 import { type Flow, log, step } from "./events.js";
 import { exec, hasCommand } from "./exec.js";
 import { localFunctions, uploadFunction } from "./move/functions.js";
@@ -92,7 +92,7 @@ async function* deployThroughApi(
       await uploadFunction(api, ref, root, fn);
       outcome.deployed.push(name);
     } catch (error) {
-      if (error instanceof ClodableError && error.code === "supabase-auth") {
+      if (error instanceof CloclodError && error.code === "supabase-auth") {
         outcome.pending.push(name);
       } else {
         outcome.failed.push(name);

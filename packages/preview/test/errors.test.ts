@@ -23,7 +23,7 @@ describe("the error card, from the keyboard", () => {
 
   beforeAll(async () => {
     vi.stubGlobal("fetch", async (path: string) =>
-      path === "/__clodable/inbox"
+      path === "/__cloclod/inbox"
         ? (answers.shift() ?? (() => Response.json({ ok: true })))()
         : Response.json({ error: null, line: null }),
     );

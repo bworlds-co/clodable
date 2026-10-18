@@ -1,7 +1,7 @@
 {
   "name": "@clodable/design",
   "version": "0.2.2",
-  "description": "Clodable design tokens, icons and logo.",
+  "description": "Cloclod design tokens, icons and logo.",
   "license": "MIT",
   "type": "module",
   "sideEffects": false,

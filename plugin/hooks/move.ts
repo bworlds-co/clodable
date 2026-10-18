@@ -122,10 +122,10 @@ export function stagesOf<Step extends { id: string }>(
 
 /** How much the move asks of the builder, in one line. */
 export const MOVE_LEVELS: Record<string, string> = {
-  simple: "A simple move: Clodable does nearly everything, and you click a few buttons.",
+  simple: "A simple move: Cloclod does nearly everything, and you click a few buttons.",
   "some-steps": "A move with a few steps for you, each one guided.",
   "needs-help": "A move where some parts are best done with someone technical.",
 };
 
 /** Who does each part of the move. */
-export const MOVE_WHO: Record<string, string> = { clodable: "Clodable", you: "You", help: "Help" };
+export const MOVE_WHO: Record<string, string> = { clodable: "Cloclod", you: "You", help: "Help" };

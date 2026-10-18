@@ -3,12 +3,12 @@ import { keepFetch } from "./api.js";
 import { installEarlyCapture } from "./errors.js";
 import { type Surface, Toolbar } from "./toolbar.js";
 
-/** Entry point of the browser bundle served at /__clodable/toolbar.js (development only). */
+/** Entry point of the browser bundle served at /__cloclod/toolbar.js (development only). */
 function boot() {
-  if (window.__CLODABLE_MOUNTED__) return;
+  if (window.__CLOCLOD_MOUNTED__) return;
   // Neither writable nor removable: no script of the page can start a second toolbar, one that
   // would send the token through a fetch the page had replaced.
-  Object.defineProperty(window, "__CLODABLE_MOUNTED__", { value: true });
+  Object.defineProperty(window, "__CLOCLOD_MOUNTED__", { value: true });
   keepFetch();
   // Listen right away: an app that crashes while loading does so before the toolbar mounts.
   installEarlyCapture();

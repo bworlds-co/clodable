@@ -24,7 +24,7 @@ const ASK_SERVER = new RegExp(
 );
 
 /** "Claude is on it" outlasts the reloads a fix goes through, for two minutes at most. */
-const FIXING = "clodable:fixing";
+const FIXING = "cloclod:fixing";
 function isFixing(): boolean {
   try {
     return Date.now() - Number(sessionStorage.getItem(FIXING) ?? 0) < 120_000;
@@ -47,7 +47,7 @@ export function installEarlyCapture() {
     "error",
     (event) => {
       const script = event.target;
-      if (!(script instanceof HTMLScriptElement) || script.hasAttribute("data-clodable-toolbar")) {
+      if (!(script instanceof HTMLScriptElement) || script.hasAttribute("data-cloclod-toolbar")) {
         return;
       }
       if (script.src && new URL(script.src, location.href).origin !== location.origin) return;
@@ -101,7 +101,7 @@ async function viteHot(): Promise<ViteHot | undefined> {
     return undefined;
   }
 }
-const IGNORE = [/ResizeObserver loop/i, /Script error\.?$/i, /__clodable/];
+const IGNORE = [/ResizeObserver loop/i, /Script error\.?$/i, /__cloclod/];
 
 function sourceFromStack(stack: string | undefined) {
   if (!stack) return undefined;
@@ -396,7 +396,7 @@ export class ErrorWatcher {
       await api.fix(error, [...recentConsole]);
     } catch {
       setFixing(false);
-      this.toast("Couldn't reach Claude. Is Clodable running?", "warn");
+      this.toast("Couldn't reach Claude. Is Cloclod running?", "warn");
       this.render(false);
     }
   }

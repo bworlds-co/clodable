@@ -23,10 +23,10 @@ export function parseSourceAttr(value: string): SourceLocation | undefined {
  * The name the toolbar's code gets its config (the token) under. The server wraps the bundle in a
  * function with this parameter, never on `window`, and client/api.ts refers to it by this name.
  */
-export const CONFIG_NAME = "__CLODABLE__";
+export const CONFIG_NAME = "__CLOCLOD__";
 
-/** The dev server's own addresses. Everything under PREFIX is Clodable's, never the app's. */
-export const PREFIX = "/__clodable/";
+/** The dev server's own addresses. Everything under PREFIX is Cloclod's, never the app's. */
+export const PREFIX = "/__cloclod/";
 export const ROUTES = {
   toolbar: `${PREFIX}toolbar.js`,
   health: `${PREFIX}health`,
@@ -39,7 +39,7 @@ export const ROUTES = {
 } as const;
 
 /** Marks the app's page inside a device frame, so its toolbar reports where it goes. */
-export const FRAME_PARAM = "__clodable_frame";
+export const FRAME_PARAM = "__cloclod_frame";
 
 /** The device frames' screens, upright, in CSS pixels. */
 export const SCREENS = {

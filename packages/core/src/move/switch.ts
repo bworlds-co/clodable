@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { type ProjectConfig, saveConfig } from "../config.js";
-import { ClodableError, messageOf } from "../errors.js";
+import { CloclodError, messageOf } from "../errors.js";
 import { type Flow, step } from "../events.js";
 import { applyKit, planKit } from "../kit/index.js";
 import { detectProject } from "../project.js";
@@ -24,7 +24,7 @@ import { SupabaseApi } from "./supabase-api.js";
  *    takes no new writes, and its scheduled jobs stop. One more line undoes it.
  * 2. A fresh export, copied over the copy for good, with the app's grants as they were before the
  *    pause (the export carries the pause) and its scheduled jobs.
- * 3. Go live: sign-in for real people, the app's files and Clodable's settings point at the new
+ * 3. Go live: sign-in for real people, the app's files and Cloclod's settings point at the new
  *    backend and site; the builder's next Publish puts it live.
  * 4. In Lovable, only once everything works: remove Cloud, stop its GitHub sync.
  */
@@ -44,10 +44,10 @@ function writeGrants(grants: Record<string, Record<string, string[]>>) {
 
 /**
  * The pause's own guard on sign-ups, password and email changes (Auth writes them as itself, so a
- * revoke can't). Named `clodable_pause`: the export reader leaves it out, so it never reaches the
+ * revoke can't). Named `cloclod_pause`: the export reader leaves it out, so it never reaches the
  * new backend.
  */
-export const PAUSE_NAME = "clodable_pause";
+export const PAUSE_NAME = "cloclod_pause";
 
 /** What stops the live app's scheduled jobs in Lovable (the quick way: going live starts them here). */
 export const STOP_LOVABLE_JOBS = "select cron.alter_job(jobid, active := false) from cron.job;";
@@ -105,14 +105,14 @@ export function freezeSql(
       : ["grant insert, update, delete on all tables in schema public to anon, authenticated;"];
   return {
     freeze: [
-      "-- Clodable: pause changes on the live app while it moves. Reading and signing in keep working.",
+      "-- Cloclod: pause changes on the live app while it moves. Reading and signing in keep working.",
       ...pause,
       ...(hasJobs ? [STOP_LOVABLE_JOBS] : []),
       PAUSE_AUTH,
       PAUSE_STORAGE,
     ].join("\n"),
     undo: [
-      "-- Clodable: undo the pause (only if you're not switching after all).",
+      "-- Cloclod: undo the pause (only if you're not switching after all).",
       ...resume,
       ...(hasJobs ? [START_LOVABLE_JOBS] : []),
       RESUME_AUTH,
@@ -182,21 +182,21 @@ export async function setMoveMethod(
   method: string | undefined,
 ): Promise<{ method: NonNullable<MoveState["method"]> }> {
   if (method !== "careful" && method !== "quick") {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "invalid-config",
       message: "Careful or quick?",
-      hint: "clodable move method careful (a pause at the end, nothing lost) or quick (in one go).",
+      hint: "cloclod move method careful (a pause at the end, nothing lost) or quick (in one go).",
     });
   }
   const state = await loadMove(ws.root);
   if (state.switch?.liveAt) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "move-not-ready",
       message: "Your app is live on its new home already.",
     });
   }
   if (method === "quick" && state.switch?.frozenAt) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "move-not-ready",
       message: "Your live app is paused already: finish the careful way.",
       hint: "Or undo the pause in Lovable first, with the line the panel shows.",
@@ -225,7 +225,7 @@ export async function switchPlan(ws: Workspace) {
 export async function markFrozen(ws: Workspace): Promise<{ frozenAt: string }> {
   const state = await loadMove(ws.root);
   if (!state.site || !state.data?.ok) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "move-not-ready",
       message: "Get the copy and your site on Netlify ready first.",
       hint: "The pause should be as short as possible: everything else is done before it.",
@@ -330,28 +330,28 @@ export async function* goLive(
   const quick = state.method === "quick";
   const frozenAt = state.switch?.frozenAt;
   if (!state.home || !state.site) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "move-not-ready",
       message: "Put your site on Netlify first.",
       hint: "Going live points your app and its sign-in at it.",
     });
   }
   if (quick && !state.data?.ok) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "move-not-ready",
       message: "Some things on your new backend need a look first.",
-      hint: "Ask Claude to run clodable move diagnose.",
+      hint: "Ask Claude to run cloclod move diagnose.",
     });
   }
   if (!quick && !frozenAt) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "move-not-ready",
       message: "Pause changes on your live app first.",
       hint: "Going live comes after the pause and the final copy.",
     });
   }
   if (!quick && (!state.data?.ok || state.data.at < frozenAt!)) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "move-not-ready",
       message: "Copy your data in for good first: export again from Lovable, then copy it.",
       hint: "That copy is what keeps everything written before the pause.",
@@ -426,7 +426,7 @@ export async function* goLive(
     }
   }
 
-  yield step("move:golive", "running", "Switching to your new backend", "Clodable's settings");
+  yield step("move:golive", "running", "Switching to your new backend", "Cloclod's settings");
   const config: ProjectConfig = {
     ...ws.config,
     backend: "supabase",
@@ -453,7 +453,7 @@ export async function markFinished(
 ): Promise<{ finishedAt: string; exportDeleted: true }> {
   const state = await loadMove(ws.root);
   if (!state.switch?.liveAt) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "move-not-ready",
       message: "Go live first: Lovable Cloud stays until your app works on its new home.",
     });

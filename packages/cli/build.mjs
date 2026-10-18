@@ -1,6 +1,6 @@
-// Bundles the CLI into one dependency-free file: dist/clodable.mjs.
+// Bundles the CLI into one dependency-free file: dist/cloclod.mjs.
 // The toolbar's browser bundle (built by @clodable/preview, which pnpm builds first) is embedded,
-// so `npx clodable dev` works without anything else.
+// so `npx cloclod dev` works without anything else.
 // The app's own Vite is never bundled: it's loaded from the app's node_modules at run time.
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { build } from "esbuild";
@@ -16,7 +16,7 @@ const toolbar = readFileSync(toolbarPath, "utf8");
 mkdirSync("dist", { recursive: true });
 const result = await build({
   entryPoints: ["src/index.ts"],
-  outfile: "dist/clodable.mjs",
+  outfile: "dist/cloclod.mjs",
   bundle: true,
   platform: "node",
   format: "esm",
@@ -25,19 +25,19 @@ const result = await build({
   legalComments: "none",
   external: ["vite", "esbuild", "fsevents"],
   define: {
-    __CLODABLE_TOOLBAR__: JSON.stringify(toolbar),
-    __CLODABLE_VERSION__: JSON.stringify(pkg.version),
+    __CLOCLOD_TOOLBAR__: JSON.stringify(toolbar),
+    __CLOCLOD_VERSION__: JSON.stringify(pkg.version),
   },
   banner: {
     js: [
       "#!/usr/bin/env node",
-      "import { createRequire as __clodableCreateRequire } from 'node:module';",
-      "const require = __clodableCreateRequire(import.meta.url);",
+      "import { createRequire as __cloclodCreateRequire } from 'node:module';",
+      "const require = __cloclodCreateRequire(import.meta.url);",
     ].join("\n"),
   },
   metafile: true,
 });
-chmodSync("dist/clodable.mjs", 0o755);
+chmodSync("dist/cloclod.mjs", 0o755);
 const bytes = Object.values(result.metafile.outputs)[0].bytes;
-console.log(`dist/clodable.mjs ${(bytes / 1024).toFixed(0)} KB`);
+console.log(`dist/cloclod.mjs ${(bytes / 1024).toFixed(0)} KB`);
 writeFileSync("dist/.version", pkg.version);

@@ -40,7 +40,7 @@ console.log("built");
 };
 
 export async function createSandbox(): Promise<Sandbox> {
-  const dir = await mkdtemp(join(tmpdir(), "clodable-test-"));
+  const dir = await mkdtemp(join(tmpdir(), "cloclod-test-"));
   const bare = join(dir, "origin.git");
   const seed = join(dir, "seed");
   const work = join(dir, "work");

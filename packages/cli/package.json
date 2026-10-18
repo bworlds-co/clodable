@@ -1,18 +1,18 @@
 {
-  "name": "clodable",
+  "name": "cloclod",
   "version": "0.2.2",
-  "description": "The AI app builder you own. The Clodable command line: save, publish, undo, preview.",
+  "description": "The AI app builder you own. The Cloclod command line: save, publish, undo, preview.",
   "license": "MIT",
-  "homepage": "https://github.com/bworlds-co/clodable#readme",
+  "homepage": "https://github.com/bworlds-co/cloclod#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/bworlds-co/clodable.git",
+    "url": "git+https://github.com/bworlds-co/cloclod.git",
     "directory": "packages/cli"
   },
-  "bugs": "https://github.com/bworlds-co/clodable/issues",
+  "bugs": "https://github.com/bworlds-co/cloclod/issues",
   "type": "module",
   "bin": {
-    "clodable": "dist/clodable.mjs"
+    "cloclod": "dist/cloclod.mjs"
   },
   "files": [
     "dist"

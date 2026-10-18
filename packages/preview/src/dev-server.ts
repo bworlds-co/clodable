@@ -3,7 +3,7 @@ import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { BACKEND_ENV, backendEnv, messageOf, type PreviewBackend, repoint } from "@clodable/core";
 import type { Plugin } from "vite";
-import { clodablePreview } from "./plugin.js";
+import { cloclodPreview } from "./plugin.js";
 
 export interface DevServerOptions {
   root: string;
@@ -18,7 +18,7 @@ export interface DevServerOptions {
    */
   backend?: { current(): Promise<PreviewBackend | undefined>; watch?: string };
   /**
-   * The settings the app's server code reads (`process.env.GREETING`), kept by Clodable on this
+   * The settings the app's server code reads (`process.env.GREETING`), kept by Cloclod on this
    * computer. Read at start and again whenever `watch` changes; the server restarts to use them.
    */
   settings?: { current(): Promise<Record<string, string>>; watch?: string };
@@ -56,7 +56,7 @@ function applySettingsEnv(values: Record<string, string>) {
  */
 function backendPlugin(current: () => PreviewBackend | undefined): Plugin {
   return {
-    name: "clodable:backend",
+    name: "cloclod:backend",
     apply: "serve",
     enforce: "pre",
     transform(code, id) {
@@ -131,7 +131,7 @@ export async function startDevServer(options: DevServerOptions): Promise<Running
       backendPlugin(() => backend),
       ...(options.toolbar === false
         ? []
-        : [clodablePreview({ root: options.root, backend: () => (backend ? "copy" : "live") })]),
+        : [cloclodPreview({ root: options.root, backend: () => (backend ? "copy" : "live") })]),
     ],
     server: {
       ...(options.port ? { port: options.port, strictPort: true } : {}),
@@ -162,7 +162,7 @@ export async function startDevServer(options: DevServerOptions): Promise<Running
       backendMarker,
       () =>
         source.current().catch((error: unknown) => {
-          server.config.logger.warn(`  clodable · couldn't switch backends: ${messageOf(error)}`);
+          server.config.logger.warn(`  cloclod · couldn't switch backends: ${messageOf(error)}`);
           return backend;
         }),
       () => backend,
@@ -170,12 +170,12 @@ export async function startDevServer(options: DevServerOptions): Promise<Running
         backend = next;
         applyBackendEnv(backend);
         return backend
-          ? "  clodable · the preview now uses your new backend (a copy of your data)"
-          : "  clodable · the preview uses your live backend again";
+          ? "  cloclod · the preview now uses your new backend (a copy of your data)"
+          : "  cloclod · the preview uses your live backend again";
       },
     );
   }
-  // A setting pasted in Clodable.
+  // A setting pasted in Cloclod.
   if (settingsMarker && options.settings) {
     const source = options.settings;
     whenChanged(
@@ -185,7 +185,7 @@ export async function startDevServer(options: DevServerOptions): Promise<Running
       (next) => {
         settings = next;
         applySettingsEnv(settings);
-        return "  clodable · your app's settings changed: restarting";
+        return "  cloclod · your app's settings changed: restarting";
       },
     );
   }

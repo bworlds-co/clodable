@@ -24,11 +24,11 @@ afterEach(async () => {
   await sb.cleanup();
 });
 
-function clodable(...args: string[]) {
-  return clodableWith({}, ...args);
+function cloclod(...args: string[]) {
+  return cloclodWith({}, ...args);
 }
 
-function clodableWith(env: Record<string, string>, ...args: string[]) {
+function cloclodWith(env: Record<string, string>, ...args: string[]) {
   const run = spawnSync(tsx, [entry, ...args, "--json"], {
     cwd: sb.work,
     env: { ...process.env, CLODABLE_FAKE_GITHUB: sb.bare, NO_COLOR: "1", ...env },
@@ -42,7 +42,7 @@ function clodableWith(env: Record<string, string>, ...args: string[]) {
   return { events, result, code: run.status, stderr: run.stderr };
 }
 
-describe("clodable --json", () => {
+describe("cloclod --json", () => {
   it("sets up saving for a local idea only in the approved account, with a private destination", async () => {
     const root = join(sb.dir, "idea");
     const bare = join(sb.dir, "idea.git");
@@ -61,7 +61,7 @@ describe("clodable --json", () => {
     );
     await writeFile(join(root, "index.html"), "<h1>My first idea</h1>");
     const env = { CLODABLE_FAKE_GITHUB: bare, PATH: `${bin}:${process.env.PATH}` };
-    const rejected = clodableWith(
+    const rejected = cloclodWith(
       env,
       "setup",
       "--cwd",
@@ -73,7 +73,7 @@ describe("clodable --json", () => {
       "--yes",
     );
     expect(rejected.result).toMatchObject({ ok: false, error: { code: "gh-auth" } });
-    const started = clodableWith(
+    const started = cloclodWith(
       env,
       "setup",
       "--cwd",
@@ -91,7 +91,7 @@ describe("clodable --json", () => {
     expect(started.events).toContainEqual(
       expect.objectContaining({ id: "setup:app", state: "done" }),
     );
-    const status = clodableWith(env, "status", "--cwd", root);
+    const status = cloclodWith(env, "status", "--cwd", root);
     expect(status.result.data.project).toMatchObject({ hosting: "none", backend: "none" });
     const remote = spawnSync("git", ["--git-dir", bare, "ls-tree", "--name-only", "main"], {
       encoding: "utf8",
@@ -114,7 +114,7 @@ describe("clodable --json", () => {
           {
             name: "app",
             runtimeExecutable: "npx",
-            runtimeArgs: ["clodable", "dev"],
+            runtimeArgs: ["cloclod", "dev"],
             port: 5199,
             autoPort: false,
           },
@@ -123,7 +123,7 @@ describe("clodable --json", () => {
     );
     const config = readFileSync(join(sb.work, ".clodable/config.json"), "utf8");
     const refresh = () =>
-      clodableWith({ CLODABLE_RUNTIME_SOURCE: source }, "kit", "--apply", "--runtime");
+      cloclodWith({ CLODABLE_RUNTIME_SOURCE: source }, "kit", "--apply", "--runtime");
     const first = refresh();
     expect(first.result.ok).toBe(true);
     expect(first.events.every((event) => !JSON.stringify(event).includes(bundle))).toBe(true);
@@ -167,7 +167,7 @@ describe("clodable --json", () => {
       '"updated"',
     );
     // Standalone kit runs keep the local runtime; an explicit developer preview override survives.
-    expect(clodable("kit", "--apply").result.ok).toBe(true);
+    expect(cloclod("kit", "--apply").result.ok).toBe(true);
     expect(
       JSON.parse(readFileSync(join(sb.work, ".claude/launch.json"), "utf8")).configurations[0]
         .runtimeArgs,
@@ -176,7 +176,7 @@ describe("clodable --json", () => {
       ".claude/launch.json",
       JSON.stringify({
         configurations: [
-          { name: "app", runtimeExecutable: "node", runtimeArgs: ["/dev/clodable.mjs", "dev"] },
+          { name: "app", runtimeExecutable: "node", runtimeArgs: ["/dev/cloclod.mjs", "dev"] },
         ],
       }),
     );
@@ -184,7 +184,7 @@ describe("clodable --json", () => {
     expect(
       JSON.parse(readFileSync(join(sb.work, ".claude/launch.json"), "utf8")).configurations[0]
         .runtimeArgs,
-    ).toEqual(["/dev/clodable.mjs", "dev"]);
+    ).toEqual(["/dev/cloclod.mjs", "dev"]);
     const beforeFailure = readFileSync(join(sb.work, ".claude/launch.json"), "utf8");
     await rm(source);
     expect(refresh().result.ok).toBe(false);
@@ -195,7 +195,7 @@ describe("clodable --json", () => {
   });
 
   it("keeps site.live boolean and marks an unavailable imported site's status unknown", async () => {
-    const privateDir = await mkdtemp(join(tmpdir(), "clodable-status-contract-"));
+    const privateDir = await mkdtemp(join(tmpdir(), "cloclod-status-contract-"));
     try {
       const config = JSON.parse(readFileSync(join(sb.work, ".clodable/config.json"), "utf8"));
       config.netlify = {
@@ -206,7 +206,7 @@ describe("clodable --json", () => {
         account: "fixture-team",
       };
       await sb.write(".clodable/config.json", JSON.stringify(config));
-      const result = clodableWith({ CLODABLE_CONFIG_DIR: privateDir }, "status").result;
+      const result = cloclodWith({ CLODABLE_CONFIG_DIR: privateDir }, "status").result;
       expect(result).toMatchObject({
         type: "result",
         ok: true,
@@ -219,7 +219,7 @@ describe("clodable --json", () => {
 
   it("prints only JSON events, ending with the result", async () => {
     await sb.write("src/app.txt", "Hello\n");
-    const save = clodable("save", "-m", "warmer welcome");
+    const save = cloclod("save", "-m", "warmer welcome");
     expect(save.code).toBe(0);
     expect(save.result).toMatchObject({
       type: "result",
@@ -227,7 +227,7 @@ describe("clodable --json", () => {
       data: { saved: true, branch: "draft/ada", pushed: true },
     });
 
-    const status = clodable("status");
+    const status = cloclod("status");
     expect(status.result.data.unpublished.map((c: { subject: string }) => c.subject)).toEqual([
       "Warmer welcome",
     ]);
@@ -239,8 +239,8 @@ describe("clodable --json", () => {
 
   it("streams publish steps, then the live result", async () => {
     await sb.write("src/app.txt", "Hello\n");
-    clodable("save", "-m", "warmer welcome");
-    const publish = clodable("publish");
+    cloclod("save", "-m", "warmer welcome");
+    const publish = cloclod("publish");
     expect(publish.code).toBe(0);
     const steps = publish.events.filter((e) => e.type === "step");
     expect(steps.length).toBeGreaterThan(5);
@@ -259,7 +259,7 @@ describe("clodable --json", () => {
   });
 
   it("reports problems as a result with a code, a message and exit code 1", () => {
-    const publish = clodable("publish");
+    const publish = cloclod("publish");
     expect(publish.code).toBe(1);
     expect(publish.result).toMatchObject({
       ok: false,
@@ -267,7 +267,7 @@ describe("clodable --json", () => {
     });
     // A move step that doesn't exist, even one every object has, says which ones do.
     for (const step of ["nope", "constructor"]) {
-      const move = clodable("move", step);
+      const move = cloclod("move", step);
       expect(move.code).toBe(1);
       expect(move.result.error).toMatchObject({
         code: "not-found",
@@ -279,7 +279,7 @@ describe("clodable --json", () => {
   it("keeps a secret key off GitHub: the save stops with secret-found", async () => {
     const key = ["sk", "live", "51NzQx8LkTmV3pR7wYb2Hc9Dj4Fg6Ks1Qa"].join("_");
     await sb.write("src/pay.ts", `export const stripe = "${key}";\n`);
-    const save = clodable("save", "-m", "payments");
+    const save = cloclod("save", "-m", "payments");
     expect(save.code).toBe(1);
     expect(save.result).toMatchObject({
       ok: false,
@@ -304,13 +304,13 @@ describe("clodable --json", () => {
       page: { url: "http://localhost:8080/", path: "/" },
       error: { message: "boom", kind: "runtime" },
     });
-    const first = clodable("inbox", "--claim", "s1");
+    const first = cloclod("inbox", "--claim", "s1");
     expect(first.result).toMatchObject({ ok: true, data: [{ kind: "fix" }] });
-    expect(clodable("inbox", "--claim", "s2").result).toMatchObject({ ok: true, data: [] });
+    expect(cloclod("inbox", "--claim", "s2").result).toMatchObject({ ok: true, data: [] });
   });
 
   it("records where the app runs, and updates Claude's instructions to match", async () => {
-    const set = clodable("config", "backend", "lovable-cloud");
+    const set = cloclod("config", "backend", "lovable-cloud");
     expect(set.result).toMatchObject({
       ok: true,
       data: { backend: "lovable-cloud", hosting: "unknown" },
@@ -318,11 +318,11 @@ describe("clodable --json", () => {
     const config = JSON.parse(readFileSync(join(sb.work, ".clodable/config.json"), "utf8"));
     expect(config.backend).toBe("lovable-cloud");
     expect(readFileSync(join(sb.work, "AGENTS.md"), "utf8")).toContain("on Lovable Cloud");
-    expect(clodable("config", "backend", "mars").result).toMatchObject({
+    expect(cloclod("config", "backend", "mars").result).toMatchObject({
       ok: false,
       error: { code: "invalid-config" },
     });
-    expect(clodable("move", "check").result).toMatchObject({
+    expect(cloclod("move", "check").result).toMatchObject({
       ok: true,
       data: { level: expect.any(String), items: expect.any(Array) },
     });
@@ -332,7 +332,7 @@ describe("clodable --json", () => {
     await rm(join(sb.work, ".clodable/config.json"));
     await sb.write("src/app.txt", "Someone's unrelated work\n");
     for (const command of ["save", "status", "publish"]) {
-      const run = clodable(command);
+      const run = cloclod(command);
       expect(run.code).toBe(1);
       expect(run.result.error).toMatchObject({ code: "not-set-up", hint: expect.any(String) });
     }
@@ -344,7 +344,7 @@ describe("clodable --json", () => {
   });
 
   it("doctor lists checks a front end can draw", () => {
-    const doctor = clodable("doctor");
+    const doctor = cloclod("doctor");
     expect(Array.isArray(doctor.result.data)).toBe(true);
     expect(doctor.result.data).toContainEqual(
       expect.objectContaining({ id: "secrets", status: "ok" }),
@@ -368,7 +368,7 @@ describe("clodable --json", () => {
 
   it("sets up the app in this folder once its tools are there, and stops before when they aren't", async () => {
     // A stand-in `gh`: signed in as ada (FAKE_GH=signed-in), or not.
-    const bin = await mkdtemp(join(tmpdir(), "clodable-gh-"));
+    const bin = await mkdtemp(join(tmpdir(), "cloclod-gh-"));
     const gh = [
       "#!/bin/sh",
       '[ "$FAKE_GH" = signed-in ] || { echo "You are not logged into any GitHub hosts." >&2; exit 1; }',
@@ -384,7 +384,7 @@ describe("clodable --json", () => {
         for (const e of events) if (e.type === "step") last.set(e.id, `${e.state}: ${e.title}`);
         return [...last.entries()];
       };
-      const signedOut = clodableWith({ PATH }, "setup", "--yes");
+      const signedOut = cloclodWith({ PATH }, "setup", "--yes");
       expect(signedOut.code).toBe(1);
       expect(signedOut.result.error).toMatchObject({
         code: "gh-auth",
@@ -394,14 +394,14 @@ describe("clodable --json", () => {
         ["setup:tools", "failed: A few tools are needed first"],
       ]);
 
-      const setup = clodableWith({ PATH, FAKE_GH: "signed-in" }, "setup", "--yes");
+      const setup = cloclodWith({ PATH, FAKE_GH: "signed-in" }, "setup", "--yes");
       expect(setup.code).toBe(0);
       expect(setup.result.data).toMatchObject({ saved: true, published: false });
       expect(setup.result.data.files).toContain("AGENTS.md");
       expect(setup.events[0]).toMatchObject({ type: "step", id: "setup:tools", state: "running" });
       expect(stepsOf(setup.events).filter(([id]) => id !== "setup:packages")).toEqual([
         ["setup:tools", "done: Your tools are ready"],
-        ["setup:files", "done: Added Clodable's files"],
+        ["setup:files", "done: Added Cloclod's files"],
         ["setup:save", "done: Saved to your draft on GitHub"],
       ]);
       expect(readFileSync(join(sb.work, "AGENTS.md"), "utf8")).toContain("clodable:begin");
@@ -412,8 +412,8 @@ describe("clodable --json", () => {
 
   it("says a repository it can't find is the problem, not the internet", async () => {
     // A stand-in `gh`, signed in, that finds no such repository, in gh's own words.
-    const bin = await mkdtemp(join(tmpdir(), "clodable-gh-"));
-    const empty = await mkdtemp(join(tmpdir(), "clodable-empty-"));
+    const bin = await mkdtemp(join(tmpdir(), "cloclod-gh-"));
+    const empty = await mkdtemp(join(tmpdir(), "cloclod-empty-"));
     const gh = [
       "#!/bin/sh",
       'if [ "$1 $2" = "api user" ]; then echo \'{"login":"ada","name":"Ada","id":1}\'; exit 0; fi',

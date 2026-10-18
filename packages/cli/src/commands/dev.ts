@@ -26,7 +26,7 @@ function findAppRoot(start: string): string {
   }
 }
 
-/** Start the app's own dev server with Clodable's preview toolbar. This is what Claude Desktop's preview runs. */
+/** Start the app's own dev server with Cloclod's preview toolbar. This is what Claude Desktop's preview runs. */
 export async function devCommand(
   ctx: Context,
   options: { port?: number; host?: string; toolbar?: boolean },
@@ -36,7 +36,7 @@ export async function devCommand(
   if (!existsSync(join(root, "node_modules")) && existsSync(join(root, "package.json"))) {
     const pm = detectPackageManager(root);
     process.stdout.write(
-      `\n  ${clay("●")} ${pc.bold("clodable")} ${ash("·")} installing your app's packages (first time only)…\n`,
+      `\n  ${clay("●")} ${pc.bold("cloclod")} ${ash("·")} installing your app's packages (first time only)…\n`,
     );
     const installed = await exec(pm, ["install"], { cwd: root, timeout: 15 * 60_000 });
     if (installed.exitCode !== 0) {
@@ -69,11 +69,11 @@ export async function devCommand(
         },
         watch: join(root, MOVE_PATH),
       },
-      // The settings the app's server code reads, from Clodable's private store on this computer.
+      // The settings the app's server code reads, from Cloclod's private store on this computer.
       settings: { current: () => localSettings(root), watch: join(root, SETTINGS_PATH) },
     });
     process.stdout.write(
-      `\n  ${clay("●")} ${pc.bold("clodable")} ${ash("·")} your app is running${server.backend === "copy" ? ash(" on your new backend (a copy of your data)") : ""}\n\n`,
+      `\n  ${clay("●")} ${pc.bold("cloclod")} ${ash("·")} your app is running${server.backend === "copy" ? ash(" on your new backend (a copy of your data)") : ""}\n\n`,
     );
     for (const url of server.urls.slice(0, 2)) process.stdout.write(`    ${link(url)}\n`);
     process.stdout.write(

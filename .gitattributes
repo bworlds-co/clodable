@@ -1,3 +1,3 @@
 # The CLI bundle is build output (scripts/build-plugin.mjs): keep it out of GitHub's language
 # stats and collapse it in diffs.
-plugin/cli/clodable.mjs linguist-generated=true
+plugin/cli/cloclod.mjs linguist-generated=true

@@ -64,7 +64,7 @@ describe("words", () => {
     );
     expect(publishTitle([commit("C"), commit("B"), commit("A")])).toBe("A and 2 more changes");
     expect(publishTitle([commit("Sync", "sync")])).toBe("Updated the site");
-    // Clodable's own saves, around a restore or a publish, never name it.
+    // Cloclod's own saves, around a restore or a publish, never name it.
     expect(
       publishTitle([
         commit("Last touches before publishing"),
@@ -102,7 +102,7 @@ describe("words", () => {
 describe("the inbox, with several conversations open on the app", () => {
   const fix = { kind: "fix", page: { url: "", path: "/" } } as const;
   async function app() {
-    const root = await mkdtemp(join(tmpdir(), "clodable-inbox-"));
+    const root = await mkdtemp(join(tmpdir(), "cloclod-inbox-"));
     await mkdir(join(root, ".clodable/local"), { recursive: true });
     const present = (id: string, alive: number, active: number) =>
       writeFile(
@@ -237,7 +237,7 @@ describe("secret scanning", () => {
 describe("secret scanning with gitleaks", () => {
   // A key pasted into text ends in punctuation or a tag, not the quote gitleaks' own rules expect.
   it("finds keys pasted into a sentence or between tags, whatever follows them", async () => {
-    const root = await mkdtemp(join(tmpdir(), "clodable-gitleaks-text-"));
+    const root = await mkdtemp(join(tmpdir(), "cloclod-gitleaks-text-"));
     try {
       const git = new Git(root);
       await git.ok(["init", "--quiet", "-b", "main"]);
@@ -274,7 +274,7 @@ describe("secret scanning with gitleaks", () => {
 
   // Real gitleaks: the pinned release, downloaded once and checked.
   it("finds a key in what's about to be saved and in a whole version", async () => {
-    const root = await mkdtemp(join(tmpdir(), "clodable-gitleaks-"));
+    const root = await mkdtemp(join(tmpdir(), "cloclod-gitleaks-"));
     try {
       const git = new Git(root);
       await git.ok(["init", "--quiet", "-b", "main"]);
@@ -328,7 +328,7 @@ describe("build output", () => {
 
 describe("secrets kept on this computer", () => {
   it("live in one file only this user can read, and can be forgotten", async () => {
-    const dir = await mkdtemp(join(tmpdir(), "clodable-config-"));
+    const dir = await mkdtemp(join(tmpdir(), "cloclod-config-"));
     const before = process.env.CLODABLE_CONFIG_DIR;
     process.env.CLODABLE_CONFIG_DIR = dir;
     try {
@@ -350,7 +350,7 @@ describe("secrets kept on this computer", () => {
 
 describe("moving off Lovable", () => {
   async function app(files: Record<string, string>) {
-    const root = await mkdtemp(join(tmpdir(), "clodable-move-"));
+    const root = await mkdtemp(join(tmpdir(), "cloclod-move-"));
     for (const [path, content] of Object.entries(files)) {
       await mkdir(join(root, path, ".."), { recursive: true });
       await writeFile(join(root, path), content);
@@ -571,7 +571,7 @@ describe("repo kit", () => {
     const generated = "# Title\n<!-- clodable:begin x -->\nNEW\n<!-- clodable:end -->\n";
     expect(mergeManagedBlock(undefined, generated)).toBe(generated);
     expect(mergeManagedBlock("# Mine\nkeep me\n", generated)).toBe(
-      "# Mine\nkeep me\n\n## Working with Clodable\n\n<!-- clodable:begin x -->\nNEW\n<!-- clodable:end -->\n",
+      "# Mine\nkeep me\n\n## Working with Cloclod\n\n<!-- clodable:begin x -->\nNEW\n<!-- clodable:end -->\n",
     );
     expect(
       mergeManagedBlock(
@@ -582,7 +582,7 @@ describe("repo kit", () => {
   });
 
   it("plans and applies the kit on a Lovable-style project, merging existing settings", async () => {
-    const root = await mkdtemp(join(tmpdir(), "clodable-kit-"));
+    const root = await mkdtemp(join(tmpdir(), "cloclod-kit-"));
     try {
       await writeFile(
         join(root, "package.json"),
@@ -628,10 +628,10 @@ describe("repo kit", () => {
       expect(settings.model).toBe("opus");
       expect(settings.permissions.allow).toContain("Bash(ls)");
       expect(settings.permissions.deny).toContain("Bash(git push:*)");
-      expect(settings.enabledPlugins["clodable@clodable"]).toBe(true);
+      expect(settings.enabledPlugins["cloclod@cloclod"]).toBe(true);
       // From the public marketplace, kept up to date on its own.
-      expect(settings.extraKnownMarketplaces.clodable).toEqual({
-        source: { source: "github", repo: "bworlds-co/clodable" },
+      expect(settings.extraKnownMarketplaces.cloclod).toEqual({
+        source: { source: "github", repo: "bworlds-co/cloclod" },
         autoUpdate: true,
       });
 
@@ -658,9 +658,9 @@ describe("repo kit", () => {
       );
       expect(again.filter((c) => c.action !== "unchanged").map((c) => c.path)).toEqual([]);
 
-      // A preview that runs Clodable from a folder (a demo, a test) keeps doing so when the kit is
-      // planned again, as answering a question does. Anything else in its place is Clodable's again.
-      const local = ["/work/clodable/packages/cli/dist/clodable.mjs", "dev"];
+      // A preview that runs Cloclod from a folder (a demo, a test) keeps doing so when the kit is
+      // planned again, as answering a question does. Anything else in its place is Cloclod's again.
+      const local = ["/work/cloclod/packages/cli/dist/cloclod.mjs", "dev"];
       const keep = async (runtimeExecutable: string, runtimeArgs: string[]) => {
         await writeFile(
           join(root, ".claude/launch.json"),
@@ -681,15 +681,15 @@ describe("repo kit", () => {
         runtimeExecutable: previewCommand().executable,
         runtimeArgs: previewCommand().args,
       });
-      // Earlier versions' own command becomes today's, which finds Clodable's own Node.js.
-      expect(await keep("npx", ["clodable", "dev"])).toMatchObject({
+      // Earlier versions' own command becomes today's, which finds Cloclod's own Node.js.
+      expect(await keep("npx", ["cloclod", "dev"])).toMatchObject({
         runtimeExecutable: previewCommand().executable,
       });
       expect(
         await keep("/bin/sh", [
           "-c",
           // biome-ignore lint/suspicious/noTemplateCurlyInString: the shell expands it, not JavaScript
-          'PATH="$PATH:$HOME/Library/Caches/clodable/bin:${XDG_CACHE_HOME:-$HOME/.cache}/clodable/bin" exec npx clodable dev',
+          'PATH="$PATH:$HOME/Library/Caches/clodable/bin:${XDG_CACHE_HOME:-$HOME/.cache}/clodable/bin" exec npx cloclod dev',
         ]),
       ).toMatchObject({ runtimeArgs: previewCommand().args });
     } finally {
@@ -697,21 +697,21 @@ describe("repo kit", () => {
     }
   });
 
-  it("starts the preview through sh on macOS and Linux, with Clodable's tools after the builder's", async () => {
-    expect(previewCommand("win32")).toEqual({ executable: "npx", args: ["clodable", "dev"] });
+  it("starts the preview through sh on macOS and Linux, with Cloclod's tools after the builder's", async () => {
+    expect(previewCommand("win32")).toEqual({ executable: "npx", args: ["cloclod", "dev"] });
     const mac = previewCommand("darwin");
     expect(mac.executable).toBe("/bin/sh");
-    const dir = await mkdtemp(join(tmpdir(), "clodable-path-"));
+    const dir = await mkdtemp(join(tmpdir(), "cloclod-path-"));
     try {
       // The command really finds a tool in the plugin's tools folder, when nothing else has it.
-      const bin = join(dir, ".claude/plugins/data/clodable-clodable/tools/bin");
+      const bin = join(dir, ".claude/plugins/data/cloclod-cloclod/tools/bin");
       await mkdir(bin, { recursive: true });
       await writeFile(join(bin, "npx"), '#!/bin/sh\necho "npx $*"\n', { mode: 0o755 });
       const run = spawnSync(mac.executable, mac.args, {
         env: { HOME: dir, PATH: "/usr/bin:/bin" },
         encoding: "utf8",
       });
-      expect(run.stdout.trim()).toBe("npx clodable dev");
+      expect(run.stdout.trim()).toBe("npx cloclod dev");
       // The builder's own tools come first.
       const own = join(dir, "own");
       await mkdir(own, { recursive: true });
@@ -729,8 +729,8 @@ describe("repo kit", () => {
   it("keeps the GitHub CLI it fetches where the plugin says: its data folder", () => {
     const before = process.env.CLODABLE_TOOLS_DIR;
     try {
-      process.env.CLODABLE_TOOLS_DIR = "/Users/ada/.claude/plugins/data/clodable-clodable/tools";
-      expect(toolsBin()).toBe("/Users/ada/.claude/plugins/data/clodable-clodable/tools/bin");
+      process.env.CLODABLE_TOOLS_DIR = "/Users/ada/.claude/plugins/data/cloclod-cloclod/tools";
+      expect(toolsBin()).toBe("/Users/ada/.claude/plugins/data/cloclod-cloclod/tools/bin");
       // On its own, the CLI keeps it in its cache.
       delete process.env.CLODABLE_TOOLS_DIR;
       expect(toolsBin().endsWith(join("clodable", "bin"))).toBe(true);
@@ -743,7 +743,7 @@ describe("repo kit", () => {
 
 describe("inbox", () => {
   it("queues items in order and forgets acknowledged ones", async () => {
-    const root = await mkdtemp(join(tmpdir(), "clodable-inbox-"));
+    const root = await mkdtemp(join(tmpdir(), "cloclod-inbox-"));
     try {
       const page = { url: "http://localhost:8080/menu", path: "/menu" };
       const fix = await writeInbox(root, {
@@ -868,7 +868,7 @@ describe("GitHub through gh", () => {
     "",
   ].join("\n");
   const withGh = async (mode: string, run: (gh: GhCli) => Promise<unknown>) => {
-    const dir = await mkdtemp(join(tmpdir(), "clodable-gh-"));
+    const dir = await mkdtemp(join(tmpdir(), "cloclod-gh-"));
     await writeFile(join(dir, "gh"), script, { mode: 0o755 });
     const before = { path: process.env.PATH, mode: process.env.FAKE_GH };
     process.env.PATH = `${dir}:${process.env.PATH}`;
@@ -921,7 +921,7 @@ describe("GitHub through gh", () => {
     ].join("\n");
     const clone = async (gh: GhCli) => {
       await writeFile(join(gh.cwd, "git"), git, { mode: 0o755 });
-      return gh.clone("ada/network-app", join(tmpdir(), "clodable-none"));
+      return gh.clone("ada/network-app", join(tmpdir(), "cloclod-none"));
     };
     await expect(withGh("missing", clone)).rejects.toMatchObject({ code: "unknown" });
     await expect(withGh("no-host", clone)).rejects.toMatchObject({ code: "offline" });

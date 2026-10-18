@@ -1,10 +1,10 @@
 import { ScannerUnavailable } from "./checks/gitleaks.js";
 import { describeFinding, type SecretFinding, scanStaged, scanUnsent } from "./checks/secrets.js";
 import type { ProjectConfig } from "./config.js";
-import { ClodableError } from "./errors.js";
+import { CloclodError } from "./errors.js";
 import type { Commit, CommitKind } from "./git.js";
 import type { PullRequest } from "./github/types.js";
-import { CLODABLE_FILES, clodableFile, keepIgnored } from "./kit/index.js";
+import { CLOCLOD_FILES, cloclodFile, keepIgnored } from "./kit/index.js";
 import { readSecret } from "./local-secrets.js";
 import { NETLIFY_TOKEN, NetlifyApi } from "./move/netlify-api.js";
 import { loadMove } from "./move/state.js";
@@ -66,7 +66,7 @@ export interface Status {
    * (Claude's database changes, a new backend).
    */
   database?: { connected: boolean };
-  /** The site Clodable put on the builder's Netlify, and whether a Publish put it online yet. */
+  /** The site Cloclod put on the builder's Netlify, and whether a Publish put it online yet. */
   site?: { url: string; admin: string; live: boolean; statusKnown?: boolean };
   /** Not online yet: whether Netlify is connected on this computer, to put the site online. */
   netlify?: { connected: boolean };
@@ -83,7 +83,7 @@ export async function ensureOnDraft(ws: Workspace): Promise<string> {
   }
   if (await ws.git.branchExists(draft)) {
     if (await ws.git.hasChanges()) {
-      throw new ClodableError({
+      throw new CloclodError({
         code: "on-live-branch",
         message: "You have unsaved changes outside your draft.",
         hint: "Save them first, or switch to your draft manually.",
@@ -105,7 +105,7 @@ export async function save(
   if (await ws.git.isMerging()) {
     const conflicts = await ws.git.conflictedFiles();
     if (conflicts.length > 0) {
-      throw new ClodableError({
+      throw new CloclodError({
         code: "conflict",
         message: "Your draft is in the middle of being combined with the live site.",
         hint: "Ask Claude to finish combining the changes, then save again.",
@@ -172,7 +172,7 @@ export async function save(
  * stops the save with `secret-found`. Returns the findings that are only worth a note.
  */
 async function keepSecretsHere(ws: Workspace): Promise<SecretFinding[]> {
-  // Saves made outside Clodable that haven't been sent yet. They aren't on GitHub, so they can
+  // Saves made outside Cloclod that haven't been sent yet. They aren't on GitHub, so they can
   // still be taken back: fold them into this save, and the check below sees their changes.
   if (await ws.git.hasRemoteRefs(ws.remote)) {
     const unsent = await ws.git.unsent(ws.remote);
@@ -198,8 +198,8 @@ async function keepSecretsHere(ws: Workspace): Promise<SecretFinding[]> {
   return findings.filter((f) => f.severity === "warn");
 }
 
-function secretFound(found: SecretFinding[], hint?: string): ClodableError {
-  return new ClodableError({
+function secretFound(found: SecretFinding[], hint?: string): CloclodError {
+  return new CloclodError({
     code: "secret-found",
     message:
       found.length === 1
@@ -241,7 +241,7 @@ async function pushWithRetry(
     const second = await ws.git.push(branch, { remote: ws.remote, setUpstream: true });
     return { ok: second.ok, ...(second.offline ? { offline: true } : {}) };
   }
-  throw new ClodableError({
+  throw new CloclodError({
     code: "push-rejected",
     message: "GitHub didn't accept your changes.",
     hint: "Check that your GitHub account can write to this repository.",
@@ -271,22 +271,22 @@ async function waitingSaves(ws: Workspace): Promise<Commit[]> {
 
 /**
  * Whether the draft brings nothing new to the app: its files are the ones it found on the live
- * site. `clodablesToo` also asks the same of Clodable's own files.
+ * site. `cloclodsToo` also asks the same of Cloclod's own files.
  */
 export async function sameAsLive(
   ws: Workspace,
-  options: { clodablesToo?: boolean } = {},
+  options: { cloclodsToo?: boolean } = {},
 ): Promise<boolean> {
   const live = await liveBase(ws);
   if (!live) return false;
   const diff = await ws.git.run(["diff", "--name-only", `${live}...HEAD`]);
   if (diff.exitCode !== 0) return false;
   const changed = diff.stdout.split("\n").filter(Boolean);
-  return options.clodablesToo ? changed.length === 0 : changed.every(clodableFile);
+  return options.cloclodsToo ? changed.length === 0 : changed.every(cloclodFile);
 }
 
 /**
- * Saves on the draft that aren't live yet. `buildersOnly` leaves out Clodable's own: its setup,
+ * Saves on the draft that aren't live yet. `buildersOnly` leaves out Cloclod's own: its setup,
  * and saves that only changed its files (the answers to its questions, say). They go live with the
  * builder's next publish, but they're not a change of the app.
  */
@@ -300,12 +300,12 @@ async function unpublishedSaves(
   const saves = await ws.git.log(range, { noMerges: true, limit });
   if (!options.buildersOnly) return saves;
   const files = await ws.git.filesBy(range, { noMerges: true, limit });
-  return saves.filter((c) => c.kind !== "setup" && !onlyClodables(files.get(c.sha) ?? []));
+  return saves.filter((c) => c.kind !== "setup" && !onlyCloclods(files.get(c.sha) ?? []));
 }
 
-/** Changed files that are all Clodable's own. A save that changed nothing isn't counted as one. */
-function onlyClodables(paths: string[]): boolean {
-  return paths.length > 0 && paths.every(clodableFile);
+/** Changed files that are all Cloclod's own. A save that changed nothing isn't counted as one. */
+function onlyCloclods(paths: string[]): boolean {
+  return paths.length > 0 && paths.every(cloclodFile);
 }
 
 /** The draft's page on GitHub: one pull request per draft, opened at the first save. */
@@ -339,7 +339,7 @@ export function pullRequestBody(saves: Commit[], login: string): string {
     .map((c) => `- ${c.subject} <sub>${formatAbsolute(c.date)}</sub>`)
     .join("\n");
   return [
-    `**Draft by @${login}**, saved automatically by [Clodable](https://github.com/bworlds-co/clodable).`,
+    `**Draft by @${login}**, saved automatically by [Cloclod](https://github.com/bworlds-co/cloclod).`,
     "",
     list,
     "",
@@ -436,23 +436,23 @@ export async function history(ws: Workspace, options: { limit?: number } = {}): 
   return { draft, sameAsLive: draft.length > 0 && (await sameAsLive(ws)), published };
 }
 
-/** The save Clodable makes on its own before a restore, so nothing unsaved is lost. */
+/** The save Cloclod makes on its own before a restore, so nothing unsaved is lost. */
 export const BEFORE_RESTORE = "Saved changes before restoring";
 
 /** Bring back the files from an earlier version, as a new save. Nothing is ever erased. */
 export async function restore(ws: Workspace, sha: string): Promise<SaveResult> {
   const target = await ws.git.revParse(sha);
   if (!target) {
-    throw new ClodableError({ code: "not-found", message: "That version couldn't be found." });
+    throw new CloclodError({ code: "not-found", message: "That version couldn't be found." });
   }
   const [commit] = await ws.git.log(`${target}^!`);
   await ensureOnDraft(ws);
   if (await ws.git.hasChanges()) {
     await save(ws, { message: BEFORE_RESTORE });
   }
-  // The app's files go back. Clodable's stay as they are now: an older .clodable/ or AGENTS.md
-  // would undo the builder's answers, or take Clodable out of the project altogether.
-  await ws.git.restoreTree(target, CLODABLE_FILES);
+  // The app's files go back. Cloclod's stay as they are now: an older .clodable/ or AGENTS.md
+  // would undo the builder's answers, or take Cloclod out of the project altogether.
+  await ws.git.restoreTree(target, CLOCLOD_FILES);
   await keepIgnored(ws.root);
   const when = commit ? formatAbsolute(commit.date) : target.slice(0, 7);
   return save(ws, {

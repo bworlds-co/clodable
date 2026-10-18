@@ -1,5 +1,5 @@
 /**
- * The device stage: the app inside a phone or tablet frame, served at /__clodable/frame.
+ * The device stage: the app inside a phone or tablet frame, served at /__cloclod/frame.
  * Media queries behave exactly as on a real device, because the app runs in an iframe of that width.
  */
 import { FRAME_PARAM, SCREENS } from "./shared.js";
@@ -67,7 +67,7 @@ body {
 @media (prefers-reduced-motion: reduce) { .device { transition: none; } }
 </style>
 </head>
-<body data-clodable-stage="${device.id}" data-landscape="${options.landscape}">
+<body data-cloclod-stage="${device.id}" data-landscape="${options.landscape}">
 <main class="stage">
   <div class="fit" id="fit">
     <div class="device" id="device" role="region" aria-label="${escapeHtml(device.label)} preview, ${width} by ${height}">

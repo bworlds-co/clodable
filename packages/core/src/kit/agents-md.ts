@@ -1,5 +1,5 @@
 /**
- * AGENTS.md: the working agreement for any coding agent in a Clodable project.
+ * AGENTS.md: the working agreement for any coding agent in a Cloclod project.
  * It's the most important file in the kit. It turns a general coding agent into a calm,
  * careful collaborator for a non-technical builder.
  */
@@ -18,18 +18,18 @@ export interface AgentsMdInput {
 const LOVABLE_CLOUD = `## Database and backend: on Lovable Cloud
 - This app's database, users, files and backend functions run on **Lovable Cloud**, which Lovable owns. You can't change them from here: no schema changes, no migrations, no data changes, no function deploys.
 - The preview still uses **live data** through the app's public key: real customers, real orders. Testing there writes real data.
-- If the builder asks for something that needs a database or backend change, say so plainly and offer the two ways forward: make that change in Lovable, or first move the app to their own Supabase (**Move off Lovable** in the Clodable panel, a guided step).
+- If the builder asks for something that needs a database or backend change, say so plainly and offer the two ways forward: make that change in Lovable, or first move the app to their own Supabase (**Move off Lovable** in the Cloclod panel, a guided step).
 - Never write migration files, or code that relies on a database change that hasn't happened: the live app would break after Publish.
 - Changes to backend functions (\`supabase/functions/\`) only reach Lovable Cloud through Lovable. Avoid them, and if one is needed, tell the builder to make it in Lovable.`;
 
 const NO_BACKEND = `## Database and backend: none yet
 - This app has no database, no sign-in and no backend yet.
-- When the builder asks for something that needs one (accounts and sign-in, saving data people enter, uploads), explain why in one plain sentence and open Clodable's backend consent view with \`open_panel\` (view \`backend\`). Clodable creates it after account/cost consent, then asks you to connect the app and continue the original request. Don't ask the builder to repeat it.
+- When the builder asks for something that needs one (accounts and sign-in, saving data people enter, uploads), explain why in one plain sentence and open Cloclod's backend consent view with \`open_panel\` (view \`backend\`). Cloclod creates it after account/cost consent, then asks you to connect the app and continue the original request. Don't ask the builder to repeat it.
 - Don't set up a database or a sign-in service any other way, and don't fake one in the browser's storage for things that must last.
 - Once the backend is there, these instructions change to say how to work with it.`;
 
 const UNKNOWN_BACKEND = `## Database and backend: not confirmed yet
-- Inspect the app's code and Clodable's app_context before making a database or backend change. Explain what you find in the conversation and ask only about what remains uncertain.
+- Inspect the app's code and Cloclod's app_context before making a database or backend change. Explain what you find in the conversation and ask only about what remains uncertain.
 - A Supabase URL alone does not establish whether the project belongs to Lovable Cloud or the builder. An unfamiliar service is not evidence that no backend exists.
 - Record confirmed facts with remember_app. Until ownership and access are established, do not change the database, deploy backend functions or create a replacement service. The preview may already use live data.`;
 
@@ -41,7 +41,7 @@ ${
     ? `- The app uses Supabase project \`${ref}\`. The preview uses **live data**: real customers, real orders.`
     : "- If the app uses a database, the preview uses **live data**: real customers, real orders."
 }
-- You can read and change it, as on Lovable, through Clodable's commands (no key needed; never ask for one):
+- You can read and change it, as on Lovable, through Cloclod's commands (no key needed; never ask for one):
   - Read: \`${cli} db query "select …"\`.
   - Change the tables (a migration): write \`supabase/migrations/<timestamp>_<what>.sql\`, then \`${cli} db apply supabase/migrations/<that file>\`. It runs once, in one transaction, and goes in Supabase's migration history.
   - Change the data (insert, update, delete): \`${cli} db run "update …"\`. Data that belongs to a person (their notes, their orders) needs their account: look it up with a query first.
@@ -54,7 +54,7 @@ ${
 }
 
 export function agentsMd(input: AgentsMdInput): string {
-  const cli = input.cliCommand ?? "npx clodable";
+  const cli = input.cliCommand ?? "npx cloclod";
   const stack =
     input.appType === "tanstack-start"
       ? "TanStack Start (React 19, server-side rendering) with Tailwind CSS and shadcn/ui"
@@ -63,33 +63,33 @@ export function agentsMd(input: AgentsMdInput): string {
         : "a web app";
   return `# Working on ${input.appName}
 
-This app is built with ${stack}. It was made with Lovable and is now edited locally with **Clodable**.
+This app is built with ${stack}. It was made with Lovable and is now edited locally with **Cloclod**.
 The person you're working with is a **builder**: they know their product deeply, but not necessarily code.
 
-<!-- clodable:begin (managed by Clodable. Edit outside these markers; this block may be updated.) -->
+<!-- clodable:begin (managed by Cloclod. Edit outside these markers; this block may be updated.) -->
 
 ## How to talk with the builder
 - Speak plainly. Say "page", "button", "text", "your database", never "component tree", "props" or "migration", unless they use those words first.
 - Before a big change, say in one or two sentences what you'll do, then do it. For small changes, just do it.
 - After a change, say what changed, in their words ("The pricing page now shows three plans"). Don't list files.
 - If something is ambiguous, make a sensible choice and mention it, rather than asking several questions.
-- Never mention git, branches, commits, pull requests or deploys. Clodable handles all of that. Their work is saved automatically after each of your replies.
+- Never mention git, branches, commits, pull requests or deploys. Cloclod handles all of that. Their work is saved automatically after each of your replies.
 
 ## How changes reach the live site
 - Every reply is **saved** automatically to the builder's draft (\`draft/<their GitHub login>\`). You don't need to commit, push or open pull requests.
 ${
   input.hosting === "lovable"
-    ? `- **Publish** is the builder's decision. They click Publish in Clodable, which checks the app and merges the draft into \`${input.liveBranch}\`. The site is hosted by Lovable, so it goes live once they click **Publish → Publish changes** in Lovable. Clodable reminds them.`
+    ? `- **Publish** is the builder's decision. They click Publish in Cloclod, which checks the app and merges the draft into \`${input.liveBranch}\`. The site is hosted by Lovable, so it goes live once they click **Publish → Publish changes** in Lovable. Cloclod reminds them.`
     : input.hosting === "none"
-      ? `- **Publish** is the builder's decision. They click Publish in Clodable, which checks the app and merges the draft into \`${input.liveBranch}\`. The app isn't online yet: they first click **Set up hosting** in the Clodable panel (their own Netlify, free to start). This prepares a web address; it does not publish. Open the \`site\` view with Clodable's \`open_panel\` tool for account consent. The panel runs creation; do not run it yourself. Their first **Publish** makes the app public, and each Publish updates it after that.`
-      : `- **Publish** is the builder's decision. They click Publish in Clodable, which checks the app, merges the draft into \`${input.liveBranch}\`, and the host puts it live.`
+      ? `- **Publish** is the builder's decision. They click Publish in Cloclod, which checks the app and merges the draft into \`${input.liveBranch}\`. The app isn't online yet: they first click **Set up hosting** in the Cloclod panel (their own Netlify, free to start). This prepares a web address; it does not publish. Open the \`site\` view with Cloclod's \`open_panel\` tool for account consent. The panel runs creation; do not run it yourself. Their first **Publish** makes the app public, and each Publish updates it after that.`
+      : `- **Publish** is the builder's decision. They click Publish in Cloclod, which checks the app, merges the draft into \`${input.liveBranch}\`, and the host puts it live.`
 }
 - Never push to \`${input.liveBranch}\`, never force-push, and never merge pull requests yourself.
-- If asked to "publish" or "put it live", tell them to click **Publish** in the Clodable bar above the message box.
+- If asked to "publish" or "put it live", tell them to click **Publish** in the Cloclod bar above the message box.
 
-## Conversation and Clodable
+## Conversation and Cloclod
 - Keep explanations and product decisions in the conversation. Open a panel only for requested details, account consent, secret fields or an action's controls.
-- Use Clodable's \`app_context\` tool to read status. If hosting or database ownership is unknown, inspect the code, explain the useful conclusion in plain words, and ask one focused question at a time about what you cannot establish. Wait for the answer before asking about another unknown. A Supabase URL does not prove ownership; absent hosting files do not prove a site is offline. A recorded address or database client may be stale or a placeholder, so it does not establish a live service. Leave unsupported or unresolved facts unknown.
+- Use Cloclod's \`app_context\` tool to read status. If hosting or database ownership is unknown, inspect the code, explain the useful conclusion in plain words, and ask one focused question at a time about what you cannot establish. Wait for the answer before asking about another unknown. A Supabase URL does not prove ownership; absent hosting files do not prove a site is offline. A recorded address or database client may be stale or a placeholder, so it does not establish a live service. Leave unsupported or unresolved facts unknown.
 - After the builder confirms or corrects your conclusion, use \`remember_app\` to record the known facts. Don't create or change a service to find out.
 - Use \`open_panel\` to open \`history\`, \`settings\`, \`site\`, \`backend\`, \`move\` or \`saving\` when needed; don't ask the builder to type slash commands when this tool is available. Creation and Publish remain the builder's controls.
 
@@ -97,7 +97,7 @@ ${
 - The app runs locally in the preview, configured in \`.claude/launch.json\`. Use that configuration; don't start another dev server.
 - When they ask to see the preview, open Desktop's Browser pane at its address: \`preview_start\` with \`{"url": "http://localhost:<port>"}\`. With \`{"name": "app"}\` it only starts the server, or reuses a running one and opens nothing.
 - After visible changes, check the preview yourself (take a screenshot, click through) before saying you're done.
-- The preview toolbar at the bottom of the page belongs to Clodable. It's not part of the app. Don't edit or remove it.
+- The preview toolbar at the bottom of the page belongs to Cloclod. It's not part of the app. Don't edit or remove it.
 - Requests from the preview arrive as messages that start with "From the preview". Treat them like requests from the builder.
 
 ${
@@ -110,19 +110,19 @@ ${
         : supabaseSection(input.supabaseRef, cli)
 }
 
-## Clodable commands
-- Run \`${cli} <command>\` for status, history, restore and other Clodable commands.${input.cliCommand ? " This is the installed copy. Don't fetch a different version with npx." : ""}
+## Cloclod commands
+- Run \`${cli} <command>\` for status, history, restore and other Cloclod commands.${input.cliCommand ? " This is the installed copy. Don't fetch a different version with npx." : ""}
 
 ## Secrets
 - Never put API keys or passwords in code. Public keys (the Supabase URL and anon key) are fine.
-- Clodable checks every save for secret keys before it goes to GitHub. If it finds one, the save stops and the builder sees "Not saved". Move the key out of the code (to a Supabase Edge Function secret, for example). Don't commit or push yourself.
-- Settings the app's own server code reads (\`process.env.X\`) go in the Clodable panel, under **Your app's settings**: one paste sets it for the preview and for their site. When you add code that reads a new one, tell them to paste its value there. Never put the value in a file.
+- Cloclod checks every save for secret keys before it goes to GitHub. If it finds one, the save stops and the builder sees "Not saved". Move the key out of the code (to a Supabase Edge Function secret, for example). Don't commit or push yourself.
+- Settings the app's own server code reads (\`process.env.X\`) go in the Cloclod panel, under **Your app's settings**: one paste sets it for the preview and for their site. When you add code that reads a new one, tell them to paste its value there. Never put the value in a file.
 - When the app needs a secret key, tell the builder where to add it themselves: on Supabase, **Edge Functions → Secrets** in their project; on Lovable Cloud, **More → Cloud → Secrets** in Lovable. Never ask them to paste it into the chat.
 
 ## Code style
 - Follow the patterns already in the project: Tailwind classes, shadcn/ui components in \`src/components/ui\`, and the \`@/\` import alias.
 - Keep components small and readable. Prefer editing existing components to creating near-duplicates.
-- The project must always build (\`npm run build\`). Clodable checks this before every Publish.
+- The project must always build (\`npm run build\`). Cloclod checks this before every Publish.
 
 <!-- clodable:end -->
 `;

@@ -1,7 +1,7 @@
-// Shapes of Clodable's reactive session state, and the state contract the engine checks.
+// Shapes of Cloclod's reactive session state, and the state contract the engine checks.
 
-/** What `clodable status --json` reports, trimmed to what the bar and the panel draw. */
-export interface ClodableStatus {
+/** What `cloclod status --json` reports, trimmed to what the bar and the panel draw. */
+export interface CloclodStatus {
   ready: true;
   project: string;
   unpublished: Array<{ sha: string; subject: string; date: string; kind: string | null }>;
@@ -21,7 +21,7 @@ export interface ClodableStatus {
   backend: "unknown" | "lovable-cloud" | "supabase" | "none";
   /**
    * Who puts the site live. Lovable's hosting needs a click in Lovable after Publish; `none`: not
-   * online yet, and Clodable can put it on the builder's own Netlify.
+   * online yet, and Cloclod can put it on the builder's own Netlify.
    */
   hosting: "unknown" | "github" | "lovable" | "none";
   /** The project in Lovable's editor, when known. */
@@ -39,28 +39,28 @@ export interface ClodableStatus {
    * database changes, a new backend).
    */
   databaseConnected: boolean | null;
-  /** The site Clodable put on the builder's Netlify, and whether a Publish put it online yet. */
+  /** The site Cloclod put on the builder's Netlify, and whether a Publish put it online yet. */
   site: { url: string; admin: string; live: boolean; statusKnown?: boolean } | null;
   /** Not online yet: whether Netlify is connected here, to put the site online. */
   netlifyConnected: boolean | null;
 }
 
 /** Why the bar shows "set up" instead of the draft. */
-export interface ClodableNotReady {
+export interface CloclodNotReady {
   ready: false;
   reason: "not-a-repo" | "no-kit" | "no-github" | "unknown";
   message: string;
   fix?: string;
 }
 
-export interface ClodableStep {
+export interface CloclodStep {
   id: string;
   state: "pending" | "running" | "done" | "skipped" | "warning" | "failed";
   title: string;
   detail?: string;
 }
 
-export interface ClodableError {
+export interface CloclodError {
   code: string;
   message: string;
   hint?: string;
@@ -69,10 +69,10 @@ export interface ClodableError {
 }
 
 /** The long-running thing happening right now, if any. */
-export interface ClodableActivity {
+export interface CloclodActivity {
   kind: "idle" | "saving" | "publishing" | "undoing" | "published" | "undone" | "failed";
-  steps: ClodableStep[];
-  error?: ClodableError;
+  steps: CloclodStep[];
+  error?: CloclodError;
   /** For "published" and "undone". */
   title?: string;
   url?: string | null;
@@ -86,8 +86,8 @@ export interface ClodableActivity {
   noHost?: boolean;
 }
 
-/** One line of `clodable doctor`. */
-export interface ClodableCheck {
+/** One line of `cloclod doctor`. */
+export interface CloclodCheck {
   id: string;
   label: string;
   status: "ok" | "warn" | "fail" | "info";
@@ -96,10 +96,10 @@ export interface ClodableCheck {
 }
 
 /**
- * A request from the preview toolbar, as `clodable inbox --claim --json` hands it over. It comes
+ * A request from the preview toolbar, as `cloclod inbox --claim --json` hands it over. It comes
  * from a file on disk: what the plugin reads stays optional.
  */
-export type ClodableRequest =
+export type CloclodRequest =
   | {
       kind: "fix";
       page?: { path: string };
@@ -116,7 +116,7 @@ export type ClodableRequest =
   | { kind: "edit"; before: string; after: string };
 
 /** One step of the move off Lovable. */
-export interface ClodableMoveStep {
+export interface CloclodMoveStep {
   id: string;
   state: "done" | "next" | "later" | "attention";
   title: string;
@@ -124,16 +124,16 @@ export interface ClodableMoveStep {
 }
 
 /** A DNS record for the builder to add at their domain's provider. */
-export interface ClodableDnsRecord {
+export interface CloclodDnsRecord {
   type: string;
   name: string;
   value: string;
   priority?: number;
 }
 
-/** What `clodable move status --json` reports, trimmed to what the panel draws. */
-export interface ClodableMove {
-  steps: ClodableMoveStep[];
+/** What `cloclod move status --json` reports, trimmed to what the panel draws. */
+export interface CloclodMove {
+  steps: CloclodMoveStep[];
   home?: { name: string; dashboard: string };
   preview: "live" | "copy";
   checks?: Array<{ id: string; ok: boolean; label: string; detail?: string }>;
@@ -143,7 +143,7 @@ export interface ClodableMove {
   tokenPermissions?: string[];
   site?: { name: string; url: string; liveAt?: string };
   resend: boolean;
-  emails?: { domain: string; sender: string; records: ClodableDnsRecord[]; connected: boolean };
+  emails?: { domain: string; sender: string; records: CloclodDnsRecord[]; connected: boolean };
   method?: "careful" | "quick";
   switch?: { frozenAt?: string; liveAt?: string };
   lastExport?: string;
@@ -163,7 +163,7 @@ export interface ClodableMove {
     connectors: string[];
     left: string[];
   };
-  domain?: { name: string; records: ClodableDnsRecord[] };
+  domain?: { name: string; records: CloclodDnsRecord[] };
   settingsLeft?: string[];
   secretsLeft?: string[];
   vaultLeft?: string[];
@@ -171,8 +171,8 @@ export interface ClodableMove {
   cronKey?: boolean;
 }
 
-/** Where the new backend can go: what `clodable move choices --json` reports. */
-export interface ClodableMoveChoices {
+/** Where the new backend can go: what `cloclod move choices --json` reports. */
+export interface CloclodMoveChoices {
   organizations: Array<{
     slug: string;
     name: string;
@@ -187,8 +187,8 @@ export interface ClodableMoveChoices {
   regions: Array<{ code: string; name: string }>;
 }
 
-/** What the move involves for this app: what `clodable move check --json` reports. */
-export interface ClodableAssessment {
+/** What the move involves for this app: what `cloclod move check --json` reports. */
+export interface CloclodAssessment {
   level: "simple" | "some-steps" | "needs-help";
   items: Array<{ id: string; label: string; by: "clodable" | "you" | "help"; detail: string }>;
   /** Whether Claude has looked at the app's code: then the items come from what it found. */
@@ -198,10 +198,10 @@ export interface ClodableAssessment {
 
 declare module "claude-code" {
   interface PluginState {
-    clodable: {
-      status: ClodableStatus | ClodableNotReady | null;
-      activity: ClodableActivity;
-      checks: ClodableCheck[];
+    cloclod: {
+      status: CloclodStatus | CloclodNotReady | null;
+      activity: CloclodActivity;
+      checks: CloclodCheck[];
     };
   }
 }

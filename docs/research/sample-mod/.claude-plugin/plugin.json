@@ -1,8 +1,8 @@
 {
-  "name": "clodable-sample",
+  "name": "cloclod-sample",
   "version": "0.1.0",
   "description": "Sample mod: a Publish pane, a band above the prompt, and friendly Edit/Write rows",
-  "author": { "name": "Clodable" },
+  "author": { "name": "Cloclod" },
   "types": "./types/index.d.ts",
   "userConfig": {
     "previewUrl": {

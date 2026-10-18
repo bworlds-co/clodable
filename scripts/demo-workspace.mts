@@ -1,7 +1,7 @@
 /**
- * Creates a ready-to-open demo of the whole Clodable experience, without touching a real GitHub
+ * Creates a ready-to-open demo of the whole Cloclod experience, without touching a real GitHub
  * account. It contains a copy of the Lovable-style bakery app with the repo kit applied, a local
- * "GitHub" (a bare repository driven by Clodable's fake adapter), and a draft with two saves.
+ * "GitHub" (a bare repository driven by Cloclod's fake adapter), and a draft with two saves.
  *
  *   pnpm build && pnpm tsx scripts/demo-workspace.mts [targetDir]
  *
@@ -15,10 +15,10 @@ import { join, resolve } from "node:path";
 import { applyKit, detectProject, loadConfig, planKit } from "../packages/core/src/index.ts";
 
 const repo = resolve(import.meta.dirname, "..");
-const target = resolve(process.argv[2] ?? join(homedir(), "Clodable Demo"));
+const target = resolve(process.argv[2] ?? join(homedir(), "Cloclod Demo"));
 const app = join(target, "crumb-site");
 const origin = join(target, ".github-fake", "crumb-site.git");
-const cli = join(repo, "packages/cli/dist/clodable.mjs");
+const cli = join(repo, "packages/cli/dist/cloclod.mjs");
 if (!existsSync(cli)) {
   console.error("Build first: pnpm build");
   process.exit(1);
@@ -26,7 +26,7 @@ if (!existsSync(cli)) {
 
 const git = (cwd: string, ...args: string[]) =>
   execFileSync("git", args, { cwd, stdio: "pipe" }).toString().trim();
-const clodable = (...args: string[]) =>
+const cloclod = (...args: string[]) =>
   execFileSync("node", [cli, ...args], {
     cwd: app,
     env: { ...process.env, CLODABLE_FAKE_GITHUB: origin },
@@ -54,7 +54,7 @@ git(app, "remote", "add", "origin", origin);
 git(app, "fetch", "-q", "origin");
 git(app, "branch", "-q", "--set-upstream-to=origin/main", "main");
 
-// 2. The repo kit, with the preview running Clodable from this checkout instead of npm.
+// 2. The repo kit, with the preview running Cloclod from this checkout instead of npm.
 const project = await detectProject(app);
 const changes = await planKit(project, await loadConfig(app), {
   devCommand: { executable: "node", args: [cli, "dev"] },
@@ -67,7 +67,7 @@ writeFileSync(
   `${JSON.stringify({ env: { CLODABLE_FAKE_GITHUB: origin } }, null, 2)}\n`,
 );
 git(app, "add", "-A");
-git(app, "commit", "-q", "-m", "Set up Clodable");
+git(app, "commit", "-q", "-m", "Set up Cloclod");
 git(app, "push", "-q", "origin", "main");
 
 // 3. Two saves in a draft, so the Publish bar has something to show.
@@ -81,16 +81,16 @@ edit(
   "Neighborhood bakery · Est. 2014",
   "Neighborhood bakery · Since 2014",
 );
-clodable("save", "-m", "Say since 2014 in the hero badge");
+cloclod("save", "-m", "Say since 2014 in the hero badge");
 edit("src/components/Hero.tsx", "That's the whole recipe.", "That's the whole recipe. Promise.");
-clodable("save", "-m", "Add a promise to the recipe card");
+cloclod("save", "-m", "Add a promise to the recipe card");
 
 console.log(`
   Demo ready: ${app}
 
-  1. Add Clodable to Claude, once (Desktop picks it up too):
-       claude plugin install clodable --marketplace "${repo}"
+  1. Add Cloclod to Claude, once (Desktop picks it up too):
+       claude plugin install cloclod --marketplace "${repo}"
   2. Open the folder above in Claude Desktop → Code (start a new session).
-  3. Watch the Publish bar ("2 changes not live yet"), open /clodable, try the preview toolbar,
+  3. Watch the Publish bar ("2 changes not live yet"), open /cloclod, try the preview toolbar,
      then click Publish. GitHub here is a local stand-in: ${origin}
 `);

@@ -26,7 +26,7 @@ describe("the toolbar, from the keyboard", () => {
     // The dev server isn't here: every request finds nothing to report.
     vi.stubGlobal("fetch", async () => Response.json({ error: null }));
     new Toolbar("app").mount();
-    shadow = document.querySelector("clodable-toolbar")!.shadowRoot!;
+    shadow = document.querySelector("cloclod-toolbar")!.shadowRoot!;
   });
 
   it("keeps focus on a tool after pressing it", () => {
@@ -41,15 +41,15 @@ describe("the toolbar, from the keyboard", () => {
   });
 
   it("hides to the pebble and comes back, focus following", () => {
-    press("Hide Clodable tools");
-    expect(focused()).toBe("Show Clodable tools");
-    press("Show Clodable tools");
-    expect(focused()).toBe("Hide Clodable tools");
+    press("Hide Cloclod tools");
+    expect(focused()).toBe("Show Cloclod tools");
+    press("Show Cloclod tools");
+    expect(focused()).toBe("Hide Cloclod tools");
   });
 
   it("is one tab stop, the last button pressed", () => {
     const tabbable = Array.from(shadow.querySelectorAll("button")).filter((b) => b.tabIndex === 0);
-    expect(tabbable.map((b) => b.getAttribute("aria-label"))).toEqual(["Hide Clodable tools"]);
+    expect(tabbable.map((b) => b.getAttribute("aria-label"))).toEqual(["Hide Cloclod tools"]);
   });
 
   it("moves through the menu with the arrow keys, and Escape hands focus back", () => {
@@ -57,8 +57,8 @@ describe("the toolbar, from the keyboard", () => {
       (shadow.activeElement as HTMLElement).dispatchEvent(
         new KeyboardEvent("keydown", { key: name, bubbles: true, composed: true }),
       );
-    press("Clodable menu");
-    expect(button("Clodable menu").getAttribute("aria-expanded")).toBe("true");
+    press("Cloclod menu");
+    expect(button("Cloclod menu").getAttribute("aria-expanded")).toBe("true");
     expect(shadow.activeElement?.textContent).toContain("Edit text");
     key("ArrowDown");
     expect(shadow.activeElement?.textContent).toContain("Point & ask Claude");
@@ -68,20 +68,20 @@ describe("the toolbar, from the keyboard", () => {
     expect(shadow.activeElement?.textContent).toContain("Edit text");
     key("Escape");
     expect(shadow.querySelector('[role="menu"]')).toBeNull();
-    expect(focused()).toBe("Clodable menu");
-    expect(button("Clodable menu").getAttribute("aria-expanded")).toBe("false");
+    expect(focused()).toBe("Cloclod menu");
+    expect(button("Cloclod menu").getAttribute("aria-expanded")).toBe("false");
   });
 
   it("hides from the menu onto the pebble", () => {
-    press("Clodable menu");
+    press("Cloclod menu");
     const hide = Array.from(shadow.querySelectorAll<HTMLElement>('[role="menuitem"]')).find((b) =>
       b.textContent?.includes("Hide these tools"),
     )!;
     hide.focus();
     hide.click();
-    expect(focused()).toBe("Show Clodable tools");
-    press("Show Clodable tools");
-    expect(focused()).toBe("Hide Clodable tools");
+    expect(focused()).toBe("Show Cloclod tools");
+    press("Show Cloclod tools");
+    expect(focused()).toBe("Hide Cloclod tools");
   });
 
   it("leaves focus alone when a shortcut is used from the page", () => {
@@ -98,30 +98,30 @@ describe("the toolbar, from the keyboard", () => {
     press("Edit text"); // Return to idle after the preceding shortcut check.
     vi.stubGlobal("innerHeight", 320);
     dispatchEvent(new Event("resize"));
-    expect(button("Show Clodable tools").textContent).toContain("Tools");
+    expect(button("Show Cloclod tools").textContent).toContain("Tools");
     expect(shadow.querySelector('[role="toolbar"]')).toBeNull();
-    expect(JSON.parse(localStorage.getItem("clodable:toolbar")!).minimized).toBe(false);
-    press("Show Clodable tools");
+    expect(JSON.parse(localStorage.getItem("cloclod:toolbar")!).minimized).toBe(false);
+    press("Show Cloclod tools");
     expect(button("Edit text").isConnected).toBe(true);
-    expect(focused()).toBe("Hide Clodable tools");
+    expect(focused()).toBe("Hide Cloclod tools");
     vi.stubGlobal("innerHeight", 820);
     dispatchEvent(new Event("resize"));
     expect(button("Edit text").isConnected).toBe(true);
   });
 
   it("shows tools from shortcuts in a short preview and keeps Copy visible when hidden", () => {
-    vi.stubGlobal("__CLODABLE__", { backend: "copy" });
+    vi.stubGlobal("__CLOCLOD__", { backend: "copy" });
     vi.stubGlobal("innerHeight", 320);
     dispatchEvent(new Event("resize"));
-    expect(button("Show Clodable tools").textContent).toContain("Copy");
+    expect(button("Show Cloclod tools").textContent).toContain("Copy");
     dispatchEvent(new KeyboardEvent("keydown", { code: "KeyH", altKey: true, shiftKey: true }));
     expect(shadow.querySelector('[role="toolbar"]')).not.toBeNull();
-    press("Hide Clodable tools");
-    expect(button("Show Clodable tools").textContent).toContain("Copy");
+    press("Hide Cloclod tools");
+    expect(button("Show Cloclod tools").textContent).toContain("Copy");
     dispatchEvent(new KeyboardEvent("keydown", { code: "KeyE", altKey: true, shiftKey: true }));
     expect(button("Edit text").getAttribute("aria-pressed")).toBe("true");
     dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
-    expect(button("Show Clodable tools").textContent).toContain("Copy");
+    expect(button("Show Cloclod tools").textContent).toContain("Copy");
     vi.unstubAllGlobals();
   });
 });

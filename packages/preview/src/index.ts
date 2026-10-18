@@ -13,7 +13,7 @@ export {
 } from "./inject.js";
 export {
   type BuildError,
-  clodablePreview,
+  cloclodPreview,
   codeFrame,
   describeBuildError,
   type PreviewOptions,

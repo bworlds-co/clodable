@@ -31,7 +31,7 @@ dist-ssr
 *.sln
 *.sw?
 
-# Clodable monorepo only (not in Lovable's template): the repo-root .gitignore
+# Cloclod monorepo only (not in Lovable's template): the repo-root .gitignore
 # ignores .env files, but Lovable Cloud projects commit theirs. Keep this one
 # (placeholder values only) so the example matches a real export.
 !.env

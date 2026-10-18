@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { ClodableError } from "../errors.js";
+import { CloclodError } from "../errors.js";
 import { type Flow, step } from "../events.js";
 import { readSecret, storeSecret } from "../local-secrets.js";
 import { type PackageManager, type ProjectInfo, runScriptCommand } from "../project.js";
@@ -22,7 +22,7 @@ import { SupabaseApi } from "./supabase-api.js";
  */
 
 export const NETLIFY_CLI = "netlify-cli@27.12.0";
-export const WORKFLOW_PATH = ".github/workflows/clodable-netlify.yml";
+export const WORKFLOW_PATH = ".github/workflows/cloclod-netlify.yml";
 export const NETLIFY_TOML = "netlify.toml";
 
 /** Lovable's private package mirror, in any region: same packages, same checksums as npm's. */
@@ -33,7 +33,7 @@ export const LOVABLE_MIRROR = "https://[a-z0-9-]+-npm\\.pkg\\.dev/lovable-core-p
 export async function connectNetlify(token: string): Promise<{ accounts: NetlifyAccount[] }> {
   const trimmed = token.trim();
   if (!/^[A-Za-z0-9_-]{20,}$/.test(trimmed)) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "netlify-auth",
       message: "That doesn't look like a Netlify access token.",
       hint: "In Netlify: User settings → Applications → Personal access tokens → New access token.",
@@ -59,7 +59,7 @@ export function netlifyToml(project: ProjectInfo, buildScript: string): string {
   const [command, args] = runScriptCommand(project.packageManager, buildScript);
   const build = [command, ...args.filter((a) => a !== "--silent")].join(" ");
   if (project.appType === "tanstack-start") {
-    return `# How Netlify builds this app (set up by Clodable). Lovable's TanStack Start preset targets
+    return `# How Netlify builds this app (set up by Cloclod). Lovable's TanStack Start preset targets
 # Cloudflare by default; NITRO_PRESET switches its server part to Netlify Functions.
 [build]
   command = "${build}"
@@ -69,7 +69,7 @@ export function netlifyToml(project: ProjectInfo, buildScript: string): string {
   NITRO_PRESET = "netlify"
 `;
   }
-  return `# How Netlify builds this app (set up by Clodable).
+  return `# How Netlify builds this app (set up by Cloclod).
 [build]
   command = "${build}"
   publish = "dist"
@@ -125,7 +125,7 @@ function installSteps(pm: PackageManager, lockfile: string | undefined): string[
 
 /**
  * The workflow that puts the site live on each Publish (a push to main): install, build and deploy
- * with Netlify's own tool, and tell GitHub about the deployment so Clodable's Publish can follow it.
+ * with Netlify's own tool, and tell GitHub about the deployment so Cloclod's Publish can follow it.
  */
 /** A GitHub Actions expression, written out for the workflow file. */
 const gha = (expression: string) => ["$", "{{ ", expression, " }}"].join("");
@@ -134,7 +134,7 @@ export function netlifyWorkflow(project: ProjectInfo, liveBranch: string, siteUr
   const lockfile = lockfileOf(project.root);
   const repoApi = `repos/${gha("github.repository")}/deployments`;
   return [
-    "# Puts the site live on Netlify each time it's published (set up by Clodable).",
+    "# Puts the site live on Netlify each time it's published (set up by Cloclod).",
     "# Netlify's free plan can't watch a private repository owned by an organization; this can.",
     "name: Netlify",
     "on:",
@@ -205,7 +205,7 @@ export async function* putSiteOnNetlify(
 ): Flow<SiteOutcome> {
   const state = await loadMove(ws.root);
   if (!state.home) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "move-not-ready",
       message: "Create your new backend first: the site needs it.",
       hint: "It's one of the first steps of the move.",
@@ -268,7 +268,7 @@ export async function createNetlifySite(
   const account =
     accounts.find((a) => a.slug === team) ?? (accounts.length === 1 ? accounts[0] : undefined);
   if (!account) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "needs-choice",
       message: "Which Netlify team should the site go in?",
       hint: `Pick one: ${accounts.map((a) => `${a.name} (${a.slug})`).join(", ")}.`,
@@ -277,15 +277,15 @@ export async function createNetlifySite(
   const base = siteName(appName);
   for (const name of [base, `${base}-${Math.random().toString(36).slice(2, 6)}`]) {
     const site = await netlify.createSite(account.slug, name).catch((error: unknown) => {
-      if (error instanceof ClodableError && /422/.test(error.details ?? "")) return undefined;
+      if (error instanceof CloclodError && /422/.test(error.details ?? "")) return undefined;
       throw error;
     });
     if (site) return site;
   }
-  throw new ClodableError({
+  throw new CloclodError({
     code: "netlify-failed",
     message: "Netlify didn't accept a name for your site.",
-    hint: "Try again: Clodable picks another name.",
+    hint: "Try again: Cloclod picks another name.",
   });
 }
 
@@ -368,7 +368,7 @@ export async function siteSettings(
 ): Promise<{ wanted: string[]; set: string[]; lovable: string[] }> {
   const state = await loadMove(ws.root);
   if (!state.site) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "move-not-ready",
       message: "Put your site on Netlify first.",
     });
@@ -379,18 +379,18 @@ export async function siteSettings(
 /** Set one of the app's settings on the site. The value goes straight to Netlify, kept secret. */
 export async function setSiteSetting(ws: Workspace, name: string, value: string) {
   if (!/^[A-Z][A-Z0-9_]*$/.test(name)) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "invalid-config",
       message: `“${name}” isn't a setting name.`,
       hint: "Use capitals, digits and underscores.",
     });
   }
   if (!value.trim()) {
-    throw new ClodableError({ code: "invalid-config", message: "That setting is empty." });
+    throw new CloclodError({ code: "invalid-config", message: "That setting is empty." });
   }
   const state = await loadMove(ws.root);
   if (!state.site) {
-    throw new ClodableError({ code: "move-not-ready", message: "Put your site on Netlify first." });
+    throw new CloclodError({ code: "move-not-ready", message: "Put your site on Netlify first." });
   }
   const netlify = await NetlifyApi.required();
   await netlify.setEnv(state.site.account, state.site.id, name, value.replace(/\r?\n$/, ""), {

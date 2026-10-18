@@ -1,5 +1,5 @@
 /**
- * Clodable design tokens.
+ * Cloclod design tokens.
  *
  * The palette is named after ceramics:
  * - clay is the body you shape;

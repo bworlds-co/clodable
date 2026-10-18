@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { ClodableError } from "../errors.js";
+import { CloclodError } from "../errors.js";
 import { CODE_DIRS, LOVABLE_AI } from "../project.js";
 import { setSetting } from "../settings.js";
 import type { Workspace } from "../workspace.js";
@@ -11,7 +11,7 @@ import { projectUrl, SupabaseApi } from "./supabase-api.js";
 
 /**
  * Lovable's own services, which stop working off Lovable: its AI gateway, its
- * email API, and its connectors. Clodable finds where the code uses them, keeps the builder's own
+ * email API, and its connectors. Cloclod finds where the code uses them, keeps the builder's own
  * keys where the code will read them (the preview, the site, the backend functions), and Claude
  * changes the code to call the builder's provider instead.
  */
@@ -45,7 +45,7 @@ export interface ServicesStatus {
   /** The code sends emails through Lovable, and whether it reads the builder's Resend key too. */
   emails: boolean;
   emailsSwitched: boolean;
-  /** Clodable gave the app a Resend key that sends from the builder's domain. */
+  /** Cloclod gave the app a Resend key that sends from the builder's domain. */
   appEmails: boolean;
   /** The app has its own sign-in emails (supabase/functions/auth-email-hook), and they're on. */
   hook: boolean;
@@ -148,7 +148,7 @@ export async function setAiProvider(
   key: string,
 ): Promise<{ provider: AiProvider; url: string; model: string }> {
   if (!provider || !(provider in AI_PROVIDERS)) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "invalid-config",
       message: "Which AI provider?",
       hint: `One of: ${Object.keys(AI_PROVIDERS).join(", ")}.`,
@@ -157,7 +157,7 @@ export async function setAiProvider(
   const chosen = AI_PROVIDERS[provider as AiProvider];
   const value = key.trim();
   if (value.length < 20) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "invalid-config",
       message: `That doesn't look like a ${chosen.name} key.`,
       hint: "Paste the whole key, as the provider shows it once.",
@@ -184,14 +184,14 @@ export async function provisionAppEmails(
 ): Promise<{ sender: string; domain: string }> {
   const state = await loadMove(ws.root);
   if (!state.emails?.connectedAt || !state.emails.domainId) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "move-not-ready",
       message: "Set up your emails first: your app's own emails go out the same way.",
     });
   }
   const resend = await ResendApi.required();
   const key = await resend.createSendingKey(
-    `Clodable · ${ws.project.name} · app`,
+    `Cloclod · ${ws.project.name} · app`,
     state.emails.domainId,
   );
   const sender = state.emails.sender;
@@ -214,15 +214,15 @@ export async function provisionAppEmails(
 export async function enableEmailHook(ws: Workspace): Promise<{ on: true }> {
   const state = await loadMove(ws.root);
   if (!state.home) {
-    throw new ClodableError({ code: "move-not-ready", message: "Create your new backend first." });
+    throw new CloclodError({ code: "move-not-ready", message: "Create your new backend first." });
   }
   const api = await SupabaseApi.required();
   const deployed = (await api.functions(state.home.ref)).find((f) => f.slug === "auth-email-hook");
   if (deployed?.status !== "ACTIVE") {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "move-not-ready",
       message: "Deploy your backend functions first: the sign-in emails come from auth-email-hook.",
-      hint: "clodable move functions",
+      hint: "cloclod move functions",
     });
   }
   const secret = `v1,whsec_${randomBytes(32).toString("base64")}`;

@@ -50,7 +50,7 @@ const browser = await chromium.launch();
     viewport: { width: 500, height: 1000 },
     deviceScaleFactor: 2,
   });
-  await phone.goto("http://127.0.0.1:5199/__clodable/frame?device=phone&path=%2F", {
+  await phone.goto("http://127.0.0.1:5199/__cloclod/frame?device=phone&path=%2F", {
     waitUntil: "networkidle",
   });
   await phone.waitForTimeout(1500);

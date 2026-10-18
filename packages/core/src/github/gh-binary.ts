@@ -7,8 +7,8 @@ import { commandPath, exec } from "../exec.js";
 import { toolsDir } from "../places.js";
 
 /**
- * The GitHub CLI (https://cli.github.com, MIT), which Clodable signs in and talks to GitHub with.
- * A builder who doesn't have it installs nothing: Clodable pins one release, checks its SHA-256,
+ * The GitHub CLI (https://cli.github.com, MIT), which Cloclod signs in and talks to GitHub with.
+ * A builder who doesn't have it installs nothing: Cloclod pins one release, checks its SHA-256,
  * and downloads it once per computer, as it does for gitleaks. One already installed is used first:
  * both read the same sign-in.
  */
@@ -45,7 +45,7 @@ const RELEASES: Record<string, { file: string; sha256: string }> = {
 const executable = process.platform === "win32" ? "gh.exe" : "gh";
 
 /**
- * Where Clodable keeps the command-line tools it fetched for the builder (the GitHub CLI, Node.js):
+ * Where Cloclod keeps the command-line tools it fetched for the builder (the GitHub CLI, Node.js):
  * the plugin adds it to the PATH of Claude's session, after the builder's own.
  */
 export function toolsBin(): string {
@@ -60,7 +60,7 @@ let resolved: Promise<string> | undefined;
  */
 export async function ghBinary(): Promise<string> {
   if (process.env.CLODABLE_GH) return process.env.CLODABLE_GH;
-  // One installed is looked up each time: it may come or go while Clodable runs.
+  // One installed is looked up each time: it may come or go while Cloclod runs.
   const installed = await commandPath("gh");
   if (installed && !installed.startsWith(toolsBin())) return installed;
   resolved ??= ours().catch((error) => {
@@ -70,12 +70,12 @@ export async function ghBinary(): Promise<string> {
   return resolved;
 }
 
-/** Whether the GitHub CLI in use is the one Clodable fetched. */
+/** Whether the GitHub CLI in use is the one Cloclod fetched. */
 export async function ghIsOurs(): Promise<boolean> {
   return (await ghBinary().catch(() => "")).startsWith(toolsDir());
 }
 
-/** Clodable's own copy, downloaded and checked the first time. */
+/** Cloclod's own copy, downloaded and checked the first time. */
 async function ours(): Promise<string> {
   const release = RELEASES[`${process.platform}-${process.arch}`];
   if (!release) throw new Error(`No GitHub CLI build for ${process.platform}-${process.arch}.`);
@@ -127,7 +127,7 @@ async function download(
   }
 }
 
-/** `gh` in Clodable's bin folder, which the plugin puts on the session's PATH. */
+/** `gh` in Cloclod's bin folder, which the plugin puts on the session's PATH. */
 async function linkInBin(path: string): Promise<void> {
   if (process.platform === "win32") return;
   const link = join(toolsBin(), executable);

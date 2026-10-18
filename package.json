@@ -1,8 +1,8 @@
 {
-  "name": "clodable-monorepo",
+  "name": "cloclod-monorepo",
   "private": true,
   "type": "module",
-  "description": "Clodable: shape your app with Claude, publish when you're happy. Open source.",
+  "description": "Cloclod: shape your app with Claude, publish when you're happy. Open source.",
   "license": "MIT",
   "packageManager": "pnpm@10.11.1",
   "engines": {

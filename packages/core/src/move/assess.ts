@@ -14,7 +14,7 @@ export interface MoveItem {
   id: string;
   /** What it is, in the builder's words: "13 backend functions". */
   label: string;
-  /** Who does it: Clodable on its own, the builder (a few guided clicks), or someone technical. */
+  /** Who does it: Cloclod on its own, the builder (a few guided clicks), or someone technical. */
   by: "clodable" | "you" | "help";
   /** What happens, in one line. */
   detail: string;
@@ -22,7 +22,7 @@ export interface MoveItem {
 
 export interface MoveAssessment {
   /**
-   * "simple": Clodable does nearly everything and the builder clicks a few buttons.
+   * "simple": Cloclod does nearly everything and the builder clicks a few buttons.
    * "some-steps": a few accounts or settings for the builder, each one guided.
    * "needs-help": a part is best done with someone technical.
    */
@@ -87,7 +87,7 @@ function names(list: string[]): string {
 
 /**
  * `facts`: what Claude found in the code, once it has looked. Then they decide what the app uses
- * (AI, sign-in, emails, payments…), named as the builder knows them; until then, Clodable's scan.
+ * (AI, sign-in, emails, payments…), named as the builder knows them; until then, Cloclod's scan.
  */
 export async function assessMove(
   project: ProjectInfo,
@@ -160,7 +160,7 @@ export async function assessMove(
       id: "emails",
       label: "Emails",
       by: "you",
-      detail: `${sent.length > 0 ? `${names(sent)}: sent` : "They're sent"} through Lovable. You connect a free Resend account and add its records to your domain; Clodable gives your app its own key, and Claude switches the sending.`,
+      detail: `${sent.length > 0 ? `${names(sent)}: sent` : "They're sent"} through Lovable. You connect a free Resend account and add its records to your domain; Cloclod gives your app its own key, and Claude switches the sending.`,
     });
   }
   if (facts && facts.connectors.length > 0) {
@@ -248,7 +248,7 @@ export async function assessMove(
       label: "Your website",
       by: "you",
       detail:
-        "Moves to Netlify (free to start), and your own domain with it. You create the account, Clodable sets it up.",
+        "Moves to Netlify (free to start), and your own domain with it. You create the account, Cloclod sets it up.",
     });
   }
   if (project.lovable.generated) {

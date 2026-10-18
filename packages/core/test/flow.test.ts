@@ -2,8 +2,8 @@ import { chmod, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
-  ClodableError,
-  type ClodableEvent,
+  CloclodError,
+  type CloclodEvent,
   Git,
   history,
   loadMove,
@@ -27,7 +27,7 @@ afterEach(async () => {
   await sb.cleanup();
 });
 
-async function publishAll(events: ClodableEvent[] = []) {
+async function publishAll(events: CloclodEvent[] = []) {
   const ws = await sb.ws();
   return runFlow(publish(ws, instant()), (e) => events.push(e));
 }
@@ -37,12 +37,12 @@ async function expectError(promise: Promise<unknown>, code: string) {
     () => undefined,
     (e: unknown) => e,
   );
-  expect(error).toBeInstanceOf(ClodableError);
-  expect((error as ClodableError).code).toBe(code);
-  return error as ClodableError;
+  expect(error).toBeInstanceOf(CloclodError);
+  expect((error as CloclodError).code).toBe(code);
+  return error as CloclodError;
 }
 
-describe("projects Clodable wasn't set up in", () => {
+describe("projects Cloclod wasn't set up in", () => {
   it("are left alone: nothing is saved, pushed or published", async () => {
     await rm(join(sb.work, ".clodable/config.json"));
     await sb.write("src/app.txt", "Someone's unrelated work\n");
@@ -117,7 +117,7 @@ describe("publishing", () => {
     await sb.write("src/menu.txt", "Sourdough\n");
     await save(await sb.ws(), { message: "Added the menu" });
 
-    const events: ClodableEvent[] = [];
+    const events: CloclodEvent[] = [];
     const result = await publishAll(events);
 
     expect(result.title).toBe("Shorter welcome; added the menu");
@@ -156,7 +156,7 @@ describe("publishing", () => {
     sb.github.deploymentFor = () => [];
     await sb.write("src/app.txt", "Hello\n");
     await save(await sb.ws(), { message: "Hello" });
-    const events: ClodableEvent[] = [];
+    const events: CloclodEvent[] = [];
 
     const result = await publishAll(events);
 
@@ -175,7 +175,7 @@ describe("publishing", () => {
     await sb.write("src/app.txt", "BROKEN page\n");
     await save(await sb.ws(), { message: "Oops" });
 
-    const events: ClodableEvent[] = [];
+    const events: CloclodEvent[] = [];
     const error = await expectError(publishAll(events), "checks-failed");
     expect(error.message).toMatch(/doesn't build/);
     expect(await sb.remoteLog("main")).toEqual(["Initial app"]);
@@ -220,7 +220,7 @@ describe("publishing", () => {
     expect(await readFile(join(sb.work, "src/app.txt"), "utf8")).toBe("Ada's welcome\n");
     expect(await (await sb.ws()).git.changedFiles()).toEqual([]);
     const worktrees = await (await sb.ws()).git.ok(["worktree", "list", "--porcelain"]);
-    expect(worktrees).not.toContain("clodable-combine-");
+    expect(worktrees).not.toContain("cloclod-combine-");
     expect(await sb.remoteLog("main")).toEqual(["Grace's welcome", "Initial app"]);
   });
 
@@ -234,7 +234,7 @@ describe("publishing", () => {
     await sb.write("src/app.txt", "New\n");
     await save(await sb.ws(), { message: "New" });
 
-    const events: ClodableEvent[] = [];
+    const events: CloclodEvent[] = [];
     const error = await expectError(publishAll(events), "ci-failed");
     expect(error.message).toContain("lint");
     expect(events.some((e) => e.type === "step" && e.id === "ci" && e.state === "running")).toBe(
@@ -263,7 +263,7 @@ describe("publishing", () => {
     });
     await sb.write("src/app.txt", "New\n");
     await save(await sb.ws(), { message: "New" });
-    const events: ClodableEvent[] = [];
+    const events: CloclodEvent[] = [];
     await publishAll(events);
     // Said once per change: what it's doing, or another minute; never the same line twice.
     const going = events
@@ -372,22 +372,22 @@ describe("secret keys", () => {
 });
 
 describe("what counts as not live yet", () => {
-  it("the builder's saves, not Clodable's own: its setup, or the answers to its questions", async () => {
+  it("the builder's saves, not Cloclod's own: its setup, or the answers to its questions", async () => {
     const ws = await sb.ws();
     await sb.write("src/app.txt", "Warmer welcome\n");
     await save(ws, { message: "Warmer welcome" });
-    // The panel's answers: Clodable's config and the files that follow it, nothing of the app.
+    // The panel's answers: Cloclod's config and the files that follow it, nothing of the app.
     const config = JSON.parse(await readFile(join(sb.work, ".clodable/config.json"), "utf8"));
     await sb.write(".clodable/config.json", JSON.stringify({ ...config, backend: "supabase" }));
     await sb.write("AGENTS.md", "Your data is on your own Supabase.\n");
     await save(ws, { message: "Saved changes before restoring" });
     await sb.write("AGENTS.md", "How Claude works here.\n");
-    await save(ws, { message: "Set up Clodable", kind: "setup" });
+    await save(ws, { message: "Set up Cloclod", kind: "setup" });
 
     const s = await status(ws);
     expect(s.unpublished.map((c) => c.subject)).toEqual(["Warmer welcome"]);
     expect((await history(ws)).draft.map((c) => c.subject)).toEqual(["Warmer welcome"]);
-    // A save with the app and Clodable's files together is the builder's.
+    // A save with the app and Cloclod's files together is the builder's.
     await sb.write("src/app.txt", "Warmest welcome\n");
     await sb.write(".clodable/config.json", JSON.stringify({ ...config, backend: "none" }));
     const both = await save(ws, { message: "Warmest welcome" });
@@ -416,18 +416,15 @@ describe("what counts as not live yet", () => {
     expect((await history(ws)).sameAsLive).toBe(false);
   });
 
-  it("Clodable's own files still go live with Publish, like the site's publish workflow", async () => {
+  it("Cloclod's own files still go live with Publish, like the site's publish workflow", async () => {
     const ws = await sb.ws();
-    await sb.write(".github/workflows/clodable-netlify.yml", "name: Publish to Netlify\n");
+    await sb.write(".github/workflows/cloclod-netlify.yml", "name: Publish to Netlify\n");
     await save(ws, { message: "Put my site on Netlify" });
     expect((await status(ws)).unpublished).toEqual([]);
 
     await publishAll();
 
-    const live = await new Git(sb.bare).run([
-      "show",
-      "main:.github/workflows/clodable-netlify.yml",
-    ]);
+    const live = await new Git(sb.bare).run(["show", "main:.github/workflows/cloclod-netlify.yml"]);
     expect(live.stdout).toBe("name: Publish to Netlify\n");
   });
 });
@@ -467,7 +464,7 @@ describe("apps hosted by Lovable", () => {
     await sb.write("src/menu.txt", "Croissants\n");
     await save(await sb.ws(), { message: "Menu" });
 
-    const events: ClodableEvent[] = [];
+    const events: CloclodEvent[] = [];
     const result = await publishAll(events);
     expect(result).toMatchObject({ deploy: "lovable", lovableUrl: lovable });
     const deploy = events.filter((e) => e.type === "step" && e.id === "deploy");
@@ -491,7 +488,7 @@ describe("apps hosted by Lovable", () => {
     const publishChange = async (text: string) => {
       await sb.write("src/menu.txt", `${text}\n`);
       await save(await sb.ws(), { message: text });
-      const events: ClodableEvent[] = [];
+      const events: CloclodEvent[] = [];
       const result = await publishAll(events);
       const steps = events.filter((e) => e.type === "step" && e.id === "move:site");
       return { result, last: steps.at(-1) };
@@ -562,7 +559,7 @@ describe("apps on their own Supabase", () => {
       );
       await sb.write("supabase/functions/_shared/cors.ts", "export const cors = {};\n");
       await save(await sb.ws(), { message: "Hello function" });
-      const events: ClodableEvent[] = [];
+      const events: CloclodEvent[] = [];
       const result = await publishAll(events);
       expect(result.functions).toMatchObject({ deployed: ["hello"], pending: [], failed: [] });
       expect(fake.deployed.get(ref)?.[0]).toMatchObject({
@@ -614,7 +611,7 @@ describe("apps on their own Supabase", () => {
         );
       }
       await save(await sb.ws(), { message: "Three functions" });
-      const events: ClodableEvent[] = [];
+      const events: CloclodEvent[] = [];
       const result = await publishAll(events);
       expect(result.functions).toEqual({
         deployed: ["hello"],
@@ -663,13 +660,13 @@ describe("undo and restore", () => {
     );
   });
 
-  it("leaves Clodable's own files as they're live: the builder's answers and the site's workflow stay", async () => {
+  it("leaves Cloclod's own files as they're live: the builder's answers and the site's workflow stay", async () => {
     const ws = await sb.ws();
     const config = JSON.parse(await readFile(join(sb.work, ".clodable/config.json"), "utf8"));
     const answered = `${JSON.stringify({ ...config, backend: "supabase", hosting: "github" })}\n`;
     await sb.write(".clodable/config.json", answered);
     await sb.write("AGENTS.md", "Your data is on your own Supabase.\n");
-    await sb.write(".github/workflows/clodable-netlify.yml", "name: Publish to Netlify\n");
+    await sb.write(".github/workflows/cloclod-netlify.yml", "name: Publish to Netlify\n");
     await sb.write("netlify.toml", '[build]\n  publish = "dist"\n');
     await sb.write("src/app.txt", "Brand new welcome\n");
     await save(ws, { message: "New welcome" });
@@ -683,9 +680,9 @@ describe("undo and restore", () => {
     expect(await live("src/app.txt")).toBe(before);
     expect(await live(".clodable/config.json")).toBe(answered);
     expect(await live("AGENTS.md")).toBe("Your data is on your own Supabase.\n");
-    expect(await live(".github/workflows/clodable-netlify.yml")).toBe("name: Publish to Netlify\n");
+    expect(await live(".github/workflows/cloclod-netlify.yml")).toBe("name: Publish to Netlify\n");
     expect(await live("netlify.toml")).toBe('[build]\n  publish = "dist"\n');
-    // The builder's files follow what's live: the app is back, Clodable's answers are kept.
+    // The builder's files follow what's live: the app is back, Cloclod's answers are kept.
     expect(await readFile(join(sb.work, "src/app.txt"), "utf8")).toBe(before);
     expect(await readFile(join(sb.work, ".clodable/config.json"), "utf8")).toBe(answered);
   });
@@ -710,17 +707,17 @@ describe("undo and restore", () => {
     expect(h.draft[0]!.kind).toBe("restore");
   });
 
-  it("brings back the app's files, and leaves Clodable's own as they are now", async () => {
+  it("brings back the app's files, and leaves Cloclod's own as they are now", async () => {
     const ws = await sb.ws();
     await sb.write("src/app.txt", "Getting started\n");
     await save(ws, { message: "Getting started" });
-    // An early version, before Clodable was set up here: no AGENTS.md, no Clodable lines to ignore.
+    // An early version, before Cloclod was set up here: no AGENTS.md, no Cloclod lines to ignore.
     await sb.write(".gitignore", "node_modules/\n");
     await sb.write("src/app.txt", "Version A\n");
     await ws.git.ok(["add", ".gitignore", "src/app.txt"]);
     await ws.git.ok(["commit", "--quiet", "-m", "Version A"]);
     const a = (await ws.git.revParse("HEAD"))!;
-    // Since then: Clodable set up, the builder's answers saved, the app changed.
+    // Since then: Cloclod set up, the builder's answers saved, the app changed.
     const config = JSON.parse(await readFile(join(sb.work, ".clodable/config.json"), "utf8"));
     const answered = `${JSON.stringify({ ...config, backend: "supabase", hosting: "github" })}\n`;
     await sb.write(".clodable/config.json", answered);

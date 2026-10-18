@@ -70,7 +70,7 @@ export const backToSite = (auth: Auth, site: string) =>
   auth.site_url === site && String(auth.uri_allow_list ?? "").includes(`${site}/**`);
 
 /**
- * Sign-in on a backend Clodable just made for the app: links come back to the preview, and to the
+ * Sign-in on a backend Cloclod just made for the app: links come back to the preview, and to the
  * live site when there is one. New people don't wait for a confirmation email: Supabase's built-in
  * mailer only writes to the project's own team.
  */

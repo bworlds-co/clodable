@@ -1,8 +1,8 @@
-import type { ClodableEvent, ErrorInfo, LogEvent, StepEvent } from "@clodable/core";
+import type { CloclodEvent, ErrorInfo, LogEvent, StepEvent } from "@clodable/core";
 import pc from "picocolors";
 
 /**
- * Terminal output in Clodable's voice. Two modes:
+ * Terminal output in Cloclod's voice. Two modes:
  * - pretty: a short story of steps, a spinner on the running one, then a clear ending;
  * - json: one event per line (NDJSON) for programs such as the Claude mod.
  */
@@ -38,7 +38,7 @@ export interface Output {
 export function createOutput(options: { json: boolean; stream?: NodeJS.WriteStream }): Output {
   const out = options.stream ?? process.stdout;
   if (options.json) {
-    const write = (event: ClodableEvent) => out.write(`${JSON.stringify(event)}\n`);
+    const write = (event: CloclodEvent) => out.write(`${JSON.stringify(event)}\n`);
     return {
       json: true,
       event: write,
@@ -138,7 +138,7 @@ export function createOutput(options: { json: boolean; stream?: NodeJS.WriteStre
       }
     },
     header(title) {
-      out.write(`\n  ${clay("●")} ${pc.bold("clodable")} ${ash("·")} ${title}\n\n`);
+      out.write(`\n  ${clay("●")} ${pc.bold("cloclod")} ${ash("·")} ${title}\n\n`);
     },
     line(text = "") {
       stopSpin();

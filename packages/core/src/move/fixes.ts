@@ -237,7 +237,7 @@ export async function repairMigrationHistory(sql: Sql, versions: string[]): Prom
     "select count(*)::int as n from supabase_migrations.schema_migrations",
   );
   await sql.run(
-    `insert into supabase_migrations.schema_migrations (version, name) select v, 'clodable_history' from unnest(array[${versions.map(literal).join(", ")}]::text[]) as v on conflict (version) do nothing;`,
+    `insert into supabase_migrations.schema_migrations (version, name) select v, 'cloclod_history' from unnest(array[${versions.map(literal).join(", ")}]::text[]) as v on conflict (version) do nothing;`,
   );
   const after = await sql.rows<{ n: number }>(
     "select count(*)::int as n from supabase_migrations.schema_migrations",
@@ -247,7 +247,7 @@ export async function repairMigrationHistory(sql: Sql, versions: string[]): Prom
 
 /**
  * The vault secret Lovable's email queue calls its functions with: the project's own service key,
- * so Clodable sets it on the copy itself, and it tells that Lovable Cloud's key is in the export.
+ * so Cloclod sets it on the copy itself, and it tells that Lovable Cloud's key is in the export.
  */
 export const EMAIL_QUEUE_KEY = "email_queue_service_role_key";
 

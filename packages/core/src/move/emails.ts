@@ -1,4 +1,4 @@
-import { ClodableError } from "../errors.js";
+import { CloclodError } from "../errors.js";
 import { type Flow, step } from "../events.js";
 import { storeSecret } from "../local-secrets.js";
 import type { Workspace } from "../workspace.js";
@@ -10,14 +10,14 @@ import { SupabaseApi } from "./supabase-api.js";
 /**
  * Emails for real people: Supabase's built-in sender only writes to the project's own team, so
  * sign-up and password-reset emails go through the builder's Resend account, from their own domain.
- * Resend's DNS records are added by the builder at their domain's provider; Clodable checks them,
+ * Resend's DNS records are added by the builder at their domain's provider; Cloclod checks them,
  * then gives Supabase a key that can only send from that domain.
  */
 
 export async function connectResend(key: string): Promise<{ domains: string[] }> {
   const trimmed = key.trim();
   if (!/^re_[A-Za-z0-9_]{10,}$/.test(trimmed)) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "resend-auth",
       message: "That doesn't look like a Resend key.",
       hint: "It starts with re_. In Resend: API Keys → Create API Key, with Full access.",
@@ -65,14 +65,14 @@ export async function* setUpEmails(
 ): Flow<EmailsOutcome> {
   const state = await loadMove(ws.root);
   if (!state.home) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "move-not-ready",
       message: "Create your new backend first: emails are sent from it.",
     });
   }
   const domain = (options.domain ?? state.emails?.domain ?? "").trim().toLowerCase();
   if (!isDomainName(domain)) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "move-not-ready",
       message: domain
         ? `“${domain}” isn't a domain name.`
@@ -123,7 +123,7 @@ export async function* setUpEmails(
   const latest = await loadMove(ws.root);
   if (!latest.emails?.connectedAt) {
     yield step("move:emails", "running", "Setting up your emails", "Connecting Resend to Supabase");
-    const sending = await resend.createSendingKey(`Clodable · ${ws.project.name}`, found.id);
+    const sending = await resend.createSendingKey(`Cloclod · ${ws.project.name}`, found.id);
     const supabase = await SupabaseApi.required();
     await supabase.updateAuthConfig(state.home.ref, {
       smtp_admin_email: sender,

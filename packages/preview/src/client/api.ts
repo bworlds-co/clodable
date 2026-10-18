@@ -3,7 +3,7 @@ import type { TextEditFailure } from "../text-edit.js";
 
 declare global {
   interface Window {
-    __CLODABLE_MOUNTED__?: boolean;
+    __CLOCLOD_MOUNTED__?: boolean;
   }
 }
 
@@ -11,9 +11,9 @@ declare global {
  * The toolbar's config, as the server hands it to this bundle: an argument by this name
  * (CONFIG_NAME in shared.ts), never on `window`, where the page's own scripts would read the token.
  */
-declare const __CLODABLE__: { token: string; backend?: "live" | "copy" } | undefined;
+declare const __CLOCLOD__: { token: string; backend?: "live" | "copy" } | undefined;
 
-export const config = () => (typeof __CLODABLE__ === "undefined" ? undefined : __CLODABLE__);
+export const config = () => (typeof __CLOCLOD__ === "undefined" ? undefined : __CLOCLOD__);
 
 const token = () => config()?.token ?? "";
 
@@ -29,10 +29,10 @@ export function keepFetch() {
 async function post<T>(path: string, body: unknown): Promise<T> {
   const response = await (send ?? fetch)(path, {
     method: "POST",
-    headers: { "content-type": "application/json", "x-clodable-token": token() },
+    headers: { "content-type": "application/json", "x-cloclod-token": token() },
     body: JSON.stringify(body),
   });
-  if (!response.ok) throw new Error(`Clodable ${path}: ${response.status}`);
+  if (!response.ok) throw new Error(`Cloclod ${path}: ${response.status}`);
   return (await response.json()) as T;
 }
 
@@ -42,7 +42,7 @@ async function post<T>(path: string, body: unknown): Promise<T> {
  */
 const conversation = (): { conversation?: string } => {
   try {
-    const id = sessionStorage.getItem("clodable:conversation");
+    const id = sessionStorage.getItem("cloclod:conversation");
     return id ? { conversation: id } : {};
   } catch {
     return {};

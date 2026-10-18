@@ -24,11 +24,11 @@ const file = execFileSync("grep", ["-rl", "--include=*.tsx", original, join(root
   .trim()
   .split("\n")[0]!;
 const before = readFileSync(file, "utf8");
-// Each edit leaves a request in the app's inbox. Only those go afterwards: an app Clodable set up
+// Each edit leaves a request in the app's inbox. Only those go afterwards: an app Cloclod set up
 // keeps its .clodable folder, and whatever was waiting in its inbox.
-const clodable = join(root, ".clodable");
-const inbox = join(clodable, "inbox");
-const hadClodable = existsSync(clodable);
+const cloclod = join(root, ".clodable");
+const inbox = join(cloclod, "inbox");
+const hadCloclod = existsSync(cloclod);
 const waiting = new Set(existsSync(inbox) ? readdirSync(inbox) : []);
 
 async function edit(page: Page, from: string, to: string) {
@@ -44,7 +44,7 @@ async function edit(page: Page, from: string, to: string) {
   await page.waitForFunction(
     () =>
       document
-        .querySelector("clodable-toolbar")
+        .querySelector("cloclod-toolbar")
         ?.shadowRoot?.querySelector(".toast")
         ?.textContent?.includes("Text updated"),
     null,
@@ -57,7 +57,7 @@ const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 1280, height: 820 } });
 await page.goto(base, { waitUntil: "networkidle" });
 await page.waitForFunction(() =>
-  document.querySelector("clodable-toolbar")?.shadowRoot?.querySelector(".dock"),
+  document.querySelector("cloclod-toolbar")?.shadowRoot?.querySelector(".dock"),
 );
 
 await edit(page, original, changed);
@@ -68,7 +68,7 @@ await page.getByText(changed, { exact: true }).first().waitFor({ timeout: 8000 }
 await edit(page, changed, original);
 const after = readFileSync(file, "utf8");
 await browser.close();
-if (!hadClodable) rmSync(clodable, { recursive: true, force: true });
+if (!hadCloclod) rmSync(cloclod, { recursive: true, force: true });
 else if (existsSync(inbox)) {
   for (const name of readdirSync(inbox)) {
     if (!waiting.has(name)) rmSync(join(inbox, name), { force: true });
@@ -80,11 +80,11 @@ console.log(`edited in source: ${changedOk ? "yes" : "NO"}`);
 console.log(`restored byte-for-byte: ${after === before ? "yes" : "NO"}`);
 if (after !== before) {
   const { writeFileSync } = await import("node:fs");
-  writeFileSync("/tmp/clodable-e2e-before.txt", before);
-  writeFileSync("/tmp/clodable-e2e-after.txt", after);
+  writeFileSync("/tmp/cloclod-e2e-before.txt", before);
+  writeFileSync("/tmp/cloclod-e2e-after.txt", after);
   try {
     console.log(
-      execFileSync("diff", ["/tmp/clodable-e2e-before.txt", "/tmp/clodable-e2e-after.txt"], {
+      execFileSync("diff", ["/tmp/cloclod-e2e-before.txt", "/tmp/cloclod-e2e-after.txt"], {
         encoding: "utf8",
       }),
     );

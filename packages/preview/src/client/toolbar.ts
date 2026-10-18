@@ -12,7 +12,7 @@ type Device = "desktop" | "tablet" | "phone";
 /** app: the normal preview. outer: the device stage. inner: the app inside the device frame. */
 export type Surface = "app" | "outer" | "inner";
 
-const STORE = "clodable:toolbar";
+const STORE = "cloclod:toolbar";
 /** The mark the device frame adds to the app's address, left out of the routes it reports. */
 const FRAME_MARK = new RegExp(`[?&]${FRAME_PARAM}=1`);
 const MESSAGES = {
@@ -64,8 +64,8 @@ export class Toolbar {
   }
 
   mount() {
-    this.host = document.createElement("clodable-toolbar");
-    this.host.setAttribute("data-clodable", "");
+    this.host = document.createElement("cloclod-toolbar");
+    this.host.setAttribute("data-cloclod", "");
     this.shadow = this.host.attachShadow({ mode: "open" });
     this.shadow.append(h("style", {}, styles));
     this.layer = h("div");
@@ -170,9 +170,9 @@ export class Toolbar {
         {
           class: `pebble${labelled ? " labelled" : ""}`,
           "data-key": "pebble",
-          "aria-label": "Show Clodable tools",
+          "aria-label": "Show Cloclod tools",
           ...(onCopy ? { "aria-description": "This preview uses a copy of your data." } : {}),
-          title: "Show Clodable tools (⌥⇧H)",
+          title: "Show Cloclod tools (⌥⇧H)",
           onclick: () => this.setMinimized(false),
         },
         this.mark(24),
@@ -201,7 +201,7 @@ export class Toolbar {
       {
         class: "brand",
         "data-key": "menu",
-        "aria-label": "Clodable menu",
+        "aria-label": "Cloclod menu",
         "aria-haspopup": "menu",
         "aria-expanded": "false",
         onclick: (e: Event) => this.toggleMenu(e.currentTarget as HTMLElement),
@@ -212,7 +212,7 @@ export class Toolbar {
     const onCopy = config()?.backend === "copy";
     const dock = h(
       "div",
-      { class: "dock", role: "toolbar", "aria-label": "Clodable preview tools" },
+      { class: "dock", role: "toolbar", "aria-label": "Cloclod preview tools" },
       brand,
       ...(onCopy
         ? [
@@ -239,7 +239,7 @@ export class Toolbar {
         {
           class: "icon-btn",
           "data-key": "hide",
-          "aria-label": "Hide Clodable tools",
+          "aria-label": "Hide Cloclod tools",
           title: "Hide (⌥⇧H)",
           onclick: () => this.setMinimized(true),
         },
@@ -497,7 +497,7 @@ export class Toolbar {
     try {
       probe = await api.probe(source.src, before);
     } catch {
-      this.toasts.show("Couldn't reach Clodable. Is the preview still running?", { tone: "warn" });
+      this.toasts.show("Couldn't reach Cloclod. Is the preview still running?", { tone: "warn" });
       return;
     }
     if (!probe.editable) {
@@ -678,7 +678,7 @@ export class Toolbar {
         this.toasts.show("Sent to Claude");
       } catch {
         send.removeAttribute("disabled");
-        this.toasts.show("Couldn't reach Claude. Is Clodable running?", { tone: "warn" });
+        this.toasts.show("Couldn't reach Claude. Is Cloclod running?", { tone: "warn" });
       }
     };
     textarea.addEventListener("keydown", (e) => {
@@ -780,7 +780,7 @@ export class Toolbar {
       );
     const menu = h(
       "div",
-      { class: "menu", role: "menu", "aria-label": "Clodable" },
+      { class: "menu", role: "menu", "aria-label": "Cloclod" },
       h(
         "div",
         { class: "head" },
@@ -788,7 +788,7 @@ export class Toolbar {
         h(
           "div",
           {},
-          h("b", {}, "Clodable"),
+          h("b", {}, "Cloclod"),
           h("span", {}, "Only you see these tools. Visitors never do."),
         ),
       ),
@@ -817,7 +817,7 @@ export class Toolbar {
     const report = () =>
       parent.postMessage(
         {
-          type: "clodable:route",
+          type: "cloclod:route",
           path: location.pathname + location.search.replace(FRAME_MARK, ""),
         },
         location.origin,
@@ -834,7 +834,7 @@ export class Toolbar {
 
   private followRoutes() {
     addEventListener("message", (e) => {
-      if (e.origin !== location.origin || (e.data as { type?: string })?.type !== "clodable:route")
+      if (e.origin !== location.origin || (e.data as { type?: string })?.type !== "cloclod:route")
         return;
       const params = new URLSearchParams(location.search);
       params.set("path", (e.data as { path: string }).path || "/");
@@ -963,7 +963,7 @@ function makeEditable(el: HTMLElement, node: Text): { editable: HTMLElement; res
   }
   const span = document.createElement("span");
   span.setAttribute("contenteditable", "plaintext-only");
-  span.setAttribute("data-clodable-editing", "");
+  span.setAttribute("data-cloclod-editing", "");
   span.style.outline = "none";
   node.replaceWith(span);
   span.textContent = node.textContent;

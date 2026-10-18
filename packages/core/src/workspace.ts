@@ -6,7 +6,7 @@ import {
   type ProjectConfig,
   saveState,
 } from "./config.js";
-import { ClodableError } from "./errors.js";
+import { CloclodError } from "./errors.js";
 import { Git } from "./git.js";
 import { GhCli } from "./github/gh.js";
 import type { GitHubAdapter } from "./github/types.js";
@@ -18,7 +18,7 @@ export interface WorkspaceOptions {
   github?: GitHubAdapter;
   remote?: string;
   /**
-   * Only open projects Clodable was set up in (the default). Saving or publishing anywhere else
+   * Only open projects Cloclod was set up in (the default). Saving or publishing anywhere else
    * would commit and push someone's unrelated work. Only `kit` turns this off.
    */
   requireSetup?: boolean;
@@ -38,18 +38,18 @@ export class Workspace {
   static async open(options: WorkspaceOptions): Promise<Workspace> {
     const probe = new Git(options.cwd);
     if (!(await probe.isRepo())) {
-      throw new ClodableError({
+      throw new CloclodError({
         code: "not-a-repo",
         message: "This folder isn't connected to GitHub yet.",
-        hint: "Run `clodable setup` here to bring in your app from GitHub.",
+        hint: "Run `cloclod setup` here to bring in your app from GitHub.",
       });
     }
     const root = await probe.root();
     if (options.requireSetup !== false && !isSetUp(root)) {
-      throw new ClodableError({
+      throw new CloclodError({
         code: "not-set-up",
-        message: "Clodable isn't set up in this project.",
-        hint: "Run `clodable setup` here to add it. Until then, Clodable leaves this project alone.",
+        message: "Cloclod isn't set up in this project.",
+        hint: "Run `cloclod setup` here to add it. Until then, Cloclod leaves this project alone.",
       });
     }
     const git = new Git(root);

@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { ClodableError } from "./errors.js";
+import { CloclodError } from "./errors.js";
 import { type Flow, type StepId, step } from "./events.js";
 import type { BuildProgress, Deployment } from "./github/types.js";
 import { loadMove } from "./move/state.js";
@@ -104,7 +104,7 @@ async function* waitForCi(ws: Workspace, prNumber: number, o: Timing): Flow<void
     if (summary.state === "failure") {
       const names = summary.failed.map((f) => f.name).join(", ");
       yield step("ci", "failed", `A check failed: ${names}`);
-      throw new ClodableError({
+      throw new CloclodError({
         code: "ci-failed",
         message: `Your project's own checks didn't pass (${names}).`,
         hint: "Nothing went live. Ask Claude to look at the failing check and fix it.",
@@ -119,7 +119,7 @@ async function* waitForCi(ws: Workspace, prNumber: number, o: Timing): Flow<void
     );
     announced = true;
     if (o.now().getTime() > deadline) {
-      throw new ClodableError({
+      throw new CloclodError({
         code: "ci-failed",
         message: "Your project's checks are taking too long.",
         hint: "Nothing went live. Try publishing again in a few minutes.",
@@ -210,7 +210,7 @@ export async function* waitForDeploy(
     }
     case "failed":
       yield step("deploy", "failed", "Your host couldn't put it live");
-      throw new ClodableError({
+      throw new CloclodError({
         code: "deploy-failed",
         message: "Your changes are published on GitHub, but your host couldn't put them live.",
         hint: "Your previous version is still live. Ask Claude to look at the host's report.",

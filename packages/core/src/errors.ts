@@ -1,5 +1,5 @@
 /**
- * Every error Clodable shows a builder has a stable code, a plain-language message, and a way
+ * Every error Cloclod shows a builder has a stable code, a plain-language message, and a way
  * forward. Developers get the raw details separately.
  */
 export type ErrorCode =
@@ -50,7 +50,7 @@ export interface ErrorInfo {
   files?: string[];
 }
 
-export class ClodableError extends Error {
+export class CloclodError extends Error {
   readonly code: ErrorCode;
   readonly hint: string | undefined;
   readonly details: string | undefined;
@@ -58,7 +58,7 @@ export class ClodableError extends Error {
 
   constructor(info: ErrorInfo) {
     super(info.message);
-    this.name = "ClodableError";
+    this.name = "CloclodError";
     this.code = info.code;
     this.hint = info.hint;
     this.details = info.details;
@@ -77,7 +77,7 @@ export class ClodableError extends Error {
 }
 
 export function toErrorInfo(error: unknown): ErrorInfo {
-  if (error instanceof ClodableError) return error.toJSON();
+  if (error instanceof CloclodError) return error.toJSON();
   return {
     code: "unknown",
     message: "Something unexpected went wrong.",

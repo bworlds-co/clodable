@@ -8,7 +8,7 @@ import { cacheDir } from "../places.js";
 
 /**
  * gitleaks (https://github.com/gitleaks/gitleaks, MIT) finds the secrets, with about 220 rules its
- * community maintains. Clodable pins one release, checks its SHA-256 before running it, and
+ * community maintains. Cloclod pins one release, checks its SHA-256 before running it, and
  * downloads it once per computer, so builders install nothing.
  */
 export const GITLEAKS_VERSION = "8.30.1";
@@ -124,12 +124,12 @@ export interface GitleaksFinding {
 }
 
 /**
- * Rules Clodable adds. Supabase's newer secret keys, which gitleaks doesn't know by name yet. And
+ * Rules Cloclod adds. Supabase's newer secret keys, which gitleaks doesn't know by name yet. And
  * the keys Lovable apps use most, with gitleaks' own patterns but found anywhere: its rules expect
  * a quote, a space or a semicolon after a key, so a key pasted into a sentence ("the sk_live_….")
  * or between tags slipped through. classify() reads each as the gitleaks rule it mirrors.
  */
-const CLODABLE_RULES: Array<{
+const CLOCLOD_RULES: Array<{
   id: string;
   description: string;
   regex: string;
@@ -142,25 +142,25 @@ const CLODABLE_RULES: Array<{
     keywords: ["sb_secret_"],
   },
   {
-    id: "clodable-stripe-key",
+    id: "cloclod-stripe-key",
     description: "Stripe secret key, anywhere",
     regex: String.raw`\b((?:sk|rk)_(?:test|live|prod)_[a-zA-Z0-9]{10,99})\b`,
     keywords: ["sk_test", "sk_live", "sk_prod", "rk_test", "rk_live", "rk_prod"],
   },
   {
-    id: "clodable-jwt",
+    id: "cloclod-jwt",
     description: "JSON Web Token, anywhere",
     regex: String.raw`\b(ey[a-zA-Z0-9]{17,}\.ey[a-zA-Z0-9\/\\_-]{17,}\.[a-zA-Z0-9\/\\_-]{10,}={0,2})`,
     keywords: ["ey"],
   },
   {
-    id: "clodable-anthropic-key",
+    id: "cloclod-anthropic-key",
     description: "Anthropic API key, anywhere",
     regex: String.raw`\b(sk-ant-(?:api03|admin01)-[a-zA-Z0-9_\-]{93}AA)\b`,
     keywords: ["sk-ant-api03", "sk-ant-admin01"],
   },
   {
-    id: "clodable-sendgrid-key",
+    id: "cloclod-sendgrid-key",
     description: "SendGrid API key, anywhere",
     regex: String.raw`\b(SG\.[a-zA-Z0-9_\-]{22}\.[a-zA-Z0-9_\-]{43})\b`,
     keywords: ["SG."],
@@ -171,11 +171,11 @@ const CLODABLE_RULES: Array<{
 function configFor(root: string): string {
   const own = join(root, ".gitleaks.toml");
   return [
-    'title = "Clodable"',
+    'title = "Cloclod"',
     "",
     "[extend]",
     existsSync(own) ? `path = ${JSON.stringify(own)}` : "useDefault = true",
-    ...CLODABLE_RULES.flatMap((rule) => [
+    ...CLOCLOD_RULES.flatMap((rule) => [
       "",
       "[[rules]]",
       `id = ${JSON.stringify(rule.id)}`,
@@ -187,14 +187,14 @@ function configFor(root: string): string {
   ].join("\n");
 }
 
-/** Run gitleaks with Clodable's config and return what it found. Never prints a secret. */
+/** Run gitleaks with Cloclod's config and return what it found. Never prints a secret. */
 export async function runGitleaks(cwd: string, args: string[]): Promise<GitleaksFinding[]> {
   const binary = await gitleaksBinary();
   const config = configFor(cwd);
   const configPath = join(
     cacheDir(),
     "gitleaks",
-    `clodable-${createHash("sha256").update(config).digest("hex").slice(0, 12)}.toml`,
+    `cloclod-${createHash("sha256").update(config).digest("hex").slice(0, 12)}.toml`,
   );
   if (!existsSync(configPath)) {
     await mkdir(join(cacheDir(), "gitleaks"), { recursive: true });

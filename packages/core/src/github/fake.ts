@@ -2,7 +2,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { ClodableError } from "../errors.js";
+import { CloclodError } from "../errors.js";
 import { Git } from "../git.js";
 import type {
   BuildProgress,
@@ -16,7 +16,7 @@ import type {
 
 /**
  * An in-memory GitHub on top of a local bare repository. It's used by tests, and by demos that
- * show Clodable without touching a real account. Merges really happen in the bare repo.
+ * show Cloclod without touching a real account. Merges really happen in the bare repo.
  */
 export class FakeGitHub implements GitHubAdapter {
   readonly pullRequests: PullRequest[] = [];
@@ -39,7 +39,7 @@ export class FakeGitHub implements GitHubAdapter {
    */
   static persistent(
     bareRepo: string,
-    stateFile = `${bareRepo}/clodable-fake-github.json`,
+    stateFile = `${bareRepo}/cloclod-fake-github.json`,
   ): FakeGitHub {
     const fake = new FakeGitHub(bareRepo);
     fake.stateFile = stateFile;
@@ -75,11 +75,11 @@ export class FakeGitHub implements GitHubAdapter {
 
   async createPrivateRepository(name: string): Promise<{ repo: RepoInfo; cloneUrl: string }> {
     if (existsSync(this.bareRepo))
-      throw new ClodableError({
+      throw new CloclodError({
         code: "already-there",
         message: "That app name is already in use.",
       });
-    const seed = await mkdtemp(join(tmpdir(), "clodable-new-app-"));
+    const seed = await mkdtemp(join(tmpdir(), "cloclod-new-app-"));
     try {
       const git = new Git(seed);
       await git.ok(["init", "--quiet", "--initial-branch=main"]);
@@ -143,9 +143,9 @@ export class FakeGitHub implements GitHubAdapter {
   async merge(number: number, input: { subject: string; body: string }) {
     const pr = this.pullRequests.find((p) => p.number === number);
     if (pr?.state !== "open") {
-      throw new ClodableError({ code: "not-found", message: "That draft isn't open any more." });
+      throw new CloclodError({ code: "not-found", message: "That draft isn't open any more." });
     }
-    const dir = await mkdtemp(join(tmpdir(), "clodable-fake-merge-"));
+    const dir = await mkdtemp(join(tmpdir(), "cloclod-fake-merge-"));
     try {
       const git = new Git(dir);
       await git.ok(["clone", "--quiet", this.bareRepo, "."]);
@@ -154,7 +154,7 @@ export class FakeGitHub implements GitHubAdapter {
       await git.ok(["switch", "--quiet", pr.baseRef]);
       const merged = await git.run(["merge", "--squash", `origin/${pr.headRef}`]);
       if (merged.exitCode !== 0) {
-        throw new ClodableError({
+        throw new CloclodError({
           code: "merge-blocked",
           message: "GitHub couldn't combine your draft with the live site.",
           details: merged.stderr || merged.stdout,
@@ -191,7 +191,7 @@ export class FakeGitHub implements GitHubAdapter {
   readonly secrets: Record<string, string> = {};
 
   async setSecret(name: string, value: string) {
-    const file = `${this.bareRepo}/clodable-fake-secrets.json`;
+    const file = `${this.bareRepo}/cloclod-fake-secrets.json`;
     const all = existsSync(file)
       ? (JSON.parse(readFileSync(file, "utf8")) as Record<string, string>)
       : {};

@@ -1,6 +1,6 @@
 import { promises as dns } from "node:dns";
 import { saveConfig } from "../config.js";
-import { ClodableError } from "../errors.js";
+import { CloclodError } from "../errors.js";
 import type { Workspace } from "../workspace.js";
 import { NetlifyApi } from "./netlify-api.js";
 import { liveSignIn } from "./sign-in.js";
@@ -9,7 +9,7 @@ import { SupabaseApi } from "./supabase-api.js";
 
 /**
  * The app's own domain (yourapp.com), moved to its site on Netlify once it's live there: before
- * Lovable goes, so nobody lands on an app whose backend is gone. Clodable adds it to the site, says
+ * Lovable goes, so nobody lands on an app whose backend is gone. Cloclod adds it to the site, says
  * which records change at the domain's provider, checks them, then points sign-in links at it.
  */
 
@@ -64,7 +64,7 @@ export interface DomainOutcome {
 export async function setDomain(ws: Workspace, input?: string): Promise<DomainOutcome> {
   const state = await loadMove(ws.root);
   if (!state.site || !state.switch?.liveAt) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "move-not-ready",
       message: "Go live on your new site first.",
       hint: "Your domain moves once the app works at its Netlify address.",
@@ -72,7 +72,7 @@ export async function setDomain(ws: Workspace, input?: string): Promise<DomainOu
   }
   const name = clean(input ?? state.domain?.name ?? "");
   if (!isDomainName(name) || name.endsWith(".lovable.app") || name.endsWith(".netlify.app")) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "invalid-config",
       message: name ? `“${name}” isn't a domain of your own.` : "Which domain?",
       hint: "The one your app uses, like yourapp.com or app.yourapp.com.",

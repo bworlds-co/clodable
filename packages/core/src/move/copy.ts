@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { mkdtemp, readdir, readFile, rename, rm } from "node:fs/promises";
 import { join } from "node:path";
-import { ClodableError, messageOf } from "../errors.js";
+import { CloclodError, messageOf } from "../errors.js";
 import { type Flow, step } from "../events.js";
 import type { Workspace } from "../workspace.js";
 import { checkExportSource, type ExportSummary, findExport, readExport } from "./export.js";
@@ -29,10 +29,10 @@ export async function* importExport(
   yield step("move:export", "running", "Reading your export");
   const file = options.file ?? (await findExport(undefined, ws.project.lovable.projectUrl));
   if (!file) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "export-not-found",
-      message: "Clodable couldn't match an export in Downloads to this app.",
-      hint: "Download this app's export from Lovable, or tell Claude the name and location of its .zip, .backup or .dump file. Clodable won't guess between apps.",
+      message: "Cloclod couldn't match an export in Downloads to this app.",
+      hint: "Download this app's export from Lovable, or tell Claude the name and location of its .zip, .backup or .dump file. Cloclod won't guess between apps.",
     });
   }
   await checkExportSource(file, ws.project.lovable.projectUrl);
@@ -46,7 +46,7 @@ export async function* importExport(
     summary = (await readExport(file, target)).summary;
     if (pausedAt) {
       if (madeAfterPause(summary, before.switch?.grants, pausedAt) === false) {
-        throw new ClodableError({
+        throw new CloclodError({
           code: "move-not-ready",
           message: "That export was made before the pause: it would miss what people wrote since.",
           hint: "Check the pause is in place in Lovable, export again, download the new zip, then read it.",
@@ -91,14 +91,14 @@ async function migrationVersions(root: string): Promise<string[]> {
 export async function* copyData(ws: Workspace): Flow<{ ok: boolean; checks: MoveCheck[] }> {
   const state = await loadMove(ws.root);
   if (!state.home) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "move-not-ready",
       message: "Create your new backend first.",
       hint: "It's the step before this one.",
     });
   }
   if (!state.export) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "move-not-ready",
       message: "Export your data from Lovable first.",
       hint: "It's the step before this one.",
@@ -108,9 +108,9 @@ export async function* copyData(ws: Workspace): Flow<{ ok: boolean; checks: Move
   const dir = await moveDir(ws.root);
   const backup = join(dir, "export.backup");
   if (!existsSync(backup)) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "export-not-found",
-      message: "The export Clodable read is gone from this computer.",
+      message: "The export Cloclod read is gone from this computer.",
       hint: "Read it again: download the export from Lovable, then run that step again.",
     });
   }
@@ -263,7 +263,7 @@ export async function apiSeesTables(
 export async function* checkCopy(ws: Workspace): Flow<{ ok: boolean; checks: MoveCheck[] }> {
   const state = await loadMove(ws.root);
   if (!state.home || !state.export) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "move-not-ready",
       message: "There's no copy to check yet.",
       hint: "Copy your data first.",

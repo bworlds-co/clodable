@@ -6,7 +6,7 @@ import { readInbox } from "@clodable/core";
 import MagicString from "magic-string";
 import { createServer, type Plugin } from "vite";
 import { describe, expect, it } from "vitest";
-import { clodablePreview, codeFrame, describeBuildError } from "../src/index.js";
+import { cloclodPreview, codeFrame, describeBuildError } from "../src/index.js";
 
 /** Stands in for the transforms that add lines before the app's code (React Refresh, for one). */
 const addsLines: Plugin = {
@@ -20,7 +20,7 @@ const addsLines: Plugin = {
 
 describe("build errors", () => {
   it("remembers the file Vite couldn't build, so a page that loaded blank can say why", async () => {
-    const root = mkdtempSync(join(tmpdir(), "clodable-build-errors-"));
+    const root = mkdtempSync(join(tmpdir(), "cloclod-build-errors-"));
     mkdirSync(join(root, "src"));
     writeFileSync(
       join(root, "index.html"),
@@ -35,20 +35,20 @@ describe("build errors", () => {
       root,
       configFile: false,
       logLevel: "silent",
-      plugins: [clodablePreview({ root, tag: false }), addsLines],
+      plugins: [cloclodPreview({ root, tag: false }), addsLines],
       server: { host: "127.0.0.1", port: 0 },
     });
     await server.listen();
     try {
       const base = `http://127.0.0.1:${(server.httpServer!.address() as AddressInfo).port}`;
-      const toolbar = await (await fetch(`${base}/__clodable/toolbar.js`)).text();
+      const toolbar = await (await fetch(`${base}/__cloclod/toolbar.js`)).text();
       const token = toolbar.match(/"token":"([0-9a-f]+)"/)![1]!;
       const ask = (since: number, auth = true) =>
-        fetch(`${base}/__clodable/build-error`, {
+        fetch(`${base}/__cloclod/build-error`, {
           method: "POST",
           headers: {
             "content-type": "application/json",
-            ...(auth ? { "x-clodable-token": token } : {}),
+            ...(auth ? { "x-cloclod-token": token } : {}),
           },
           body: JSON.stringify({ since }),
         });
@@ -73,18 +73,18 @@ describe("build errors", () => {
 
       // A runtime error on line 5 of the code Vite served is on line 2 of the file.
       expect((await fetch(`${base}/src/page.js`)).status).toBe(200);
-      const mapped = await fetch(`${base}/__clodable/original-line`, {
+      const mapped = await fetch(`${base}/__cloclod/original-line`, {
         method: "POST",
-        headers: { "content-type": "application/json", "x-clodable-token": token },
+        headers: { "content-type": "application/json", "x-cloclod-token": token },
         body: JSON.stringify({ file: "src/page.js", line: 5, column: 1 }),
       });
       expect((await mapped.json()).line).toBe(2);
 
       // A request keeps the conversation of the pane it came from, and only a well-formed one.
       const request = (conversation: string) =>
-        fetch(`${base}/__clodable/inbox`, {
+        fetch(`${base}/__cloclod/inbox`, {
           method: "POST",
-          headers: { "content-type": "application/json", "x-clodable-token": token },
+          headers: { "content-type": "application/json", "x-cloclod-token": token },
           body: JSON.stringify({
             kind: "fix",
             page: { url: base, path: "/" },
@@ -99,9 +99,9 @@ describe("build errors", () => {
 
       // Only the requests the toolbar makes, with only the fields it sends.
       const post = (body: object) =>
-        fetch(`${base}/__clodable/inbox`, {
+        fetch(`${base}/__cloclod/inbox`, {
           method: "POST",
-          headers: { "content-type": "application/json", "x-clodable-token": token },
+          headers: { "content-type": "application/json", "x-cloclod-token": token },
           body: JSON.stringify(body),
         });
       const asked = await post({

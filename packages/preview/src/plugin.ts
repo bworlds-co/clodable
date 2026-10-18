@@ -112,7 +112,7 @@ export function describeBuildError(error: unknown, root: string, at = Date.now()
 
 /**
  * A request from this computer: Desktop's preview, or a browser on it. Lovable's template serves
- * on every network interface (`host: "::"`), so the app answers the whole Wi-Fi. Clodable's
+ * on every network interface (`host: "::"`), so the app answers the whole Wi-Fi. Cloclod's
  * endpoints don't: from elsewhere, the token and the edits would be anyone's.
  */
 export function fromThisComputer(req: IncomingMessage): boolean {
@@ -126,8 +126,8 @@ const conversationOf = (body: Record<string, unknown>) =>
     ? { conversation: body.conversation }
     : {};
 
-/** Clodable's dev-only Vite plugin: source tagging, the toolbar, and its local endpoints. */
-export function clodablePreview(options: PreviewOptions = {}): Plugin {
+/** Cloclod's dev-only Vite plugin: source tagging, the toolbar, and its local endpoints. */
+export function cloclodPreview(options: PreviewOptions = {}): Plugin {
   const token = randomBytes(16).toString("hex");
   const tagged = new Set<string>();
   let root = options.root ?? process.cwd();
@@ -135,7 +135,7 @@ export function clodablePreview(options: PreviewOptions = {}): Plugin {
   let lastBuildError: BuildError | undefined;
 
   const authorized = (req: IncomingMessage) => {
-    if (req.headers["x-clodable-token"] !== token) return false;
+    if (req.headers["x-cloclod-token"] !== token) return false;
     const origin = req.headers.origin;
     if (!origin) return true;
     try {
@@ -229,7 +229,7 @@ export function clodablePreview(options: PreviewOptions = {}): Plugin {
     const url = new URL(req.url ?? "/", "http://localhost");
     const path = url.pathname;
     if (!path.startsWith(PREFIX)) return next();
-    // From another computer, nothing of Clodable answers: no toolbar, no token, no edits.
+    // From another computer, nothing of Cloclod answers: no toolbar, no token, no edits.
     if (!fromThisComputer(req)) return send(res, 403, { error: "forbidden" });
 
     if (req.method === "GET") {
@@ -272,7 +272,7 @@ export function clodablePreview(options: PreviewOptions = {}): Plugin {
   }
 
   return {
-    name: "clodable:preview",
+    name: "cloclod:preview",
     apply: "serve",
     enforce: "pre",
     configResolved(config) {
@@ -282,7 +282,7 @@ export function clodablePreview(options: PreviewOptions = {}): Plugin {
       server = viteServer;
       const api = (req: IncomingMessage, res: ServerResponse, next: (e?: unknown) => void) => {
         handle(req, res, next).catch((error) => {
-          server?.config.logger.error(`[clodable] ${String(error)}`);
+          server?.config.logger.error(`[cloclod] ${String(error)}`);
           if (!res.headersSent) send(res, 500, { error: "internal" });
         });
       };

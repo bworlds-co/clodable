@@ -2,7 +2,7 @@ import { createWriteStream, existsSync } from "node:fs";
 import { copyFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, extname, join } from "node:path";
-import { ClodableError, messageOf } from "../errors.js";
+import { CloclodError, messageOf } from "../errors.js";
 import { writeJsonFile } from "../places.js";
 import { archiveLines, archiveSql, listArchive } from "./postgres.js";
 import {
@@ -76,7 +76,7 @@ async function exportNames(source: string): Promise<string[]> {
   });
   const backups = entries.filter((e) => isBackup(e.name));
   if (backups.length !== 1) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "export-unreadable",
       message: backups.length
         ? "That zip holds more than one database export."
@@ -92,7 +92,7 @@ export async function checkExportSource(source: string, projectUrl?: string): Pr
   const names = await exportNames(source);
   const expected = projectUrl && projectId(projectUrl);
   if (expected && names.some((name) => projectId(name) && projectId(name) !== expected)) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "export-unreadable",
       message: "That export is labelled for a different Lovable app.",
       hint: "Download this app's export, or tell Claude where you saved the correct file. Your saved copy hasn't changed.",
@@ -140,7 +140,7 @@ async function takeBackup(source: string, dir: string): Promise<void> {
     }
     const backups = entries.filter((e) => isBackup(e.name));
     if (backups.length !== 1) {
-      throw new ClodableError({
+      throw new CloclodError({
         code: "export-unreadable",
         message: backups.length
           ? "That zip holds more than one database export."
@@ -160,7 +160,7 @@ async function takeBackup(source: string, dir: string): Promise<void> {
 }
 
 const unreadable = (error: unknown) =>
-  new ClodableError({
+  new CloclodError({
     code: "export-unreadable",
     message: "Couldn't open that export.",
     hint: "Download it again (from Lovable's email, or More → Cloud → Storage), then try again.",
@@ -178,7 +178,7 @@ export async function readExport(
   await writeFile(join(dir, "toc.list"), listing, { mode: 0o600 });
   const toc = parseToc(listing);
   if (toc.entries.length === 0) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "export-unreadable",
       message: "That export is empty.",
       hint: "Export your data again in Lovable, then download the new zip.",

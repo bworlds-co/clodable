@@ -1,6 +1,6 @@
 # Security
 
-Clodable works with people's live apps and live data, so we take reports seriously.
+Cloclod works with people's live apps and live data, so we take reports seriously.
 
 ## Reporting a vulnerability
 
@@ -11,7 +11,7 @@ Please **don't open a public issue**. Report it privately through GitHub's "Repo
 
 We aim to reply within 3 working days.
 
-## How Clodable is built to be safe
+## How Cloclod is built to be safe
 
 - **The preview toolbar** exists only on the local dev server. Its endpoints answer only this computer (never the rest of the network, even when the app does), need a per-session token (handed to the toolbar's code alone: never on `window`, and its script isn't served to the page's own `fetch`), refuse other origins, and only write to files inside the project that the tagger saw. It never ships in a production build.
 - **The Claude plugin** guards:
@@ -22,4 +22,4 @@ We aim to reply within 3 working days.
   - the app must build;
   - no critical vulnerable production packages;
   - no exposed secret keys (Stripe live keys, Supabase `service_role` JWTs, private keys, AWS and GitHub tokens, and so on).
-- **No Clodable server:** code and data go only to the builder's own GitHub, Supabase and host.
+- **No Cloclod server:** code and data go only to the builder's own GitHub, Supabase and host.

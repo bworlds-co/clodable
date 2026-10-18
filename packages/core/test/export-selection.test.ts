@@ -10,7 +10,7 @@ const OTHER = "e1a96225-0edb-4967-ae0f-256c871f673e";
 const URL = `https://lovable.dev/projects/${APP}`;
 let dir: string;
 beforeEach(async () => {
-  dir = await mkdtemp(join(tmpdir(), "clodable-exports-"));
+  dir = await mkdtemp(join(tmpdir(), "cloclod-exports-"));
 });
 afterEach(async () => {
   await rm(dir, { recursive: true, force: true });

@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { basename, relative, resolve } from "node:path";
-import { ClodableError } from "./errors.js";
+import { CloclodError } from "./errors.js";
 import { literal } from "./move/fixes.js";
 import { homeKeys, homeSql, localTarget } from "./move/home.js";
 import { projectUrl, SupabaseApi } from "./move/supabase-api.js";
@@ -8,7 +8,7 @@ import type { Workspace } from "./workspace.js";
 
 /**
  * The app's own Supabase database, for Claude, as on Lovable: read it, change its data, and apply
- * migrations from `supabase/migrations/`. Through the Supabase connection the builder gave Clodable
+ * migrations from `supabase/migrations/`. Through the Supabase connection the builder gave Cloclod
  * (the Management API, as the dashboard's SQL editor), so it works in any conversation, with no
  * other sign-in. Changes are the builder's to confirm: the plugin asks before each one.
  */
@@ -17,7 +17,7 @@ const MAX_ROWS = 200;
 
 async function database(ws: Workspace) {
   if (ws.config.backend === "lovable-cloud") {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "invalid-config",
       message: "Lovable owns this database: it can't be changed from here.",
       hint: "Moving off Lovable gives your app a database of its own.",
@@ -25,18 +25,18 @@ async function database(ws: Workspace) {
   }
   const ref = ws.config.supabase.projectRef;
   if (ws.config.backend !== "supabase" || !ref) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "invalid-config",
-      message: "This app has no Supabase database Clodable knows of.",
+      message: "This app has no Supabase database Cloclod knows of.",
       hint: "Its Supabase project goes in .clodable/config.json, under supabase.projectRef.",
     });
   }
   const api = await SupabaseApi.onThisComputer();
   if (!api) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "supabase-auth",
       message: "Supabase isn't connected on this computer.",
-      hint: "Connect your Supabase account in the Clodable panel: changes to your database go through it.",
+      hint: "Connect your Supabase account in the Cloclod panel: changes to your database go through it.",
     });
   }
   return { api, ref, sql: homeSql(api, ref) };
@@ -45,7 +45,7 @@ async function database(ws: Workspace) {
 function statement(sql: string | undefined): string {
   const text = (sql ?? "").trim().replace(/;\s*$/, "");
   if (!text) {
-    throw new ClodableError({ code: "invalid-config", message: "Which query?" });
+    throw new CloclodError({ code: "invalid-config", message: "Which query?" });
   }
   return text;
 }
@@ -78,14 +78,14 @@ export async function queryDatabase(
 ): Promise<{ rows: Record<string, unknown>[]; truncated: boolean }> {
   const text = statement(sql);
   if (!/^(select|with|values|table)\b/i.test(text)) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "invalid-config",
       message: "Only a query that reads goes here.",
-      hint: "To change data: clodable db run. To change the tables: a migration, with clodable db apply.",
+      hint: "To change data: cloclod db run. To change the tables: a migration, with cloclod db apply.",
     });
   }
   const { sql: db } = await database(ws);
-  const rows = await db.rows(`select * from (${text}) clodable_query limit ${MAX_ROWS + 1}`);
+  const rows = await db.rows(`select * from (${text}) cloclod_query limit ${MAX_ROWS + 1}`);
   return { rows: rows.slice(0, MAX_ROWS), truncated: rows.length > MAX_ROWS };
 }
 
@@ -98,10 +98,10 @@ export async function runOnDatabase(
 ): Promise<{ done: true }> {
   const text = statement(sql);
   if (SCHEMA_CHANGE.test(text)) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "invalid-config",
       message: "That changes the tables: it goes in a migration.",
-      hint: "Write it to supabase/migrations/<timestamp>_<what>.sql, then clodable db apply that file.",
+      hint: "Write it to supabase/migrations/<timestamp>_<what>.sql, then cloclod db apply that file.",
     });
   }
   const { sql: db } = await database(ws);
@@ -121,7 +121,7 @@ export async function applyMigration(
   const where = relative(resolve(ws.root, "supabase", "migrations"), path);
   const match = basename(path).match(/^(\d{8,})_(.+)\.sql$/);
   if (!file || where.startsWith("..") || where.includes("/") || !match) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "invalid-config",
       message: "Which migration?",
       hint: "A file in supabase/migrations/, named <timestamp>_<what>.sql.",
@@ -130,7 +130,7 @@ export async function applyMigration(
   const version = match[1]!;
   const name = match[2]!;
   const text = await readFile(path, "utf8").catch(() => {
-    throw new ClodableError({ code: "not-found", message: `There's no ${file}.` });
+    throw new CloclodError({ code: "not-found", message: `There's no ${file}.` });
   });
   const { api, ref, sql: db } = await database(ws);
   const [history] = await db.rows<{ present: boolean }>(

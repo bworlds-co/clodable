@@ -46,7 +46,7 @@ export async function publishCommand(
         );
       }
       out.line();
-      out.line(ash("Changed your mind?  clodable undo"));
+      out.line(ash("Changed your mind?  cloclod undo"));
       out.line();
     },
   );

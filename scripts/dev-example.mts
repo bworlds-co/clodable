@@ -1,5 +1,5 @@
 /**
- * Runs an example app with Clodable's preview toolbar, straight from source.
+ * Runs an example app with Cloclod's preview toolbar, straight from source.
  *   pnpm tsx scripts/dev-example.mts [lovable-vite|lovable-tanstack] [port]
  */
 import { resolve } from "node:path";

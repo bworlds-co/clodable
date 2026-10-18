@@ -1,13 +1,13 @@
 {
-  "name": "clodable",
+  "name": "cloclod",
   "version": "0.2.2",
   "description": "The AI app builder you own. Saves every change to your draft on GitHub, publishes in one click, keeps your live data safe.",
   "author": {
-    "name": "The Clodable authors",
-    "url": "https://github.com/bworlds-co/clodable"
+    "name": "The Cloclod authors",
+    "url": "https://github.com/bworlds-co/cloclod"
   },
-  "homepage": "https://github.com/bworlds-co/clodable",
-  "repository": "https://github.com/bworlds-co/clodable",
+  "homepage": "https://github.com/bworlds-co/cloclod",
+  "repository": "https://github.com/bworlds-co/cloclod",
   "license": "MIT",
   "keywords": [
     "lovable",

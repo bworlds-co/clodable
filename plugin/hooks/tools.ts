@@ -1,7 +1,7 @@
-// The command-line tools Clodable needs on the builder's computer, and the Node.js it fetches when
+// The command-line tools Cloclod needs on the builder's computer, and the Node.js it fetches when
 // there's none. Pure facts and words: no `$`.
 
-/** The oldest Node.js Clodable runs on (its CLI's `engines`). */
+/** The oldest Node.js Cloclod runs on (its CLI's `engines`). */
 const MIN_NODE = [20, 19] as const;
 
 /** Whether a Node.js version ("24.21.0", "v20.18.1") is recent enough. */
@@ -11,7 +11,7 @@ export function nodeOk(version: string): boolean {
 }
 
 /**
- * The Node.js Clodable fetches for a builder who has none: an LTS release from nodejs.org, checked
+ * The Node.js Cloclod fetches for a builder who has none: an LTS release from nodejs.org, checked
  * against its published SHA-256, keyed by what `uname -sm` prints.
  */
 export const NODE_VERSION = "v24.21.0";
@@ -37,10 +37,10 @@ export const NODE_BUILDS: Record<string, { name: string; sha256: string }> = {
 export const nodeUrl = (name: string) => `https://nodejs.org/dist/${NODE_VERSION}/${name}.tar.gz`;
 
 /**
- * Where the tools Clodable fetches go, on macOS and Linux (`uname -s`): the `tools` folder in the
+ * Where the tools Cloclod fetches go, on macOS and Linux (`uname -s`): the `tools` folder in the
  * plugin's data folder, which Claude Code keeps across updates and removes with the plugin. The
  * CLI reads it from `CLODABLE_TOOLS_DIR`. A plugin loaded from a folder of its own (a developer's)
- * has no data folder: Clodable's cache, as the CLI's `cacheDir()` has it. Undefined on Windows,
+ * has no data folder: Cloclod's cache, as the CLI's `cacheDir()` has it. Undefined on Windows,
  * where the builder installs Node.js themselves for now.
  */
 export function toolsFolder(
@@ -74,7 +74,7 @@ export function pluginDataFolder(root: string): string | undefined {
 export const NODE_FACTS =
   "process.stdout.write(JSON.stringify([process.versions.node, process.execPath]))";
 
-/** The full path of a Node.js recent enough for Clodable, from what NODE_FACTS printed. */
+/** The full path of a Node.js recent enough for Cloclod, from what NODE_FACTS printed. */
 export function nodeFrom(printed: string): string | undefined {
   try {
     const [version, path] = JSON.parse(printed) as unknown[];
@@ -87,7 +87,7 @@ export function nodeFrom(printed: string): string | undefined {
 }
 
 /**
- * Downloads the Node.js build named in the environment, checks it, unpacks it in Clodable's tools
+ * Downloads the Node.js build named in the environment, checks it, unpacks it in Cloclod's tools
  * folder, and links node, npm and npx in its bin folder. Only macOS's and Linux's own tools.
  */
 export const FETCH_NODE = `set -e
@@ -104,7 +104,7 @@ mv "$work/$CLODABLE_NODE_NAME" "$CLODABLE_NODE_DIR/$CLODABLE_NODE_NAME"
 for tool in node npm npx; do ln -sfn "$CLODABLE_NODE_DIR/$CLODABLE_NODE_NAME/bin/$tool" "$CLODABLE_BIN/$tool"; done
 `;
 
-/** A PATH with Clodable's bin folder first (its own Node.js) or last (the builder's own first). */
+/** A PATH with Cloclod's bin folder first (its own Node.js) or last (the builder's own first). */
 export function pathWith(path: string, bin: string, first: boolean): string {
   const rest = path.split(":").filter((p) => p && p !== bin);
   return (first ? [bin, ...rest] : [...rest, bin]).join(":");

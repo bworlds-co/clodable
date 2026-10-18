@@ -1,6 +1,6 @@
-# Claude Code mods: API cheat sheet (for Clodable)
+# Claude Code mods: API cheat sheet (for Cloclod)
 
-Compact, exact reference for writing the Clodable mod (Publish band and pane, friendly tool rows,
+Compact, exact reference for writing the Cloclod mod (Publish band and pane, friendly tool rows,
 guards, auto-save) for the Claude Desktop **Code** tab and the terminal.
 
 - **Declarations:** Claude Code writes them beside the plugin, in
@@ -84,7 +84,7 @@ presence is what makes the plugin a mod. The same file may also carry settings h
 ```ts
 declare module 'claude-code' {
   interface PluginState {
-    'clodable': { edits: number; paneOpen: StateFamily<boolean> }  // StateFamily = per requestId
+    'cloclod': { edits: number; paneOpen: StateFamily<boolean> }  // StateFamily = per requestId
   }
   // interface EngineInterface { myNoun: MyNoun }   // only if the mod adds a $ noun
 }
@@ -163,7 +163,7 @@ type Pattern = EventName | '*' | `${Namespace}.*` | `!${EventName | Glob}`  // '
   - String literals are required in `$.env.get('NAME')`/`$.env.set('NAME', …)`, in state refs
     `{ plugin, key }` (hold atoms in a `const`), and in a `Client` `module` path.
 
-## 3. Events Clodable needs
+## 3. Events Cloclod needs
 
 ### `session.start`
 - **`e`:** `{ cwd: string; surface: RenderSurface | null; isInteractive: boolean }`.
@@ -438,7 +438,7 @@ it, **terminal**), `plain?: true`, `dimColor?`, `variant?: 'primary'|'secondary'
   maps it to the number Desktop clicks by, forgetting the numbers a redraw dropped. A redraw that
   draws the same button again renumbers it, and a click Desktop sends with the old number is lost
   (`ui_press not handled` in `claude.ai-web.log`; the second click works). Returning the **same
-  element object** keeps its number: Clodable's `heldButton` (register.tsx) caches each button by
+  element object** keeps its number: Cloclod's `heldButton` (register.tsx) caches each button by
   its look and points its press at the newest closure. A cached button that left the drawing and
   came back still answers.
 
@@ -641,7 +641,7 @@ derive(sources: readonly (Atom | StateAddress)[], compute: (...values) => T): De
 memberOf(family, e)                                                     // a family's member keyed by e.requestId
 ```
 ```tsx
-const edits = atom({ plugin: 'clodable', key: 'edits' }, 0)    // top level, const, string literals
+const edits = atom({ plugin: 'cloclod', key: 'edits' }, 0)    // top level, const, string literals
 const n = await read($, edits)                                 // inside ui.render: subscribes; redraws on write
 <Button key="reset" onPress={() => update($, edits, () => 0)}>Reset</Button>   // write from callbacks/other hooks
 ```
@@ -794,7 +794,7 @@ After `/clear`, copy `$.store` back into `$.state` from `classic.SessionStart`
    Validating plugin manifest: …/sample-mod/.claude-plugin/plugin.json
 
      ❯ types ./types/index.d.ts declares on $: nothing (no EngineInterface member)
-     ❯ types ./types/index.d.ts declares state: clodable-sample.edits
+     ❯ types ./types/index.d.ts declares state: cloclod-sample.edits
 
    Validating hooks: …/sample-mod/hooks/hooks.json
 
@@ -802,8 +802,8 @@ After `/clear`, copy `$.store` back into `$.state` from `classic.SessionStart`
      ❯ ./register.tsx answers its own command: command.run{command=publish}
      ❯ ./register.tsx gating hook without .catch: tool.call{tool=Edit|Write}
      ❯ ./register.tsx calls: $.command.register, $.state.get, $.state.set, $.ui.close, $.ui.open, $.ui.resolve
-     ❯ ./register.tsx state writes: clodable-sample.edits
-     ❯ ./register.tsx state reads: clodable-sample.edits
+     ❯ ./register.tsx state writes: cloclod-sample.edits
+     ❯ ./register.tsx state reads: cloclod-sample.edits
 
    ✔ Validation passed
    ```
@@ -846,7 +846,7 @@ the documented variable:
    project and local settings can't set this variable):
    ```json
    { "env": {
-       "CLAUDE_CODE_PLUGIN_DIRS": "/path/to/clodable/plugin",
+       "CLAUDE_CODE_PLUGIN_DIRS": "/path/to/cloclod/plugin",
        "CLAUDE_CODE_PLUGIN_DIR_WATCH": "1"
    } }
    ```
@@ -886,8 +886,8 @@ Alternatives:
 ## 12. Reference sample: `docs/research/sample-mod/`
 
 Passes `validate` (also `--strict`), `plugin test` (2 tests) and `tsc` [run].
-- `plugin.json`: `clodable-sample`, `types`, `userConfig.previewUrl`. `types/index.d.ts` declares
-  `PluginState['clodable-sample'].edits: number`.
+- `plugin.json`: `cloclod-sample`, `types`, `userConfig.previewUrl`. `types/index.d.ts` declares
+  `PluginState['cloclod-sample'].edits: number`.
 - `hooks/register.tsx` (TSX): `/publish` (`immediate`) opens the **Pane** (Svg dot on desktop
   only, edit count, `Link` to `options.previewUrl`, primary **Publish** button resetting the
   `edits` atom, `role="dismiss"` Close). The **AbovePrompt** band yields to surveys and shows a

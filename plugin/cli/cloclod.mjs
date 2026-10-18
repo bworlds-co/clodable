@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-import { createRequire as __clodableCreateRequire } from 'node:module';
-const require = __clodableCreateRequire(import.meta.url);
+import { createRequire as __cloclodCreateRequire } from 'node:module';
+const require = __cloclodCreateRequire(import.meta.url);
 var __create = Object.create;
 var __defProp = Object.defineProperty;
 var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
@@ -170,14 +170,14 @@ import { chmod as chmod2, mkdir as mkdir2, mkdtemp, rename as rename2, rm, write
 import { join as join2 } from "node:path";
 
 // ../core/src/errors.ts
-var ClodableError = class extends Error {
+var CloclodError = class extends Error {
   code;
   hint;
   details;
   files;
   constructor(info) {
     super(info.message);
-    this.name = "ClodableError";
+    this.name = "CloclodError";
     this.code = info.code;
     this.hint = info.hint;
     this.details = info.details;
@@ -194,7 +194,7 @@ var ClodableError = class extends Error {
   }
 };
 function toErrorInfo(error62) {
-  if (error62 instanceof ClodableError) return error62.toJSON();
+  if (error62 instanceof CloclodError) return error62.toJSON();
   return {
     code: "unknown",
     message: "Something unexpected went wrong.",
@@ -711,7 +711,7 @@ async function download(release, dir, path2) {
     await rm(work, { recursive: true, force: true });
   }
 }
-var CLODABLE_RULES = [
+var CLOCLOD_RULES = [
   {
     id: "supabase-secret-key",
     description: "Supabase secret key",
@@ -719,25 +719,25 @@ var CLODABLE_RULES = [
     keywords: ["sb_secret_"]
   },
   {
-    id: "clodable-stripe-key",
+    id: "cloclod-stripe-key",
     description: "Stripe secret key, anywhere",
     regex: String.raw`\b((?:sk|rk)_(?:test|live|prod)_[a-zA-Z0-9]{10,99})\b`,
     keywords: ["sk_test", "sk_live", "sk_prod", "rk_test", "rk_live", "rk_prod"]
   },
   {
-    id: "clodable-jwt",
+    id: "cloclod-jwt",
     description: "JSON Web Token, anywhere",
     regex: String.raw`\b(ey[a-zA-Z0-9]{17,}\.ey[a-zA-Z0-9\/\\_-]{17,}\.[a-zA-Z0-9\/\\_-]{10,}={0,2})`,
     keywords: ["ey"]
   },
   {
-    id: "clodable-anthropic-key",
+    id: "cloclod-anthropic-key",
     description: "Anthropic API key, anywhere",
     regex: String.raw`\b(sk-ant-(?:api03|admin01)-[a-zA-Z0-9_\-]{93}AA)\b`,
     keywords: ["sk-ant-api03", "sk-ant-admin01"]
   },
   {
-    id: "clodable-sendgrid-key",
+    id: "cloclod-sendgrid-key",
     description: "SendGrid API key, anywhere",
     regex: String.raw`\b(SG\.[a-zA-Z0-9_\-]{22}\.[a-zA-Z0-9_\-]{43})\b`,
     keywords: ["SG."]
@@ -746,11 +746,11 @@ var CLODABLE_RULES = [
 function configFor(root) {
   const own2 = join2(root, ".gitleaks.toml");
   return [
-    'title = "Clodable"',
+    'title = "Cloclod"',
     "",
     "[extend]",
     existsSync(own2) ? `path = ${JSON.stringify(own2)}` : "useDefault = true",
-    ...CLODABLE_RULES.flatMap((rule) => [
+    ...CLOCLOD_RULES.flatMap((rule) => [
       "",
       "[[rules]]",
       `id = ${JSON.stringify(rule.id)}`,
@@ -767,7 +767,7 @@ async function runGitleaks(cwd2, args) {
   const configPath = join2(
     cacheDir(),
     "gitleaks",
-    `clodable-${createHash("sha256").update(config2).digest("hex").slice(0, 12)}.toml`
+    `cloclod-${createHash("sha256").update(config2).digest("hex").slice(0, 12)}.toml`
   );
   if (!existsSync(configPath)) {
     await mkdir2(join2(cacheDir(), "gitleaks"), { recursive: true });
@@ -1008,10 +1008,10 @@ var NAMES = {
 };
 var named = (rule) => NAMES[rule] ?? rule.replace(/-/g, " ").replace(/\b(api|aws|gcp|jwt|pat|id|url|ci)\b/g, (w) => w.toUpperCase()).replace(/^./, (c2) => c2.toUpperCase());
 var MIRRORS = {
-  "clodable-stripe-key": "stripe-access-token",
-  "clodable-jwt": "jwt",
-  "clodable-anthropic-key": "anthropic-api-key",
-  "clodable-sendgrid-key": "sendgrid-api-token"
+  "cloclod-stripe-key": "stripe-access-token",
+  "cloclod-jwt": "jwt",
+  "cloclod-anthropic-key": "anthropic-api-key",
+  "cloclod-sendgrid-key": "sendgrid-api-token"
 };
 function classify(finding) {
   const found2 = { ...finding, RuleID: MIRRORS[finding.RuleID] ?? finding.RuleID };
@@ -1073,9 +1073,9 @@ async function scanUnsent(root, remote) {
   return settle(findings, (f) => f.File);
 }
 async function scanVersion(root, ref = "HEAD") {
-  const snapshot = await mkdtemp2(join4(tmpdir(), "clodable-scan-"));
+  const snapshot = await mkdtemp2(join4(tmpdir(), "cloclod-scan-"));
   try {
-    const archive = join4(snapshot, ".clodable-version.tar");
+    const archive = join4(snapshot, ".cloclod-version.tar");
     const packed = await exec2("git", ["archive", "--format=tar", "-o", archive, ref], {
       cwd: root,
       timeout: 6e4
@@ -1226,7 +1226,7 @@ var RUNNING = {
   secrets: "Looking for exposed secret keys"
 };
 function checksFailed(failed, hint) {
-  return new ClodableError({
+  return new CloclodError({
     code: "checks-failed",
     message: failed[0]?.summary ?? "A check failed.",
     hint,
@@ -20944,16 +20944,16 @@ var ProjectConfigSchema = external_exports.object({
   }).prefault({}),
   /**
    * Where the app's data lives. On Lovable Cloud, Lovable owns the database and backend functions:
-   * Clodable shapes the pages, and the move to the builder's own Supabase is a guided step.
+   * Cloclod shapes the pages, and the move to the builder's own Supabase is a guided step.
    */
   backend: external_exports.enum(["unknown", "lovable-cloud", "supabase", "none"]).default("unknown"),
   /**
    * Who puts the site live: a host that deploys from GitHub, Lovable (only on its Publish click), or
-   * nobody yet (`none`: the builder can put it online on their own Netlify from Clodable).
+   * nobody yet (`none`: the builder can put it online on their own Netlify from Cloclod).
    */
   hosting: external_exports.enum(["unknown", "github", "lovable", "none"]).default("unknown"),
   /**
-   * The site Clodable put on the builder's own Netlify: each Publish goes live there through a
+   * The site Cloclod put on the builder's own Netlify: each Publish goes live there through a
    * GitHub Actions workflow. Nothing secret: the token that reaches it stays on each computer.
    */
   netlify: external_exports.object({
@@ -20988,7 +20988,7 @@ var LocalStateSchema = external_exports.object({
     /** No host ever reported putting the app online: this publish is on GitHub only. */
     noHost: external_exports.boolean().optional()
   }).optional(),
-  /** When a Publish was first seen live on the site Clodable put on Netlify. */
+  /** When a Publish was first seen live on the site Cloclod put on Netlify. */
   siteLiveAt: external_exports.string().optional(),
   /** The app's settings set on that site (names only). */
   siteSettings: external_exports.array(external_exports.string()).optional()
@@ -21005,19 +21005,19 @@ async function loadConfig(root) {
   try {
     raw = JSON.parse(await readFile2(path2, "utf8"));
   } catch (error62) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "invalid-config",
-      message: "Clodable's settings file can't be read.",
-      hint: `Check ${CONFIG_PATH} for a typo, or delete it and run \`clodable setup\` again.`,
+      message: "Cloclod's settings file can't be read.",
+      hint: `Check ${CONFIG_PATH} for a typo, or delete it and run \`cloclod setup\` again.`,
       details: String(error62),
       files: [CONFIG_PATH]
     });
   }
   const parsed = ProjectConfigSchema.safeParse(raw);
   if (!parsed.success) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "invalid-config",
-      message: "Clodable's settings file has a value it doesn't understand.",
+      message: "Cloclod's settings file has a value it doesn't understand.",
       hint: `Check ${CONFIG_PATH}.`,
       details: external_exports.prettifyError(parsed.error),
       files: [CONFIG_PATH]
@@ -21029,7 +21029,7 @@ function supabaseRef(config2, project) {
   return config2.supabase.projectRef ?? project.supabase.projectRef;
 }
 function configFile(config2) {
-  return { $schema: "https://clodable.dev/schema/config.json", ...config2 };
+  return { $schema: "https://cloclod.dev/schema/config.json", ...config2 };
 }
 function saveConfig(root, config2) {
   return writeJsonFile(join5(root, CONFIG_PATH), configFile(config2));
@@ -21158,7 +21158,7 @@ function parseToc(text2) {
       tag = last < 0 ? tail : tail.slice(0, last);
       owner = last < 0 ? "" : tail.slice(last + 1);
     }
-    if (/\bclodable_pause\b/.test(tag)) continue;
+    if (/\bcloclod_pause\b/.test(tag)) continue;
     entries.push({
       id: Number(match[1]),
       type,
@@ -21461,7 +21461,7 @@ async function repairMigrationHistory(sql, versions) {
     "select count(*)::int as n from supabase_migrations.schema_migrations"
   );
   await sql.run(
-    `insert into supabase_migrations.schema_migrations (version, name) select v, 'clodable_history' from unnest(array[${versions.map(literal2).join(", ")}]::text[]) as v on conflict (version) do nothing;`
+    `insert into supabase_migrations.schema_migrations (version, name) select v, 'cloclod_history' from unnest(array[${versions.map(literal2).join(", ")}]::text[]) as v on conflict (version) do nothing;`
   );
   const after = await sql.rows(
     "select count(*)::int as n from supabase_migrations.schema_migrations"
@@ -21582,7 +21582,7 @@ var SupabaseApi = class _SupabaseApi {
   static async required() {
     const api = await _SupabaseApi.onThisComputer();
     if (!api) {
-      throw new ClodableError({
+      throw new CloclodError({
         code: "supabase-auth",
         message: "Supabase isn't connected on this computer yet.",
         hint: "Connect your Supabase account first: it's the first step of the move."
@@ -21600,7 +21600,7 @@ var SupabaseApi = class _SupabaseApi {
           headers: {
             Authorization: `Bearer ${this.token}`,
             Accept: "application/json",
-            "User-Agent": "clodable",
+            "User-Agent": "cloclod",
             ...options.body !== void 0 ? { "Content-Type": "application/json" } : {}
           },
           ...options.form ? { body: options.form } : options.body !== void 0 ? { body: JSON.stringify(options.body) } : {},
@@ -21611,7 +21611,7 @@ var SupabaseApi = class _SupabaseApi {
           await wait(1e3 * attempt);
           continue;
         }
-        throw new ClodableError({
+        throw new CloclodError({
           code: "offline",
           message: "Couldn't reach Supabase.",
           hint: "Check your internet connection, then try again.",
@@ -21636,7 +21636,7 @@ var SupabaseApi = class _SupabaseApi {
           });
         }
         if (response.status === 404 && method === "GET" && /^\/v1\/projects\/[a-z]+$/.test(path2)) {
-          throw new ClodableError({
+          throw new CloclodError({
             code: "not-found",
             message: "Your new backend isn't available to this Supabase account.",
             hint: "Open Supabase and check the account and project. It may have been removed or your access may have changed. Your live app hasn't changed."
@@ -21777,15 +21777,15 @@ function describeFailure(status2, text2, permission) {
   }
   const details = `Supabase answered ${status2}: ${message.slice(0, 500)}`;
   if (status2 === 401) {
-    return new ClodableError({
+    return new CloclodError({
       code: "supabase-auth",
       message: "Supabase didn't accept your access token.",
-      hint: "It may have expired or been deleted. Connect your Supabase account again in the Clodable panel.",
+      hint: "It may have expired or been deleted. Connect your Supabase account again in the Cloclod panel.",
       details
     });
   }
   if (/active free projects/i.test(message)) {
-    return new ClodableError({
+    return new CloclodError({
       code: "supabase-limit",
       message: "You already run 2 free Supabase projects, the most Supabase allows per person across all your organizations.",
       hint: "Pause one you don't use in Supabase, or pick an organization on a paid plan, then try again.",
@@ -21793,7 +21793,7 @@ function describeFailure(status2, text2, permission) {
     });
   }
   if (status2 === 402) {
-    return new ClodableError({
+    return new CloclodError({
       code: "supabase-limit",
       message: "This goes past what your Supabase plan includes.",
       hint: "Check your plan in Supabase (Organization \u2192 Billing), then try again.",
@@ -21801,14 +21801,14 @@ function describeFailure(status2, text2, permission) {
     });
   }
   if (status2 === 403) {
-    return new ClodableError({
+    return new CloclodError({
       code: "supabase-auth",
       message: permission ? `Your Supabase access token is missing a permission: ${permission}.` : "Your Supabase access token isn't allowed to do this.",
       hint: "Create a new token that has it (or a full-access one: \u201CCreate legacy token\u201D), then connect again. If the permission is there, your role in the organization may not allow it: ask its owner.",
       details
     });
   }
-  return new ClodableError({
+  return new CloclodError({
     code: "supabase-failed",
     message: "Supabase refused the request.",
     hint: "Try again in a minute. If it keeps happening, share the details with your developer.",
@@ -21820,7 +21820,7 @@ function describeFailure(status2, text2, permission) {
 async function connectSupabase(token) {
   const trimmed = token.trim();
   if (!/^sbp_[A-Za-z0-9_-]{20,}$/.test(trimmed)) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "supabase-auth",
       message: "That doesn't look like a Supabase access token.",
       hint: "It starts with sbp_. Create one in Supabase: Account \u2192 Access Tokens \u2192 Generate new token."
@@ -22096,7 +22096,7 @@ async function install() {
       return home;
     } else {
       throw new ToolUnavailable(
-        `Moving a database needs PostgreSQL's tools, which Clodable can't fetch for ${platform} yet.`
+        `Moving a database needs PostgreSQL's tools, which Cloclod can't fetch for ${platform} yet.`
       );
     }
     await rm3(home, { recursive: true, force: true });
@@ -22127,18 +22127,18 @@ function pgEnv(target) {
     PGPASSWORD: target.password,
     PGDATABASE: target.database,
     PGSSLMODE: target.ssl ? "require" : "disable",
-    PGAPPNAME: "clodable",
+    PGAPPNAME: "cloclod",
     PGCONNECT_TIMEOUT: "20",
     // Never read the person's own Postgres settings or saved passwords.
-    PGSERVICEFILE: join8(tmpdir2(), "clodable-no-pg-service"),
-    PGPASSFILE: join8(tmpdir2(), "clodable-no-pgpass")
+    PGSERVICEFILE: join8(tmpdir2(), "cloclod-no-pg-service"),
+    PGPASSFILE: join8(tmpdir2(), "cloclod-no-pgpass")
   };
 }
 async function tool(name) {
   try {
     return await postgresTool(name);
   } catch (error62) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "tools-unavailable",
       message: error62 instanceof ToolUnavailable ? error62.message : "Couldn't get PostgreSQL's tools, which copying your data needs.",
       hint: "Check your internet connection, then try again."
@@ -22160,7 +22160,7 @@ function psqlSql(target) {
   return {
     rows: async (sql) => {
       const out = await psql(
-        `select coalesce(json_agg(row_to_json(clodable_row)), '[]'::json) from (${sql.trim().replace(/;$/, "")}) clodable_row;`,
+        `select coalesce(json_agg(row_to_json(cloclod_row)), '[]'::json) from (${sql.trim().replace(/;$/, "")}) cloclod_row;`,
         ["-t", "-A"]
       );
       return JSON.parse(out.trim() || "[]");
@@ -22183,7 +22183,7 @@ async function waitForConnection(target, { attempts = 8, delayMs = 15e3 } = {}) 
     if (/password authentication failed/i.test(last) && attempt >= 3) break;
     if (attempt < attempts) await new Promise((done) => setTimeout(done, delayMs));
   }
-  throw new ClodableError({
+  throw new CloclodError({
     code: "copy-failed",
     message: "Couldn't connect to your new database.",
     hint: "It can take a few minutes after it's created. Try again shortly.",
@@ -22196,9 +22196,9 @@ async function listArchive(backup) {
     timeout: 12e4
   });
   if (result.exitCode !== 0) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "export-unreadable",
-      message: "That file isn't a database export Clodable can read.",
+      message: "That file isn't a database export Cloclod can read.",
       hint: "Download the export again (from Lovable's email, or More \u2192 Cloud \u2192 Storage), then try again.",
       details: result.stderr.trim().slice(0, 500)
     });
@@ -22215,7 +22215,7 @@ async function archiveSql(backup, entries, dir, extra = []) {
     { cwd: dir, timeout: 3e5 }
   );
   if (result.exitCode !== 0) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "export-unreadable",
       message: "Couldn't read part of your export.",
       details: result.stderr.trim().slice(0, 500)
@@ -22244,7 +22244,7 @@ async function* archiveLines(backup, entries, dir) {
     if (child.exitCode === null) child.kill();
   }
   if (await done !== 0) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "export-unreadable",
       message: "Couldn't read your export's data.",
       details: stderr.trim().slice(0, 500)
@@ -22318,14 +22318,14 @@ async function restorePass(target, backup, entries, options) {
   clearTimeout(timer);
   await new Promise((done) => log2.end(done));
   if (produced !== 0) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "export-unreadable",
       message: "Couldn't read your export while copying it.",
       details: producerError.trim().slice(0, 500)
     });
   }
   if (consumed !== 0) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "copy-failed",
       message: "The connection to your new database dropped during the copy.",
       hint: "Try again: the copy starts over cleanly on a fresh database.",
@@ -22397,7 +22397,7 @@ async function* createHome(ws, options) {
     yield step("move:create", "running", "Checking your new backend");
     const project = await api.project(state.home.ref);
     if (project.status === "INACTIVE" || project.status === "GOING_DOWN") {
-      throw new ClodableError({
+      throw new CloclodError({
         code: "move-not-ready",
         message: "Your new backend is paused.",
         hint: "Restore it on its page in Supabase, then try this step again. Your live app hasn't changed."
@@ -22411,7 +22411,7 @@ async function* createHome(ws, options) {
   const organizations = await organizationChoices(api);
   const org = organizations.find((o) => o.slug === options.org) ?? (organizations.length === 1 ? organizations[0] : void 0);
   if (!org) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "move-not-ready",
       message: "Which Supabase organization should it go in?",
       hint: `Pick one: ${organizations.map((o) => o.name).join(", ")}.`
@@ -22419,7 +22419,7 @@ async function* createHome(ws, options) {
   }
   const region = options.region ?? (await api.regions(org.slug).catch(() => void 0))?.recommended?.code;
   if (!region) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "move-not-ready",
       message: "Which part of the world should your backend run in?",
       hint: "Pick the region closest to your users."
@@ -22459,10 +22459,10 @@ async function waitUntilUp(api, ref) {
   while (true) {
     const project = await api.project(ref);
     if (project?.status === "INIT_FAILED") {
-      throw new ClodableError({
+      throw new CloclodError({
         code: "supabase-failed",
         message: "Supabase couldn't start your new backend.",
-        hint: "Delete it in Supabase, then create it again from Clodable."
+        hint: "Delete it in Supabase, then create it again from Cloclod."
       });
     }
     if (project?.status === "ACTIVE_HEALTHY") {
@@ -22470,10 +22470,10 @@ async function waitUntilUp(api, ref) {
       if (health.length > 0 && health.every((s) => s.healthy)) return;
     }
     if (Date.now() - started > 15 * 6e4)
-      throw new ClodableError({
+      throw new CloclodError({
         code: "supabase-failed",
         message: "Your new backend is taking unusually long to start.",
-        hint: "Check it in Supabase, then try this step again: Clodable picks up where it was."
+        hint: "Check it in Supabase, then try this step again: Cloclod picks up where it was."
       });
     await new Promise((done) => setTimeout(done, 5e3));
   }
@@ -22506,9 +22506,9 @@ async function homeConnection(api, home) {
   let password2 = await readSecret(passwordKey(home.ref));
   if (!password2) {
     if (!home.createdByClodable) {
-      throw new ClodableError({
+      throw new CloclodError({
         code: "move-not-ready",
-        message: "Clodable doesn't have this backend's database password.",
+        message: "Cloclod doesn't have this backend's database password.",
         hint: "Run the move from the computer that created it."
       });
     }
@@ -22518,7 +22518,7 @@ async function homeConnection(api, home) {
   }
   const pooler = await api.pooler(home.ref);
   if (!pooler) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "supabase-failed",
       message: "Supabase didn't say how to connect to your new database.",
       hint: "Try again in a minute."
@@ -22556,7 +22556,7 @@ function homeSql(api, ref) {
 var MAX_ROWS = 200;
 async function database(ws) {
   if (ws.config.backend === "lovable-cloud") {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "invalid-config",
       message: "Lovable owns this database: it can't be changed from here.",
       hint: "Moving off Lovable gives your app a database of its own."
@@ -22564,18 +22564,18 @@ async function database(ws) {
   }
   const ref = ws.config.supabase.projectRef;
   if (ws.config.backend !== "supabase" || !ref) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "invalid-config",
-      message: "This app has no Supabase database Clodable knows of.",
+      message: "This app has no Supabase database Cloclod knows of.",
       hint: "Its Supabase project goes in .clodable/config.json, under supabase.projectRef."
     });
   }
   const api = await SupabaseApi.onThisComputer();
   if (!api) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "supabase-auth",
       message: "Supabase isn't connected on this computer.",
-      hint: "Connect your Supabase account in the Clodable panel: changes to your database go through it."
+      hint: "Connect your Supabase account in the Cloclod panel: changes to your database go through it."
     });
   }
   return { api, ref, sql: homeSql(api, ref) };
@@ -22583,7 +22583,7 @@ async function database(ws) {
 function statement(sql) {
   const text2 = (sql ?? "").trim().replace(/;\s*$/, "");
   if (!text2) {
-    throw new ClodableError({ code: "invalid-config", message: "Which query?" });
+    throw new CloclodError({ code: "invalid-config", message: "Which query?" });
   }
   return text2;
 }
@@ -22601,24 +22601,24 @@ async function checkDatabase(ws) {
 async function queryDatabase(ws, sql) {
   const text2 = statement(sql);
   if (!/^(select|with|values|table)\b/i.test(text2)) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "invalid-config",
       message: "Only a query that reads goes here.",
-      hint: "To change data: clodable db run. To change the tables: a migration, with clodable db apply."
+      hint: "To change data: cloclod db run. To change the tables: a migration, with cloclod db apply."
     });
   }
   const { sql: db } = await database(ws);
-  const rows = await db.rows(`select * from (${text2}) clodable_query limit ${MAX_ROWS + 1}`);
+  const rows = await db.rows(`select * from (${text2}) cloclod_query limit ${MAX_ROWS + 1}`);
   return { rows: rows.slice(0, MAX_ROWS), truncated: rows.length > MAX_ROWS };
 }
 var SCHEMA_CHANGE = /^\s*(create|alter|drop|grant|revoke|comment|truncate)\b/im;
 async function runOnDatabase(ws, sql) {
   const text2 = statement(sql);
   if (SCHEMA_CHANGE.test(text2)) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "invalid-config",
       message: "That changes the tables: it goes in a migration.",
-      hint: "Write it to supabase/migrations/<timestamp>_<what>.sql, then clodable db apply that file."
+      hint: "Write it to supabase/migrations/<timestamp>_<what>.sql, then cloclod db apply that file."
     });
   }
   const { sql: db } = await database(ws);
@@ -22630,7 +22630,7 @@ async function applyMigration(ws, file3) {
   const where = relative2(resolve3(ws.root, "supabase", "migrations"), path2);
   const match = basename3(path2).match(/^(\d{8,})_(.+)\.sql$/);
   if (!file3 || where.startsWith("..") || where.includes("/") || !match) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "invalid-config",
       message: "Which migration?",
       hint: "A file in supabase/migrations/, named <timestamp>_<what>.sql."
@@ -22639,7 +22639,7 @@ async function applyMigration(ws, file3) {
   const version3 = match[1];
   const name = match[2];
   const text2 = await readFile5(path2, "utf8").catch(() => {
-    throw new ClodableError({ code: "not-found", message: `There's no ${file3}.` });
+    throw new CloclodError({ code: "not-found", message: `There's no ${file3}.` });
   });
   const { api, ref, sql: db } = await database(ws);
   const [history2] = await db.rows(
@@ -22800,7 +22800,7 @@ async function assessMove(project, config2, facts) {
       id: "emails",
       label: "Emails",
       by: "you",
-      detail: `${sent.length > 0 ? `${names(sent)}: sent` : "They're sent"} through Lovable. You connect a free Resend account and add its records to your domain; Clodable gives your app its own key, and Claude switches the sending.`
+      detail: `${sent.length > 0 ? `${names(sent)}: sent` : "They're sent"} through Lovable. You connect a free Resend account and add its records to your domain; Cloclod gives your app its own key, and Claude switches the sending.`
     });
   }
   if (facts && facts.connectors.length > 0) {
@@ -22868,7 +22868,7 @@ async function assessMove(project, config2, facts) {
       id: "hosting",
       label: "Your website",
       by: "you",
-      detail: "Moves to Netlify (free to start), and your own domain with it. You create the account, Clodable sets it up."
+      detail: "Moves to Netlify (free to start), and your own domain with it. You create the account, Cloclod sets it up."
     });
   }
   if (project.lovable.generated) {
@@ -22899,14 +22899,14 @@ async function callApi(service, method, url2, body) {
       method,
       headers: {
         Authorization: `Bearer ${service.token}`,
-        "User-Agent": "clodable",
+        "User-Agent": "cloclod",
         ...body !== void 0 ? { "Content-Type": "application/json" } : {}
       },
       ...body !== void 0 ? { body: JSON.stringify(body) } : {},
       signal: AbortSignal.timeout(3e4)
     });
   } catch (error62) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "offline",
       message: `Couldn't reach ${service.name}.`,
       hint: "Check your internet connection, then try again.",
@@ -22927,9 +22927,9 @@ async function callApi(service, method, url2, body) {
   try {
     return JSON.parse(text2);
   } catch {
-    throw new ClodableError({
+    throw new CloclodError({
       code: service.failed,
-      message: `${service.name} answered in a way Clodable didn't expect.`,
+      message: `${service.name} answered in a way Cloclod didn't expect.`,
       hint: "Try again in a minute. If it keeps happening, share the details with your developer.",
       details: `${service.name} answered ${response.status}: ${text2.slice(0, 400)}`
     });
@@ -22948,12 +22948,12 @@ var NetlifyApi = class _NetlifyApi {
       name: "Netlify",
       token,
       failed: "netlify-failed",
-      refused: (status2, _message, details) => status2 === 401 ? new ClodableError({
+      refused: (status2, _message, details) => status2 === 401 ? new CloclodError({
         code: "netlify-auth",
         message: "Netlify didn't accept your access token.",
         hint: "It may have expired or been deleted. Create a new one and connect again.",
         details
-      }) : new ClodableError({
+      }) : new CloclodError({
         code: "netlify-failed",
         message: status2 === 422 ? "Netlify refused that." : "Netlify refused the request.",
         hint: "Try again in a minute. If it keeps happening, share the details with your developer.",
@@ -22968,10 +22968,10 @@ var NetlifyApi = class _NetlifyApi {
   static async required() {
     const api = await _NetlifyApi.onThisComputer();
     if (!api) {
-      throw new ClodableError({
+      throw new CloclodError({
         code: "netlify-auth",
         message: "Netlify isn't connected on this computer yet.",
-        hint: "Connect your Netlify account in the Clodable panel first."
+        hint: "Connect your Netlify account in the Cloclod panel first."
       });
     }
     return api;
@@ -23122,7 +23122,7 @@ async function rememberSettings(root, add) {
 }
 async function setSetting(ws, name, value) {
   if (!name || !/^[A-Z][A-Z0-9_]*$/.test(name)) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "invalid-config",
       message: name ? `\u201C${name}\u201D isn't a setting name.` : "Which setting?",
       hint: "Use capitals, digits and underscores, like GREETING."
@@ -23130,7 +23130,7 @@ async function setSetting(ws, name, value) {
   }
   const clean2 = value.replace(/\r?\n$/, "");
   if (!clean2.trim()) {
-    throw new ClodableError({ code: "invalid-config", message: "That setting is empty." });
+    throw new CloclodError({ code: "invalid-config", message: "That setting is empty." });
   }
   const values = await localSettings(ws.root);
   values[name] = clean2;
@@ -23195,13 +23195,13 @@ function envWith(text2, values) {
 
 // ../core/src/move/site.ts
 var NETLIFY_CLI = "netlify-cli@27.12.0";
-var WORKFLOW_PATH = ".github/workflows/clodable-netlify.yml";
+var WORKFLOW_PATH = ".github/workflows/cloclod-netlify.yml";
 var NETLIFY_TOML = "netlify.toml";
 var LOVABLE_MIRROR = "https://[a-z0-9-]+-npm\\.pkg\\.dev/lovable-core-prod/[a-z0-9-]+/";
 async function connectNetlify(token) {
   const trimmed = token.trim();
   if (!/^[A-Za-z0-9_-]{20,}$/.test(trimmed)) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "netlify-auth",
       message: "That doesn't look like a Netlify access token.",
       hint: "In Netlify: User settings \u2192 Applications \u2192 Personal access tokens \u2192 New access token."
@@ -23222,7 +23222,7 @@ function netlifyToml(project, buildScript) {
   const [command, args] = runScriptCommand(project.packageManager, buildScript);
   const build = [command, ...args.filter((a2) => a2 !== "--silent")].join(" ");
   if (project.appType === "tanstack-start") {
-    return `# How Netlify builds this app (set up by Clodable). Lovable's TanStack Start preset targets
+    return `# How Netlify builds this app (set up by Cloclod). Lovable's TanStack Start preset targets
 # Cloudflare by default; NITRO_PRESET switches its server part to Netlify Functions.
 [build]
   command = "${build}"
@@ -23232,7 +23232,7 @@ function netlifyToml(project, buildScript) {
   NITRO_PRESET = "netlify"
 `;
   }
-  return `# How Netlify builds this app (set up by Clodable).
+  return `# How Netlify builds this app (set up by Cloclod).
 [build]
   command = "${build}"
   publish = "dist"
@@ -23284,7 +23284,7 @@ function netlifyWorkflow(project, liveBranch, siteUrl2) {
   const lockfile = lockfileOf(project.root);
   const repoApi = `repos/${gha("github.repository")}/deployments`;
   return [
-    "# Puts the site live on Netlify each time it's published (set up by Clodable).",
+    "# Puts the site live on Netlify each time it's published (set up by Cloclod).",
     "# Netlify's free plan can't watch a private repository owned by an organization; this can.",
     "name: Netlify",
     "on:",
@@ -23337,7 +23337,7 @@ var siteName = (name) => name.toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace
 async function* putSiteOnNetlify(ws, options = {}) {
   const state = await loadMove(ws.root);
   if (!state.home) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "move-not-ready",
       message: "Create your new backend first: the site needs it.",
       hint: "It's one of the first steps of the move."
@@ -23382,7 +23382,7 @@ async function createNetlifySite(netlify, appName, team) {
   const accounts = await netlify.accounts();
   const account = accounts.find((a2) => a2.slug === team) ?? (accounts.length === 1 ? accounts[0] : void 0);
   if (!account) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "needs-choice",
       message: "Which Netlify team should the site go in?",
       hint: `Pick one: ${accounts.map((a2) => `${a2.name} (${a2.slug})`).join(", ")}.`
@@ -23391,15 +23391,15 @@ async function createNetlifySite(netlify, appName, team) {
   const base = siteName(appName);
   for (const name of [base, `${base}-${Math.random().toString(36).slice(2, 6)}`]) {
     const site = await netlify.createSite(account.slug, name).catch((error62) => {
-      if (error62 instanceof ClodableError && /422/.test(error62.details ?? "")) return void 0;
+      if (error62 instanceof CloclodError && /422/.test(error62.details ?? "")) return void 0;
       throw error62;
     });
     if (site) return site;
   }
-  throw new ClodableError({
+  throw new CloclodError({
     code: "netlify-failed",
     message: "Netlify didn't accept a name for your site.",
-    hint: "Try again: Clodable picks another name."
+    hint: "Try again: Cloclod picks another name."
   });
 }
 async function setSiteEnv(netlify, site, root, backend) {
@@ -23450,7 +23450,7 @@ async function siteSettingsOf(netlify, account, siteId, root) {
 async function siteSettings(ws) {
   const state = await loadMove(ws.root);
   if (!state.site) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "move-not-ready",
       message: "Put your site on Netlify first."
     });
@@ -23462,22 +23462,22 @@ async function siteSettings(ws) {
 var LOVABLE_CLOUD = `## Database and backend: on Lovable Cloud
 - This app's database, users, files and backend functions run on **Lovable Cloud**, which Lovable owns. You can't change them from here: no schema changes, no migrations, no data changes, no function deploys.
 - The preview still uses **live data** through the app's public key: real customers, real orders. Testing there writes real data.
-- If the builder asks for something that needs a database or backend change, say so plainly and offer the two ways forward: make that change in Lovable, or first move the app to their own Supabase (**Move off Lovable** in the Clodable panel, a guided step).
+- If the builder asks for something that needs a database or backend change, say so plainly and offer the two ways forward: make that change in Lovable, or first move the app to their own Supabase (**Move off Lovable** in the Cloclod panel, a guided step).
 - Never write migration files, or code that relies on a database change that hasn't happened: the live app would break after Publish.
 - Changes to backend functions (\`supabase/functions/\`) only reach Lovable Cloud through Lovable. Avoid them, and if one is needed, tell the builder to make it in Lovable.`;
 var NO_BACKEND = `## Database and backend: none yet
 - This app has no database, no sign-in and no backend yet.
-- When the builder asks for something that needs one (accounts and sign-in, saving data people enter, uploads), explain why in one plain sentence and open Clodable's backend consent view with \`open_panel\` (view \`backend\`). Clodable creates it after account/cost consent, then asks you to connect the app and continue the original request. Don't ask the builder to repeat it.
+- When the builder asks for something that needs one (accounts and sign-in, saving data people enter, uploads), explain why in one plain sentence and open Cloclod's backend consent view with \`open_panel\` (view \`backend\`). Cloclod creates it after account/cost consent, then asks you to connect the app and continue the original request. Don't ask the builder to repeat it.
 - Don't set up a database or a sign-in service any other way, and don't fake one in the browser's storage for things that must last.
 - Once the backend is there, these instructions change to say how to work with it.`;
 var UNKNOWN_BACKEND = `## Database and backend: not confirmed yet
-- Inspect the app's code and Clodable's app_context before making a database or backend change. Explain what you find in the conversation and ask only about what remains uncertain.
+- Inspect the app's code and Cloclod's app_context before making a database or backend change. Explain what you find in the conversation and ask only about what remains uncertain.
 - A Supabase URL alone does not establish whether the project belongs to Lovable Cloud or the builder. An unfamiliar service is not evidence that no backend exists.
 - Record confirmed facts with remember_app. Until ownership and access are established, do not change the database, deploy backend functions or create a replacement service. The preview may already use live data.`;
 function supabaseSection(ref, cli2) {
   return `## Database: live data, handle with care
 ${ref ? `- The app uses Supabase project \`${ref}\`. The preview uses **live data**: real customers, real orders.` : "- If the app uses a database, the preview uses **live data**: real customers, real orders."}
-- You can read and change it, as on Lovable, through Clodable's commands (no key needed; never ask for one):
+- You can read and change it, as on Lovable, through Cloclod's commands (no key needed; never ask for one):
   - Read: \`${cli2} db query "select \u2026"\`.
   - Change the tables (a migration): write \`supabase/migrations/<timestamp>_<what>.sql\`, then \`${cli2} db apply supabase/migrations/<that file>\`. It runs once, in one transaction, and goes in Supabase's migration history.
   - Change the data (insert, update, delete): \`${cli2} db run "update \u2026"\`. Data that belongs to a person (their notes, their orders) needs their account: look it up with a query first.
@@ -23489,31 +23489,31 @@ ${ref ? `- The app uses Supabase project \`${ref}\`. The preview uses **live dat
 - **Edge functions** (\`supabase/functions/\`) go live only when the builder publishes. Edit them freely, but never deploy them yourself.`;
 }
 function agentsMd(input2) {
-  const cli2 = input2.cliCommand ?? "npx clodable";
+  const cli2 = input2.cliCommand ?? "npx cloclod";
   const stack = input2.appType === "tanstack-start" ? "TanStack Start (React 19, server-side rendering) with Tailwind CSS and shadcn/ui" : input2.appType === "vite-spa" ? "Vite + React + TypeScript, with Tailwind CSS and shadcn/ui" : "a web app";
   return `# Working on ${input2.appName}
 
-This app is built with ${stack}. It was made with Lovable and is now edited locally with **Clodable**.
+This app is built with ${stack}. It was made with Lovable and is now edited locally with **Cloclod**.
 The person you're working with is a **builder**: they know their product deeply, but not necessarily code.
 
-<!-- clodable:begin (managed by Clodable. Edit outside these markers; this block may be updated.) -->
+<!-- clodable:begin (managed by Cloclod. Edit outside these markers; this block may be updated.) -->
 
 ## How to talk with the builder
 - Speak plainly. Say "page", "button", "text", "your database", never "component tree", "props" or "migration", unless they use those words first.
 - Before a big change, say in one or two sentences what you'll do, then do it. For small changes, just do it.
 - After a change, say what changed, in their words ("The pricing page now shows three plans"). Don't list files.
 - If something is ambiguous, make a sensible choice and mention it, rather than asking several questions.
-- Never mention git, branches, commits, pull requests or deploys. Clodable handles all of that. Their work is saved automatically after each of your replies.
+- Never mention git, branches, commits, pull requests or deploys. Cloclod handles all of that. Their work is saved automatically after each of your replies.
 
 ## How changes reach the live site
 - Every reply is **saved** automatically to the builder's draft (\`draft/<their GitHub login>\`). You don't need to commit, push or open pull requests.
-${input2.hosting === "lovable" ? `- **Publish** is the builder's decision. They click Publish in Clodable, which checks the app and merges the draft into \`${input2.liveBranch}\`. The site is hosted by Lovable, so it goes live once they click **Publish \u2192 Publish changes** in Lovable. Clodable reminds them.` : input2.hosting === "none" ? `- **Publish** is the builder's decision. They click Publish in Clodable, which checks the app and merges the draft into \`${input2.liveBranch}\`. The app isn't online yet: they first click **Set up hosting** in the Clodable panel (their own Netlify, free to start). This prepares a web address; it does not publish. Open the \`site\` view with Clodable's \`open_panel\` tool for account consent. The panel runs creation; do not run it yourself. Their first **Publish** makes the app public, and each Publish updates it after that.` : `- **Publish** is the builder's decision. They click Publish in Clodable, which checks the app, merges the draft into \`${input2.liveBranch}\`, and the host puts it live.`}
+${input2.hosting === "lovable" ? `- **Publish** is the builder's decision. They click Publish in Cloclod, which checks the app and merges the draft into \`${input2.liveBranch}\`. The site is hosted by Lovable, so it goes live once they click **Publish \u2192 Publish changes** in Lovable. Cloclod reminds them.` : input2.hosting === "none" ? `- **Publish** is the builder's decision. They click Publish in Cloclod, which checks the app and merges the draft into \`${input2.liveBranch}\`. The app isn't online yet: they first click **Set up hosting** in the Cloclod panel (their own Netlify, free to start). This prepares a web address; it does not publish. Open the \`site\` view with Cloclod's \`open_panel\` tool for account consent. The panel runs creation; do not run it yourself. Their first **Publish** makes the app public, and each Publish updates it after that.` : `- **Publish** is the builder's decision. They click Publish in Cloclod, which checks the app, merges the draft into \`${input2.liveBranch}\`, and the host puts it live.`}
 - Never push to \`${input2.liveBranch}\`, never force-push, and never merge pull requests yourself.
-- If asked to "publish" or "put it live", tell them to click **Publish** in the Clodable bar above the message box.
+- If asked to "publish" or "put it live", tell them to click **Publish** in the Cloclod bar above the message box.
 
-## Conversation and Clodable
+## Conversation and Cloclod
 - Keep explanations and product decisions in the conversation. Open a panel only for requested details, account consent, secret fields or an action's controls.
-- Use Clodable's \`app_context\` tool to read status. If hosting or database ownership is unknown, inspect the code, explain the useful conclusion in plain words, and ask one focused question at a time about what you cannot establish. Wait for the answer before asking about another unknown. A Supabase URL does not prove ownership; absent hosting files do not prove a site is offline. A recorded address or database client may be stale or a placeholder, so it does not establish a live service. Leave unsupported or unresolved facts unknown.
+- Use Cloclod's \`app_context\` tool to read status. If hosting or database ownership is unknown, inspect the code, explain the useful conclusion in plain words, and ask one focused question at a time about what you cannot establish. Wait for the answer before asking about another unknown. A Supabase URL does not prove ownership; absent hosting files do not prove a site is offline. A recorded address or database client may be stale or a placeholder, so it does not establish a live service. Leave unsupported or unresolved facts unknown.
 - After the builder confirms or corrects your conclusion, use \`remember_app\` to record the known facts. Don't create or change a service to find out.
 - Use \`open_panel\` to open \`history\`, \`settings\`, \`site\`, \`backend\`, \`move\` or \`saving\` when needed; don't ask the builder to type slash commands when this tool is available. Creation and Publish remain the builder's controls.
 
@@ -23521,24 +23521,24 @@ ${input2.hosting === "lovable" ? `- **Publish** is the builder's decision. They 
 - The app runs locally in the preview, configured in \`.claude/launch.json\`. Use that configuration; don't start another dev server.
 - When they ask to see the preview, open Desktop's Browser pane at its address: \`preview_start\` with \`{"url": "http://localhost:<port>"}\`. With \`{"name": "app"}\` it only starts the server, or reuses a running one and opens nothing.
 - After visible changes, check the preview yourself (take a screenshot, click through) before saying you're done.
-- The preview toolbar at the bottom of the page belongs to Clodable. It's not part of the app. Don't edit or remove it.
+- The preview toolbar at the bottom of the page belongs to Cloclod. It's not part of the app. Don't edit or remove it.
 - Requests from the preview arrive as messages that start with "From the preview". Treat them like requests from the builder.
 
 ${input2.backend === "lovable-cloud" ? LOVABLE_CLOUD : input2.backend === "none" ? NO_BACKEND : input2.backend === "unknown" ? UNKNOWN_BACKEND : supabaseSection(input2.supabaseRef, cli2)}
 
-## Clodable commands
-- Run \`${cli2} <command>\` for status, history, restore and other Clodable commands.${input2.cliCommand ? " This is the installed copy. Don't fetch a different version with npx." : ""}
+## Cloclod commands
+- Run \`${cli2} <command>\` for status, history, restore and other Cloclod commands.${input2.cliCommand ? " This is the installed copy. Don't fetch a different version with npx." : ""}
 
 ## Secrets
 - Never put API keys or passwords in code. Public keys (the Supabase URL and anon key) are fine.
-- Clodable checks every save for secret keys before it goes to GitHub. If it finds one, the save stops and the builder sees "Not saved". Move the key out of the code (to a Supabase Edge Function secret, for example). Don't commit or push yourself.
-- Settings the app's own server code reads (\`process.env.X\`) go in the Clodable panel, under **Your app's settings**: one paste sets it for the preview and for their site. When you add code that reads a new one, tell them to paste its value there. Never put the value in a file.
+- Cloclod checks every save for secret keys before it goes to GitHub. If it finds one, the save stops and the builder sees "Not saved". Move the key out of the code (to a Supabase Edge Function secret, for example). Don't commit or push yourself.
+- Settings the app's own server code reads (\`process.env.X\`) go in the Cloclod panel, under **Your app's settings**: one paste sets it for the preview and for their site. When you add code that reads a new one, tell them to paste its value there. Never put the value in a file.
 - When the app needs a secret key, tell the builder where to add it themselves: on Supabase, **Edge Functions \u2192 Secrets** in their project; on Lovable Cloud, **More \u2192 Cloud \u2192 Secrets** in Lovable. Never ask them to paste it into the chat.
 
 ## Code style
 - Follow the patterns already in the project: Tailwind classes, shadcn/ui components in \`src/components/ui\`, and the \`@/\` import alias.
 - Keep components small and readable. Prefer editing existing components to creating near-duplicates.
-- The project must always build (\`npm run build\`). Clodable checks this before every Publish.
+- The project must always build (\`npm run build\`). Cloclod checks this before every Publish.
 
 <!-- clodable:end -->
 `;
@@ -23581,7 +23581,7 @@ exec ${shellQuote(process.execPath)} "$(dirname "$0")/clodable.mjs" dev "$@"
 }
 
 // ../core/src/kit/index.ts
-var CLODABLE_FILES = [
+var CLOCLOD_FILES = [
   ".clodable",
   ".claude",
   "AGENTS.md",
@@ -23590,8 +23590,8 @@ var CLODABLE_FILES = [
   WORKFLOW_PATH,
   NETLIFY_TOML
 ];
-function clodableFile(path2) {
-  return CLODABLE_FILES.some((own2) => path2 === own2 || path2.startsWith(`${own2}/`));
+function cloclodFile(path2) {
+  return CLOCLOD_FILES.some((own2) => path2 === own2 || path2.startsWith(`${own2}/`));
 }
 async function keepIgnored(root) {
   await applyKit(root, [await gitignorePlan(root)]);
@@ -23625,7 +23625,7 @@ function mergeManagedBlock(existing, generated) {
   }
   return `${existing.trimEnd()}
 
-## Working with Clodable
+## Working with Cloclod
 
 ${block2}
 `;
@@ -23694,11 +23694,11 @@ async function launchPlan(root, options) {
     {}
   );
   const existing = launch.configurations?.find((configuration) => configuration.name === "app");
-  const override = clodableDev(launch.configurations ?? []);
+  const override = cloclodDev(launch.configurations ?? []);
   if (options.runtimeOnly && override && before) {
     return change(
       ".claude/launch.json",
-      "Keeps your explicit Clodable preview command",
+      "Keeps your explicit Cloclod preview command",
       before,
       before
     );
@@ -23713,27 +23713,27 @@ async function launchPlan(root, options) {
     autoPort: options.runtimeOnly && typeof existing?.autoPort === "boolean" ? existing.autoPort : true
   };
   const others = (launch.configurations ?? []).filter(
-    (c2) => !(Array.isArray(c2.runtimeArgs) && c2.runtimeArgs.includes("clodable")) && c2.name !== "app"
+    (c2) => !(Array.isArray(c2.runtimeArgs) && c2.runtimeArgs.includes("cloclod")) && c2.name !== "app"
   );
   return change(
     ".claude/launch.json",
-    "Starts your app in the preview, with the Clodable toolbar",
+    "Starts your app in the preview, with the Cloclod toolbar",
     before,
     json2({ version: launch.version ?? "0.0.1", configurations: [ours2, ...others] })
   );
 }
-var TOOLS_PATH = "$HOME/.claude/plugins/data/clodable-clodable/tools/bin";
+var TOOLS_PATH = "$HOME/.claude/plugins/data/cloclod-cloclod/tools/bin";
 function installedPreviewCommand() {
   return process.platform === "win32" ? { executable: "node", args: [LOCAL_CLI, "dev"] } : { executable: "/bin/sh", args: [LOCAL_PREVIEW] };
 }
 function previewCommand(platform = process.platform) {
-  if (platform === "win32") return { executable: "npx", args: ["clodable", "dev"] };
+  if (platform === "win32") return { executable: "npx", args: ["cloclod", "dev"] };
   return {
     executable: "/bin/sh",
-    args: ["-c", `PATH="$PATH:${TOOLS_PATH}" exec npx clodable dev`]
+    args: ["-c", `PATH="$PATH:${TOOLS_PATH}" exec npx cloclod dev`]
   };
 }
-function clodableDev(configurations) {
+function cloclodDev(configurations) {
   const app = configurations.find((c2) => c2.name === "app");
   const executable3 = app?.runtimeExecutable;
   const args = app?.runtimeArgs;
@@ -23741,33 +23741,33 @@ function clodableDev(configurations) {
   const words = [executable3, ...args].map(String);
   const command = words.join(" ");
   if (args.includes(LOCAL_PREVIEW) || args.includes(LOCAL_CLI)) return void 0;
-  if (command === "npx clodable dev") return void 0;
-  if (/^\/bin\/sh -c PATH="\$PATH:[^"]*" exec npx clodable dev$/.test(command)) return void 0;
-  return words.some((w) => w.includes("clodable")) && words.includes("dev") ? { executable: executable3, args: args.map(String) } : void 0;
+  if (command === "npx cloclod dev") return void 0;
+  if (/^\/bin\/sh -c PATH="\$PATH:[^"]*" exec npx cloclod dev$/.test(command)) return void 0;
+  return words.some((w) => w.includes("cloclod")) && words.includes("dev") ? { executable: executable3, args: args.map(String) } : void 0;
 }
 async function settingsPlan(root, options) {
   const before = await read(root, ".claude/settings.json");
   const settings2 = parseJson(before, {});
-  const marketplace = options.marketplaceRepo ?? "bworlds-co/clodable";
+  const marketplace = options.marketplaceRepo ?? "bworlds-co/cloclod";
   const permissions = settings2.permissions ?? {};
   return change(
     ".claude/settings.json",
-    "Turns on Clodable for this project and keeps the live site safe",
+    "Turns on Cloclod for this project and keeps the live site safe",
     before,
     json2({
       ...settings2,
-      enabledPlugins: { ...settings2.enabledPlugins, "clodable@clodable": true },
+      enabledPlugins: { ...settings2.enabledPlugins, "cloclod@cloclod": true },
       extraKnownMarketplaces: {
         ...settings2.extraKnownMarketplaces,
         // Kept up to date on its own: a marketplace that isn't Anthropic's doesn't auto-update otherwise.
-        clodable: { source: { source: "github", repo: marketplace }, autoUpdate: true }
+        cloclod: { source: { source: "github", repo: marketplace }, autoUpdate: true }
       },
       permissions: {
         ...permissions,
         allow: union2(permissions.allow, [
-          "Bash(npx clodable status:*)",
-          "Bash(npx clodable check:*)",
-          "Bash(npx clodable history:*)",
+          "Bash(npx cloclod status:*)",
+          "Bash(npx cloclod check:*)",
+          "Bash(npx cloclod history:*)",
           "Bash(npm run build)",
           "Bash(npm run lint)",
           "Bash(npm install)",
@@ -23781,8 +23781,8 @@ async function settingsPlan(root, options) {
           "Bash(git push:*)",
           "Bash(git reset --hard:*)",
           "Bash(gh pr merge:*)",
-          "Bash(npx clodable publish:*)",
-          "Bash(npx clodable undo:*)",
+          "Bash(npx cloclod publish:*)",
+          "Bash(npx cloclod undo:*)",
           "mcp__supabase__deploy_edge_function"
         ])
       }
@@ -23833,12 +23833,7 @@ async function configPlan(root, project, config2, ref, options) {
     supabase: { ...config2.supabase, ...ref ? { projectRef: ref } : {} },
     ...options.liveUrl ? { liveUrl: options.liveUrl } : {}
   });
-  return change(
-    CONFIG_PATH,
-    "Clodable's settings for this project",
-    before,
-    json2(configFile(next))
-  );
+  return change(CONFIG_PATH, "Cloclod's settings for this project", before, json2(configFile(next)));
 }
 async function gitignorePlan(root) {
   const before = await read(root, ".gitignore");
@@ -23848,9 +23843,9 @@ async function gitignorePlan(root) {
   );
   return change(
     ".gitignore",
-    "Keeps Clodable's local files out of your project history",
+    "Keeps Cloclod's local files out of your project history",
     before,
-    missing.length === 0 ? before ?? "" : `${(before ?? "").trimEnd()}${before ? "\n\n" : ""}# Clodable (this computer only)
+    missing.length === 0 ? before ?? "" : `${(before ?? "").trimEnd()}${before ? "\n\n" : ""}# Cloclod (this computer only)
 ${missing.join("\n")}
 `
   );
@@ -23907,7 +23902,7 @@ async function ensureOnDraft(ws) {
   }
   if (await ws.git.branchExists(draft)) {
     if (await ws.git.hasChanges()) {
-      throw new ClodableError({
+      throw new CloclodError({
         code: "on-live-branch",
         message: "You have unsaved changes outside your draft.",
         hint: "Save them first, or switch to your draft manually."
@@ -23923,7 +23918,7 @@ async function save2(ws, options = {}) {
   if (await ws.git.isMerging()) {
     const conflicts = await ws.git.conflictedFiles();
     if (conflicts.length > 0) {
-      throw new ClodableError({
+      throw new CloclodError({
         code: "conflict",
         message: "Your draft is in the middle of being combined with the live site.",
         hint: "Ask Claude to finish combining the changes, then save again.",
@@ -24001,7 +23996,7 @@ async function keepSecretsHere(ws) {
   return findings.filter((f) => f.severity === "warn");
 }
 function secretFound(found2, hint) {
-  return new ClodableError({
+  return new CloclodError({
     code: "secret-found",
     message: found2.length === 1 ? `A secret key is in ${found2[0].file}` : `${found2.length} secret keys are in your changes`,
     hint: hint ?? "Nothing went to GitHub. Ask Claude to move it out of the code, and it saves.",
@@ -24034,7 +24029,7 @@ async function pushWithRetry(ws, branch) {
     const second = await ws.git.push(branch, { remote: ws.remote, setUpstream: true });
     return { ok: second.ok, ...second.offline ? { offline: true } : {} };
   }
-  throw new ClodableError({
+  throw new CloclodError({
     code: "push-rejected",
     message: "GitHub didn't accept your changes.",
     hint: "Check that your GitHub account can write to this repository.",
@@ -24058,7 +24053,7 @@ async function sameAsLive(ws, options = {}) {
   const diff = await ws.git.run(["diff", "--name-only", `${live}...HEAD`]);
   if (diff.exitCode !== 0) return false;
   const changed = diff.stdout.split("\n").filter(Boolean);
-  return options.clodablesToo ? changed.length === 0 : changed.every(clodableFile);
+  return options.cloclodsToo ? changed.length === 0 : changed.every(cloclodFile);
 }
 async function unpublishedSaves(ws, options = {}) {
   const live = await liveBase(ws);
@@ -24067,10 +24062,10 @@ async function unpublishedSaves(ws, options = {}) {
   const saves = await ws.git.log(range, { noMerges: true, limit });
   if (!options.buildersOnly) return saves;
   const files = await ws.git.filesBy(range, { noMerges: true, limit });
-  return saves.filter((c2) => c2.kind !== "setup" && !onlyClodables(files.get(c2.sha) ?? []));
+  return saves.filter((c2) => c2.kind !== "setup" && !onlyCloclods(files.get(c2.sha) ?? []));
 }
-function onlyClodables(paths) {
-  return paths.length > 0 && paths.every(clodableFile);
+function onlyCloclods(paths) {
+  return paths.length > 0 && paths.every(cloclodFile);
 }
 async function ensurePullRequest(ws, branch) {
   const saves = await unpublishedSaves(ws);
@@ -24094,7 +24089,7 @@ async function ensurePullRequest(ws, branch) {
 function pullRequestBody(saves, login) {
   const list = saves.slice().reverse().map((c2) => `- ${c2.subject} <sub>${formatAbsolute(c2.date)}</sub>`).join("\n");
   return [
-    `**Draft by @${login}**, saved automatically by [Clodable](https://github.com/bworlds-co/clodable).`,
+    `**Draft by @${login}**, saved automatically by [Cloclod](https://github.com/bworlds-co/cloclod).`,
     "",
     list,
     "",
@@ -24176,14 +24171,14 @@ var BEFORE_RESTORE = "Saved changes before restoring";
 async function restore(ws, sha) {
   const target = await ws.git.revParse(sha);
   if (!target) {
-    throw new ClodableError({ code: "not-found", message: "That version couldn't be found." });
+    throw new CloclodError({ code: "not-found", message: "That version couldn't be found." });
   }
   const [commit] = await ws.git.log(`${target}^!`);
   await ensureOnDraft(ws);
   if (await ws.git.hasChanges()) {
     await save2(ws, { message: BEFORE_RESTORE });
   }
-  await ws.git.restoreTree(target, CLODABLE_FILES);
+  await ws.git.restoreTree(target, CLOCLOD_FILES);
   await keepIgnored(ws.root);
   const when = commit ? formatAbsolute(commit.date) : target.slice(0, 7);
   return save2(ws, {
@@ -24204,7 +24199,7 @@ import { mkdtemp as mkdtemp4, rm as rm6 } from "node:fs/promises";
 import { tmpdir as tmpdir3 } from "node:os";
 import { join as join15 } from "node:path";
 var COMMIT_KINDS = ["save", "restore", "sync", "publish", "undo", "setup"];
-var KIND_KEY = "Clodable-Kind";
+var KIND_KEY = "Cloclod-Kind";
 var kindTrailer = (kind) => `${KIND_KEY}: ${kind}`;
 var KIND_LINE = new RegExp(`\\n?${KIND_KEY}:.*$`, "m");
 function kindOf(value) {
@@ -24230,7 +24225,7 @@ var Git = class _Git {
   async ok(args, options = {}) {
     const result = await this.run(args, options);
     if (result.exitCode !== 0) {
-      throw new ClodableError({
+      throw new CloclodError({
         code: "unknown",
         message: "Something unexpected went wrong.",
         hint: "Try again. If it keeps happening, share the details with your developer.",
@@ -24311,14 +24306,14 @@ ${kindTrailer(options.kind)}`
     );
     if (result.exitCode !== 0) {
       if (/tell me who you are|user\.email|empty ident/i.test(result.stderr)) {
-        throw new ClodableError({
+        throw new CloclodError({
           code: "git-identity",
           message: "Saving needs to know who you are.",
-          hint: "Run `clodable setup` once to connect your GitHub account.",
+          hint: "Run `cloclod setup` once to connect your GitHub account.",
           details: result.stderr
         });
       }
-      throw new ClodableError({
+      throw new CloclodError({
         code: "unknown",
         message: "Your changes couldn't be saved.",
         details: result.stderr || result.stdout
@@ -24363,7 +24358,7 @@ ${kindTrailer(options.kind)}`
   }
   /** Check a merge away from the preview; never put conflict markers in the builder's files. */
   async checkMerge(ref) {
-    const dir = await mkdtemp4(join15(tmpdir3(), "clodable-combine-"));
+    const dir = await mkdtemp4(join15(tmpdir3(), "cloclod-combine-"));
     try {
       await this.ok(["worktree", "add", "--quiet", "--detach", dir, "HEAD"]);
       const side = new _Git(dir);
@@ -24371,7 +24366,7 @@ ${kindTrailer(options.kind)}`
       if (result.exitCode === 0) return { ok: true, conflicts: [] };
       const conflicts = await side.conflictedFiles();
       if (conflicts.length > 0) return { ok: false, conflicts };
-      throw new ClodableError({
+      throw new CloclodError({
         code: "unknown",
         message: "Your draft couldn't be compared with the live site.",
         details: result.stderr || result.stdout
@@ -24387,7 +24382,7 @@ ${kindTrailer(options.kind)}`
     if (result.exitCode === 0) return { ok: true, conflicts: [] };
     const conflicts = await this.conflictedFiles();
     if (conflicts.length === 0) {
-      throw new ClodableError({
+      throw new CloclodError({
         code: "unknown",
         message: "Your draft couldn't be brought up to date.",
         details: result.stderr || result.stdout
@@ -24617,7 +24612,7 @@ var FakeGitHub = class _FakeGitHub {
    * With `stateFile`, pull requests survive across processes. That lets the CLI run against a
    * fake GitHub for demos (`CLODABLE_FAKE_GITHUB=<bare repo>`).
    */
-  static persistent(bareRepo, stateFile = `${bareRepo}/clodable-fake-github.json`) {
+  static persistent(bareRepo, stateFile = `${bareRepo}/cloclod-fake-github.json`) {
     const fake = new _FakeGitHub(bareRepo);
     fake.stateFile = stateFile;
     if (process.env.CLODABLE_FAKE_HOST === "none") fake.deploymentFor = () => [];
@@ -24635,11 +24630,11 @@ var FakeGitHub = class _FakeGitHub {
   }
   async createPrivateRepository(name) {
     if (existsSync12(this.bareRepo))
-      throw new ClodableError({
+      throw new CloclodError({
         code: "already-there",
         message: "That app name is already in use."
       });
-    const seed = await mkdtemp5(join16(tmpdir4(), "clodable-new-app-"));
+    const seed = await mkdtemp5(join16(tmpdir4(), "cloclod-new-app-"));
     try {
       const git = new Git(seed);
       await git.ok(["init", "--quiet", "--initial-branch=main"]);
@@ -24697,9 +24692,9 @@ var FakeGitHub = class _FakeGitHub {
   async merge(number4, input2) {
     const pr = this.pullRequests.find((p) => p.number === number4);
     if (pr?.state !== "open") {
-      throw new ClodableError({ code: "not-found", message: "That draft isn't open any more." });
+      throw new CloclodError({ code: "not-found", message: "That draft isn't open any more." });
     }
-    const dir = await mkdtemp5(join16(tmpdir4(), "clodable-fake-merge-"));
+    const dir = await mkdtemp5(join16(tmpdir4(), "cloclod-fake-merge-"));
     try {
       const git = new Git(dir);
       await git.ok(["clone", "--quiet", this.bareRepo, "."]);
@@ -24708,7 +24703,7 @@ var FakeGitHub = class _FakeGitHub {
       await git.ok(["switch", "--quiet", pr.baseRef]);
       const merged = await git.run(["merge", "--squash", `origin/${pr.headRef}`]);
       if (merged.exitCode !== 0) {
-        throw new ClodableError({
+        throw new CloclodError({
           code: "merge-blocked",
           message: "GitHub couldn't combine your draft with the live site.",
           details: merged.stderr || merged.stdout
@@ -24741,7 +24736,7 @@ ${input2.body}`]);
   /** Repository secrets for GitHub Actions, kept next to the bare repository (tests read them). */
   secrets = {};
   async setSecret(name, value) {
-    const file3 = `${this.bareRepo}/clodable-fake-secrets.json`;
+    const file3 = `${this.bareRepo}/cloclod-fake-secrets.json`;
     const all = existsSync12(file3) ? JSON.parse(readFileSync(file3, "utf8")) : {};
     all[name] = value;
     this.secrets[name] = value;
@@ -24920,7 +24915,7 @@ ${result.stdout}`.trim()
     for (const value of ["", `!'${await ghBinary()}' auth git-credential`]) {
       const result = await git(["config", "--local", "--add", key2, value]);
       if (result.exitCode !== 0)
-        throw new ClodableError({
+        throw new CloclodError({
           code: "gh-auth",
           message: "Couldn't connect this app to your GitHub account.",
           hint: "Try Set up saving again.",
@@ -24945,7 +24940,7 @@ ${result.stdout}`.trim()
   /**
    * Clone over HTTPS, signed in as the GitHub CLI's account whatever protocol gh is set to: an SSH
    * key on this computer may belong to another account, or have no access. The clone keeps gh as
-   * its sign-in for github.com, so Clodable's fetches and pushes there are that account too (what
+   * its sign-in for github.com, so Cloclod's fetches and pushes there are that account too (what
    * `gh auth setup-git` does, for this folder only).
    */
   async clone(repo, target) {
@@ -25030,7 +25025,7 @@ ${cloned.stderr}`.trim()
     ]);
     const created = await this.findOpenPullRequest(input2.head);
     if (!created) {
-      throw new ClodableError({
+      throw new CloclodError({
         code: "unknown",
         message: "The draft's page on GitHub couldn't be created."
       });
@@ -25086,7 +25081,7 @@ ${cloned.stderr}`.trim()
       "mergeCommit,state"
     ]);
     if (!merged.mergeCommit?.oid) {
-      throw new ClodableError({
+      throw new CloclodError({
         code: "merge-blocked",
         message: "GitHub didn't publish your draft.",
         hint: "Your repository may require something before publishing. Open the draft on GitHub to see why."
@@ -25164,22 +25159,22 @@ function ghError(result, otherwise) {
   const text2 = `${result.stderr}
 ${result.stdout}`.trim();
   if (/auth login|not logged|authentication/i.test(text2)) {
-    return new ClodableError({
+    return new CloclodError({
       code: "gh-auth",
-      message: "Clodable isn't connected to your GitHub account.",
-      hint: "Run `clodable setup` to connect it.",
+      message: "Cloclod isn't connected to your GitHub account.",
+      hint: "Run `cloclod setup` to connect it.",
       details: text2
     });
   }
   if (OFFLINE.test(text2)) {
-    return new ClodableError({
+    return new CloclodError({
       code: "offline",
       message: "GitHub can't be reached right now.",
       hint: "Check your internet connection and try again.",
       details: text2
     });
   }
-  return new ClodableError(otherwise);
+  return new CloclodError(otherwise);
 }
 var PR_FIELDS = "number,url,title,body,headRefName,baseRefName,state,mergeCommit";
 function toPullRequest(raw) {
@@ -25476,7 +25471,7 @@ async function exportNames(source) {
   });
   const backups = entries.filter((e) => isBackup(e.name));
   if (backups.length !== 1) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "export-unreadable",
       message: backups.length ? "That zip holds more than one database export." : "That zip doesn't hold a database export.",
       hint: "Choose the single .backup or .dump file for this app, or download its export again from Lovable."
@@ -25488,7 +25483,7 @@ async function checkExportSource(source, projectUrl2) {
   const names2 = await exportNames(source);
   const expected = projectUrl2 && projectId(projectUrl2);
   if (expected && names2.some((name) => projectId(name) && projectId(name) !== expected)) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "export-unreadable",
       message: "That export is labelled for a different Lovable app.",
       hint: "Download this app's export, or tell Claude where you saved the correct file. Your saved copy hasn't changed."
@@ -25529,7 +25524,7 @@ async function takeBackup(source, dir) {
     }
     const backups = entries.filter((e) => isBackup(e.name));
     if (backups.length !== 1) {
-      throw new ClodableError({
+      throw new CloclodError({
         code: "export-unreadable",
         message: backups.length ? "That zip holds more than one database export." : "That zip doesn't hold a database export.",
         hint: "Choose the single .backup or .dump file for this app, or download its export again from Lovable."
@@ -25545,7 +25540,7 @@ async function takeBackup(source, dir) {
     await copyFile(source, target);
   }
 }
-var unreadable = (error62) => new ClodableError({
+var unreadable = (error62) => new CloclodError({
   code: "export-unreadable",
   message: "Couldn't open that export.",
   hint: "Download it again (from Lovable's email, or More \u2192 Cloud \u2192 Storage), then try again.",
@@ -25558,7 +25553,7 @@ async function readExport(source, dir) {
   await writeFile10(join19(dir, "toc.list"), listing, { mode: 384 });
   const toc = parseToc(listing);
   if (toc.entries.length === 0) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "export-unreadable",
       message: "That export is empty.",
       hint: "Export your data again in Lovable, then download the new zip."
@@ -25986,7 +25981,7 @@ function writeGrants(grants) {
   }
   return lines;
 }
-var PAUSE_NAME = "clodable_pause";
+var PAUSE_NAME = "cloclod_pause";
 var STOP_LOVABLE_JOBS = "select cron.alter_job(jobid, active := false) from cron.job;";
 var START_LOVABLE_JOBS = "select cron.alter_job(jobid, active := true) from cron.job;";
 var PAUSE_AUTH = `do $pause$ begin
@@ -26018,14 +26013,14 @@ function freezeSql(grants, hasJobs) {
   ) : ["grant insert, update, delete on all tables in schema public to anon, authenticated;"];
   return {
     freeze: [
-      "-- Clodable: pause changes on the live app while it moves. Reading and signing in keep working.",
+      "-- Cloclod: pause changes on the live app while it moves. Reading and signing in keep working.",
       ...pause,
       ...hasJobs ? [STOP_LOVABLE_JOBS] : [],
       PAUSE_AUTH,
       PAUSE_STORAGE
     ].join("\n"),
     undo: [
-      "-- Clodable: undo the pause (only if you're not switching after all).",
+      "-- Cloclod: undo the pause (only if you're not switching after all).",
       ...resume,
       ...hasJobs ? [START_LOVABLE_JOBS] : [],
       RESUME_AUTH,
@@ -26070,21 +26065,21 @@ function madeAfterPause(summary, before, frozenAt) {
 }
 async function setMoveMethod(ws, method) {
   if (method !== "careful" && method !== "quick") {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "invalid-config",
       message: "Careful or quick?",
-      hint: "clodable move method careful (a pause at the end, nothing lost) or quick (in one go)."
+      hint: "cloclod move method careful (a pause at the end, nothing lost) or quick (in one go)."
     });
   }
   const state = await loadMove(ws.root);
   if (state.switch?.liveAt) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "move-not-ready",
       message: "Your app is live on its new home already."
     });
   }
   if (method === "quick" && state.switch?.frozenAt) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "move-not-ready",
       message: "Your live app is paused already: finish the careful way.",
       hint: "Or undo the pause in Lovable first, with the line the panel shows."
@@ -26108,7 +26103,7 @@ async function switchPlan(ws) {
 async function markFrozen(ws) {
   const state = await loadMove(ws.root);
   if (!state.site || !state.data?.ok) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "move-not-ready",
       message: "Get the copy and your site on Netlify ready first.",
       hint: "The pause should be as short as possible: everything else is done before it."
@@ -26170,28 +26165,28 @@ async function* goLive(ws, options = {}) {
   const quick = state.method === "quick";
   const frozenAt = state.switch?.frozenAt;
   if (!state.home || !state.site) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "move-not-ready",
       message: "Put your site on Netlify first.",
       hint: "Going live points your app and its sign-in at it."
     });
   }
   if (quick && !state.data?.ok) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "move-not-ready",
       message: "Some things on your new backend need a look first.",
-      hint: "Ask Claude to run clodable move diagnose."
+      hint: "Ask Claude to run cloclod move diagnose."
     });
   }
   if (!quick && !frozenAt) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "move-not-ready",
       message: "Pause changes on your live app first.",
       hint: "Going live comes after the pause and the final copy."
     });
   }
   if (!quick && (!state.data?.ok || state.data.at < frozenAt)) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "move-not-ready",
       message: "Copy your data in for good first: export again from Lovable, then copy it.",
       hint: "That copy is what keeps everything written before the pause."
@@ -26257,7 +26252,7 @@ async function* goLive(ws, options = {}) {
       }
     }
   }
-  yield step("move:golive", "running", "Switching to your new backend", "Clodable's settings");
+  yield step("move:golive", "running", "Switching to your new backend", "Cloclod's settings");
   const config2 = {
     ...ws.config,
     backend: "supabase",
@@ -26277,7 +26272,7 @@ async function* goLive(ws, options = {}) {
 async function markFinished(ws) {
   const state = await loadMove(ws.root);
   if (!state.switch?.liveAt) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "move-not-ready",
       message: "Go live first: Lovable Cloud stays until your app works on its new home."
     });
@@ -26484,10 +26479,10 @@ async function* importExport(ws, options = {}) {
   yield step("move:export", "running", "Reading your export");
   const file3 = options.file ?? await findExport(void 0, ws.project.lovable.projectUrl);
   if (!file3) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "export-not-found",
-      message: "Clodable couldn't match an export in Downloads to this app.",
-      hint: "Download this app's export from Lovable, or tell Claude the name and location of its .zip, .backup or .dump file. Clodable won't guess between apps."
+      message: "Cloclod couldn't match an export in Downloads to this app.",
+      hint: "Download this app's export from Lovable, or tell Claude the name and location of its .zip, .backup or .dump file. Cloclod won't guess between apps."
     });
   }
   await checkExportSource(file3, ws.project.lovable.projectUrl);
@@ -26500,7 +26495,7 @@ async function* importExport(ws, options = {}) {
     summary = (await readExport(file3, target)).summary;
     if (pausedAt) {
       if (madeAfterPause(summary, before.switch?.grants, pausedAt) === false) {
-        throw new ClodableError({
+        throw new CloclodError({
           code: "move-not-ready",
           message: "That export was made before the pause: it would miss what people wrote since.",
           hint: "Check the pause is in place in Lovable, export again, download the new zip, then read it."
@@ -26539,14 +26534,14 @@ async function migrationVersions(root) {
 async function* copyData(ws) {
   const state = await loadMove(ws.root);
   if (!state.home) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "move-not-ready",
       message: "Create your new backend first.",
       hint: "It's the step before this one."
     });
   }
   if (!state.export) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "move-not-ready",
       message: "Export your data from Lovable first.",
       hint: "It's the step before this one."
@@ -26556,9 +26551,9 @@ async function* copyData(ws) {
   const dir = await moveDir(ws.root);
   const backup = join22(dir, "export.backup");
   if (!existsSync17(backup)) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "export-not-found",
-      message: "The export Clodable read is gone from this computer.",
+      message: "The export Cloclod read is gone from this computer.",
       hint: "Read it again: download the export from Lovable, then run that step again."
     });
   }
@@ -26673,7 +26668,7 @@ async function apiSeesTables(api, sql, ref, summary, { refresh = true } = {}) {
 async function* checkCopy(ws) {
   const state = await loadMove(ws.root);
   if (!state.home || !state.export) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "move-not-ready",
       message: "There's no copy to check yet.",
       hint: "Copy your data first."
@@ -26703,7 +26698,7 @@ async function* checkCopy(ws) {
 async function setPreview(ws, target) {
   const state = await loadMove(ws.root);
   if (target === "copy" && !state.data) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "move-not-ready",
       message: "Copy your data first: the preview would show an empty app."
     });
@@ -26729,7 +26724,7 @@ async function previewBackend(root) {
 }
 
 // ../core/src/move/diagnose.ts
-var LOOK_AGAIN = "Run `clodable move diagnose --fix`.";
+var LOOK_AGAIN = "Run `cloclod move diagnose --fix`.";
 function verdict(ok, fixedNow, otherwise) {
   if (!ok) return otherwise;
   return fixedNow ? { fixed: true } : {};
@@ -26737,7 +26732,7 @@ function verdict(ok, fixedNow, otherwise) {
 async function diagnoseCopy(ws, options = {}) {
   const state = await loadMove(ws.root);
   if (!state.home) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "move-not-ready",
       message: "There's no new backend to look at yet.",
       hint: "Create it first: it's an early step of the move."
@@ -26765,7 +26760,7 @@ async function diagnoseCopy(ws, options = {}) {
     findings.push({
       ...check2,
       ...verdict(check2.ok, Boolean(options.fix), {
-        fix: "Run `clodable move diagnose --fix`: it asks the API to refresh its list of tables."
+        fix: "Run `cloclod move diagnose --fix`: it asks the API to refresh its list of tables."
       })
     });
   }
@@ -26872,7 +26867,7 @@ async function pointsToNetlify(domain2, siteHost) {
 async function setDomain(ws, input2) {
   const state = await loadMove(ws.root);
   if (!state.site || !state.switch?.liveAt) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "move-not-ready",
       message: "Go live on your new site first.",
       hint: "Your domain moves once the app works at its Netlify address."
@@ -26880,7 +26875,7 @@ async function setDomain(ws, input2) {
   }
   const name = clean(input2 ?? state.domain?.name ?? "");
   if (!isDomainName(name) || name.endsWith(".lovable.app") || name.endsWith(".netlify.app")) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "invalid-config",
       message: name ? `\u201C${name}\u201D isn't a domain of your own.` : "Which domain?",
       hint: "The one your app uses, like yourapp.com or app.yourapp.com."
@@ -26930,12 +26925,12 @@ var ResendApi = class _ResendApi {
       name: "Resend",
       token: key2,
       failed: "resend-failed",
-      refused: (status2, message, details) => status2 === 401 || status2 === 403 ? new ClodableError({
+      refused: (status2, message, details) => status2 === 401 || status2 === 403 ? new CloclodError({
         code: "resend-auth",
         message: /restricted|sending/i.test(message) ? "That Resend key can only send emails." : "Resend didn't accept that key.",
         hint: "Create a key with Full access in Resend (API Keys \u2192 Create API Key), then connect again.",
         details
-      }) : new ClodableError({
+      }) : new CloclodError({
         code: "resend-failed",
         message: "Resend refused the request.",
         hint: "Try again in a minute. If it keeps happening, share the details with your developer.",
@@ -26946,10 +26941,10 @@ var ResendApi = class _ResendApi {
   static async required() {
     const key2 = await readSecret(RESEND_KEY);
     if (!key2) {
-      throw new ClodableError({
+      throw new CloclodError({
         code: "resend-auth",
         message: "Resend isn't connected on this computer yet.",
-        hint: "Connect your Resend account in the Clodable panel first."
+        hint: "Connect your Resend account in the Cloclod panel first."
       });
     }
     return new _ResendApi(key2);
@@ -26983,7 +26978,7 @@ var ResendApi = class _ResendApi {
 async function connectResend(key2) {
   const trimmed = key2.trim();
   if (!/^re_[A-Za-z0-9_]{10,}$/.test(trimmed)) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "resend-auth",
       message: "That doesn't look like a Resend key.",
       hint: "It starts with re_. In Resend: API Keys \u2192 Create API Key, with Full access."
@@ -27010,14 +27005,14 @@ function regionFor(supabaseRegion) {
 async function* setUpEmails(ws, options = {}) {
   const state = await loadMove(ws.root);
   if (!state.home) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "move-not-ready",
       message: "Create your new backend first: emails are sent from it."
     });
   }
   const domain2 = (options.domain ?? state.emails?.domain ?? "").trim().toLowerCase();
   if (!isDomainName(domain2)) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "move-not-ready",
       message: domain2 ? `\u201C${domain2}\u201D isn't a domain name.` : "Which domain should your emails come from?",
       hint: "A domain you own, like example.com: emails will come from no-reply@ that domain."
@@ -27063,7 +27058,7 @@ async function* setUpEmails(ws, options = {}) {
   const latest = await loadMove(ws.root);
   if (!latest.emails?.connectedAt) {
     yield step("move:emails", "running", "Setting up your emails", "Connecting Resend to Supabase");
-    const sending = await resend.createSendingKey(`Clodable \xB7 ${ws.project.name}`, found2.id);
+    const sending = await resend.createSendingKey(`Cloclod \xB7 ${ws.project.name}`, found2.id);
     const supabase = await SupabaseApi.required();
     await supabase.updateAuthConfig(state.home.ref, {
       smtp_admin_email: sender,
@@ -27425,7 +27420,7 @@ async function uploadFunction(api, ref, root, fn) {
 async function* deployFunctions(api, ref, root) {
   const functions = await localFunctions(root);
   if (functions.length === 0) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "move-not-ready",
       message: "This app has no backend functions to deploy."
     });
@@ -27446,7 +27441,7 @@ async function* deployFunctions(api, ref, root) {
     } catch (error62) {
       failed.push(fn.name);
       problems.push(
-        `${fn.name}: ${error62 instanceof ClodableError ? error62.details ?? error62.message : String(error62)}`
+        `${fn.name}: ${error62 instanceof CloclodError ? error62.details ?? error62.message : String(error62)}`
       );
     }
   }
@@ -27471,7 +27466,7 @@ async function* deployFunctions(api, ref, root) {
 async function readyCopy(ws) {
   const state = await loadMove(ws.root);
   if (!state.home || !state.export || !state.data) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "move-not-ready",
       message: "Copy your data first.",
       hint: "Files, functions and secrets go into the copy, once it exists."
@@ -27482,9 +27477,9 @@ async function readyCopy(ws) {
 async function* copyUploads(ws, options = {}) {
   const { state, home, summary } = await readyCopy(ws);
   if (!state.source) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "move-not-ready",
-      message: "Clodable doesn't know which Lovable Cloud backend the files are in.",
+      message: "Cloclod doesn't know which Lovable Cloud backend the files are in.",
       hint: "Read your export again: it says where your files are."
     });
   }
@@ -27579,14 +27574,14 @@ async function setVaultValue(ws, name, value) {
   const state = await loadMove(ws.root);
   const wanted = (state.export?.summary.vaultSecrets ?? []).filter((n4) => !AUTO_VAULT.has(n4));
   if (!name || !wanted.includes(name)) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "invalid-config",
       message: name ? `Your database has no secret called \u201C${name}\u201D.` : "Which secret?",
       ...wanted.length > 0 ? { hint: `It has: ${wanted.join(", ")}.` } : {}
     });
   }
   if (!value.trim() || !state.home) {
-    throw new ClodableError({ code: "invalid-config", message: "That secret is empty." });
+    throw new CloclodError({ code: "invalid-config", message: "That secret is empty." });
   }
   const api = await SupabaseApi.required();
   await setVaultSecret(homeSql(api, state.home.ref), name, value.replace(/\r?\n$/, ""));
@@ -27595,14 +27590,14 @@ async function setVaultValue(ws, name, value) {
 }
 async function setFunctionSecret(ws, name, value) {
   if (!/^[A-Z][A-Z0-9_]*$/.test(name) || name.startsWith("SUPABASE_")) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "invalid-config",
       message: `\u201C${name}\u201D isn't a secret name Supabase accepts.`,
       hint: "Use capitals, digits and underscores, not starting with SUPABASE_."
     });
   }
   if (!value.trim()) {
-    throw new ClodableError({ code: "invalid-config", message: "That secret is empty." });
+    throw new CloclodError({ code: "invalid-config", message: "That secret is empty." });
   }
   const { home } = await readyCopy(ws);
   const api = await SupabaseApi.required();
@@ -27695,7 +27690,7 @@ async function recordFacts(ws, json3) {
   try {
     raw = JSON.parse(json3);
   } catch {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "invalid-config",
       message: "The facts aren't JSON.",
       hint: "Pipe one JSON object to `move facts --set`, shaped as the move skill shows."
@@ -27703,7 +27698,7 @@ async function recordFacts(ws, json3) {
   }
   const parsed = AppFactsSchema.safeParse(raw);
   if (!parsed.success) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "invalid-config",
       message: "The facts don't have the expected shape.",
       details: parsed.error.issues.slice(0, 5).map((i2) => `${i2.path.join(".") || "(top)"}: ${i2.message}`).join("; "),
@@ -27752,18 +27747,18 @@ async function googleStatus(ws) {
 async function setGoogleSignIn(ws, clientId, secret) {
   const id = (clientId ?? "").trim();
   if (!/^[\w-]+\.apps\.googleusercontent\.com$/.test(id)) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "invalid-config",
       message: "That doesn't look like a Google client ID.",
       hint: "It ends with .apps.googleusercontent.com."
     });
   }
   if (secret.trim().length < 10) {
-    throw new ClodableError({ code: "invalid-config", message: "That client secret is empty." });
+    throw new CloclodError({ code: "invalid-config", message: "That client secret is empty." });
   }
   const state = await loadMove(ws.root);
   if (!state.home) {
-    throw new ClodableError({ code: "move-not-ready", message: "Create your new backend first." });
+    throw new CloclodError({ code: "move-not-ready", message: "Create your new backend first." });
   }
   const api = await SupabaseApi.required();
   await api.updateAuthConfig(state.home.ref, {
@@ -27864,7 +27859,7 @@ async function setFunctionSecrets(ws, values) {
 }
 async function setAiProvider(ws, provider, key2) {
   if (!provider || !(provider in AI_PROVIDERS)) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "invalid-config",
       message: "Which AI provider?",
       hint: `One of: ${Object.keys(AI_PROVIDERS).join(", ")}.`
@@ -27873,7 +27868,7 @@ async function setAiProvider(ws, provider, key2) {
   const chosen = AI_PROVIDERS[provider];
   const value = key2.trim();
   if (value.length < 20) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "invalid-config",
       message: `That doesn't look like a ${chosen.name} key.`,
       hint: "Paste the whole key, as the provider shows it once."
@@ -27893,14 +27888,14 @@ async function setAiProvider(ws, provider, key2) {
 async function provisionAppEmails(ws) {
   const state = await loadMove(ws.root);
   if (!state.emails?.connectedAt || !state.emails.domainId) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "move-not-ready",
       message: "Set up your emails first: your app's own emails go out the same way."
     });
   }
   const resend = await ResendApi.required();
   const key2 = await resend.createSendingKey(
-    `Clodable \xB7 ${ws.project.name} \xB7 app`,
+    `Cloclod \xB7 ${ws.project.name} \xB7 app`,
     state.emails.domainId
   );
   const sender = state.emails.sender;
@@ -27918,15 +27913,15 @@ async function provisionAppEmails(ws) {
 async function enableEmailHook(ws) {
   const state = await loadMove(ws.root);
   if (!state.home) {
-    throw new ClodableError({ code: "move-not-ready", message: "Create your new backend first." });
+    throw new CloclodError({ code: "move-not-ready", message: "Create your new backend first." });
   }
   const api = await SupabaseApi.required();
   const deployed = (await api.functions(state.home.ref)).find((f) => f.slug === "auth-email-hook");
   if (deployed?.status !== "ACTIVE") {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "move-not-ready",
       message: "Deploy your backend functions first: the sign-in emails come from auth-email-hook.",
-      hint: "clodable move functions"
+      hint: "cloclod move functions"
     });
   }
   const secret = `v1,whsec_${randomBytes2(32).toString("base64")}`;
@@ -28295,14 +28290,14 @@ async function pendingNewApp(root) {
 }
 async function* prepareNewApp(root, options, github = new GhCli(root)) {
   if (!/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,99}$/.test(options.name) || /\.git$/i.test(options.name)) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "invalid-config",
       message: "Give your app a short name using letters, numbers or dashes."
     });
   }
   const viewer = await github.viewer();
   if (viewer.login !== options.account) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "gh-auth",
       message: "The connected GitHub account has changed.",
       hint: "Open Set up saving again and check the account before continuing."
@@ -28310,17 +28305,17 @@ async function* prepareNewApp(root, options, github = new GhCli(root)) {
   }
   const project = await detectProject(root);
   if (project.appType === "unknown") {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "invalid-config",
       message: "Your local app needs a little preparation before saving.",
-      hint: "Ask Claude to prepare this prototype for Clodable, keeping your design and content."
+      hint: "Ask Claude to prepare this prototype for Cloclod, keeping your design and content."
     });
   }
   const git = new Git(root);
   let pending = await pendingNewApp(root);
   if (pending && (pending.name !== options.name || pending.account !== options.account)) {
     if (pending.destination)
-      throw new ClodableError({
+      throw new CloclodError({
         code: "invalid-config",
         message: "Saving was already started for a different app name or account.",
         hint: `Continue with ${pending.account}/${pending.name}. Your local work is still here.`
@@ -28330,10 +28325,10 @@ async function* prepareNewApp(root, options, github = new GhCli(root)) {
   }
   if (await git.isRepo()) {
     if (!pending || await realpath(await git.root()) !== await realpath(root)) {
-      throw new ClodableError({
+      throw new CloclodError({
         code: "already-there",
         message: "This folder already belongs to an app.",
-        hint: "Open Clodable to set up that app. Start a new idea in an empty folder."
+        hint: "Open Cloclod to set up that app. Start a new idea in an empty folder."
       });
     }
   } else {
@@ -28355,7 +28350,7 @@ ${missing.join("\n")}
   await git.stageAll();
   const secrets = (await scanStaged(root)).filter((f) => f.severity === "block");
   if (secrets.length) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "secret-found",
       message: "A secret key needs to stay out of your app's code.",
       hint: "Ask Claude to move it out, then try Set up saving again. Nothing was sent to GitHub.",
@@ -28364,7 +28359,7 @@ ${missing.join("\n")}
   }
   if (!pending.destination) {
     if (!github.createPrivateRepository)
-      throw new ClodableError({
+      throw new CloclodError({
         code: "unknown",
         message: "This GitHub connection can't create a new app."
       });
@@ -28379,7 +28374,7 @@ ${missing.join("\n")}
   }
   const { repo, cloneUrl } = pending.destination;
   if (!repo.isPrivate || repo.owner !== options.account || repo.name !== options.name) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "gh-auth",
       message: "GitHub returned a different app than the one you approved.",
       hint: "Nothing was sent. Check your GitHub account before continuing."
@@ -28387,7 +28382,7 @@ ${missing.join("\n")}
   }
   const remote = await git.remoteUrl("origin");
   if (remote && remote !== cloneUrl)
-    throw new ClodableError({
+    throw new CloclodError({
       code: "already-there",
       message: "This folder is connected to a different app.",
       hint: "Your files are unchanged. Ask Claude to check the connection before saving."
@@ -28428,7 +28423,7 @@ async function backendChoices() {
 async function* putSiteOnline(ws, options = {}) {
   const move = await loadMove(ws.root);
   if (move.site || move.home) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "already-there",
       message: "Your move off Lovable puts your site on Netlify.",
       hint: "Go on with the move: its website step does this, pointed at your new backend."
@@ -28484,14 +28479,14 @@ async function ownBackend(config2) {
 var ENV_FILE = ".env";
 async function* createBackend(ws, options = {}) {
   if (ws.config.backend === "lovable-cloud") {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "already-there",
       message: "Your app's data is on Lovable Cloud.",
       hint: "Moving off Lovable gives your app its own Supabase, with your data and your people."
     });
   }
   if (ws.config.backend === "supabase" && ws.config.supabase.projectRef) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "already-there",
       message: "Your app already has its own backend on Supabase."
     });
@@ -28507,7 +28502,7 @@ async function* createBackend(ws, options = {}) {
     const { organizations, freeProjects } = await homeChoices();
     const org = pickOrganization(organizations, options.org);
     if (org.plan === "free" && org.freeLeft === 0) {
-      throw new ClodableError({
+      throw new CloclodError({
         code: "supabase-limit",
         message: "Your Supabase account already runs its 2 free projects.",
         hint: `Pause one in Supabase (${freeProjects.map((p) => p.name).join(", ")}), or pick an organization on a paid plan, then try again.`
@@ -28515,7 +28510,7 @@ async function* createBackend(ws, options = {}) {
     }
     const region = options.region ?? (await api.regions(org.slug).catch(() => void 0))?.recommended?.code;
     if (!region) {
-      throw new ClodableError({
+      throw new CloclodError({
         code: "needs-choice",
         message: "Which part of the world should your backend run in?",
         hint: "Pick the region closest to the people who use your app."
@@ -28587,7 +28582,7 @@ async function* createBackend(ws, options = {}) {
 function pickOrganization(organizations, slug) {
   const org = organizations.find((o) => o.slug === slug) ?? (organizations.length === 1 ? organizations[0] : void 0);
   if (!org) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "needs-choice",
       message: "Which Supabase organization should your backend go in?",
       hint: `Pick one: ${organizations.map((o) => `${o.name} (${costOf(o)})`).join(", ")}.`
@@ -28665,7 +28660,7 @@ async function* deployThroughApi(api, ref, root, names2, outcome) {
       await uploadFunction(api, ref, root, fn);
       outcome.deployed.push(name);
     } catch (error62) {
-      if (error62 instanceof ClodableError && error62.code === "supabase-auth") {
+      if (error62 instanceof CloclodError && error62.code === "supabase-auth") {
         outcome.pending.push(name);
       } else {
         outcome.failed.push(name);
@@ -28751,7 +28746,7 @@ async function* waitForCi(ws, prNumber, o) {
     if (summary.state === "failure") {
       const names2 = summary.failed.map((f) => f.name).join(", ");
       yield step("ci", "failed", `A check failed: ${names2}`);
-      throw new ClodableError({
+      throw new CloclodError({
         code: "ci-failed",
         message: `Your project's own checks didn't pass (${names2}).`,
         hint: "Nothing went live. Ask Claude to look at the failing check and fix it.",
@@ -28766,7 +28761,7 @@ async function* waitForCi(ws, prNumber, o) {
     );
     announced = true;
     if (o.now().getTime() > deadline) {
-      throw new ClodableError({
+      throw new CloclodError({
         code: "ci-failed",
         message: "Your project's checks are taking too long.",
         hint: "Nothing went live. Try publishing again in a few minutes."
@@ -28827,7 +28822,7 @@ async function* waitForDeploy(ws, sha, o) {
     }
     case "failed":
       yield step("deploy", "failed", "Your host couldn't put it live");
-      throw new ClodableError({
+      throw new CloclodError({
         code: "deploy-failed",
         message: "Your changes are published on GitHub, but your host couldn't put them live.",
         hint: "Your previous version is still live. Ask Claude to look at the host's report.",
@@ -28891,14 +28886,14 @@ async function* publish(ws, options = {}) {
   try {
     saved = await save2(ws, { message: options.message ?? LAST_TOUCHES });
   } catch (error62) {
-    if (error62 instanceof ClodableError && error62.code === "secret-found") {
+    if (error62 instanceof CloclodError && error62.code === "secret-found") {
       yield step("save", "failed", error62.message);
     }
     throw error62;
   }
   if (saved.unscanned) {
     yield step("save", "failed", "Couldn't check your changes for secret keys");
-    throw new ClodableError({
+    throw new CloclodError({
       code: "checks-failed",
       message: "Couldn't check your changes for secret keys, so nothing was sent.",
       hint: "Check your internet connection and try again. Nothing went live.",
@@ -28907,7 +28902,7 @@ async function* publish(ws, options = {}) {
   }
   if (saved.offline || !saved.pushed) {
     yield step("save", "failed", "Couldn't reach GitHub");
-    throw new ClodableError({
+    throw new CloclodError({
       code: "offline",
       message: "Your changes are saved on this computer, but GitHub can't be reached to publish them.",
       hint: "Check your internet connection and try again."
@@ -28915,10 +28910,10 @@ async function* publish(ws, options = {}) {
   }
   const branch = saved.branch;
   if (branch === ws.liveBranch) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "on-live-branch",
       message: "You're working directly on the live version.",
-      hint: "Run `clodable save` once to move your work onto your draft, then publish."
+      hint: "Run `cloclod save` once to move your work onto your draft, then publish."
     });
   }
   yield step(
@@ -28933,7 +28928,7 @@ async function* publish(ws, options = {}) {
     const compared = await ws.git.checkMerge(ws.liveRef);
     if (!compared.ok) {
       yield step("sync", "failed", "Your draft and the live site changed the same thing");
-      throw new ClodableError({
+      throw new CloclodError({
         code: "conflict",
         message: "Your draft and the live site both changed the same thing.",
         hint: "Ask Claude to review both versions with you. Your preview is unchanged.",
@@ -28943,7 +28938,7 @@ async function* publish(ws, options = {}) {
     const merged = await ws.git.merge(ws.liveRef, "Caught up with the live site");
     if (!merged.ok) {
       yield step("sync", "failed", "Your draft and the live site changed the same thing");
-      throw new ClodableError({
+      throw new CloclodError({
         code: "conflict",
         message: "Your draft and the live site both changed the same thing.",
         hint: "Ask Claude to combine them. It knows what to do. Then publish again.",
@@ -28952,7 +28947,7 @@ async function* publish(ws, options = {}) {
     }
     const pushed = await ws.git.push(branch, { remote: ws.remote, setUpstream: true });
     if (!pushed.ok) {
-      throw new ClodableError({
+      throw new CloclodError({
         code: "push-rejected",
         message: "GitHub didn't accept the update.",
         details: pushed.stderr
@@ -28968,8 +28963,8 @@ async function* publish(ws, options = {}) {
     yield step("sync", "done", "Already up to date with your live site");
   }
   const saves = await ws.git.log(`${ws.liveRef}..HEAD`, { noMerges: true, limit: 200 });
-  if (saves.length === 0 || await sameAsLive(ws, { clodablesToo: true })) {
-    throw new ClodableError({
+  if (saves.length === 0 || await sameAsLive(ws, { cloclodsToo: true })) {
+    throw new CloclodError({
       code: "nothing-to-publish",
       message: "There's nothing new to publish. Your live site already has everything."
     });
@@ -28999,7 +28994,7 @@ async function* publish(ws, options = {}) {
   yield step("pull-request", "running", "Preparing your draft on GitHub");
   const pr = await ensurePullRequest(ws, branch);
   if (!pr)
-    throw new ClodableError({
+    throw new CloclodError({
       code: "nothing-to-publish",
       message: "There's nothing new to publish."
     });
@@ -29011,7 +29006,7 @@ async function* publish(ws, options = {}) {
   const body = [
     ...saves.slice().reverse().map((c2) => `- ${c2.subject}`),
     "",
-    `Published by @${await ws.login()} with Clodable.`,
+    `Published by @${await ws.login()} with Cloclod.`,
     "",
     kindTrailer("publish")
   ].join("\n");
@@ -29069,8 +29064,8 @@ async function* undoPublish(ws, options = {}) {
   await ws.git.fetch(ws.remote, ws.liveBranch);
   const [target] = options.sha ? await ws.git.log(`${options.sha}^!`) : await ws.git.log(ws.liveRef, { firstParent: true, limit: 1 });
   if (!target)
-    throw new ClodableError({ code: "not-found", message: "There's no publish to undo yet." });
-  const dir = await mkdtemp8(join29(tmpdir5(), "clodable-undo-"));
+    throw new CloclodError({ code: "not-found", message: "There's no publish to undo yet." });
+  const dir = await mkdtemp8(join29(tmpdir5(), "cloclod-undo-"));
   const branch = `undo/${target.sha.slice(0, 7)}`;
   try {
     const side = await ws.git.worktreeAdd(dir, branch, ws.liveRef);
@@ -29078,14 +29073,14 @@ async function* undoPublish(ws, options = {}) {
     if (reverted.exitCode !== 0) {
       await side.run(["revert", "--abort"]);
       yield step("revert", "failed", "This publish can't be undone automatically");
-      throw new ClodableError({
+      throw new CloclodError({
         code: "conflict",
         message: "Newer changes on your live site touch the same lines, so this can't be undone automatically.",
         hint: "Ask Claude to undo it by hand. It can see exactly what changed."
       });
     }
     const undone = await side.run(["diff", "--cached", "--name-only", "HEAD"]);
-    await side.restorePaths("HEAD", undone.stdout.split("\n").filter(clodableFile));
+    await side.restorePaths("HEAD", undone.stdout.split("\n").filter(cloclodFile));
     await keepIgnored(dir);
     const undoTitle = `Undo: ${target.subject}`;
     const identity = await ws.git.identity() ?? void 0;
@@ -29097,7 +29092,7 @@ async function* undoPublish(ws, options = {}) {
     });
     const pushed = await side.push(branch, { remote: ws.remote, setUpstream: true });
     if (!pushed.ok) {
-      throw new ClodableError({
+      throw new CloclodError({
         code: pushed.offline ? "offline" : "push-rejected",
         message: "GitHub didn't accept the undo.",
         details: pushed.stderr
@@ -29107,7 +29102,7 @@ async function* undoPublish(ws, options = {}) {
       head: branch,
       base: ws.liveBranch,
       title: undoTitle,
-      body: `Undoes the publish \u201C${target.subject}\u201D, requested with Clodable.`
+      body: `Undoes the publish \u201C${target.subject}\u201D, requested with Cloclod.`
     });
     yield step("revert", "done", "Prepared the undo");
     yield* waitForCiIfAny(ws, created.number, wait2);
@@ -29175,18 +29170,18 @@ var Workspace = class _Workspace {
   static async open(options) {
     const probe = new Git(options.cwd);
     if (!await probe.isRepo()) {
-      throw new ClodableError({
+      throw new CloclodError({
         code: "not-a-repo",
         message: "This folder isn't connected to GitHub yet.",
-        hint: "Run `clodable setup` here to bring in your app from GitHub."
+        hint: "Run `cloclod setup` here to bring in your app from GitHub."
       });
     }
     const root = await probe.root();
     if (options.requireSetup !== false && !isSetUp(root)) {
-      throw new ClodableError({
+      throw new CloclodError({
         code: "not-set-up",
-        message: "Clodable isn't set up in this project.",
-        hint: "Run `clodable setup` here to add it. Until then, Clodable leaves this project alone."
+        message: "Cloclod isn't set up in this project.",
+        hint: "Run `cloclod setup` here to add it. Until then, Cloclod leaves this project alone."
       });
     }
     const git = new Git(root);
@@ -30988,7 +30983,7 @@ ${ash(indent(error62.details, 4))}
     },
     header(title) {
       out.write(`
-  ${clay("\u25CF")} ${import_picocolors.default.bold("clodable")} ${ash("\xB7")} ${title}
+  ${clay("\u25CF")} ${import_picocolors.default.bold("cloclod")} ${ash("\xB7")} ${title}
 
 `);
     },
@@ -31028,7 +31023,7 @@ async function run(ctx2, body, render) {
   } catch (error62) {
     const info = toErrorInfo(error62);
     ctx2.out.result(false, void 0, info);
-    process.exitCode = error62 instanceof ClodableError && info.code !== "unknown" ? 1 : 2;
+    process.exitCode = error62 instanceof CloclodError && info.code !== "unknown" ? 1 : 2;
   }
 }
 function drive(ctx2, flow2) {
@@ -31048,7 +31043,7 @@ async function secretInput(ctx2, message, options = {}) {
     const typed = await password({ message });
     if (!isCancel(typed) && typed.trim()) return tidy(typed);
   }
-  throw new ClodableError({
+  throw new CloclodError({
     code: "invalid-config",
     message: "Nothing was given.",
     hint: "Pipe the value in (never as an argument), or run this in a terminal to type it."
@@ -31101,10 +31096,10 @@ async function dbCommand(ctx2, options) {
       );
     default:
       return run(ctx2, async () => {
-        throw new ClodableError({
+        throw new CloclodError({
           code: "invalid-config",
           message: `There's no \u201C${options.action ?? ""}\u201D for the database.`,
-          hint: 'clodable db query "select \u2026", clodable db run "update \u2026", or clodable db apply supabase/migrations/<file>.sql'
+          hint: 'cloclod db query "select \u2026", cloclod db run "update \u2026", or cloclod db apply supabase/migrations/<file>.sql'
         });
       });
   }
@@ -31794,8 +31789,8 @@ function parseSourceAttr(value) {
   if (!match) return void 0;
   return { file: match[1], line: Number(match[2]), column: Number(match[3]) };
 }
-var CONFIG_NAME = "__CLODABLE__";
-var PREFIX = "/__clodable/";
+var CONFIG_NAME = "__CLOCLOD__";
+var PREFIX = "/__cloclod/";
 var ROUTES = {
   toolbar: `${PREFIX}toolbar.js`,
   health: `${PREFIX}health`,
@@ -31806,7 +31801,7 @@ var ROUTES = {
   originalLine: `${PREFIX}original-line`,
   buildError: `${PREFIX}build-error`
 };
-var FRAME_PARAM = "__clodable_frame";
+var FRAME_PARAM = "__cloclod_frame";
 var SCREENS = {
   phone: { width: 390, height: 844 },
   tablet: { width: 820, height: 1180 }
@@ -31867,7 +31862,7 @@ body {
 @media (prefers-reduced-motion: reduce) { .device { transition: none; } }
 </style>
 </head>
-<body data-clodable-stage="${device.id}" data-landscape="${options.landscape}">
+<body data-cloclod-stage="${device.id}" data-landscape="${options.landscape}">
 <main class="stage">
   <div class="fit" id="fit">
     <div class="device" id="device" role="region" aria-label="${escapeHtml(device.label)} preview, ${width} by ${height}">
@@ -31900,20 +31895,20 @@ body {
 }
 
 // ../preview/src/inject.ts
-var TOOLBAR_TAG = `<script src="${ROUTES.toolbar}" data-clodable-toolbar></script>`;
+var TOOLBAR_TAG = `<script src="${ROUTES.toolbar}" data-cloclod-toolbar></script>`;
 function afterOpening(html) {
   const opening = /<head(?=[\s>])[^>]*>/i.exec(html) ?? /<body(?=[\s>])[^>]*>/i.exec(html);
   return opening ? opening.index + opening[0].length : void 0;
 }
 function injectToolbar(html) {
-  if (html.includes("data-clodable-toolbar")) return html;
+  if (html.includes("data-cloclod-toolbar")) return html;
   const at = afterOpening(html);
   return at === void 0 ? void 0 : html.slice(0, at) + TOOLBAR_TAG + html.slice(at);
 }
 var TAG_BYTES = Buffer.from(TOOLBAR_TAG, "utf8");
 function injectToolbarBytes(bytes) {
   const buf = Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-  if (buf.includes("data-clodable-toolbar")) return bytes;
+  if (buf.includes("data-cloclod-toolbar")) return bytes;
   const at = afterOpening(buf.toString("latin1"));
   if (at === void 0) return void 0;
   return Buffer.concat([buf.subarray(0, at), TAG_BYTES, buf.subarray(at)]);
@@ -47872,7 +47867,7 @@ import { readFile as readFile18 } from "node:fs/promises";
 import { fileURLToPath as fileURLToPath2 } from "node:url";
 var cached2;
 async function toolbarSource() {
-  if (true) return '"use strict";(()=>{var H="data-cl-src";function Q(o){let e=o.match(/^(.+):(\\d+):(\\d+)$/);if(e)return{file:e[1],line:Number(e[2]),column:Number(e[3])}}var b="/__clodable/",u={toolbar:`${b}toolbar.js`,health:`${b}health`,frame:`${b}frame`,probe:`${b}text/probe`,text:`${b}text`,inbox:`${b}inbox`,originalLine:`${b}original-line`,buildError:`${b}build-error`},M="__clodable_frame",ee={phone:{width:390,height:844},tablet:{width:820,height:1180}};function D(o,e,t){return{message:o.trim().split(`\n`)[0].slice(0,300),stack:e.slice(0,4e3),kind:"build",...t?{source:t}:{}}}var $=()=>typeof __CLODABLE__>"u"?void 0:__CLODABLE__,ye=()=>$()?.token??"",te;function ie(){te=window.fetch.bind(window)}async function x(o,e){let t=await(te??fetch)(o,{method:"POST",headers:{"content-type":"application/json","x-clodable-token":ye()},body:JSON.stringify(e)});if(!t.ok)throw new Error(`Clodable ${o}: ${t.status}`);return await t.json()}var N=()=>{try{let o=sessionStorage.getItem("clodable:conversation");return o?{conversation:o}:{}}catch{return{}}},F=()=>({url:location.href,path:location.pathname+location.search,title:document.title}),m={probe:(o,e)=>x(u.probe,{src:o,text:e}),edit:(o,e,t)=>x(u.text,{src:o,before:e,after:t,page:F(),...N()}),ask:(o,e,t)=>x(u.inbox,{kind:"ask",page:F(),request:o,element:e,...t?{source:t}:{},...N()}),fix:(o,e)=>x(u.inbox,{kind:"fix",page:F(),error:o,console:e,...N()}),originalLine:o=>x(u.originalLine,o).then(e=>e.line),buildError:o=>x(u.buildError,{since:o}).then(e=>e.error)};var z={light:{paper:"#FBF8F3",bisque:"#F4EEE6",slip:"#E7DED2",slipStrong:"#D3C6B6",ink:"#1F1A16",ash:"#6B6158",clay:"#B9502B",clayHover:"#A44322",clayText:"#A2441F",onClay:"#FFFFFF",claySoft:"#F7E4DA",celadon:"#2B7354",celadonSoft:"#E1F0E8",cobalt:"#2D5BA6",cobaltSoft:"#E3EBF7",ochre:"#8F6210",ochreSoft:"#F7ECD4",oxide:"#B1281E",oxideSoft:"#F9E1DE",focus:"#2D5BA6",scrim:"rgba(31, 26, 22, 0.32)"},dark:{paper:"#15110E",bisque:"#1E1915",slip:"#352D27",slipStrong:"#4A4038",ink:"#F3EEE7",ash:"#A79D92",clay:"#E5764F",clayHover:"#EE8A66",clayText:"#F08F6B",onClay:"#1F1A16",claySoft:"#3A2419",celadon:"#6CC59E",celadonSoft:"#16342A",cobalt:"#8AB0F0",cobaltSoft:"#18263D",ochre:"#E6B356",ochreSoft:"#3A2C12",oxide:"#F27B70",oxideSoft:"#3E1A17",focus:"#8AB0F0",scrim:"rgba(0, 0, 0, 0.5)"}};var _={sm:"6px",md:"10px",lg:"14px",xl:"20px",pill:"999px"},w={ui:\'ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text", "Segoe UI", system-ui, "Helvetica Neue", Arial, sans-serif\',mono:\'ui-monospace, "SF Mono", "Cascadia Code", "JetBrains Mono", Menlo, Consolas, monospace\',display:\'"Fraunces", "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, ui-serif, serif\'};var I={light:{sm:"0 1px 2px rgba(60, 38, 20, 0.08)",md:"0 1px 2px rgba(60, 38, 20, 0.06), 0 6px 16px -4px rgba(60, 38, 20, 0.14)",lg:"0 2px 4px rgba(60, 38, 20, 0.06), 0 18px 40px -12px rgba(60, 38, 20, 0.28)"},dark:{sm:"0 1px 2px rgba(0, 0, 0, 0.4)",md:"0 1px 2px rgba(0, 0, 0, 0.4), 0 6px 16px -4px rgba(0, 0, 0, 0.5)",lg:"0 2px 4px rgba(0, 0, 0, 0.4), 0 18px 40px -12px rgba(0, 0, 0, 0.7)"}},f={fast:"120ms",base:"180ms",slow:"260ms",easeOut:"cubic-bezier(0.2, 0.8, 0.2, 1)",easeInOut:"cubic-bezier(0.65, 0, 0.35, 1)",spring:"cubic-bezier(0.34, 1.4, 0.64, 1)"},B={toolbar:2147483e3,toast:2147483100,overlay:2147483200};var we=o=>o.replace(/[A-Z]/g,e=>`-${e.toLowerCase()}`);function k(o){let e=Object.entries(z[o]).map(([i,r])=>`--cl-${we(i)}: ${r};`).join(" "),t=Object.entries(I[o]).map(([i,r])=>`--cl-shadow-${i}: ${r};`).join(" ");return`${e} ${t} color-scheme: ${o};`}var oe=[...Object.entries(_).map(([o,e])=>`--cl-radius-${o}: ${e};`),`--cl-font-ui: ${w.ui};`,`--cl-font-mono: ${w.mono};`,`--cl-font-display: ${w.display};`,`--cl-fast: ${f.fast};`,`--cl-base: ${f.base};`,`--cl-slow: ${f.slow};`,`--cl-ease-out: ${f.easeOut};`,`--cl-ease-in-out: ${f.easeInOut};`,`--cl-spring: ${f.spring};`].join(" ");function q(o={}){let e=o.selector??":root",t=o.scheme??"auto";if(t!=="auto")return`${e} { ${oe} ${k(t)} }`;let i=r=>e===":host"?`:host([data-theme="${r}"]) { ${k(r)} }`:`${e}[data-theme="${r}"] { ${k(r)} }`;return[`${e} { ${oe} ${k("light")} }`,`@media (prefers-color-scheme: dark) { ${e} { ${k("dark")} } }`,i("light"),i("dark")].join(`\n`)}var d=(...o)=>o,ne={check:d("M4.5 10.5l3.5 3.5 7.5-8"),close:d("M5.5 5.5l9 9M14.5 5.5l-9 9"),publish:d("M10 13.5v-7","M7 9.5l3-3 3 3",{circle:[10,10,7]}),undo:d("M7.5 5.5 4 9l3.5 3.5","M4.5 9h7.25a3.75 3.75 0 0 1 0 7.5H10"),restore:d("M3.5 10a6.5 6.5 0 1 0 1.9-4.6","M3.5 3.5v3h3","M10 6.75V10l2.5 1.5"),external:d("M8.5 5.5h-3a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-3","M11.5 4.5h4v4","M15.5 4.5 9.5 10.5"),phone:d("M8 2.5h4a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2v-11a2 2 0 0 1 2-2z","M9 15h2"),tablet:d("M6 3h8a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z","M9 14.5h2"),desktop:d("M3.5 4.5h13a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1h-13a1 1 0 0 1-1-1v-8a1 1 0 0 1 1-1z","M7.5 17.5h5","M10 14.5v3"),text:d("M3.5 6V4.5h9V6","M8 4.5v11","M6 15.5h4","M15 8.5v8","M13.5 8.5h3","M13.5 16.5h3"),select:d("M4.5 3.5l10.5 4.6-4.4 1.6-1.6 4.4z","M10.6 9.7l4.4 4.4"),minimize:d("M5 10h10"),alert:d("M10 3.8 17.2 16.2H2.8z","M10 8.5v3.5","M10 14.25v.01"),info:d({circle:[10,10,7]},"M10 9.25v4.5","M10 6.5v.01"),globe:d({circle:[10,10,7]},"M3 10h14","M10 3c1.9 2 2.9 4.4 2.9 7s-1 5-2.9 7c-1.9-2-2.9-4.4-2.9-7s1-5 2.9-7z"),database:d("M4 5.5C4 4.1 6.7 3 10 3s6 1.1 6 2.5S13.3 8 10 8 4 6.9 4 5.5z","M4 5.5v9C4 15.9 6.7 17 10 17s6-1.1 6-2.5v-9","M4 10c0 1.4 2.7 2.5 6 2.5s6-1.1 6-2.5"),refresh:d("M15.5 8a6 6 0 0 0-10.4-1.6L4 8","M4 4.5V8h3.5","M4.5 12a6 6 0 0 0 10.4 1.6L16 12","M16 15.5V12h-3.5"),grip:d({circle:[7.5,6,1.1],fill:!0},{circle:[12.5,6,1.1],fill:!0},{circle:[7.5,10,1.1],fill:!0},{circle:[12.5,10,1.1],fill:!0},{circle:[7.5,14,1.1],fill:!0},{circle:[12.5,14,1.1],fill:!0}),more:d({circle:[5,10,1.25],fill:!0},{circle:[10,10,1.25],fill:!0},{circle:[15,10,1.25],fill:!0}),chevronDown:d("M6 8l4 4 4-4"),chevronUp:d("M6 12l4-4 4 4"),arrowRight:d("M4.5 10h11","M11 5.5l4.5 4.5-4.5 4.5"),copy:d("M7.5 7.5h7a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1h-7a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1z","M4.5 12.5h-.25a.75.75 0 0 1-.75-.75v-7.5a.75.75 0 0 1 .75-.75h7.5a.75.75 0 0 1 .75.75v.25")},re=o=>o.replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;");function K(o,e={}){let t=e.size??20,i=e.strokeWidth??1.6,r=e.label?`role="img" aria-label="${re(e.label)}"`:\'aria-hidden="true" focusable="false"\',n=e.className?` class="${re(e.className)}"`:"",s=ne[o].map(l=>{if(typeof l=="string")return`<path d="${l}"/>`;let[p,h,c]=l.circle;return l.fill?`<circle cx="${p}" cy="${h}" r="${c}" fill="currentColor" stroke="none"/>`:`<circle cx="${p}" cy="${h}" r="${c}"/>`}).join("");return`<svg${n} xmlns="http://www.w3.org/2000/svg" width="${t}" height="${t}" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="${i}" stroke-linecap="round" stroke-linejoin="round" ${r}>${s}</svg>`}var ae=[".........ooo....",".......oobbbo...","......obbbbbo...","....oobbbbbbo...","...obbbbbbbbbo..","..obbbbbbbbbbbo.",".obbbbbbbbbbbbo.",".obbeebbbbeebbo.","obbbeebbbbeebbbo","obbbbbbeebbbbbbo","obbbbbbbbbbbbbbo","oobbbbbbbbbbbbbo","..obbbbbbbbbbbo.","..oobbbooobbboo.","....obo...obo...","....ooo...ooo..."],se={outline:"#3B1A10",clay:"#E88858",eyes:"#2A140C"};function ke(o){let e={o:o.outline,b:o.clay,e:o.eyes},t={};return ae.forEach((i,r)=>{for(let n=0;n<i.length;){let s=i[n],l=1;for(;i[n+l]===s;)l++;e[s]&&(t[s]=`${t[s]??""}M${n} ${r}h${l}v1h-${l}z`),n+=l}}),Object.entries(t).map(([i,r])=>`<path fill="${e[i]}" d="${r}"/>`).join("")}function j(o={}){let e=o.size??32,t=o.label?`role="img" aria-label="${o.label.replace(/"/g,"&quot;")}"`:\'aria-hidden="true" focusable="false"\';return`<svg xmlns="http://www.w3.org/2000/svg" width="${e}" height="${e}" viewBox="0 0 16 16" shape-rendering="crispEdges" ${t}>${ke({...se,...o.colors})}</svg>`}function a(o,e={},...t){let i=document.createElement(o);for(let[r,n]of Object.entries(e))n==null||n===!1||(r==="class"?i.className=String(n):r==="style"?typeof n=="string"?i.setAttribute("style",n):Object.assign(i.style,n):r==="dataset"?Object.assign(i.dataset,n):r.startsWith("on")&&typeof n=="function"?i.addEventListener(r.slice(2).toLowerCase(),n):n===!0?i.setAttribute(r,""):i.setAttribute(r,String(n)));return Ee(i,t),i}function Ee(o,e){for(let t of e)t==null||t===!1||o.appendChild(typeof t=="object"?t:document.createTextNode(String(t)))}function g(o,e=18){let t=document.createElement("span");return t.className="ic",t.innerHTML=K(o,{size:e,strokeWidth:e<=16?1.7:1.6}),t}var L=[],le=[],X;function U(o){X?X(o):le.push(o)}var ce="Part of the app didn\'t load",de=new RegExp(`^${ce}$|Failed to fetch dynamically imported module|error loading dynamically imported module|Importing a module script failed`,"i"),Y="clodable:fixing";function Se(){try{return Date.now()-Number(sessionStorage.getItem(Y)??0)<12e4}catch{return!1}}function T(o){try{o?sessionStorage.setItem(Y,String(Date.now())):sessionStorage.removeItem(Y)}catch{}}function pe(){addEventListener("error",e=>{let t=e.target;!(t instanceof HTMLScriptElement)||t.hasAttribute("data-clodable-toolbar")||t.src&&new URL(t.src,location.href).origin!==location.origin||U({message:ce,kind:"build"})},!0),addEventListener("error",e=>{let t=e.error;U({message:t?.message??e.message,...t?.stack?{stack:t.stack}:{},kind:"runtime"})}),addEventListener("unhandledrejection",e=>{let t=e.reason,i=typeof t=="string"?t:t?.message??"A background task failed";U({message:i,...typeof t=="object"&&t?.stack?{stack:t.stack}:{},kind:"promise"})});let o=console.error.bind(console);console.error=(...e)=>{L.push(e.map(t=>t instanceof Error?t.message:String(t)).join(" ").slice(0,400)),L.length>8&&L.shift(),o(...e)}}async function Ce(){try{return(await import(`${location.origin}/@vite/client`)).createHotContext?.(u.toolbar)}catch{return}}var Me=[/ResizeObserver loop/i,/Script error\\.?$/i,/__clodable/];function $e(o){if(o)for(let e of o.split(`\n`)){let t=e.match(/https?:\\/\\/[^/]+\\/(src\\/[^?:)\\s]+)(?:\\?[^:)]*)?:(\\d+):(\\d+)/);if(t)return{file:t[1],line:Number(t[2]),column:Number(t[3])}}}function V(){return((document.getElementById("root")??document.body).innerText??"").trim().length===0}var W=o=>o.split("/").pop()??o,v=o=>a("strong",{},o);function Te(o){let e=o.source&&W(o.source.file),t=o.message.match(/Failed to resolve import "([^"]+)" from "([^"]+)"/);if(t){let r=t[1],n=t[2];if(/^(\\.|\\/|@\\/|~\\/)/.test(r)){let s=r.replace(/^(@|~)\\//,"").replace(/^(\\.\\.?\\/)+/,"");return[v(W(n))," refers to ",v(s),", a file that doesn\\u2019t exist."]}return[v(W(n))," uses ",v(r),", a package that isn\\u2019t installed."]}let i=o.message.match(/^(?:\\w*Error: )?([\\w$]+) is not defined$|Can\'t find variable: ([\\w$]+)/);if(i){let r=i[1]??i[2];return[e?v(e):"This page"," refers to ",v(r),", which doesn\\u2019t exist."]}return de.test(o.message)?["Part of the app\\u2019s code didn\\u2019t load."]:o.kind==="build"?e?[v(e),` has a mistake on line ${o.source.line}.`]:["A mistake in the code stops it from loading."]:e?["The problem starts in ",v(e),`, line ${o.source.line}.`]:["Something in the code went wrong."]}function Le(o){let e=o.source?`${o.source.file}:${o.source.line}`:"",t=[];for(let i of(o.stack??"").split(`\n`))!i.trim()||i.endsWith(o.message)||o.source&&i.endsWith(o.source.file)||t.push(i.replace(/https?:\\/\\/[^/\\s]+\\/(@fs\\/)?/g,"").replace(/\\?[^:)\\s]*(?=:\\d)/g,""));return{where:e,frame:t.slice(0,24).join(`\n`)}}function Ae(o){let e=o.err;if(!e)return;let t=e.loc?.file??e.id??"",i=t.match(/(src\\/[^?:]+)/);return D(e.message??"The app couldn\'t be built",`${t}\n${e.message??""}\n${e.stack??""}`,i?{file:i[1],line:e.loc?.line??1}:void 0)}function Re(){let o=document.querySelector("vite-error-overlay");if(!o)return;let e=o.shadowRoot?.querySelector(".message-body")?.textContent??"The app couldn\'t be built",t=o.shadowRoot?.querySelector(".file")?.textContent??"",i=t.match(/(src\\/[^:]+):(\\d+)/);return D(e,`${t}\n${e}`,i?{file:i[1],line:Number(i[2])}:void 0)}function Oe(o,e,t){return e?"Claude is fixing it\\u2026":o.kind==="build"?"Your app can\\u2019t load":t?"This page can\\u2019t load":"Something broke on this page"}var A=class{constructor(e,t,i){this.layer=e;this.dockSlot=t;this.toast=i}layer;dockSlot;toast;card;current;dismissed=new Set;detailsOpen=!1;updateStarted=0;start(){X=t=>this.capture(t);let e=le.splice(0);for(let t of e)this.capture(t);!e.length&&V()&&m.buildError(performance.timeOrigin).then(t=>{t&&!this.current&&this.show(t)},()=>{}),setTimeout(()=>{this.current||T(!1)},3e3),Ce().then(t=>{t?.on("vite:error",i=>{let r=Ae(i);r&&this.capture(r)}),t?.on("vite:beforeUpdate",()=>{this.updateStarted=Date.now()}),t?.on("vite:afterUpdate",()=>{this.afterUpdate()})}),new MutationObserver(()=>{let t=Re();t&&this.capture(t)}).observe(document.documentElement,{childList:!0})}async afterUpdate(){if(this.current){if(V()||this.current.kind==="build"){let e=await m.buildError(this.updateStarted).catch(()=>null);e?this.show(e):location.reload();return}T(!1),this.dismiss(!1)}}capture(e){if(!(!e.message||Me.some(t=>t.test(e.message)))){if(de.test(e.message)){m.buildError(performance.timeOrigin).then(t=>this.show(t??e),()=>this.show(e));return}this.show(e)}}show(e){if(this.dismissed.has(e.message))return;let t=e.source?void 0:$e(e.stack);if(t){let i=r=>this.show({...e,source:{file:t.file,line:r??t.line}});m.originalLine(t).then(i,()=>i(null));return}this.current=e,setTimeout(()=>this.render(),60)}render(e=Se()){let t=this.current;if(!t)return;let i=t.kind==="build"||V(),r=!!this.card?.isConnected,n=this.layer.getRootNode(),s=!!this.card?.contains(n.activeElement);this.card?.remove();let{more:l,details:p}=this.detailsToggle(t),h=a("button",{class:"close","aria-label":"Dismiss",onclick:()=>this.dismiss()},g("close",16)),c=a("div",{class:`error ${i?"screen":"note"}${e?" working":""}${r?" still":""}`,role:"alert","aria-labelledby":"cl-err-title","aria-describedby":"cl-err-why"},a("div",{class:"error-body"},a("div",{class:"head"},a("span",{class:e?"spinner":"dot","aria-hidden":"true"}),a("h3",{id:"cl-err-title"},Oe(t,e,i)),i?null:h),a("p",{class:"why",id:"cl-err-why"},...e?["The preview updates by itself when it\\u2019s fixed."]:Te(t)),e?null:a("div",{class:"actions"},a("button",{class:"btn primary",onclick:()=>this.fix()},"Try to fix"),l),e?null:p),i?h:null);this.card=c,i?this.layer.append(c):this.dockSlot.prepend(c),s&&(c.querySelector(".btn.primary")??h).focus()}detailsToggle(e){let{where:t,frame:i}=Le(e),r=a("div",{class:"details",id:"cl-err-details",hidden:!this.detailsOpen},t?a("p",{class:"where"},t):null,a("p",{class:"raw"},e.message),i?a("pre",{class:"frame"},i):null),n=a("span",{},this.detailsOpen?"Hide details":"Show details"),s=a("button",{class:"btn ghost more","aria-expanded":String(this.detailsOpen),"aria-controls":"cl-err-details",onclick:()=>{this.detailsOpen=!this.detailsOpen,r.hidden=!this.detailsOpen,n.textContent=this.detailsOpen?"Hide details":"Show details",s.setAttribute("aria-expanded",String(this.detailsOpen))}},n,g("chevronDown",16));return{more:s,details:r}}async fix(){let e=this.current;if(e){T(!0),this.render(!0);try{await m.fix(e,[...L])}catch{T(!1),this.toast("Couldn\'t reach Claude. Is Clodable running?","warn"),this.render(!1)}}}dismiss(e=!0){this.current&&e&&this.dismissed.add(this.current.message),this.current=void 0,this.card?.remove(),this.card=void 0}};function y(o){let e=o?.closest(`[${H}]`),t=e?.getAttribute(H);return e&&t?{el:e,src:t}:void 0}function G(o){let e=o.tagName.toLowerCase(),t=o.getAttribute("role");if(/^h[1-6]$/.test(e))return"heading";if(e==="button"||t==="button")return"button";if(e==="a"){let r=o.getAttribute("class")??"";return/\\brounded/.test(r)&&/\\b(bg-|border)/.test(r)&&/\\b(px-|h-\\d)/.test(r)?"button":"link"}if(e==="img"||e==="picture"||e==="video")return"image";if(e==="svg")return"icon";if(["input","textarea","select"].includes(e))return"input";if(["ul","ol","li","dl"].includes(e))return"list";if(e==="nav"||e==="header"||e==="footer")return"nav";if(["section","main","article","aside"].includes(e))return"section";if(["p","span","label","strong","em","small","blockquote","figcaption"].includes(e))return"text";let i=o.getAttribute("class")??"";return/\\bcard\\b|rounded-(lg|xl|2xl)/.test(i)&&o.children.length>1?"card":o.children.length===0&&o.textContent?.trim()?"text":o.children.length>2?"section":"element"}var Pe={heading:"Heading",text:"Text",button:"Button",link:"Link",image:"Image",input:"Field",list:"List",section:"Section",nav:"Navigation",card:"Card",icon:"Icon",element:"Element"};function E(o){let e=G(o);if(e==="nav"){let t=o.tagName.toLowerCase();return t==="header"?"Header":t==="footer"?"Footer":"Navigation"}return Pe[e]}function R(o,e=42){let i=(o.getAttribute("alt")??o.getAttribute("aria-label")??o.textContent??"").replace(/\\s+/g," ").trim();return i?i.length>e?`${i.slice(0,e-1).trimEnd()}\\u2026`:i:""}function he(o){let e=o.tagName.toLowerCase(),t=(o.getAttribute("class")??"").split(/\\s+/).slice(0,8).join(" "),i=R(o,80);return`${E(o)} <${e}${t?` class="${t}"`:""}>${i?` \\u201C${i}\\u201D`:""}`}var ue={heading:["Rewrite it","Make it bigger","Change the font"],text:["Rewrite it","Make it shorter","Change the color"],button:["Change the label","Make it stand out","Change what it does"],link:["Change where it goes","Change the text","Style it as a button"],image:["Replace the image","Make it rounder","Make it bigger"],input:["Change the placeholder","Make it required","Change the label"],list:["Add an item","Change the layout","Reorder it"],section:["Change the layout","Add something here","Change the background"],nav:["Add a link","Change the logo","Make it sticky"],card:["Change the layout","Add a picture","Make it stand out"],icon:["Use a different icon","Make it bigger","Change the color"],element:["Change the style","Move it","Remove it"]};var S=class{constructor(e){this.layer=e;this.box=a("div",{class:"hl",style:"opacity:0"}),this.chip=a("div",{class:"chip",style:"opacity:0"}),e.append(this.box,this.chip)}layer;box;chip;target;frame=0;lines=[];perLine=!1;show(e,t,i,r={}){this.target=e,this.perLine=!!r.perLine,this.box.className=`hl ${t}`,this.box.style.opacity="1";for(let n of this.lines)n.className=`hl ${t}`;i?(this.chip.className=`chip ${t.startsWith("ask")?"ask":t==="locked"?"locked":""}`,this.chip.replaceChildren(...i.icon?[g(i.icon,14)]:[],a("span",{},i.strong),...i.muted?[a("span",{class:"muted"},i.muted)]:[]),this.chip.style.opacity="1"):this.chip.style.opacity="0",this.place(),this.frame||this.loop()}fadeOut(e,t){this.show(e,t),this.box.addEventListener("animationend",()=>this.hide(),{once:!0})}hide(){this.target=void 0,this.box.style.opacity="0",this.chip.style.opacity="0";for(let e of this.lines)e.remove();this.lines=[],cancelAnimationFrame(this.frame),this.frame=0}loop=()=>{this.place(),this.frame=this.target?requestAnimationFrame(this.loop):0};place(){let e=this.target?.getBoundingClientRect();if(!e)return;if(this.perLine&&this.target){let i=Array.from(this.target.getClientRects()).filter(r=>r.width>0&&r.height>0);if(i.length>1){for(;this.lines.length<i.length-1;){let n=a("div",{class:this.box.className});this.layer.append(n),this.lines.push(n)}for(;this.lines.length>i.length-1;)this.lines.pop()?.remove();let r=[this.box,...this.lines];i.forEach((n,s)=>{Object.assign(r[s].style,{top:`${n.top}px`,left:`${n.left}px`,width:`${n.width}px`,height:`${n.height}px`,opacity:"1"})});return}}Object.assign(this.box.style,{top:`${e.top}px`,left:`${e.left}px`,width:`${e.width}px`,height:`${e.height}px`});let t=e.top-30<4?e.bottom+8:e.top-30;Object.assign(this.chip.style,{top:`${t}px`,left:`${Math.max(6,Math.min(e.left-3,innerWidth-200))}px`})}};function J(o,e,t=10){let{width:i,height:r}=o.getBoundingClientRect(),s=e.bottom+t+r<innerHeight-70?e.bottom+t:Math.max(8,e.top-t-r),l=Math.min(Math.max(8,e.left),innerWidth-i-8);o.style.top=`${s}px`,o.style.left=`${l}px`}var O=class{el;constructor(){this.el=a("div",{class:"toasts",role:"status","aria-live":"polite"})}show(e,t={}){let i=a("div",{class:`toast ${t.tone==="warn"?"warn":""}`},g(t.tone==="warn"?"alert":"check",16),e);for(this.el.append(i);this.el.children.length>3;)this.el.firstElementChild?.remove();setTimeout(()=>{i.classList.add("leaving"),setTimeout(()=>i.remove(),260)},t.ms??2600)}};var ge=`\n${q({selector:":host"})}\n:host {\n  all: initial;\n  position: fixed;\n  inset: 0;\n  pointer-events: none;\n  z-index: ${B.toolbar};\n  font: 13px/18px var(--cl-font-ui);\n  color: var(--cl-ink);\n  -webkit-font-smoothing: antialiased;\n  -moz-osx-font-smoothing: grayscale;\n  --dock-bg: color-mix(in oklab, var(--cl-paper) 88%, transparent);\n  --dock-border: color-mix(in oklab, var(--cl-slip-strong) 70%, transparent);\n}\n* { box-sizing: border-box; }\n.ic { display: inline-flex; width: 18px; height: 18px; flex: none; }\n.ic svg { display: block; }\nbutton { font: inherit; color: inherit; background: none; border: 0; margin: 0; padding: 0; cursor: pointer; }\nbutton:focus-visible, [tabindex]:focus-visible, textarea:focus-visible {\n  outline: 2px solid var(--cl-focus);\n  outline-offset: 2px;\n}\n.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }\n\n/* \\u2500\\u2500 Dock \\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500 */\n.dock-wrap {\n  /* No transform here: it would trap the fixed-position pebble inside this box. */\n  position: fixed; left: 0; right: 0; bottom: 14px;\n  display: flex; flex-direction: column; align-items: center; gap: 8px;\n  pointer-events: none;\n}\n.dock {\n  pointer-events: auto;\n  display: flex; align-items: center; gap: 2px;\n  height: 46px; padding: 0 5px;\n  background: var(--dock-bg);\n  -webkit-backdrop-filter: blur(18px) saturate(1.5);\n  backdrop-filter: blur(18px) saturate(1.5);\n  border: 1px solid var(--dock-border);\n  border-radius: var(--cl-radius-pill);\n  box-shadow: var(--cl-shadow-lg);\n  animation: rise var(--cl-slow) var(--cl-spring) both;\n}\n@keyframes rise { from { opacity: 0; transform: translateY(10px) scale(.97); } }\n.sep { width: 1px; height: 22px; background: var(--cl-slip); margin: 0 5px; flex: none; }\n.backend { padding: 0 6px 0 2px; color: var(--cl-ash); font-size: 12px; font-weight: 500; white-space: nowrap; }\n.brand {\n  width: 36px; height: 36px; border-radius: 50%;\n  display: grid; place-items: center;\n  transition: transform var(--cl-fast) var(--cl-ease-out), background var(--cl-fast);\n}\n/* The clod hops; turning or scaling it would blur its pixels. */\n.brand:hover { background: var(--cl-bisque); transform: translateY(-1px); }\n.brand[aria-expanded="true"] { background: var(--cl-bisque); }\n.tool {\n  height: 36px; padding: 0 12px 0 10px;\n  display: inline-flex; align-items: center; gap: 7px;\n  border-radius: var(--cl-radius-pill);\n  color: var(--cl-ink); font-weight: 500; letter-spacing: -0.005em;\n  transition: background var(--cl-fast), color var(--cl-fast);\n  white-space: nowrap;\n}\n.tool:hover { background: var(--cl-bisque); }\n.tool[aria-pressed="true"] { background: var(--cl-clay-soft); color: var(--cl-clay-text); }\n.tool .key {\n  font: 500 10.5px/16px var(--cl-font-ui); color: var(--cl-ash);\n  padding: 0 5px; border-radius: 5px; background: var(--cl-bisque); margin-left: 2px;\n}\n.tool[aria-pressed="true"] .key { background: color-mix(in oklab, var(--cl-clay) 14%, transparent); color: var(--cl-clay-text); }\n.icon-btn {\n  width: 36px; height: 36px; border-radius: 50%;\n  display: grid; place-items: center; color: var(--cl-ash);\n  transition: background var(--cl-fast), color var(--cl-fast);\n}\n.icon-btn:hover { background: var(--cl-bisque); color: var(--cl-ink); }\n\n/* Device switcher: a segmented control with a sliding thumb. */\n.devices { position: relative; display: flex; align-items: center; height: 36px; padding: 3px; border-radius: var(--cl-radius-pill); background: var(--cl-bisque); }\n.devices .thumb {\n  position: absolute; top: 3px; left: 3px; width: 34px; height: 30px; border-radius: var(--cl-radius-pill);\n  background: var(--cl-paper); box-shadow: var(--cl-shadow-sm), 0 0 0 1px var(--cl-slip);\n  transition: transform var(--cl-base) var(--cl-ease-out);\n}\n.devices button { position: relative; width: 34px; height: 30px; border-radius: var(--cl-radius-pill); display: grid; place-items: center; color: var(--cl-ash); transition: color var(--cl-fast); }\n.devices button:hover { color: var(--cl-ink); }\n.devices button[aria-checked="true"] { color: var(--cl-ink); }\n\n/* Narrow screens (and the phone frame): icons only. */\n@media (max-width: 560px) {\n  .tool .label, .tool .key { display: none; }\n  .tool { padding: 0; width: 36px; justify-content: center; }\n  .dock-wrap { bottom: 10px; }\n}\n\n/* Minimized: a single clod in the corner. */\n.pebble {\n  pointer-events: auto;\n  position: fixed; right: 16px; bottom: 16px;\n  width: 44px; height: 44px; border-radius: 50%;\n  display: grid; place-items: center;\n  background: var(--dock-bg);\n  -webkit-backdrop-filter: blur(18px) saturate(1.5);\n  backdrop-filter: blur(18px) saturate(1.5);\n  border: 1px solid var(--dock-border);\n  box-shadow: var(--cl-shadow-md);\n  animation: rise var(--cl-slow) var(--cl-spring) both;\n  transition: transform var(--cl-fast) var(--cl-ease-out);\n}\n.pebble:hover { transform: translateY(-2px); }\n.pebble.labelled {\n  width: auto; min-width: 44px; max-width: calc(100vw - 32px); padding: 0 12px;\n  display: flex; gap: 7px; border-radius: var(--cl-radius-pill);\n  white-space: nowrap; font-size: 12px; font-weight: 500;\n}\n\n/* \\u2500\\u2500 Hint above the dock \\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500 */\n.hint {\n  pointer-events: auto;\n  display: inline-flex; align-items: center; gap: 8px;\n  height: 30px; padding: 0 12px 0 10px;\n  background: var(--cl-ink); color: var(--cl-paper);\n  border-radius: var(--cl-radius-pill);\n  font-size: 12px; font-weight: 500;\n  box-shadow: var(--cl-shadow-md);\n  animation: rise var(--cl-base) var(--cl-ease-out) both;\n}\n.hint .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--cl-clay); box-shadow: 0 0 0 0 var(--cl-clay); animation: pulse 1.8s var(--cl-ease-out) infinite; }\n.hint.ask .dot { background: var(--cl-cobalt); }\n.hint kbd { font: 500 11px/16px var(--cl-font-ui); padding: 0 5px; border-radius: 4px; background: color-mix(in oklab, var(--cl-paper) 16%, transparent); }\n@keyframes pulse { 0% { box-shadow: 0 0 0 0 color-mix(in oklab, var(--cl-clay) 60%, transparent); } 70% { box-shadow: 0 0 0 7px transparent; } 100% { box-shadow: 0 0 0 0 transparent; } }\n\n/* \\u2500\\u2500 Menu \\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500 */\n.menu {\n  pointer-events: auto;\n  position: fixed; min-width: 248px; padding: 6px;\n  background: var(--cl-paper); border: 1px solid var(--cl-slip); border-radius: var(--cl-radius-lg);\n  box-shadow: var(--cl-shadow-lg);\n  animation: pop var(--cl-base) var(--cl-ease-out) both;\n  transform-origin: bottom left;\n}\n@keyframes pop { from { opacity: 0; transform: translateY(6px) scale(.98); } }\n.menu .head { display: flex; align-items: center; gap: 10px; padding: 8px 8px 10px; }\n.menu .head b { font: 600 14px/18px var(--cl-font-display); letter-spacing: -0.01em; }\n.menu .head span { display: block; color: var(--cl-ash); font-size: 12px; }\n.menu hr { border: 0; border-top: 1px solid var(--cl-slip); margin: 4px 2px; }\n.menu-item {\n  width: 100%; display: flex; align-items: center; gap: 10px;\n  padding: 7px 8px; border-radius: var(--cl-radius-md); text-align: left; color: var(--cl-ink);\n}\n.menu-item:hover, .menu-item:focus-visible { background: var(--cl-bisque); outline: none; }\n.menu-item .ic { color: var(--cl-ash); }\n.menu-item .shortcut { margin-left: auto; color: var(--cl-ash); font-size: 11.5px; }\n\n/* \\u2500\\u2500 Highlights \\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500 */\n.hl {\n  position: fixed; pointer-events: none;\n  border-radius: 6px;\n  transition: top 70ms linear, left 70ms linear, width 70ms linear, height 70ms linear, opacity var(--cl-fast);\n}\n.hl.edit-hover { outline: 1.5px dashed var(--cl-clay); outline-offset: 3px; background: color-mix(in oklab, var(--cl-clay) 5%, transparent); }\n.hl.editing { outline: 2px solid var(--cl-clay); outline-offset: 3px; box-shadow: 0 0 0 6px color-mix(in oklab, var(--cl-clay) 16%, transparent); }\n.hl.ask-hover { outline: 1.5px solid var(--cl-cobalt); outline-offset: 2px; background: color-mix(in oklab, var(--cl-cobalt) 7%, transparent); }\n.hl.saved { outline: 2px solid var(--cl-celadon); outline-offset: 3px; background: color-mix(in oklab, var(--cl-celadon) 12%, transparent); animation: fade 900ms var(--cl-ease-out) forwards; }\n.hl.locked { outline: 1.5px dashed var(--cl-ash); outline-offset: 3px; }\n@keyframes fade { 60% { opacity: 1; } to { opacity: 0; } }\n.chip {\n  position: fixed; pointer-events: none;\n  display: inline-flex; align-items: center; gap: 5px;\n  height: 22px; padding: 0 8px 0 6px; border-radius: var(--cl-radius-pill);\n  font-size: 11.5px; font-weight: 600; white-space: nowrap; max-width: 320px; overflow: hidden; text-overflow: ellipsis;\n  /* on-clay reads on every chip fill (clay, cobalt, ash), in both schemes: see design\'s contrast test. */\n  color: var(--cl-on-clay); background: var(--cl-clay);\n  box-shadow: var(--cl-shadow-sm);\n}\n.chip.ask { background: var(--cl-cobalt); }\n.chip.locked { background: var(--cl-ash); }\n.chip .ic { width: 14px; height: 14px; }\n.chip .muted { font-weight: 500; opacity: .85; overflow: hidden; text-overflow: ellipsis; }\n\n/* \\u2500\\u2500 Popovers: edit bar, composer, notices \\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500 */\n.pop {\n  pointer-events: auto;\n  position: fixed;\n  background: var(--cl-paper); color: var(--cl-ink);\n  border: 1px solid var(--cl-slip); border-radius: var(--cl-radius-lg);\n  box-shadow: var(--cl-shadow-lg);\n  animation: pop var(--cl-base) var(--cl-ease-out) both;\n}\n.editbar { display: flex; align-items: center; gap: 6px; padding: 5px; border-radius: var(--cl-radius-pill); }\n.editbar .note { color: var(--cl-ash); font-size: 12px; padding: 0 6px 0 8px; white-space: nowrap; }\n.btn {\n  height: 30px; padding: 0 12px; border-radius: var(--cl-radius-pill);\n  display: inline-flex; align-items: center; gap: 6px;\n  font-weight: 600; font-size: 12.5px; white-space: nowrap;\n  transition: background var(--cl-fast), color var(--cl-fast), transform var(--cl-fast);\n}\n.btn:active { transform: translateY(1px); }\n.btn.primary { background: var(--cl-clay); color: var(--cl-on-clay); }\n.btn.primary:hover { background: var(--cl-clay-hover); }\n.btn.primary[disabled] { opacity: .55; cursor: default; }\n.btn.ghost { color: var(--cl-ink); }\n.btn.ghost:hover { background: var(--cl-bisque); }\n.btn .kbd { font-weight: 500; opacity: .75; font-size: 11px; }\n.spinner { width: 14px; height: 14px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; animation: spin .7s linear infinite; }\n@keyframes spin { to { transform: rotate(360deg); } }\n\n.composer { width: 340px; padding: 12px; }\n.composer .target { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; color: var(--cl-ash); font-size: 12px; min-width: 0; }\n.composer .target .badge { flex: none; display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px 0 6px; border-radius: var(--cl-radius-pill); color: var(--cl-cobalt); background: var(--cl-cobalt-soft); font-weight: 600; }\n.composer .target .what { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }\n.composer textarea {\n  width: 100%; min-height: 64px; max-height: 160px; resize: none;\n  font: 14px/20px var(--cl-font-ui); color: var(--cl-ink);\n  padding: 10px 12px; border-radius: var(--cl-radius-md);\n  border: 1px solid var(--cl-slip-strong); background: var(--cl-paper);\n  transition: border-color var(--cl-fast), box-shadow var(--cl-fast);\n}\n.composer textarea::placeholder { color: var(--cl-ash); }\n.composer textarea:focus { outline: none; border-color: var(--cl-cobalt); box-shadow: 0 0 0 3px color-mix(in oklab, var(--cl-cobalt) 20%, transparent); }\n.suggestions { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 2px; }\n.suggestion {\n  height: 26px; padding: 0 10px; border-radius: var(--cl-radius-pill);\n  border: 1px solid var(--cl-slip); color: var(--cl-ink); font-size: 12px;\n  transition: background var(--cl-fast), border-color var(--cl-fast);\n}\n.suggestion:hover { background: var(--cl-bisque); border-color: var(--cl-slip-strong); }\n.actions { display: flex; justify-content: flex-end; align-items: center; gap: 6px; margin-top: 12px; }\n.actions .left { margin-right: auto; color: var(--cl-ash); font-size: 11.5px; }\n\n.notice { width: 300px; padding: 14px; }\n.notice h3 { margin: 0 0 4px; font: 600 14px/19px var(--cl-font-ui); }\n.notice p { margin: 0; color: var(--cl-ash); font-size: 12.5px; line-height: 18px; }\n\n/* \\u2500\\u2500 Errors \\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500 */\n/* The app can\'t show anything: a quiet sheet over the page, and the story in plain words. */\n.error.screen {\n  pointer-events: auto;\n  position: fixed; inset: 0;\n  display: grid; place-items: center;\n  padding: 32px 24px 112px;\n  overflow: auto;\n  background: color-mix(in oklab, var(--cl-paper) 94%, transparent);\n  -webkit-backdrop-filter: blur(12px) saturate(1.2);\n  backdrop-filter: blur(12px) saturate(1.2);\n  animation: sheet var(--cl-base) var(--cl-ease-out) both;\n}\n@keyframes sheet { from { opacity: 0; } }\n.error.screen .error-body { width: min(440px, 100%); animation: rise var(--cl-slow) var(--cl-ease-out) both; }\n/* Something broke, but the page still works: a small note above the dock. */\n.error.note {\n  pointer-events: auto;\n  width: min(400px, calc(100vw - 24px));\n  padding: 14px 14px 14px 16px;\n  background: var(--cl-paper); border: 1px solid var(--cl-slip); border-radius: var(--cl-radius-lg);\n  box-shadow: var(--cl-shadow-md);\n  animation: rise var(--cl-slow) var(--cl-spring) both;\n}\n.error.still, .error.still .error-body { animation: none; }\n.error .head { display: flex; align-items: center; gap: 10px; }\n.error .dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--cl-oxide); }\n.error .spinner { flex: none; width: 12px; height: 12px; margin: 0 -2px; border-width: 1.75px; color: var(--cl-clay); }\n.error h3 { flex: 1; margin: 0; font: 600 14px/20px var(--cl-font-ui); letter-spacing: -0.01em; }\n.error .close {\n  flex: none; width: 28px; height: 28px; margin: -4px -6px -4px 0; border-radius: 50%;\n  display: grid; place-items: center; color: var(--cl-ash);\n  transition: background var(--cl-fast), color var(--cl-fast);\n}\n.error .close:hover { background: var(--cl-bisque); color: var(--cl-ink); }\n.error .why { margin: 4px 0 0 18px; color: var(--cl-ash); font-size: 13px; line-height: 19px; text-wrap: balance; }\n.error .why strong { color: var(--cl-ink); font-weight: 600; }\n.error .actions { justify-content: flex-start; gap: 4px; margin: 12px 0 0 18px; }\n.error .more { padding: 0 8px 0 12px; gap: 4px; color: var(--cl-ash); }\n.error .more:hover { color: var(--cl-ink); }\n.error .more .ic { transition: transform var(--cl-base) var(--cl-ease-out); }\n.error .more[aria-expanded="true"] .ic { transform: rotate(180deg); }\n.error .details {\n  margin: 14px 0 0 18px; padding: 10px 12px; max-height: 220px; overflow: auto;\n  background: var(--cl-bisque); border: 1px solid var(--cl-slip); border-radius: var(--cl-radius-md);\n  font: 11.5px/17px var(--cl-font-mono); color: var(--cl-ink); user-select: text;\n}\n.error .details[hidden] { display: none; }\n.error .details p { margin: 0; word-break: break-word; }\n.error .details .where { color: var(--cl-ash); }\n.error .details .frame { margin: 8px 0 0; padding-top: 8px; border-top: 1px solid var(--cl-slip); font: inherit; color: var(--cl-ash); white-space: pre; overflow-x: auto; }\n.error.screen h3 { font-size: 22px; line-height: 28px; letter-spacing: -0.02em; }\n.error.screen .close { position: absolute; top: 14px; right: 14px; width: 32px; height: 32px; margin: 0; }\n.error.screen .why { margin-top: 6px; font-size: 14.5px; line-height: 22px; }\n.error.screen .actions { margin-top: 20px; }\n.error.screen .btn { height: 34px; font-size: 13px; }\n.error.screen .btn.primary { padding: 0 16px; }\n\n/* \\u2500\\u2500 Toasts \\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500 */\n.toasts { display: flex; flex-direction: column; align-items: center; gap: 6px; pointer-events: none; }\n.toast {\n  pointer-events: auto;\n  display: inline-flex; align-items: center; gap: 8px;\n  height: 34px; padding: 0 14px 0 10px;\n  background: var(--cl-ink); color: var(--cl-paper);\n  border-radius: var(--cl-radius-pill);\n  font-size: 12.5px; font-weight: 500;\n  box-shadow: var(--cl-shadow-md);\n  animation: rise var(--cl-base) var(--cl-ease-out) both;\n}\n.toast .ic { color: var(--cl-celadon); }\n.toast.warn .ic { color: var(--cl-ochre); }\n.toast.leaving { animation: leave var(--cl-base) var(--cl-ease-in-out) forwards; }\n@keyframes leave { to { opacity: 0; transform: translateY(6px); } }\n\n/* \\u2500\\u2500 Device bar (frame page) \\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500 */\n.devicebar { position: fixed; top: 14px; left: 50%; transform: translateX(-50%); pointer-events: auto; }\n.devicebar .size { padding: 0 6px 0 12px; color: var(--cl-ash); font: 500 12px/18px var(--cl-font-ui); font-variant-numeric: tabular-nums; white-space: nowrap; }\n\n@media (prefers-reduced-motion: reduce) {\n  *, *::before, *::after { animation-duration: 1ms !important; animation-iteration-count: 1 !important; transition-duration: 1ms !important; }\n}\n`;var me="clodable:toolbar",He=new RegExp(`[?&]${M}=1`),C={dynamic:"This text is filled in automatically, from your data or a list in your code, so it can\'t be typed over here.",notFound:"The page changed while you were editing. Try once more.",ambiguous:"That exact text appears twice here, so Claude should change it."},P=class{constructor(e){this.surface=e;let t=new URLSearchParams(location.search);this.device=e==="outer"?t.get("device")??"phone":"desktop";try{this.minimized=JSON.parse(localStorage.getItem(me)??"{}").minimized===!0}catch{this.minimized=!1}}surface;host;shadow;layer;dockWrap;hintSlot;errorSlot;dockSlot;toasts=new O;hover;active;popover;mode="idle";minimized=!1;shortViewport=innerHeight<=420;expandedInShortViewport=!1;editing;device;mount(){this.host=document.createElement("clodable-toolbar"),this.host.setAttribute("data-clodable",""),this.shadow=this.host.attachShadow({mode:"open"}),this.shadow.append(a("style",{},ge)),this.layer=a("div"),this.hintSlot=a("div"),this.errorSlot=a("div"),this.dockSlot=a("div"),this.dockWrap=a("div",{class:"dock-wrap"},this.toasts.el,this.errorSlot,this.hintSlot,this.dockSlot),this.shadow.append(this.layer,this.dockWrap),this.hover=new S(this.layer),this.active=new S(this.layer),document.body.append(this.host),new MutationObserver(()=>{this.host.isConnected||document.body.append(this.host)}).observe(document.body,{childList:!0}),this.render(),this.surface!=="outer"&&(new A(this.layer,this.errorSlot,(e,t)=>this.toasts.show(e,t?{tone:t}:{})).start(),this.listen()),this.surface==="inner"&&this.reportRoutes(),this.surface==="outer"&&this.followRoutes()}render(){let e=this.shadow.activeElement?.dataset.key;if(this.draw(),!e)return;let t=i=>this.shadow.querySelector(`[data-key="${i}"]`);(t(e)??t("pebble")??t("hide"))?.focus()}draw(){this.surface==="outer"?this.drawDeviceBar():this.collapsed?this.drawPebble():this.drawDock()}get collapsed(){return this.minimized||this.shortViewport&&!this.expandedInShortViewport&&this.mode==="idle"}drawDeviceBar(){this.dockSlot.replaceChildren();let e=new URLSearchParams(location.search),{width:t,height:i}=ee[this.device==="tablet"?"tablet":"phone"],r=e.get("landscape")==="1"?`${i} \\xD7 ${t}`:`${t} \\xD7 ${i}`,n=a("div",{class:"dock",role:"toolbar","aria-label":"Device preview"},this.deviceSwitch(),a("span",{class:"size","aria-label":`Screen size ${r}`},r),a("span",{class:"sep","aria-hidden":"true"}),a("button",{class:"icon-btn","aria-label":"Rotate",title:"Rotate",onclick:()=>this.rotate()},g("refresh")));be(n,this.shadow),this.layer.replaceChildren(this.hover.box,this.hover.chip,this.active.box,this.active.chip,a("div",{class:"devicebar"},n))}drawPebble(){let e=$()?.backend==="copy",t=e||this.shortViewport&&!this.minimized;this.hintSlot.replaceChildren(),this.dockSlot.replaceChildren(a("button",{class:`pebble${t?" labelled":""}`,"data-key":"pebble","aria-label":"Show Clodable tools",...e?{"aria-description":"This preview uses a copy of your data."}:{},title:"Show Clodable tools (\\u2325\\u21E7H)",onclick:()=>this.setMinimized(!1)},this.mark(24),...t?[a("span",{},e?"Copy \\xB7 Tools":"Tools")]:[]))}drawDock(){let e=(n,s,l,p)=>a("button",{class:"tool","data-key":n,"aria-pressed":String(this.mode===n),title:`${l} (${p})`,onclick:()=>this.setMode(this.mode===n?"idle":n)},g(s),a("span",{class:"label"},l)),t=a("button",{class:"brand","data-key":"menu","aria-label":"Clodable menu","aria-haspopup":"menu","aria-expanded":"false",onclick:n=>this.toggleMenu(n.currentTarget)},this.mark(24)),i=$()?.backend==="copy",r=a("div",{class:"dock",role:"toolbar","aria-label":"Clodable preview tools"},t,...i?[a("span",{class:"backend",title:"This preview uses your new backend, a copy of your data. Your live app is untouched."},"Copy")]:[],a("span",{class:"sep","aria-hidden":"true"}),e("edit","text","Edit text","\\u2325\\u21E7E"),e("ask","select","Point & ask","\\u2325\\u21E7A"),...this.surface==="app"?[a("span",{class:"sep","aria-hidden":"true"}),this.deviceSwitch()]:[],a("span",{class:"sep","aria-hidden":"true"}),a("button",{class:"icon-btn","data-key":"hide","aria-label":"Hide Clodable tools",title:"Hide (\\u2325\\u21E7H)",onclick:()=>this.setMinimized(!0)},g("minimize")));be(r,this.shadow),this.dockSlot.replaceChildren(r),this.renderHint()}mark(e){let t=a("span",{"aria-hidden":"true",style:"display:grid"});return t.innerHTML=j({size:e}),t}deviceSwitch(){let e=[["desktop","desktop","Full width"],["tablet","tablet","Tablet"],["phone","phone","Phone"]],t=e.findIndex(([i])=>i===this.device);return a("div",{class:"devices",role:"radiogroup","aria-label":"Preview size"},a("span",{class:"thumb","aria-hidden":"true",style:`transform: translateX(${t*100}%)`}),...e.map(([i,r,n])=>a("button",{role:"radio","aria-checked":String(this.device===i),"aria-label":n,title:n,onclick:()=>this.setDevice(i)},g(r))))}renderHint(){if(this.mode==="idle"||this.minimized){this.hintSlot.replaceChildren();return}let e=this.mode==="edit"?"Click any text to change it":"Click anything to ask Claude about it";this.hintSlot.replaceChildren(a("div",{class:`hint ${this.mode==="ask"?"ask":""}`,role:"status"},a("span",{class:"dot"}),e,a("kbd",{},"Esc")))}setMode(e){this.editing&&this.finishEdit(!1),this.closePopover(),this.mode=e,e!=="idle"&&(this.minimized=!1),this.hover.hide(),document.documentElement.style.cursor="",this.render()}setMinimized(e){this.minimized=e,this.expandedInShortViewport=!e;try{localStorage.setItem(me,JSON.stringify({minimized:e}))}catch{}e?this.setMode("idle"):this.render()}setDevice(e){let t=this.surface==="outer"?new URLSearchParams(location.search).get("path")??"/":location.pathname+location.search;if(e==="desktop"){this.surface==="outer"&&(location.href=t);return}let i=`${u.frame}?device=${e}&path=${encodeURIComponent(t)}`;location.href=i}rotate(){let e=new URLSearchParams(location.search);e.set("landscape",e.get("landscape")==="1"?"0":"1"),location.search=e.toString()}isOurs(e){return e instanceof Node&&(e===this.host||this.host.contains(e)||this.shadow.contains(e))}listen(){addEventListener("resize",()=>{let t=innerHeight<=420;t!==this.shortViewport&&(this.shortViewport=t,this.expandedInShortViewport=!1,this.closePopover(),this.render())});let e=0;addEventListener("pointermove",t=>{this.mode==="idle"||this.editing||this.popover||(cancelAnimationFrame(e),e=requestAnimationFrame(()=>this.onHover(t.clientX,t.clientY,t.target)))},{capture:!0,passive:!0});for(let t of["pointerdown","mousedown","pointerup","mouseup","click","dblclick","submit"])addEventListener(t,i=>this.onPointer(i),{capture:!0});addEventListener("keydown",t=>this.onKey(t),{capture:!0}),addEventListener("scroll",()=>this.closePopoverIfDetached(),{capture:!0,passive:!0})}onPointer(e){if(!(this.mode==="idle"||this.isOurs(e.target))&&!(this.editing&&e.target instanceof Node&&this.editing.editable.contains(e.target))&&(e.preventDefault(),e.stopPropagation(),e.stopImmediatePropagation(),e.type==="click")){if(this.editing){this.finishEdit(!0);return}if(this.popover){this.closePopover();return}this.mode==="edit"?this.startEdit(e.clientX,e.clientY):this.mode==="ask"&&this.openComposer(e.clientX,e.clientY)}}onHover(e,t,i){if(this.popover||this.editing||this.mode==="idle")return;if(this.isOurs(i)){this.hover.hide();return}if(this.mode==="edit"){let s=fe(e,t,this.host),l=s&&y(s.el);s&&l?(this.hover.show(s.el,"edit-hover",{icon:"text",strong:"Edit text"}),document.documentElement.style.cursor="text"):(this.hover.hide(),document.documentElement.style.cursor="");return}let r=Z(e,t,this.host),n=r&&y(r);if(r&&n){let s=R(r,32);this.hover.show(r,"ask-hover",{strong:E(r),...s?{muted:`\\xB7 ${s}`}:{}}),document.documentElement.style.cursor="pointer"}else this.hover.hide(),document.documentElement.style.cursor=""}onKey(e){let t=Fe(e.target)&&!this.isOurs(e.target);if(e.altKey&&e.shiftKey&&!e.metaKey&&!e.ctrlKey){let r={KeyE:()=>this.setMode(this.mode==="edit"?"idle":"edit"),KeyA:()=>this.setMode(this.mode==="ask"?"idle":"ask"),KeyH:()=>this.setMinimized(!this.collapsed)}[e.code];if(r&&!(t&&!this.editing)){e.preventDefault(),e.stopPropagation(),r();return}}e.key==="Escape"&&(this.editing?(e.preventDefault(),e.stopPropagation(),this.finishEdit(!1)):this.popover?(e.preventDefault(),this.closePopover()):this.mode!=="idle"&&(e.preventDefault(),this.setMode("idle")))}async startEdit(e,t){let i=fe(e,t,this.host),r=i&&y(i.el);if(!i||!r)return;let n=i.node.textContent??"",s;try{s=await m.probe(r.src,n)}catch{this.toasts.show("Couldn\'t reach Clodable. Is the preview still running?",{tone:"warn"});return}if(!s.editable){this.showLocked(i.el,n,s.reason);return}this.hover.hide();let{editable:l,restore:p}=ze(i.el,i.node),h=a("div",{class:"pop editbar",role:"group","aria-label":"Editing text"},a("span",{class:"note"},"Editing text"),a("button",{class:"btn ghost",onclick:()=>this.finishEdit(!1)},"Cancel"),a("button",{class:"btn primary",onclick:()=>this.finishEdit(!0)},"Save",a("span",{class:"kbd"},"\\u23CE")));this.layer.append(h),this.editing={el:i.el,restore:p,editable:l,node:i.node,src:r.src,before:n,bar:h,saving:!1},this.active.show(l,"editing",void 0,{perLine:l!==i.el}),l.addEventListener("keydown",this.onEditKey),l.addEventListener("focusout",this.onEditBlur),l.focus({preventScroll:!0}),_e(e,t,l);let c=()=>{this.editing&&(J(h,this.editing.el.getBoundingClientRect(),12),requestAnimationFrame(c))};c()}onEditKey=e=>{e.key==="Enter"&&!e.shiftKey&&(e.preventDefault(),this.finishEdit(!0))};onEditBlur=e=>{this.isOurs(e.relatedTarget)||setTimeout(()=>{this.editing&&!this.editing.saving&&document.activeElement!==this.editing.editable&&this.finishEdit(!0)},0)};async finishEdit(e){let t=this.editing;if(!t||t.saving)return;let i=(t.editable.textContent??"").replace(/\\s+/g," ").trim(),r=e&&i&&i!==t.before.replace(/\\s+/g," ").trim();if(t.editable.removeEventListener("keydown",this.onEditKey),t.editable.removeEventListener("focusout",this.onEditBlur),!r){t.restore(),t.node.textContent=t.before,this.endEdit();return}t.saving=!0,t.bar.replaceChildren(a("span",{class:"note"},a("span",{class:"spinner",style:"display:inline-block;vertical-align:-3px;margin-right:8px"}),"Saving\\u2026"));try{let n=await m.edit(t.src,t.before,i);if(t.restore(),n.ok)t.node.textContent=Ne(t.before,i),this.active.fadeOut(t.el,"saved"),this.toasts.show("Text updated \\xB7 saved to your draft");else{t.node.textContent=t.before,this.active.hide();let{reason:s}=n;this.toasts.show(s==="dynamic"?C.dynamic:s==="ambiguous"?C.ambiguous:C.notFound,{tone:"warn",ms:4200})}}catch{t.restore(),t.node.textContent=t.before,this.toasts.show("Couldn\'t save that change. Try again.",{tone:"warn"})}this.endEdit(!1)}endEdit(e=!0){this.editing?.bar.remove(),this.editing=void 0,e&&this.active.hide()}showLocked(e,t,i){this.closePopover(),this.hover.show(e,"locked",{icon:"info",strong:"Not editable here"});let r=a("button",{class:"btn primary",onclick:()=>this.openComposerFor(e,`Change \\u201C${De(t)}\\u201D to `)},"Ask Claude"),n=a("div",{class:"pop notice",role:"dialog","aria-label":"This text can\'t be edited here"},a("h3",{},"Claude can change this one for you"),a("p",{},i==="ambiguous"?C.ambiguous:C.dynamic),a("div",{class:"actions"},a("button",{class:"btn ghost",onclick:()=>this.closePopover()},"Close"),r));this.openPopover(n,e.getBoundingClientRect()),r.focus({preventScroll:!0})}openComposer(e,t){let i=Z(e,t,this.host);i&&y(i)&&this.openComposerFor(i)}openComposerFor(e,t=""){this.closePopover();let i=y(e);this.hover.show(e,"ask-hover");let r=G(e),n=a("textarea",{rows:"3",placeholder:"What should change? For example: make it bigger and bolder","aria-label":"What should change?"});n.value=t;let s=a("button",{class:"btn primary",onclick:()=>l()},"Send to Claude"),l=async()=>{let c=n.value.trim();if(!c){n.focus();return}s.setAttribute("disabled","");try{let xe=i?Q(i.src):void 0;await m.ask(c,he(e),xe),this.closePopover(),this.setMode("idle"),this.toasts.show("Sent to Claude")}catch{s.removeAttribute("disabled"),this.toasts.show("Couldn\'t reach Claude. Is Clodable running?",{tone:"warn"})}};n.addEventListener("keydown",c=>{c.key==="Enter"&&!c.shiftKey&&(c.preventDefault(),l())});let p=R(e,48),h=a("div",{class:"pop composer",role:"dialog","aria-label":`Ask Claude about this ${E(e).toLowerCase()}`},a("div",{class:"target"},a("span",{class:"badge"},g("select",14),E(e)),p?a("span",{class:"what"},`\\u201C${p}\\u201D`):null),n,a("div",{class:"suggestions"},...ue[r].map(c=>a("button",{class:"suggestion",onclick:()=>{n.value=c,n.focus()}},c))),a("div",{class:"actions"},a("span",{class:"left"},"\\u23CE to send"),a("button",{class:"btn ghost",onclick:()=>this.closePopover()},"Cancel"),s));this.openPopover(h,e.getBoundingClientRect()),n.focus({preventScroll:!0}),n.setSelectionRange(n.value.length,n.value.length)}openPopover(e,t){this.closePopover(!1),this.popover=e,this.layer.append(e),J(e,t)}closePopover(e=!0){let t=this.popover?.classList.contains("menu")&&this.popover.contains(this.shadow.activeElement);this.popover?.remove(),this.popover=void 0,e&&this.hover.hide();let i=this.shadow?.querySelector(\'.brand[aria-expanded="true"]\');i?.setAttribute("aria-expanded","false"),t&&i?.focus()}closePopoverIfDetached(){this.popover?.classList.contains("menu")||this.popover&&!this.editing&&this.closePopover()}toggleMenu(e){if(this.popover?.classList.contains("menu")){this.closePopover();return}let t=(n,s,l,p)=>a("button",{class:"menu-item",role:"menuitem",onclick:()=>{this.closePopover(),p()}},g(n),s,a("span",{class:"shortcut"},l)),i=a("div",{class:"menu",role:"menu","aria-label":"Clodable"},a("div",{class:"head"},this.mark(28),a("div",{},a("b",{},"Clodable"),a("span",{},"Only you see these tools. Visitors never do."))),a("hr"),t("text","Edit text","\\u2325\\u21E7E",()=>this.setMode("edit")),t("select","Point & ask Claude","\\u2325\\u21E7A",()=>this.setMode("ask")),...this.surface==="app"?[t("phone","Phone preview","",()=>this.setDevice("phone"))]:[],a("hr"),t("minimize","Hide these tools","\\u2325\\u21E7H",()=>this.setMinimized(!0)));ve(i,this.shadow,"ArrowUp","ArrowDown"),this.popover=i,this.layer.append(i),e.setAttribute("aria-expanded","true");let r=e.getBoundingClientRect();i.style.left=`${Math.max(8,r.left-6)}px`,i.style.top=`${r.top-i.getBoundingClientRect().height-10}px`,i.querySelector(".menu-item")?.focus()}reportRoutes(){let e=()=>parent.postMessage({type:"clodable:route",path:location.pathname+location.search.replace(He,"")},location.origin);for(let t of["pushState","replaceState"]){let i=history[t].bind(history);history[t]=((...r)=>{i(...r),e()})}addEventListener("popstate",e)}followRoutes(){addEventListener("message",e=>{if(e.origin!==location.origin||e.data?.type!=="clodable:route")return;let t=new URLSearchParams(location.search);t.set("path",e.data.path||"/"),history.replaceState(null,"",`${location.pathname}?${t.toString()}`)})}};function be(o,e){ve(o,e,"ArrowLeft","ArrowRight");let t=Array.from(o.querySelectorAll("button"));for(let[i,r]of t.entries())r.tabIndex=i===0?0:-1,r.addEventListener("focus",()=>{for(let n of t)n.tabIndex=-1;r.tabIndex=0})}function ve(o,e,t,i){o.addEventListener("keydown",r=>{let n=Array.from(o.querySelectorAll("button")),s=n.indexOf(e.activeElement);if(s<0)return;let p={[t]:s-1,[i]:s+1,Home:0,End:n.length-1}[r.key];p!==void 0&&(r.preventDefault(),n[(p+n.length)%n.length]?.focus())})}var De=o=>{let e=o.replace(/\\s+/g," ").trim();return e.length>60?`${e.slice(0,59)}\\u2026`:e};function Ne(o,e){let t=o.match(/^\\s*/)?.[0]??"",i=o.match(/\\s*$/)?.[0]??"";return`${t}${e}${i}`}function Fe(o){return o instanceof HTMLElement&&(o.isContentEditable||["INPUT","TEXTAREA","SELECT"].includes(o.tagName))}function Z(o,e,t){let i=document.elementFromPoint(o,e);if(!(!i||i===t||i===document.documentElement||i===document.body))return i}function fe(o,e,t){let i=document,r=null,n=document.caretPositionFromPoint?.(o,e);if(n?r=n.offsetNode:r=i.caretRangeFromPoint?.(o,e)?.startContainer??null,r&&r.nodeType===Node.TEXT_NODE&&r.textContent?.trim()&&r.parentElement&&!t.contains(r)){let p=document.createRange();if(p.selectNodeContents(r),Array.from(p.getClientRects()).some(c=>o>=c.left-3&&o<=c.right+3&&e>=c.top-3&&e<=c.bottom+3))return{el:r.parentElement,node:r}}let s=Z(o,e,t);if(!s)return;let l=Array.from(s.childNodes).find(p=>p.nodeType===Node.TEXT_NODE&&!!p.textContent?.trim());return l&&s instanceof HTMLElement?{el:s,node:l}:void 0}function ze(o,e){let t=Array.from(o.childNodes).filter(r=>!(r.nodeType===Node.TEXT_NODE&&!r.textContent?.trim()));if(t.length===1&&t[0]===e){let r=o.getAttribute("contenteditable"),n=Array.from(o.childNodes);return o.setAttribute("contenteditable","plaintext-only"),o.setAttribute("spellcheck","true"),{editable:o,restore:()=>{r===null?o.removeAttribute("contenteditable"):o.setAttribute("contenteditable",r),o.removeAttribute("spellcheck"),o.replaceChildren(...n)}}}let i=document.createElement("span");return i.setAttribute("contenteditable","plaintext-only"),i.setAttribute("data-clodable-editing",""),i.style.outline="none",e.replaceWith(i),i.textContent=e.textContent,{editable:i,restore:()=>{i.replaceWith(e)}}}function _e(o,e,t){let i=getSelection();if(!i)return;let r=document,n=document.caretPositionFromPoint?.(o,e),s=document.createRange();if(n&&t.contains(n.offsetNode))s.setStart(n.offsetNode,n.offset);else{let l=r.caretRangeFromPoint?.(o,e);l&&t.contains(l.startContainer)?s.setStart(l.startContainer,l.startOffset):s.selectNodeContents(t)}s.collapse(!0),i.removeAllRanges(),i.addRange(s)}function Ie(){if(window.__CLODABLE_MOUNTED__)return;Object.defineProperty(window,"__CLODABLE_MOUNTED__",{value:!0}),ie(),pe();let o=location.pathname===u.frame?"outer":new URLSearchParams(location.search).has(M)?"inner":"app",e=()=>setTimeout(()=>new P(o).mount(),0);document.readyState==="complete"?e():addEventListener("load",e,{once:!0})}Ie();})();\n';
+  if (true) return '"use strict";(()=>{var H="data-cl-src";function Q(i){let e=i.match(/^(.+):(\\d+):(\\d+)$/);if(e)return{file:e[1],line:Number(e[2]),column:Number(e[3])}}var f="/__cloclod/",u={toolbar:`${f}toolbar.js`,health:`${f}health`,frame:`${f}frame`,probe:`${f}text/probe`,text:`${f}text`,inbox:`${f}inbox`,originalLine:`${f}original-line`,buildError:`${f}build-error`},M="__cloclod_frame",ee={phone:{width:390,height:844},tablet:{width:820,height:1180}};function D(i,e,t){return{message:i.trim().split(`\n`)[0].slice(0,300),stack:e.slice(0,4e3),kind:"build",...t?{source:t}:{}}}var $=()=>typeof __CLOCLOD__>"u"?void 0:__CLOCLOD__,ye=()=>$()?.token??"",te;function oe(){te=window.fetch.bind(window)}async function x(i,e){let t=await(te??fetch)(i,{method:"POST",headers:{"content-type":"application/json","x-cloclod-token":ye()},body:JSON.stringify(e)});if(!t.ok)throw new Error(`Cloclod ${i}: ${t.status}`);return await t.json()}var N=()=>{try{let i=sessionStorage.getItem("cloclod:conversation");return i?{conversation:i}:{}}catch{return{}}},F=()=>({url:location.href,path:location.pathname+location.search,title:document.title}),m={probe:(i,e)=>x(u.probe,{src:i,text:e}),edit:(i,e,t)=>x(u.text,{src:i,before:e,after:t,page:F(),...N()}),ask:(i,e,t)=>x(u.inbox,{kind:"ask",page:F(),request:i,element:e,...t?{source:t}:{},...N()}),fix:(i,e)=>x(u.inbox,{kind:"fix",page:F(),error:i,console:e,...N()}),originalLine:i=>x(u.originalLine,i).then(e=>e.line),buildError:i=>x(u.buildError,{since:i}).then(e=>e.error)};var z={light:{paper:"#FBF8F3",bisque:"#F4EEE6",slip:"#E7DED2",slipStrong:"#D3C6B6",ink:"#1F1A16",ash:"#6B6158",clay:"#B9502B",clayHover:"#A44322",clayText:"#A2441F",onClay:"#FFFFFF",claySoft:"#F7E4DA",celadon:"#2B7354",celadonSoft:"#E1F0E8",cobalt:"#2D5BA6",cobaltSoft:"#E3EBF7",ochre:"#8F6210",ochreSoft:"#F7ECD4",oxide:"#B1281E",oxideSoft:"#F9E1DE",focus:"#2D5BA6",scrim:"rgba(31, 26, 22, 0.32)"},dark:{paper:"#15110E",bisque:"#1E1915",slip:"#352D27",slipStrong:"#4A4038",ink:"#F3EEE7",ash:"#A79D92",clay:"#E5764F",clayHover:"#EE8A66",clayText:"#F08F6B",onClay:"#1F1A16",claySoft:"#3A2419",celadon:"#6CC59E",celadonSoft:"#16342A",cobalt:"#8AB0F0",cobaltSoft:"#18263D",ochre:"#E6B356",ochreSoft:"#3A2C12",oxide:"#F27B70",oxideSoft:"#3E1A17",focus:"#8AB0F0",scrim:"rgba(0, 0, 0, 0.5)"}};var _={sm:"6px",md:"10px",lg:"14px",xl:"20px",pill:"999px"},w={ui:\'ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text", "Segoe UI", system-ui, "Helvetica Neue", Arial, sans-serif\',mono:\'ui-monospace, "SF Mono", "Cascadia Code", "JetBrains Mono", Menlo, Consolas, monospace\',display:\'"Fraunces", "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, ui-serif, serif\'};var I={light:{sm:"0 1px 2px rgba(60, 38, 20, 0.08)",md:"0 1px 2px rgba(60, 38, 20, 0.06), 0 6px 16px -4px rgba(60, 38, 20, 0.14)",lg:"0 2px 4px rgba(60, 38, 20, 0.06), 0 18px 40px -12px rgba(60, 38, 20, 0.28)"},dark:{sm:"0 1px 2px rgba(0, 0, 0, 0.4)",md:"0 1px 2px rgba(0, 0, 0, 0.4), 0 6px 16px -4px rgba(0, 0, 0, 0.5)",lg:"0 2px 4px rgba(0, 0, 0, 0.4), 0 18px 40px -12px rgba(0, 0, 0, 0.7)"}},b={fast:"120ms",base:"180ms",slow:"260ms",easeOut:"cubic-bezier(0.2, 0.8, 0.2, 1)",easeInOut:"cubic-bezier(0.65, 0, 0.35, 1)",spring:"cubic-bezier(0.34, 1.4, 0.64, 1)"},B={toolbar:2147483e3,toast:2147483100,overlay:2147483200};var we=i=>i.replace(/[A-Z]/g,e=>`-${e.toLowerCase()}`);function k(i){let e=Object.entries(z[i]).map(([o,r])=>`--cl-${we(o)}: ${r};`).join(" "),t=Object.entries(I[i]).map(([o,r])=>`--cl-shadow-${o}: ${r};`).join(" ");return`${e} ${t} color-scheme: ${i};`}var ie=[...Object.entries(_).map(([i,e])=>`--cl-radius-${i}: ${e};`),`--cl-font-ui: ${w.ui};`,`--cl-font-mono: ${w.mono};`,`--cl-font-display: ${w.display};`,`--cl-fast: ${b.fast};`,`--cl-base: ${b.base};`,`--cl-slow: ${b.slow};`,`--cl-ease-out: ${b.easeOut};`,`--cl-ease-in-out: ${b.easeInOut};`,`--cl-spring: ${b.spring};`].join(" ");function q(i={}){let e=i.selector??":root",t=i.scheme??"auto";if(t!=="auto")return`${e} { ${ie} ${k(t)} }`;let o=r=>e===":host"?`:host([data-theme="${r}"]) { ${k(r)} }`:`${e}[data-theme="${r}"] { ${k(r)} }`;return[`${e} { ${ie} ${k("light")} }`,`@media (prefers-color-scheme: dark) { ${e} { ${k("dark")} } }`,o("light"),o("dark")].join(`\n`)}var d=(...i)=>i,ne={check:d("M4.5 10.5l3.5 3.5 7.5-8"),close:d("M5.5 5.5l9 9M14.5 5.5l-9 9"),publish:d("M10 13.5v-7","M7 9.5l3-3 3 3",{circle:[10,10,7]}),undo:d("M7.5 5.5 4 9l3.5 3.5","M4.5 9h7.25a3.75 3.75 0 0 1 0 7.5H10"),restore:d("M3.5 10a6.5 6.5 0 1 0 1.9-4.6","M3.5 3.5v3h3","M10 6.75V10l2.5 1.5"),external:d("M8.5 5.5h-3a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-3","M11.5 4.5h4v4","M15.5 4.5 9.5 10.5"),phone:d("M8 2.5h4a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2v-11a2 2 0 0 1 2-2z","M9 15h2"),tablet:d("M6 3h8a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z","M9 14.5h2"),desktop:d("M3.5 4.5h13a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1h-13a1 1 0 0 1-1-1v-8a1 1 0 0 1 1-1z","M7.5 17.5h5","M10 14.5v3"),text:d("M3.5 6V4.5h9V6","M8 4.5v11","M6 15.5h4","M15 8.5v8","M13.5 8.5h3","M13.5 16.5h3"),select:d("M4.5 3.5l10.5 4.6-4.4 1.6-1.6 4.4z","M10.6 9.7l4.4 4.4"),minimize:d("M5 10h10"),alert:d("M10 3.8 17.2 16.2H2.8z","M10 8.5v3.5","M10 14.25v.01"),info:d({circle:[10,10,7]},"M10 9.25v4.5","M10 6.5v.01"),globe:d({circle:[10,10,7]},"M3 10h14","M10 3c1.9 2 2.9 4.4 2.9 7s-1 5-2.9 7c-1.9-2-2.9-4.4-2.9-7s1-5 2.9-7z"),database:d("M4 5.5C4 4.1 6.7 3 10 3s6 1.1 6 2.5S13.3 8 10 8 4 6.9 4 5.5z","M4 5.5v9C4 15.9 6.7 17 10 17s6-1.1 6-2.5v-9","M4 10c0 1.4 2.7 2.5 6 2.5s6-1.1 6-2.5"),refresh:d("M15.5 8a6 6 0 0 0-10.4-1.6L4 8","M4 4.5V8h3.5","M4.5 12a6 6 0 0 0 10.4 1.6L16 12","M16 15.5V12h-3.5"),grip:d({circle:[7.5,6,1.1],fill:!0},{circle:[12.5,6,1.1],fill:!0},{circle:[7.5,10,1.1],fill:!0},{circle:[12.5,10,1.1],fill:!0},{circle:[7.5,14,1.1],fill:!0},{circle:[12.5,14,1.1],fill:!0}),more:d({circle:[5,10,1.25],fill:!0},{circle:[10,10,1.25],fill:!0},{circle:[15,10,1.25],fill:!0}),chevronDown:d("M6 8l4 4 4-4"),chevronUp:d("M6 12l4-4 4 4"),arrowRight:d("M4.5 10h11","M11 5.5l4.5 4.5-4.5 4.5"),copy:d("M7.5 7.5h7a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1h-7a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1z","M4.5 12.5h-.25a.75.75 0 0 1-.75-.75v-7.5a.75.75 0 0 1 .75-.75h7.5a.75.75 0 0 1 .75.75v.25")},re=i=>i.replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;");function K(i,e={}){let t=e.size??20,o=e.strokeWidth??1.6,r=e.label?`role="img" aria-label="${re(e.label)}"`:\'aria-hidden="true" focusable="false"\',n=e.className?` class="${re(e.className)}"`:"",a=ne[i].map(l=>{if(typeof l=="string")return`<path d="${l}"/>`;let[p,h,c]=l.circle;return l.fill?`<circle cx="${p}" cy="${h}" r="${c}" fill="currentColor" stroke="none"/>`:`<circle cx="${p}" cy="${h}" r="${c}"/>`}).join("");return`<svg${n} xmlns="http://www.w3.org/2000/svg" width="${t}" height="${t}" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="${o}" stroke-linecap="round" stroke-linejoin="round" ${r}>${a}</svg>`}var se=[".........ooo....",".......oobbbo...","......obbbbbo...","....oobbbbbbo...","...obbbbbbbbbo..","..obbbbbbbbbbbo.",".obbbbbbbbbbbbo.",".obbeebbbbeebbo.","obbbeebbbbeebbbo","obbbbbbeebbbbbbo","obbbbbbbbbbbbbbo","oobbbbbbbbbbbbbo","..obbbbbbbbbbbo.","..oobbbooobbboo.","....obo...obo...","....ooo...ooo..."],ae={outline:"#3B1A10",clay:"#E88858",eyes:"#2A140C"};function ke(i){let e={o:i.outline,b:i.clay,e:i.eyes},t={};return se.forEach((o,r)=>{for(let n=0;n<o.length;){let a=o[n],l=1;for(;o[n+l]===a;)l++;e[a]&&(t[a]=`${t[a]??""}M${n} ${r}h${l}v1h-${l}z`),n+=l}}),Object.entries(t).map(([o,r])=>`<path fill="${e[o]}" d="${r}"/>`).join("")}function j(i={}){let e=i.size??32,t=i.label?`role="img" aria-label="${i.label.replace(/"/g,"&quot;")}"`:\'aria-hidden="true" focusable="false"\';return`<svg xmlns="http://www.w3.org/2000/svg" width="${e}" height="${e}" viewBox="0 0 16 16" shape-rendering="crispEdges" ${t}>${ke({...ae,...i.colors})}</svg>`}function s(i,e={},...t){let o=document.createElement(i);for(let[r,n]of Object.entries(e))n==null||n===!1||(r==="class"?o.className=String(n):r==="style"?typeof n=="string"?o.setAttribute("style",n):Object.assign(o.style,n):r==="dataset"?Object.assign(o.dataset,n):r.startsWith("on")&&typeof n=="function"?o.addEventListener(r.slice(2).toLowerCase(),n):n===!0?o.setAttribute(r,""):o.setAttribute(r,String(n)));return Ee(o,t),o}function Ee(i,e){for(let t of e)t==null||t===!1||i.appendChild(typeof t=="object"?t:document.createTextNode(String(t)))}function g(i,e=18){let t=document.createElement("span");return t.className="ic",t.innerHTML=K(i,{size:e,strokeWidth:e<=16?1.7:1.6}),t}var L=[],le=[],X;function U(i){X?X(i):le.push(i)}var ce="Part of the app didn\'t load",de=new RegExp(`^${ce}$|Failed to fetch dynamically imported module|error loading dynamically imported module|Importing a module script failed`,"i"),Y="cloclod:fixing";function Se(){try{return Date.now()-Number(sessionStorage.getItem(Y)??0)<12e4}catch{return!1}}function T(i){try{i?sessionStorage.setItem(Y,String(Date.now())):sessionStorage.removeItem(Y)}catch{}}function pe(){addEventListener("error",e=>{let t=e.target;!(t instanceof HTMLScriptElement)||t.hasAttribute("data-cloclod-toolbar")||t.src&&new URL(t.src,location.href).origin!==location.origin||U({message:ce,kind:"build"})},!0),addEventListener("error",e=>{let t=e.error;U({message:t?.message??e.message,...t?.stack?{stack:t.stack}:{},kind:"runtime"})}),addEventListener("unhandledrejection",e=>{let t=e.reason,o=typeof t=="string"?t:t?.message??"A background task failed";U({message:o,...typeof t=="object"&&t?.stack?{stack:t.stack}:{},kind:"promise"})});let i=console.error.bind(console);console.error=(...e)=>{L.push(e.map(t=>t instanceof Error?t.message:String(t)).join(" ").slice(0,400)),L.length>8&&L.shift(),i(...e)}}async function Ce(){try{return(await import(`${location.origin}/@vite/client`)).createHotContext?.(u.toolbar)}catch{return}}var Me=[/ResizeObserver loop/i,/Script error\\.?$/i,/__cloclod/];function $e(i){if(i)for(let e of i.split(`\n`)){let t=e.match(/https?:\\/\\/[^/]+\\/(src\\/[^?:)\\s]+)(?:\\?[^:)]*)?:(\\d+):(\\d+)/);if(t)return{file:t[1],line:Number(t[2]),column:Number(t[3])}}}function V(){return((document.getElementById("root")??document.body).innerText??"").trim().length===0}var W=i=>i.split("/").pop()??i,v=i=>s("strong",{},i);function Te(i){let e=i.source&&W(i.source.file),t=i.message.match(/Failed to resolve import "([^"]+)" from "([^"]+)"/);if(t){let r=t[1],n=t[2];if(/^(\\.|\\/|@\\/|~\\/)/.test(r)){let a=r.replace(/^(@|~)\\//,"").replace(/^(\\.\\.?\\/)+/,"");return[v(W(n))," refers to ",v(a),", a file that doesn\\u2019t exist."]}return[v(W(n))," uses ",v(r),", a package that isn\\u2019t installed."]}let o=i.message.match(/^(?:\\w*Error: )?([\\w$]+) is not defined$|Can\'t find variable: ([\\w$]+)/);if(o){let r=o[1]??o[2];return[e?v(e):"This page"," refers to ",v(r),", which doesn\\u2019t exist."]}return de.test(i.message)?["Part of the app\\u2019s code didn\\u2019t load."]:i.kind==="build"?e?[v(e),` has a mistake on line ${i.source.line}.`]:["A mistake in the code stops it from loading."]:e?["The problem starts in ",v(e),`, line ${i.source.line}.`]:["Something in the code went wrong."]}function Le(i){let e=i.source?`${i.source.file}:${i.source.line}`:"",t=[];for(let o of(i.stack??"").split(`\n`))!o.trim()||o.endsWith(i.message)||i.source&&o.endsWith(i.source.file)||t.push(o.replace(/https?:\\/\\/[^/\\s]+\\/(@fs\\/)?/g,"").replace(/\\?[^:)\\s]*(?=:\\d)/g,""));return{where:e,frame:t.slice(0,24).join(`\n`)}}function Ae(i){let e=i.err;if(!e)return;let t=e.loc?.file??e.id??"",o=t.match(/(src\\/[^?:]+)/);return D(e.message??"The app couldn\'t be built",`${t}\n${e.message??""}\n${e.stack??""}`,o?{file:o[1],line:e.loc?.line??1}:void 0)}function Re(){let i=document.querySelector("vite-error-overlay");if(!i)return;let e=i.shadowRoot?.querySelector(".message-body")?.textContent??"The app couldn\'t be built",t=i.shadowRoot?.querySelector(".file")?.textContent??"",o=t.match(/(src\\/[^:]+):(\\d+)/);return D(e,`${t}\n${e}`,o?{file:o[1],line:Number(o[2])}:void 0)}function Oe(i,e,t){return e?"Claude is fixing it\\u2026":i.kind==="build"?"Your app can\\u2019t load":t?"This page can\\u2019t load":"Something broke on this page"}var A=class{constructor(e,t,o){this.layer=e;this.dockSlot=t;this.toast=o}layer;dockSlot;toast;card;current;dismissed=new Set;detailsOpen=!1;updateStarted=0;start(){X=t=>this.capture(t);let e=le.splice(0);for(let t of e)this.capture(t);!e.length&&V()&&m.buildError(performance.timeOrigin).then(t=>{t&&!this.current&&this.show(t)},()=>{}),setTimeout(()=>{this.current||T(!1)},3e3),Ce().then(t=>{t?.on("vite:error",o=>{let r=Ae(o);r&&this.capture(r)}),t?.on("vite:beforeUpdate",()=>{this.updateStarted=Date.now()}),t?.on("vite:afterUpdate",()=>{this.afterUpdate()})}),new MutationObserver(()=>{let t=Re();t&&this.capture(t)}).observe(document.documentElement,{childList:!0})}async afterUpdate(){if(this.current){if(V()||this.current.kind==="build"){let e=await m.buildError(this.updateStarted).catch(()=>null);e?this.show(e):location.reload();return}T(!1),this.dismiss(!1)}}capture(e){if(!(!e.message||Me.some(t=>t.test(e.message)))){if(de.test(e.message)){m.buildError(performance.timeOrigin).then(t=>this.show(t??e),()=>this.show(e));return}this.show(e)}}show(e){if(this.dismissed.has(e.message))return;let t=e.source?void 0:$e(e.stack);if(t){let o=r=>this.show({...e,source:{file:t.file,line:r??t.line}});m.originalLine(t).then(o,()=>o(null));return}this.current=e,setTimeout(()=>this.render(),60)}render(e=Se()){let t=this.current;if(!t)return;let o=t.kind==="build"||V(),r=!!this.card?.isConnected,n=this.layer.getRootNode(),a=!!this.card?.contains(n.activeElement);this.card?.remove();let{more:l,details:p}=this.detailsToggle(t),h=s("button",{class:"close","aria-label":"Dismiss",onclick:()=>this.dismiss()},g("close",16)),c=s("div",{class:`error ${o?"screen":"note"}${e?" working":""}${r?" still":""}`,role:"alert","aria-labelledby":"cl-err-title","aria-describedby":"cl-err-why"},s("div",{class:"error-body"},s("div",{class:"head"},s("span",{class:e?"spinner":"dot","aria-hidden":"true"}),s("h3",{id:"cl-err-title"},Oe(t,e,o)),o?null:h),s("p",{class:"why",id:"cl-err-why"},...e?["The preview updates by itself when it\\u2019s fixed."]:Te(t)),e?null:s("div",{class:"actions"},s("button",{class:"btn primary",onclick:()=>this.fix()},"Try to fix"),l),e?null:p),o?h:null);this.card=c,o?this.layer.append(c):this.dockSlot.prepend(c),a&&(c.querySelector(".btn.primary")??h).focus()}detailsToggle(e){let{where:t,frame:o}=Le(e),r=s("div",{class:"details",id:"cl-err-details",hidden:!this.detailsOpen},t?s("p",{class:"where"},t):null,s("p",{class:"raw"},e.message),o?s("pre",{class:"frame"},o):null),n=s("span",{},this.detailsOpen?"Hide details":"Show details"),a=s("button",{class:"btn ghost more","aria-expanded":String(this.detailsOpen),"aria-controls":"cl-err-details",onclick:()=>{this.detailsOpen=!this.detailsOpen,r.hidden=!this.detailsOpen,n.textContent=this.detailsOpen?"Hide details":"Show details",a.setAttribute("aria-expanded",String(this.detailsOpen))}},n,g("chevronDown",16));return{more:a,details:r}}async fix(){let e=this.current;if(e){T(!0),this.render(!0);try{await m.fix(e,[...L])}catch{T(!1),this.toast("Couldn\'t reach Claude. Is Cloclod running?","warn"),this.render(!1)}}}dismiss(e=!0){this.current&&e&&this.dismissed.add(this.current.message),this.current=void 0,this.card?.remove(),this.card=void 0}};function y(i){let e=i?.closest(`[${H}]`),t=e?.getAttribute(H);return e&&t?{el:e,src:t}:void 0}function G(i){let e=i.tagName.toLowerCase(),t=i.getAttribute("role");if(/^h[1-6]$/.test(e))return"heading";if(e==="button"||t==="button")return"button";if(e==="a"){let r=i.getAttribute("class")??"";return/\\brounded/.test(r)&&/\\b(bg-|border)/.test(r)&&/\\b(px-|h-\\d)/.test(r)?"button":"link"}if(e==="img"||e==="picture"||e==="video")return"image";if(e==="svg")return"icon";if(["input","textarea","select"].includes(e))return"input";if(["ul","ol","li","dl"].includes(e))return"list";if(e==="nav"||e==="header"||e==="footer")return"nav";if(["section","main","article","aside"].includes(e))return"section";if(["p","span","label","strong","em","small","blockquote","figcaption"].includes(e))return"text";let o=i.getAttribute("class")??"";return/\\bcard\\b|rounded-(lg|xl|2xl)/.test(o)&&i.children.length>1?"card":i.children.length===0&&i.textContent?.trim()?"text":i.children.length>2?"section":"element"}var Pe={heading:"Heading",text:"Text",button:"Button",link:"Link",image:"Image",input:"Field",list:"List",section:"Section",nav:"Navigation",card:"Card",icon:"Icon",element:"Element"};function E(i){let e=G(i);if(e==="nav"){let t=i.tagName.toLowerCase();return t==="header"?"Header":t==="footer"?"Footer":"Navigation"}return Pe[e]}function R(i,e=42){let o=(i.getAttribute("alt")??i.getAttribute("aria-label")??i.textContent??"").replace(/\\s+/g," ").trim();return o?o.length>e?`${o.slice(0,e-1).trimEnd()}\\u2026`:o:""}function he(i){let e=i.tagName.toLowerCase(),t=(i.getAttribute("class")??"").split(/\\s+/).slice(0,8).join(" "),o=R(i,80);return`${E(i)} <${e}${t?` class="${t}"`:""}>${o?` \\u201C${o}\\u201D`:""}`}var ue={heading:["Rewrite it","Make it bigger","Change the font"],text:["Rewrite it","Make it shorter","Change the color"],button:["Change the label","Make it stand out","Change what it does"],link:["Change where it goes","Change the text","Style it as a button"],image:["Replace the image","Make it rounder","Make it bigger"],input:["Change the placeholder","Make it required","Change the label"],list:["Add an item","Change the layout","Reorder it"],section:["Change the layout","Add something here","Change the background"],nav:["Add a link","Change the logo","Make it sticky"],card:["Change the layout","Add a picture","Make it stand out"],icon:["Use a different icon","Make it bigger","Change the color"],element:["Change the style","Move it","Remove it"]};var S=class{constructor(e){this.layer=e;this.box=s("div",{class:"hl",style:"opacity:0"}),this.chip=s("div",{class:"chip",style:"opacity:0"}),e.append(this.box,this.chip)}layer;box;chip;target;frame=0;lines=[];perLine=!1;show(e,t,o,r={}){this.target=e,this.perLine=!!r.perLine,this.box.className=`hl ${t}`,this.box.style.opacity="1";for(let n of this.lines)n.className=`hl ${t}`;o?(this.chip.className=`chip ${t.startsWith("ask")?"ask":t==="locked"?"locked":""}`,this.chip.replaceChildren(...o.icon?[g(o.icon,14)]:[],s("span",{},o.strong),...o.muted?[s("span",{class:"muted"},o.muted)]:[]),this.chip.style.opacity="1"):this.chip.style.opacity="0",this.place(),this.frame||this.loop()}fadeOut(e,t){this.show(e,t),this.box.addEventListener("animationend",()=>this.hide(),{once:!0})}hide(){this.target=void 0,this.box.style.opacity="0",this.chip.style.opacity="0";for(let e of this.lines)e.remove();this.lines=[],cancelAnimationFrame(this.frame),this.frame=0}loop=()=>{this.place(),this.frame=this.target?requestAnimationFrame(this.loop):0};place(){let e=this.target?.getBoundingClientRect();if(!e)return;if(this.perLine&&this.target){let o=Array.from(this.target.getClientRects()).filter(r=>r.width>0&&r.height>0);if(o.length>1){for(;this.lines.length<o.length-1;){let n=s("div",{class:this.box.className});this.layer.append(n),this.lines.push(n)}for(;this.lines.length>o.length-1;)this.lines.pop()?.remove();let r=[this.box,...this.lines];o.forEach((n,a)=>{Object.assign(r[a].style,{top:`${n.top}px`,left:`${n.left}px`,width:`${n.width}px`,height:`${n.height}px`,opacity:"1"})});return}}Object.assign(this.box.style,{top:`${e.top}px`,left:`${e.left}px`,width:`${e.width}px`,height:`${e.height}px`});let t=e.top-30<4?e.bottom+8:e.top-30;Object.assign(this.chip.style,{top:`${t}px`,left:`${Math.max(6,Math.min(e.left-3,innerWidth-200))}px`})}};function J(i,e,t=10){let{width:o,height:r}=i.getBoundingClientRect(),a=e.bottom+t+r<innerHeight-70?e.bottom+t:Math.max(8,e.top-t-r),l=Math.min(Math.max(8,e.left),innerWidth-o-8);i.style.top=`${a}px`,i.style.left=`${l}px`}var O=class{el;constructor(){this.el=s("div",{class:"toasts",role:"status","aria-live":"polite"})}show(e,t={}){let o=s("div",{class:`toast ${t.tone==="warn"?"warn":""}`},g(t.tone==="warn"?"alert":"check",16),e);for(this.el.append(o);this.el.children.length>3;)this.el.firstElementChild?.remove();setTimeout(()=>{o.classList.add("leaving"),setTimeout(()=>o.remove(),260)},t.ms??2600)}};var ge=`\n${q({selector:":host"})}\n:host {\n  all: initial;\n  position: fixed;\n  inset: 0;\n  pointer-events: none;\n  z-index: ${B.toolbar};\n  font: 13px/18px var(--cl-font-ui);\n  color: var(--cl-ink);\n  -webkit-font-smoothing: antialiased;\n  -moz-osx-font-smoothing: grayscale;\n  --dock-bg: color-mix(in oklab, var(--cl-paper) 88%, transparent);\n  --dock-border: color-mix(in oklab, var(--cl-slip-strong) 70%, transparent);\n}\n* { box-sizing: border-box; }\n.ic { display: inline-flex; width: 18px; height: 18px; flex: none; }\n.ic svg { display: block; }\nbutton { font: inherit; color: inherit; background: none; border: 0; margin: 0; padding: 0; cursor: pointer; }\nbutton:focus-visible, [tabindex]:focus-visible, textarea:focus-visible {\n  outline: 2px solid var(--cl-focus);\n  outline-offset: 2px;\n}\n.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }\n\n/* \\u2500\\u2500 Dock \\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500 */\n.dock-wrap {\n  /* No transform here: it would trap the fixed-position pebble inside this box. */\n  position: fixed; left: 0; right: 0; bottom: 14px;\n  display: flex; flex-direction: column; align-items: center; gap: 8px;\n  pointer-events: none;\n}\n.dock {\n  pointer-events: auto;\n  display: flex; align-items: center; gap: 2px;\n  height: 46px; padding: 0 5px;\n  background: var(--dock-bg);\n  -webkit-backdrop-filter: blur(18px) saturate(1.5);\n  backdrop-filter: blur(18px) saturate(1.5);\n  border: 1px solid var(--dock-border);\n  border-radius: var(--cl-radius-pill);\n  box-shadow: var(--cl-shadow-lg);\n  animation: rise var(--cl-slow) var(--cl-spring) both;\n}\n@keyframes rise { from { opacity: 0; transform: translateY(10px) scale(.97); } }\n.sep { width: 1px; height: 22px; background: var(--cl-slip); margin: 0 5px; flex: none; }\n.backend { padding: 0 6px 0 2px; color: var(--cl-ash); font-size: 12px; font-weight: 500; white-space: nowrap; }\n.brand {\n  width: 36px; height: 36px; border-radius: 50%;\n  display: grid; place-items: center;\n  transition: transform var(--cl-fast) var(--cl-ease-out), background var(--cl-fast);\n}\n/* The clod hops; turning or scaling it would blur its pixels. */\n.brand:hover { background: var(--cl-bisque); transform: translateY(-1px); }\n.brand[aria-expanded="true"] { background: var(--cl-bisque); }\n.tool {\n  height: 36px; padding: 0 12px 0 10px;\n  display: inline-flex; align-items: center; gap: 7px;\n  border-radius: var(--cl-radius-pill);\n  color: var(--cl-ink); font-weight: 500; letter-spacing: -0.005em;\n  transition: background var(--cl-fast), color var(--cl-fast);\n  white-space: nowrap;\n}\n.tool:hover { background: var(--cl-bisque); }\n.tool[aria-pressed="true"] { background: var(--cl-clay-soft); color: var(--cl-clay-text); }\n.tool .key {\n  font: 500 10.5px/16px var(--cl-font-ui); color: var(--cl-ash);\n  padding: 0 5px; border-radius: 5px; background: var(--cl-bisque); margin-left: 2px;\n}\n.tool[aria-pressed="true"] .key { background: color-mix(in oklab, var(--cl-clay) 14%, transparent); color: var(--cl-clay-text); }\n.icon-btn {\n  width: 36px; height: 36px; border-radius: 50%;\n  display: grid; place-items: center; color: var(--cl-ash);\n  transition: background var(--cl-fast), color var(--cl-fast);\n}\n.icon-btn:hover { background: var(--cl-bisque); color: var(--cl-ink); }\n\n/* Device switcher: a segmented control with a sliding thumb. */\n.devices { position: relative; display: flex; align-items: center; height: 36px; padding: 3px; border-radius: var(--cl-radius-pill); background: var(--cl-bisque); }\n.devices .thumb {\n  position: absolute; top: 3px; left: 3px; width: 34px; height: 30px; border-radius: var(--cl-radius-pill);\n  background: var(--cl-paper); box-shadow: var(--cl-shadow-sm), 0 0 0 1px var(--cl-slip);\n  transition: transform var(--cl-base) var(--cl-ease-out);\n}\n.devices button { position: relative; width: 34px; height: 30px; border-radius: var(--cl-radius-pill); display: grid; place-items: center; color: var(--cl-ash); transition: color var(--cl-fast); }\n.devices button:hover { color: var(--cl-ink); }\n.devices button[aria-checked="true"] { color: var(--cl-ink); }\n\n/* Narrow screens (and the phone frame): icons only. */\n@media (max-width: 560px) {\n  .tool .label, .tool .key { display: none; }\n  .tool { padding: 0; width: 36px; justify-content: center; }\n  .dock-wrap { bottom: 10px; }\n}\n\n/* Minimized: a single clod in the corner. */\n.pebble {\n  pointer-events: auto;\n  position: fixed; right: 16px; bottom: 16px;\n  width: 44px; height: 44px; border-radius: 50%;\n  display: grid; place-items: center;\n  background: var(--dock-bg);\n  -webkit-backdrop-filter: blur(18px) saturate(1.5);\n  backdrop-filter: blur(18px) saturate(1.5);\n  border: 1px solid var(--dock-border);\n  box-shadow: var(--cl-shadow-md);\n  animation: rise var(--cl-slow) var(--cl-spring) both;\n  transition: transform var(--cl-fast) var(--cl-ease-out);\n}\n.pebble:hover { transform: translateY(-2px); }\n.pebble.labelled {\n  width: auto; min-width: 44px; max-width: calc(100vw - 32px); padding: 0 12px;\n  display: flex; gap: 7px; border-radius: var(--cl-radius-pill);\n  white-space: nowrap; font-size: 12px; font-weight: 500;\n}\n\n/* \\u2500\\u2500 Hint above the dock \\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500 */\n.hint {\n  pointer-events: auto;\n  display: inline-flex; align-items: center; gap: 8px;\n  height: 30px; padding: 0 12px 0 10px;\n  background: var(--cl-ink); color: var(--cl-paper);\n  border-radius: var(--cl-radius-pill);\n  font-size: 12px; font-weight: 500;\n  box-shadow: var(--cl-shadow-md);\n  animation: rise var(--cl-base) var(--cl-ease-out) both;\n}\n.hint .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--cl-clay); box-shadow: 0 0 0 0 var(--cl-clay); animation: pulse 1.8s var(--cl-ease-out) infinite; }\n.hint.ask .dot { background: var(--cl-cobalt); }\n.hint kbd { font: 500 11px/16px var(--cl-font-ui); padding: 0 5px; border-radius: 4px; background: color-mix(in oklab, var(--cl-paper) 16%, transparent); }\n@keyframes pulse { 0% { box-shadow: 0 0 0 0 color-mix(in oklab, var(--cl-clay) 60%, transparent); } 70% { box-shadow: 0 0 0 7px transparent; } 100% { box-shadow: 0 0 0 0 transparent; } }\n\n/* \\u2500\\u2500 Menu \\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500 */\n.menu {\n  pointer-events: auto;\n  position: fixed; min-width: 248px; padding: 6px;\n  background: var(--cl-paper); border: 1px solid var(--cl-slip); border-radius: var(--cl-radius-lg);\n  box-shadow: var(--cl-shadow-lg);\n  animation: pop var(--cl-base) var(--cl-ease-out) both;\n  transform-origin: bottom left;\n}\n@keyframes pop { from { opacity: 0; transform: translateY(6px) scale(.98); } }\n.menu .head { display: flex; align-items: center; gap: 10px; padding: 8px 8px 10px; }\n.menu .head b { font: 600 14px/18px var(--cl-font-display); letter-spacing: -0.01em; }\n.menu .head span { display: block; color: var(--cl-ash); font-size: 12px; }\n.menu hr { border: 0; border-top: 1px solid var(--cl-slip); margin: 4px 2px; }\n.menu-item {\n  width: 100%; display: flex; align-items: center; gap: 10px;\n  padding: 7px 8px; border-radius: var(--cl-radius-md); text-align: left; color: var(--cl-ink);\n}\n.menu-item:hover, .menu-item:focus-visible { background: var(--cl-bisque); outline: none; }\n.menu-item .ic { color: var(--cl-ash); }\n.menu-item .shortcut { margin-left: auto; color: var(--cl-ash); font-size: 11.5px; }\n\n/* \\u2500\\u2500 Highlights \\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500 */\n.hl {\n  position: fixed; pointer-events: none;\n  border-radius: 6px;\n  transition: top 70ms linear, left 70ms linear, width 70ms linear, height 70ms linear, opacity var(--cl-fast);\n}\n.hl.edit-hover { outline: 1.5px dashed var(--cl-clay); outline-offset: 3px; background: color-mix(in oklab, var(--cl-clay) 5%, transparent); }\n.hl.editing { outline: 2px solid var(--cl-clay); outline-offset: 3px; box-shadow: 0 0 0 6px color-mix(in oklab, var(--cl-clay) 16%, transparent); }\n.hl.ask-hover { outline: 1.5px solid var(--cl-cobalt); outline-offset: 2px; background: color-mix(in oklab, var(--cl-cobalt) 7%, transparent); }\n.hl.saved { outline: 2px solid var(--cl-celadon); outline-offset: 3px; background: color-mix(in oklab, var(--cl-celadon) 12%, transparent); animation: fade 900ms var(--cl-ease-out) forwards; }\n.hl.locked { outline: 1.5px dashed var(--cl-ash); outline-offset: 3px; }\n@keyframes fade { 60% { opacity: 1; } to { opacity: 0; } }\n.chip {\n  position: fixed; pointer-events: none;\n  display: inline-flex; align-items: center; gap: 5px;\n  height: 22px; padding: 0 8px 0 6px; border-radius: var(--cl-radius-pill);\n  font-size: 11.5px; font-weight: 600; white-space: nowrap; max-width: 320px; overflow: hidden; text-overflow: ellipsis;\n  /* on-clay reads on every chip fill (clay, cobalt, ash), in both schemes: see design\'s contrast test. */\n  color: var(--cl-on-clay); background: var(--cl-clay);\n  box-shadow: var(--cl-shadow-sm);\n}\n.chip.ask { background: var(--cl-cobalt); }\n.chip.locked { background: var(--cl-ash); }\n.chip .ic { width: 14px; height: 14px; }\n.chip .muted { font-weight: 500; opacity: .85; overflow: hidden; text-overflow: ellipsis; }\n\n/* \\u2500\\u2500 Popovers: edit bar, composer, notices \\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500 */\n.pop {\n  pointer-events: auto;\n  position: fixed;\n  background: var(--cl-paper); color: var(--cl-ink);\n  border: 1px solid var(--cl-slip); border-radius: var(--cl-radius-lg);\n  box-shadow: var(--cl-shadow-lg);\n  animation: pop var(--cl-base) var(--cl-ease-out) both;\n}\n.editbar { display: flex; align-items: center; gap: 6px; padding: 5px; border-radius: var(--cl-radius-pill); }\n.editbar .note { color: var(--cl-ash); font-size: 12px; padding: 0 6px 0 8px; white-space: nowrap; }\n.btn {\n  height: 30px; padding: 0 12px; border-radius: var(--cl-radius-pill);\n  display: inline-flex; align-items: center; gap: 6px;\n  font-weight: 600; font-size: 12.5px; white-space: nowrap;\n  transition: background var(--cl-fast), color var(--cl-fast), transform var(--cl-fast);\n}\n.btn:active { transform: translateY(1px); }\n.btn.primary { background: var(--cl-clay); color: var(--cl-on-clay); }\n.btn.primary:hover { background: var(--cl-clay-hover); }\n.btn.primary[disabled] { opacity: .55; cursor: default; }\n.btn.ghost { color: var(--cl-ink); }\n.btn.ghost:hover { background: var(--cl-bisque); }\n.btn .kbd { font-weight: 500; opacity: .75; font-size: 11px; }\n.spinner { width: 14px; height: 14px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; animation: spin .7s linear infinite; }\n@keyframes spin { to { transform: rotate(360deg); } }\n\n.composer { width: 340px; padding: 12px; }\n.composer .target { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; color: var(--cl-ash); font-size: 12px; min-width: 0; }\n.composer .target .badge { flex: none; display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px 0 6px; border-radius: var(--cl-radius-pill); color: var(--cl-cobalt); background: var(--cl-cobalt-soft); font-weight: 600; }\n.composer .target .what { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }\n.composer textarea {\n  width: 100%; min-height: 64px; max-height: 160px; resize: none;\n  font: 14px/20px var(--cl-font-ui); color: var(--cl-ink);\n  padding: 10px 12px; border-radius: var(--cl-radius-md);\n  border: 1px solid var(--cl-slip-strong); background: var(--cl-paper);\n  transition: border-color var(--cl-fast), box-shadow var(--cl-fast);\n}\n.composer textarea::placeholder { color: var(--cl-ash); }\n.composer textarea:focus { outline: none; border-color: var(--cl-cobalt); box-shadow: 0 0 0 3px color-mix(in oklab, var(--cl-cobalt) 20%, transparent); }\n.suggestions { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 2px; }\n.suggestion {\n  height: 26px; padding: 0 10px; border-radius: var(--cl-radius-pill);\n  border: 1px solid var(--cl-slip); color: var(--cl-ink); font-size: 12px;\n  transition: background var(--cl-fast), border-color var(--cl-fast);\n}\n.suggestion:hover { background: var(--cl-bisque); border-color: var(--cl-slip-strong); }\n.actions { display: flex; justify-content: flex-end; align-items: center; gap: 6px; margin-top: 12px; }\n.actions .left { margin-right: auto; color: var(--cl-ash); font-size: 11.5px; }\n\n.notice { width: 300px; padding: 14px; }\n.notice h3 { margin: 0 0 4px; font: 600 14px/19px var(--cl-font-ui); }\n.notice p { margin: 0; color: var(--cl-ash); font-size: 12.5px; line-height: 18px; }\n\n/* \\u2500\\u2500 Errors \\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500 */\n/* The app can\'t show anything: a quiet sheet over the page, and the story in plain words. */\n.error.screen {\n  pointer-events: auto;\n  position: fixed; inset: 0;\n  display: grid; place-items: center;\n  padding: 32px 24px 112px;\n  overflow: auto;\n  background: color-mix(in oklab, var(--cl-paper) 94%, transparent);\n  -webkit-backdrop-filter: blur(12px) saturate(1.2);\n  backdrop-filter: blur(12px) saturate(1.2);\n  animation: sheet var(--cl-base) var(--cl-ease-out) both;\n}\n@keyframes sheet { from { opacity: 0; } }\n.error.screen .error-body { width: min(440px, 100%); animation: rise var(--cl-slow) var(--cl-ease-out) both; }\n/* Something broke, but the page still works: a small note above the dock. */\n.error.note {\n  pointer-events: auto;\n  width: min(400px, calc(100vw - 24px));\n  padding: 14px 14px 14px 16px;\n  background: var(--cl-paper); border: 1px solid var(--cl-slip); border-radius: var(--cl-radius-lg);\n  box-shadow: var(--cl-shadow-md);\n  animation: rise var(--cl-slow) var(--cl-spring) both;\n}\n.error.still, .error.still .error-body { animation: none; }\n.error .head { display: flex; align-items: center; gap: 10px; }\n.error .dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--cl-oxide); }\n.error .spinner { flex: none; width: 12px; height: 12px; margin: 0 -2px; border-width: 1.75px; color: var(--cl-clay); }\n.error h3 { flex: 1; margin: 0; font: 600 14px/20px var(--cl-font-ui); letter-spacing: -0.01em; }\n.error .close {\n  flex: none; width: 28px; height: 28px; margin: -4px -6px -4px 0; border-radius: 50%;\n  display: grid; place-items: center; color: var(--cl-ash);\n  transition: background var(--cl-fast), color var(--cl-fast);\n}\n.error .close:hover { background: var(--cl-bisque); color: var(--cl-ink); }\n.error .why { margin: 4px 0 0 18px; color: var(--cl-ash); font-size: 13px; line-height: 19px; text-wrap: balance; }\n.error .why strong { color: var(--cl-ink); font-weight: 600; }\n.error .actions { justify-content: flex-start; gap: 4px; margin: 12px 0 0 18px; }\n.error .more { padding: 0 8px 0 12px; gap: 4px; color: var(--cl-ash); }\n.error .more:hover { color: var(--cl-ink); }\n.error .more .ic { transition: transform var(--cl-base) var(--cl-ease-out); }\n.error .more[aria-expanded="true"] .ic { transform: rotate(180deg); }\n.error .details {\n  margin: 14px 0 0 18px; padding: 10px 12px; max-height: 220px; overflow: auto;\n  background: var(--cl-bisque); border: 1px solid var(--cl-slip); border-radius: var(--cl-radius-md);\n  font: 11.5px/17px var(--cl-font-mono); color: var(--cl-ink); user-select: text;\n}\n.error .details[hidden] { display: none; }\n.error .details p { margin: 0; word-break: break-word; }\n.error .details .where { color: var(--cl-ash); }\n.error .details .frame { margin: 8px 0 0; padding-top: 8px; border-top: 1px solid var(--cl-slip); font: inherit; color: var(--cl-ash); white-space: pre; overflow-x: auto; }\n.error.screen h3 { font-size: 22px; line-height: 28px; letter-spacing: -0.02em; }\n.error.screen .close { position: absolute; top: 14px; right: 14px; width: 32px; height: 32px; margin: 0; }\n.error.screen .why { margin-top: 6px; font-size: 14.5px; line-height: 22px; }\n.error.screen .actions { margin-top: 20px; }\n.error.screen .btn { height: 34px; font-size: 13px; }\n.error.screen .btn.primary { padding: 0 16px; }\n\n/* \\u2500\\u2500 Toasts \\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500 */\n.toasts { display: flex; flex-direction: column; align-items: center; gap: 6px; pointer-events: none; }\n.toast {\n  pointer-events: auto;\n  display: inline-flex; align-items: center; gap: 8px;\n  height: 34px; padding: 0 14px 0 10px;\n  background: var(--cl-ink); color: var(--cl-paper);\n  border-radius: var(--cl-radius-pill);\n  font-size: 12.5px; font-weight: 500;\n  box-shadow: var(--cl-shadow-md);\n  animation: rise var(--cl-base) var(--cl-ease-out) both;\n}\n.toast .ic { color: var(--cl-celadon); }\n.toast.warn .ic { color: var(--cl-ochre); }\n.toast.leaving { animation: leave var(--cl-base) var(--cl-ease-in-out) forwards; }\n@keyframes leave { to { opacity: 0; transform: translateY(6px); } }\n\n/* \\u2500\\u2500 Device bar (frame page) \\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500 */\n.devicebar { position: fixed; top: 14px; left: 50%; transform: translateX(-50%); pointer-events: auto; }\n.devicebar .size { padding: 0 6px 0 12px; color: var(--cl-ash); font: 500 12px/18px var(--cl-font-ui); font-variant-numeric: tabular-nums; white-space: nowrap; }\n\n@media (prefers-reduced-motion: reduce) {\n  *, *::before, *::after { animation-duration: 1ms !important; animation-iteration-count: 1 !important; transition-duration: 1ms !important; }\n}\n`;var me="cloclod:toolbar",He=new RegExp(`[?&]${M}=1`),C={dynamic:"This text is filled in automatically, from your data or a list in your code, so it can\'t be typed over here.",notFound:"The page changed while you were editing. Try once more.",ambiguous:"That exact text appears twice here, so Claude should change it."},P=class{constructor(e){this.surface=e;let t=new URLSearchParams(location.search);this.device=e==="outer"?t.get("device")??"phone":"desktop";try{this.minimized=JSON.parse(localStorage.getItem(me)??"{}").minimized===!0}catch{this.minimized=!1}}surface;host;shadow;layer;dockWrap;hintSlot;errorSlot;dockSlot;toasts=new O;hover;active;popover;mode="idle";minimized=!1;shortViewport=innerHeight<=420;expandedInShortViewport=!1;editing;device;mount(){this.host=document.createElement("cloclod-toolbar"),this.host.setAttribute("data-cloclod",""),this.shadow=this.host.attachShadow({mode:"open"}),this.shadow.append(s("style",{},ge)),this.layer=s("div"),this.hintSlot=s("div"),this.errorSlot=s("div"),this.dockSlot=s("div"),this.dockWrap=s("div",{class:"dock-wrap"},this.toasts.el,this.errorSlot,this.hintSlot,this.dockSlot),this.shadow.append(this.layer,this.dockWrap),this.hover=new S(this.layer),this.active=new S(this.layer),document.body.append(this.host),new MutationObserver(()=>{this.host.isConnected||document.body.append(this.host)}).observe(document.body,{childList:!0}),this.render(),this.surface!=="outer"&&(new A(this.layer,this.errorSlot,(e,t)=>this.toasts.show(e,t?{tone:t}:{})).start(),this.listen()),this.surface==="inner"&&this.reportRoutes(),this.surface==="outer"&&this.followRoutes()}render(){let e=this.shadow.activeElement?.dataset.key;if(this.draw(),!e)return;let t=o=>this.shadow.querySelector(`[data-key="${o}"]`);(t(e)??t("pebble")??t("hide"))?.focus()}draw(){this.surface==="outer"?this.drawDeviceBar():this.collapsed?this.drawPebble():this.drawDock()}get collapsed(){return this.minimized||this.shortViewport&&!this.expandedInShortViewport&&this.mode==="idle"}drawDeviceBar(){this.dockSlot.replaceChildren();let e=new URLSearchParams(location.search),{width:t,height:o}=ee[this.device==="tablet"?"tablet":"phone"],r=e.get("landscape")==="1"?`${o} \\xD7 ${t}`:`${t} \\xD7 ${o}`,n=s("div",{class:"dock",role:"toolbar","aria-label":"Device preview"},this.deviceSwitch(),s("span",{class:"size","aria-label":`Screen size ${r}`},r),s("span",{class:"sep","aria-hidden":"true"}),s("button",{class:"icon-btn","aria-label":"Rotate",title:"Rotate",onclick:()=>this.rotate()},g("refresh")));fe(n,this.shadow),this.layer.replaceChildren(this.hover.box,this.hover.chip,this.active.box,this.active.chip,s("div",{class:"devicebar"},n))}drawPebble(){let e=$()?.backend==="copy",t=e||this.shortViewport&&!this.minimized;this.hintSlot.replaceChildren(),this.dockSlot.replaceChildren(s("button",{class:`pebble${t?" labelled":""}`,"data-key":"pebble","aria-label":"Show Cloclod tools",...e?{"aria-description":"This preview uses a copy of your data."}:{},title:"Show Cloclod tools (\\u2325\\u21E7H)",onclick:()=>this.setMinimized(!1)},this.mark(24),...t?[s("span",{},e?"Copy \\xB7 Tools":"Tools")]:[]))}drawDock(){let e=(n,a,l,p)=>s("button",{class:"tool","data-key":n,"aria-pressed":String(this.mode===n),title:`${l} (${p})`,onclick:()=>this.setMode(this.mode===n?"idle":n)},g(a),s("span",{class:"label"},l)),t=s("button",{class:"brand","data-key":"menu","aria-label":"Cloclod menu","aria-haspopup":"menu","aria-expanded":"false",onclick:n=>this.toggleMenu(n.currentTarget)},this.mark(24)),o=$()?.backend==="copy",r=s("div",{class:"dock",role:"toolbar","aria-label":"Cloclod preview tools"},t,...o?[s("span",{class:"backend",title:"This preview uses your new backend, a copy of your data. Your live app is untouched."},"Copy")]:[],s("span",{class:"sep","aria-hidden":"true"}),e("edit","text","Edit text","\\u2325\\u21E7E"),e("ask","select","Point & ask","\\u2325\\u21E7A"),...this.surface==="app"?[s("span",{class:"sep","aria-hidden":"true"}),this.deviceSwitch()]:[],s("span",{class:"sep","aria-hidden":"true"}),s("button",{class:"icon-btn","data-key":"hide","aria-label":"Hide Cloclod tools",title:"Hide (\\u2325\\u21E7H)",onclick:()=>this.setMinimized(!0)},g("minimize")));fe(r,this.shadow),this.dockSlot.replaceChildren(r),this.renderHint()}mark(e){let t=s("span",{"aria-hidden":"true",style:"display:grid"});return t.innerHTML=j({size:e}),t}deviceSwitch(){let e=[["desktop","desktop","Full width"],["tablet","tablet","Tablet"],["phone","phone","Phone"]],t=e.findIndex(([o])=>o===this.device);return s("div",{class:"devices",role:"radiogroup","aria-label":"Preview size"},s("span",{class:"thumb","aria-hidden":"true",style:`transform: translateX(${t*100}%)`}),...e.map(([o,r,n])=>s("button",{role:"radio","aria-checked":String(this.device===o),"aria-label":n,title:n,onclick:()=>this.setDevice(o)},g(r))))}renderHint(){if(this.mode==="idle"||this.minimized){this.hintSlot.replaceChildren();return}let e=this.mode==="edit"?"Click any text to change it":"Click anything to ask Claude about it";this.hintSlot.replaceChildren(s("div",{class:`hint ${this.mode==="ask"?"ask":""}`,role:"status"},s("span",{class:"dot"}),e,s("kbd",{},"Esc")))}setMode(e){this.editing&&this.finishEdit(!1),this.closePopover(),this.mode=e,e!=="idle"&&(this.minimized=!1),this.hover.hide(),document.documentElement.style.cursor="",this.render()}setMinimized(e){this.minimized=e,this.expandedInShortViewport=!e;try{localStorage.setItem(me,JSON.stringify({minimized:e}))}catch{}e?this.setMode("idle"):this.render()}setDevice(e){let t=this.surface==="outer"?new URLSearchParams(location.search).get("path")??"/":location.pathname+location.search;if(e==="desktop"){this.surface==="outer"&&(location.href=t);return}let o=`${u.frame}?device=${e}&path=${encodeURIComponent(t)}`;location.href=o}rotate(){let e=new URLSearchParams(location.search);e.set("landscape",e.get("landscape")==="1"?"0":"1"),location.search=e.toString()}isOurs(e){return e instanceof Node&&(e===this.host||this.host.contains(e)||this.shadow.contains(e))}listen(){addEventListener("resize",()=>{let t=innerHeight<=420;t!==this.shortViewport&&(this.shortViewport=t,this.expandedInShortViewport=!1,this.closePopover(),this.render())});let e=0;addEventListener("pointermove",t=>{this.mode==="idle"||this.editing||this.popover||(cancelAnimationFrame(e),e=requestAnimationFrame(()=>this.onHover(t.clientX,t.clientY,t.target)))},{capture:!0,passive:!0});for(let t of["pointerdown","mousedown","pointerup","mouseup","click","dblclick","submit"])addEventListener(t,o=>this.onPointer(o),{capture:!0});addEventListener("keydown",t=>this.onKey(t),{capture:!0}),addEventListener("scroll",()=>this.closePopoverIfDetached(),{capture:!0,passive:!0})}onPointer(e){if(!(this.mode==="idle"||this.isOurs(e.target))&&!(this.editing&&e.target instanceof Node&&this.editing.editable.contains(e.target))&&(e.preventDefault(),e.stopPropagation(),e.stopImmediatePropagation(),e.type==="click")){if(this.editing){this.finishEdit(!0);return}if(this.popover){this.closePopover();return}this.mode==="edit"?this.startEdit(e.clientX,e.clientY):this.mode==="ask"&&this.openComposer(e.clientX,e.clientY)}}onHover(e,t,o){if(this.popover||this.editing||this.mode==="idle")return;if(this.isOurs(o)){this.hover.hide();return}if(this.mode==="edit"){let a=be(e,t,this.host),l=a&&y(a.el);a&&l?(this.hover.show(a.el,"edit-hover",{icon:"text",strong:"Edit text"}),document.documentElement.style.cursor="text"):(this.hover.hide(),document.documentElement.style.cursor="");return}let r=Z(e,t,this.host),n=r&&y(r);if(r&&n){let a=R(r,32);this.hover.show(r,"ask-hover",{strong:E(r),...a?{muted:`\\xB7 ${a}`}:{}}),document.documentElement.style.cursor="pointer"}else this.hover.hide(),document.documentElement.style.cursor=""}onKey(e){let t=Fe(e.target)&&!this.isOurs(e.target);if(e.altKey&&e.shiftKey&&!e.metaKey&&!e.ctrlKey){let r={KeyE:()=>this.setMode(this.mode==="edit"?"idle":"edit"),KeyA:()=>this.setMode(this.mode==="ask"?"idle":"ask"),KeyH:()=>this.setMinimized(!this.collapsed)}[e.code];if(r&&!(t&&!this.editing)){e.preventDefault(),e.stopPropagation(),r();return}}e.key==="Escape"&&(this.editing?(e.preventDefault(),e.stopPropagation(),this.finishEdit(!1)):this.popover?(e.preventDefault(),this.closePopover()):this.mode!=="idle"&&(e.preventDefault(),this.setMode("idle")))}async startEdit(e,t){let o=be(e,t,this.host),r=o&&y(o.el);if(!o||!r)return;let n=o.node.textContent??"",a;try{a=await m.probe(r.src,n)}catch{this.toasts.show("Couldn\'t reach Cloclod. Is the preview still running?",{tone:"warn"});return}if(!a.editable){this.showLocked(o.el,n,a.reason);return}this.hover.hide();let{editable:l,restore:p}=ze(o.el,o.node),h=s("div",{class:"pop editbar",role:"group","aria-label":"Editing text"},s("span",{class:"note"},"Editing text"),s("button",{class:"btn ghost",onclick:()=>this.finishEdit(!1)},"Cancel"),s("button",{class:"btn primary",onclick:()=>this.finishEdit(!0)},"Save",s("span",{class:"kbd"},"\\u23CE")));this.layer.append(h),this.editing={el:o.el,restore:p,editable:l,node:o.node,src:r.src,before:n,bar:h,saving:!1},this.active.show(l,"editing",void 0,{perLine:l!==o.el}),l.addEventListener("keydown",this.onEditKey),l.addEventListener("focusout",this.onEditBlur),l.focus({preventScroll:!0}),_e(e,t,l);let c=()=>{this.editing&&(J(h,this.editing.el.getBoundingClientRect(),12),requestAnimationFrame(c))};c()}onEditKey=e=>{e.key==="Enter"&&!e.shiftKey&&(e.preventDefault(),this.finishEdit(!0))};onEditBlur=e=>{this.isOurs(e.relatedTarget)||setTimeout(()=>{this.editing&&!this.editing.saving&&document.activeElement!==this.editing.editable&&this.finishEdit(!0)},0)};async finishEdit(e){let t=this.editing;if(!t||t.saving)return;let o=(t.editable.textContent??"").replace(/\\s+/g," ").trim(),r=e&&o&&o!==t.before.replace(/\\s+/g," ").trim();if(t.editable.removeEventListener("keydown",this.onEditKey),t.editable.removeEventListener("focusout",this.onEditBlur),!r){t.restore(),t.node.textContent=t.before,this.endEdit();return}t.saving=!0,t.bar.replaceChildren(s("span",{class:"note"},s("span",{class:"spinner",style:"display:inline-block;vertical-align:-3px;margin-right:8px"}),"Saving\\u2026"));try{let n=await m.edit(t.src,t.before,o);if(t.restore(),n.ok)t.node.textContent=Ne(t.before,o),this.active.fadeOut(t.el,"saved"),this.toasts.show("Text updated \\xB7 saved to your draft");else{t.node.textContent=t.before,this.active.hide();let{reason:a}=n;this.toasts.show(a==="dynamic"?C.dynamic:a==="ambiguous"?C.ambiguous:C.notFound,{tone:"warn",ms:4200})}}catch{t.restore(),t.node.textContent=t.before,this.toasts.show("Couldn\'t save that change. Try again.",{tone:"warn"})}this.endEdit(!1)}endEdit(e=!0){this.editing?.bar.remove(),this.editing=void 0,e&&this.active.hide()}showLocked(e,t,o){this.closePopover(),this.hover.show(e,"locked",{icon:"info",strong:"Not editable here"});let r=s("button",{class:"btn primary",onclick:()=>this.openComposerFor(e,`Change \\u201C${De(t)}\\u201D to `)},"Ask Claude"),n=s("div",{class:"pop notice",role:"dialog","aria-label":"This text can\'t be edited here"},s("h3",{},"Claude can change this one for you"),s("p",{},o==="ambiguous"?C.ambiguous:C.dynamic),s("div",{class:"actions"},s("button",{class:"btn ghost",onclick:()=>this.closePopover()},"Close"),r));this.openPopover(n,e.getBoundingClientRect()),r.focus({preventScroll:!0})}openComposer(e,t){let o=Z(e,t,this.host);o&&y(o)&&this.openComposerFor(o)}openComposerFor(e,t=""){this.closePopover();let o=y(e);this.hover.show(e,"ask-hover");let r=G(e),n=s("textarea",{rows:"3",placeholder:"What should change? For example: make it bigger and bolder","aria-label":"What should change?"});n.value=t;let a=s("button",{class:"btn primary",onclick:()=>l()},"Send to Claude"),l=async()=>{let c=n.value.trim();if(!c){n.focus();return}a.setAttribute("disabled","");try{let xe=o?Q(o.src):void 0;await m.ask(c,he(e),xe),this.closePopover(),this.setMode("idle"),this.toasts.show("Sent to Claude")}catch{a.removeAttribute("disabled"),this.toasts.show("Couldn\'t reach Claude. Is Cloclod running?",{tone:"warn"})}};n.addEventListener("keydown",c=>{c.key==="Enter"&&!c.shiftKey&&(c.preventDefault(),l())});let p=R(e,48),h=s("div",{class:"pop composer",role:"dialog","aria-label":`Ask Claude about this ${E(e).toLowerCase()}`},s("div",{class:"target"},s("span",{class:"badge"},g("select",14),E(e)),p?s("span",{class:"what"},`\\u201C${p}\\u201D`):null),n,s("div",{class:"suggestions"},...ue[r].map(c=>s("button",{class:"suggestion",onclick:()=>{n.value=c,n.focus()}},c))),s("div",{class:"actions"},s("span",{class:"left"},"\\u23CE to send"),s("button",{class:"btn ghost",onclick:()=>this.closePopover()},"Cancel"),a));this.openPopover(h,e.getBoundingClientRect()),n.focus({preventScroll:!0}),n.setSelectionRange(n.value.length,n.value.length)}openPopover(e,t){this.closePopover(!1),this.popover=e,this.layer.append(e),J(e,t)}closePopover(e=!0){let t=this.popover?.classList.contains("menu")&&this.popover.contains(this.shadow.activeElement);this.popover?.remove(),this.popover=void 0,e&&this.hover.hide();let o=this.shadow?.querySelector(\'.brand[aria-expanded="true"]\');o?.setAttribute("aria-expanded","false"),t&&o?.focus()}closePopoverIfDetached(){this.popover?.classList.contains("menu")||this.popover&&!this.editing&&this.closePopover()}toggleMenu(e){if(this.popover?.classList.contains("menu")){this.closePopover();return}let t=(n,a,l,p)=>s("button",{class:"menu-item",role:"menuitem",onclick:()=>{this.closePopover(),p()}},g(n),a,s("span",{class:"shortcut"},l)),o=s("div",{class:"menu",role:"menu","aria-label":"Cloclod"},s("div",{class:"head"},this.mark(28),s("div",{},s("b",{},"Cloclod"),s("span",{},"Only you see these tools. Visitors never do."))),s("hr"),t("text","Edit text","\\u2325\\u21E7E",()=>this.setMode("edit")),t("select","Point & ask Claude","\\u2325\\u21E7A",()=>this.setMode("ask")),...this.surface==="app"?[t("phone","Phone preview","",()=>this.setDevice("phone"))]:[],s("hr"),t("minimize","Hide these tools","\\u2325\\u21E7H",()=>this.setMinimized(!0)));ve(o,this.shadow,"ArrowUp","ArrowDown"),this.popover=o,this.layer.append(o),e.setAttribute("aria-expanded","true");let r=e.getBoundingClientRect();o.style.left=`${Math.max(8,r.left-6)}px`,o.style.top=`${r.top-o.getBoundingClientRect().height-10}px`,o.querySelector(".menu-item")?.focus()}reportRoutes(){let e=()=>parent.postMessage({type:"cloclod:route",path:location.pathname+location.search.replace(He,"")},location.origin);for(let t of["pushState","replaceState"]){let o=history[t].bind(history);history[t]=((...r)=>{o(...r),e()})}addEventListener("popstate",e)}followRoutes(){addEventListener("message",e=>{if(e.origin!==location.origin||e.data?.type!=="cloclod:route")return;let t=new URLSearchParams(location.search);t.set("path",e.data.path||"/"),history.replaceState(null,"",`${location.pathname}?${t.toString()}`)})}};function fe(i,e){ve(i,e,"ArrowLeft","ArrowRight");let t=Array.from(i.querySelectorAll("button"));for(let[o,r]of t.entries())r.tabIndex=o===0?0:-1,r.addEventListener("focus",()=>{for(let n of t)n.tabIndex=-1;r.tabIndex=0})}function ve(i,e,t,o){i.addEventListener("keydown",r=>{let n=Array.from(i.querySelectorAll("button")),a=n.indexOf(e.activeElement);if(a<0)return;let p={[t]:a-1,[o]:a+1,Home:0,End:n.length-1}[r.key];p!==void 0&&(r.preventDefault(),n[(p+n.length)%n.length]?.focus())})}var De=i=>{let e=i.replace(/\\s+/g," ").trim();return e.length>60?`${e.slice(0,59)}\\u2026`:e};function Ne(i,e){let t=i.match(/^\\s*/)?.[0]??"",o=i.match(/\\s*$/)?.[0]??"";return`${t}${e}${o}`}function Fe(i){return i instanceof HTMLElement&&(i.isContentEditable||["INPUT","TEXTAREA","SELECT"].includes(i.tagName))}function Z(i,e,t){let o=document.elementFromPoint(i,e);if(!(!o||o===t||o===document.documentElement||o===document.body))return o}function be(i,e,t){let o=document,r=null,n=document.caretPositionFromPoint?.(i,e);if(n?r=n.offsetNode:r=o.caretRangeFromPoint?.(i,e)?.startContainer??null,r&&r.nodeType===Node.TEXT_NODE&&r.textContent?.trim()&&r.parentElement&&!t.contains(r)){let p=document.createRange();if(p.selectNodeContents(r),Array.from(p.getClientRects()).some(c=>i>=c.left-3&&i<=c.right+3&&e>=c.top-3&&e<=c.bottom+3))return{el:r.parentElement,node:r}}let a=Z(i,e,t);if(!a)return;let l=Array.from(a.childNodes).find(p=>p.nodeType===Node.TEXT_NODE&&!!p.textContent?.trim());return l&&a instanceof HTMLElement?{el:a,node:l}:void 0}function ze(i,e){let t=Array.from(i.childNodes).filter(r=>!(r.nodeType===Node.TEXT_NODE&&!r.textContent?.trim()));if(t.length===1&&t[0]===e){let r=i.getAttribute("contenteditable"),n=Array.from(i.childNodes);return i.setAttribute("contenteditable","plaintext-only"),i.setAttribute("spellcheck","true"),{editable:i,restore:()=>{r===null?i.removeAttribute("contenteditable"):i.setAttribute("contenteditable",r),i.removeAttribute("spellcheck"),i.replaceChildren(...n)}}}let o=document.createElement("span");return o.setAttribute("contenteditable","plaintext-only"),o.setAttribute("data-cloclod-editing",""),o.style.outline="none",e.replaceWith(o),o.textContent=e.textContent,{editable:o,restore:()=>{o.replaceWith(e)}}}function _e(i,e,t){let o=getSelection();if(!o)return;let r=document,n=document.caretPositionFromPoint?.(i,e),a=document.createRange();if(n&&t.contains(n.offsetNode))a.setStart(n.offsetNode,n.offset);else{let l=r.caretRangeFromPoint?.(i,e);l&&t.contains(l.startContainer)?a.setStart(l.startContainer,l.startOffset):a.selectNodeContents(t)}a.collapse(!0),o.removeAllRanges(),o.addRange(a)}function Ie(){if(window.__CLOCLOD_MOUNTED__)return;Object.defineProperty(window,"__CLOCLOD_MOUNTED__",{value:!0}),oe(),pe();let i=location.pathname===u.frame?"outer":new URLSearchParams(location.search).has(M)?"inner":"app",e=()=>setTimeout(()=>new P(i).mount(),0);document.readyState==="complete"?e():addEventListener("load",e,{once:!0})}Ie();})();\n';
   const live = Boolean(process.env.CLODABLE_TOOLBAR_DEV);
   if (cached2 && !live) return cached2;
   const dist = fileURLToPath2(new URL("../dist/toolbar.js", import.meta.url));
@@ -47968,14 +47963,14 @@ function fromThisComputer(req) {
   return address === "::1" || address.startsWith("127.") || address.startsWith("::ffff:127.");
 }
 var conversationOf = (body) => typeof body.conversation === "string" && /^[\w-]{1,64}$/.test(body.conversation) ? { conversation: body.conversation } : {};
-function clodablePreview(options = {}) {
+function cloclodPreview(options = {}) {
   const token = randomBytes3(16).toString("hex");
   const tagged = /* @__PURE__ */ new Set();
   let root = options.root ?? process.cwd();
   let server;
   let lastBuildError;
   const authorized = (req) => {
-    if (req.headers["x-clodable-token"] !== token) return false;
+    if (req.headers["x-cloclod-token"] !== token) return false;
     const origin = req.headers.origin;
     if (!origin) return true;
     try {
@@ -48093,7 +48088,7 @@ ${await toolbarSource()}
     }
   }
   return {
-    name: "clodable:preview",
+    name: "cloclod:preview",
     apply: "serve",
     enforce: "pre",
     configResolved(config2) {
@@ -48103,7 +48098,7 @@ ${await toolbarSource()}
       server = viteServer;
       const api = (req, res, next) => {
         handle(req, res, next).catch((error62) => {
-          server?.config.logger.error(`[clodable] ${String(error62)}`);
+          server?.config.logger.error(`[cloclod] ${String(error62)}`);
           if (!res.headersSent) send(res, 500, { error: "internal" });
         });
       };
@@ -48187,7 +48182,7 @@ function applySettingsEnv(values) {
 }
 function backendPlugin(current) {
   return {
-    name: "clodable:backend",
+    name: "cloclod:backend",
     apply: "serve",
     enforce: "pre",
     transform(code2, id) {
@@ -48242,7 +48237,7 @@ async function startDevServer(options) {
     clearScreen: false,
     plugins: [
       backendPlugin(() => backend),
-      ...options.toolbar === false ? [] : [clodablePreview({ root: options.root, backend: () => backend ? "copy" : "live" })]
+      ...options.toolbar === false ? [] : [cloclodPreview({ root: options.root, backend: () => backend ? "copy" : "live" })]
     ],
     server: {
       ...options.port ? { port: options.port, strictPort: true } : {},
@@ -48264,14 +48259,14 @@ async function startDevServer(options) {
     whenChanged(
       backendMarker,
       () => source.current().catch((error62) => {
-        server.config.logger.warn(`  clodable \xB7 couldn't switch backends: ${messageOf(error62)}`);
+        server.config.logger.warn(`  cloclod \xB7 couldn't switch backends: ${messageOf(error62)}`);
         return backend;
       }),
       () => backend,
       (next) => {
         backend = next;
         applyBackendEnv(backend);
-        return backend ? "  clodable \xB7 the preview now uses your new backend (a copy of your data)" : "  clodable \xB7 the preview uses your live backend again";
+        return backend ? "  cloclod \xB7 the preview now uses your new backend (a copy of your data)" : "  cloclod \xB7 the preview uses your live backend again";
       }
     );
   }
@@ -48284,7 +48279,7 @@ async function startDevServer(options) {
       (next) => {
         settings2 = next;
         applySettingsEnv(settings2);
-        return "  clodable \xB7 your app's settings changed: restarting";
+        return "  cloclod \xB7 your app's settings changed: restarting";
       }
     );
   }
@@ -48343,7 +48338,7 @@ async function devCommand(ctx2, options) {
     const pm = detectPackageManager(root);
     process.stdout.write(
       `
-  ${clay("\u25CF")} ${import_picocolors2.default.bold("clodable")} ${ash("\xB7")} installing your app's packages (first time only)\u2026
+  ${clay("\u25CF")} ${import_picocolors2.default.bold("cloclod")} ${ash("\xB7")} installing your app's packages (first time only)\u2026
 `
     );
     const installed = await exec2(pm, ["install"], { cwd: root, timeout: 15 * 6e4 });
@@ -48381,12 +48376,12 @@ async function devCommand(ctx2, options) {
         },
         watch: join31(root, MOVE_PATH)
       },
-      // The settings the app's server code reads, from Clodable's private store on this computer.
+      // The settings the app's server code reads, from Cloclod's private store on this computer.
       settings: { current: () => localSettings(root), watch: join31(root, SETTINGS_PATH) }
     });
     process.stdout.write(
       `
-  ${clay("\u25CF")} ${import_picocolors2.default.bold("clodable")} ${ash("\xB7")} your app is running${server.backend === "copy" ? ash(" on your new backend (a copy of your data)") : ""}
+  ${clay("\u25CF")} ${import_picocolors2.default.bold("cloclod")} ${ash("\xB7")} your app is running${server.backend === "copy" ? ash(" on your new backend (a copy of your data)") : ""}
 
 `
     );
@@ -48429,7 +48424,7 @@ async function configCommand(ctx2, options) {
       const current = { backend: ws.config.backend, hosting: ws.config.hosting };
       if (!options.key) return current;
       if (!(options.key in SETTINGS)) {
-        throw new ClodableError({
+        throw new CloclodError({
           code: "invalid-config",
           message: `There's no setting called \u201C${options.key}\u201D.`,
           hint: "Use backend or hosting."
@@ -48439,7 +48434,7 @@ async function configCommand(ctx2, options) {
       if (options.value === void 0) return { [key2]: current[key2] };
       const allowed = SETTINGS[key2];
       if (!allowed.includes(options.value)) {
-        throw new ClodableError({
+        throw new CloclodError({
           code: "invalid-config",
           message: `\u201C${options.value}\u201D isn't a value for ${key2}.`,
           hint: `Use one of: ${allowed.join(", ")}.`
@@ -48458,7 +48453,7 @@ async function configCommand(ctx2, options) {
   );
 }
 var LEVEL = {
-  simple: "A simple move: Clodable does nearly everything, and you click a few buttons.",
+  simple: "A simple move: Cloclod does nearly everything, and you click a few buttons.",
   "some-steps": "A move with a few steps for you, each one guided.",
   "needs-help": "A move where some parts are best done with someone technical."
 };
@@ -48479,7 +48474,7 @@ function checklist(ctx2, status2) {
   }
 }
 function argument(options, message, hint) {
-  if (!options.arg) throw new ClodableError({ code: "invalid-config", message, hint });
+  if (!options.arg) throw new CloclodError({ code: "invalid-config", message, hint });
   return options.arg;
 }
 function leftovers(kind, status2, render = checklist) {
@@ -48502,7 +48497,7 @@ var STEPS = {
         ctx2.out.line(LEVEL[assessment.level]);
         ctx2.out.line("");
         const mark = { clodable: celadon("\u2713"), you: clay("\u25CF"), help: ochre("!") };
-        const who = { clodable: "Clodable", you: "You", help: "Help" };
+        const who = { clodable: "Cloclod", you: "You", help: "Help" };
         for (const item of assessment.items) {
           ctx2.out.line(`${mark[item.by]} ${item.label} ${ash(`\xB7 ${who[item.by]}`)}`);
           ctx2.out.line(ash(`  ${item.detail}`));
@@ -48517,7 +48512,7 @@ var STEPS = {
       async () => {
         const json3 = (await readStdin())?.trim();
         if (!json3) {
-          throw new ClodableError({
+          throw new CloclodError({
             code: "invalid-config",
             message: "Nothing was given.",
             hint: "Pipe the facts in, as one JSON object."
@@ -48533,7 +48528,7 @@ var STEPS = {
         ctx2.out.header("what your app uses");
         ctx2.out.line(facts ? factsSummary(facts) : ash("Not checked yet."));
         ctx2.out.line("");
-        ctx2.out.line(ash("Clodable's scan, for Claude to check:"));
+        ctx2.out.line(ash("Cloclod's scan, for Claude to check:"));
         ctx2.out.line(JSON.stringify(hints, null, 2));
       }
     )
@@ -48653,7 +48648,7 @@ var STEPS = {
         const name = argument(
           options,
           "Which secret?",
-          "clodable move secret RESEND_API_KEY, with the value piped in."
+          "cloclod move secret RESEND_API_KEY, with the value piped in."
         );
         return setFunctionSecret(ws, name, await secretInput(ctx2, `The value of ${name}`));
       },
@@ -48681,10 +48676,10 @@ var STEPS = {
         const ws = await ctx2.workspace();
         const target = options.arg;
         if (target !== "copy" && target !== "live") {
-          throw new ClodableError({
+          throw new CloclodError({
             code: "invalid-config",
             message: "Preview which backend?",
-            hint: "clodable move preview copy, or clodable move preview live."
+            hint: "cloclod move preview copy, or cloclod move preview live."
           });
         }
         await setPreview(ws, target);
@@ -48769,7 +48764,7 @@ var STEPS = {
         const name = argument(
           options,
           "Which setting?",
-          "clodable move setting GREETING, with the value piped in."
+          "cloclod move setting GREETING, with the value piped in."
         );
         await setSetting(ws, name, await secretInput(ctx2, `The value of ${name}`));
         return siteSettings(ws);
@@ -48985,7 +48980,7 @@ var STEPS = {
       ctx2,
       async () => markFinished(await ctx2.workspace()),
       () => ctx2.out.line(
-        `${celadon("\u2713")} Your app is off Lovable. Clodable deleted its copy of your export from this computer.`
+        `${celadon("\u2713")} Your app is off Lovable. Cloclod deleted its copy of your export from this computer.`
       )
     )
   },
@@ -49020,7 +49015,7 @@ var MOVE_HELP = `Move off Lovable, step by step: ${MOVE_STEPS.map((name) => COMM
 async function moveCommand(ctx2, options) {
   if (!Object.hasOwn(COMMANDS, options.step)) {
     return run(ctx2, async () => {
-      throw new ClodableError({
+      throw new CloclodError({
         code: "not-found",
         message: `There's no move step called \u201C${options.step}\u201D.`,
         hint: `Use one of: ${MOVE_STEPS.join(", ")}.`
@@ -49069,9 +49064,9 @@ async function connectCommand(ctx2, service) {
     return;
   }
   await run(ctx2, async () => {
-    throw new ClodableError({
+    throw new CloclodError({
       code: "invalid-config",
-      message: `Clodable can't connect \u201C${service}\u201D.`,
+      message: `Cloclod can't connect \u201C${service}\u201D.`,
       hint: "Use supabase or netlify."
     });
   });
@@ -49099,17 +49094,17 @@ async function siteCommand(ctx2, options) {
     ctx2,
     async () => {
       if (options.action) {
-        throw new ClodableError({
+        throw new CloclodError({
           code: "invalid-config",
           message: `\u201C${options.action}\u201D isn't something site does.`,
-          hint: "Use clodable site to see where it stands, or clodable site create."
+          hint: "Use cloclod site to see where it stands, or cloclod site create."
         });
       }
       return siteChoices(await ctx2.workspace());
     },
     (choices) => {
       if (choices.site) ctx2.out.line(`${celadon("\u25CF")} Your site: ${link(choices.site.url)}`);
-      else ctx2.out.line(ash("Your site isn't online with Clodable yet."));
+      else ctx2.out.line(ash("Your site isn't online with Cloclod yet."));
       if (!choices.connected) ctx2.out.line(ash("Netlify isn't connected on this computer."));
       for (const team of choices.teams) ctx2.out.line(`${team.name} ${ash(`(${team.slug})`)}`);
     }
@@ -49137,10 +49132,10 @@ async function backendCommand(ctx2, options) {
     ctx2,
     async () => {
       if (options.action) {
-        throw new ClodableError({
+        throw new CloclodError({
           code: "invalid-config",
           message: `\u201C${options.action}\u201D isn't something backend does.`,
-          hint: "Use clodable backend to see your choices, or clodable backend create."
+          hint: "Use cloclod backend to see your choices, or cloclod backend create."
         });
       }
       await ctx2.workspace();
@@ -49200,7 +49195,7 @@ async function publishCommand(ctx2, options) {
         );
       }
       out.line();
-      out.line(ash("Changed your mind?  clodable undo"));
+      out.line(ash("Changed your mind?  cloclod undo"));
       out.line();
     }
   );
@@ -49319,7 +49314,7 @@ async function doctor(cwd2) {
     id: "repo",
     label: "Your app on GitHub",
     status: parsed || standIn ? "ok" : "fail",
-    ...parsed ? { detail: `${parsed.owner}/${parsed.repo}` } : standIn ? { detail: "a stand-in for GitHub on this computer" } : { fix: "Run `clodable setup` in an empty folder to bring your app in from GitHub" }
+    ...parsed ? { detail: `${parsed.owner}/${parsed.repo}` } : standIn ? { detail: "a stand-in for GitHub on this computer" } : { fix: "Run `cloclod setup` in an empty folder to bring your app in from GitHub" }
   });
   if (!isRepo) return items;
   return [...items, ...await appChecks(git)];
@@ -49365,8 +49360,8 @@ async function toolChecks(cwd2) {
     id: "gh",
     label: "GitHub CLI",
     status: ready2.installed ? "ok" : "fail",
-    ...ready2.installed ? await ghIsOurs() ? { detail: `${GH_VERSION}, Clodable's own` } : {} : {
-      fix: "Check your internet connection: Clodable downloads it. Or install it from https://cli.github.com"
+    ...ready2.installed ? await ghIsOurs() ? { detail: `${GH_VERSION}, Cloclod's own` } : {} : {
+      fix: "Check your internet connection: Cloclod downloads it. Or install it from https://cli.github.com"
     }
   });
   if (ready2.installed) {
@@ -49405,9 +49400,9 @@ async function appChecks(git) {
   const missing = kit.filter((c2) => c2.action === "create");
   items.push({
     id: "kit",
-    label: "Clodable in this project",
+    label: "Cloclod in this project",
     status: missing.length === 0 ? "ok" : "warn",
-    ...missing.length === 0 ? {} : { detail: `${missing.length} file(s) missing`, fix: "Run `clodable kit --apply`" }
+    ...missing.length === 0 ? {} : { detail: `${missing.length} file(s) missing`, fix: "Run `cloclod kit --apply`" }
   });
   const ref = supabaseRef(config2, project);
   items.push(
@@ -49416,7 +49411,7 @@ async function appChecks(git) {
       label: "Database",
       status: "info",
       detail: "On Lovable Cloud: Lovable owns it, so Claude can't change it from here",
-      fix: "Move off Lovable, in the Clodable panel, to make it yours"
+      fix: "Move off Lovable, in the Cloclod panel, to make it yours"
     } : {
       id: "supabase",
       label: "Database",
@@ -49565,7 +49560,7 @@ async function whereItRuns(project, current) {
         {
           value: "none",
           label: "Not online yet",
-          hint: "Clodable can put it on your own Netlify"
+          hint: "Cloclod can put it on your own Netlify"
         }
       ]
     });
@@ -49588,7 +49583,7 @@ async function requireTools(ctx2) {
     blocking.length > 0 ? "A few tools are needed first" : "Your tools are ready"
   );
   if (blocking.length > 0) {
-    throw new ClodableError({
+    throw new CloclodError({
       code: blocking.some((b) => b.id === "github") ? "gh-auth" : "gh-missing",
       message: "A few tools are needed first.",
       hint: blocking.map((b) => b.fix).filter(Boolean).join("\n    ")
@@ -49600,16 +49595,16 @@ async function pickRepo(ctx2, given, interactive) {
   if (interactive) {
     const repos = await new GhCli(ctx2.cwd).repositories();
     const choice = await select({
-      message: "Which app should Clodable open?",
+      message: "Which app should Cloclod open?",
       options: repos.map((r2) => ({ value: r2.name, label: r2.name, hint: r2.description ?? "" }))
     });
-    if (isCancel(choice)) throw new ClodableError({ code: "unknown", message: "Setup cancelled." });
+    if (isCancel(choice)) throw new CloclodError({ code: "unknown", message: "Setup cancelled." });
     return choice;
   }
-  throw new ClodableError({
+  throw new CloclodError({
     code: "not-a-repo",
-    message: "Which app should Clodable open?",
-    hint: "Run `clodable setup --repo owner/name`."
+    message: "Which app should Cloclod open?",
+    hint: "Run `cloclod setup --repo owner/name`."
   });
 }
 async function bringIn(ctx2, repo) {
@@ -49620,11 +49615,11 @@ async function bringIn(ctx2, repo) {
     await new GhCli(ctx2.cwd).clone(repo, target);
   } catch (error62) {
     ctx2.out.event(step("setup:app", "failed", `Couldn't bring in ${repo}`));
-    if (error62 instanceof ClodableError && error62.code !== "unknown") throw error62;
-    throw new ClodableError({
+    if (error62 instanceof CloclodError && error62.code !== "unknown") throw error62;
+    throw new CloclodError({
       code: "not-found",
       message: `Couldn't bring in ${repo}.`,
-      details: error62 instanceof ClodableError ? error62.details : messageOf(error62)
+      details: error62 instanceof CloclodError ? error62.details : messageOf(error62)
     });
   }
   ctx2.out.event(step("setup:app", "done", `Brought in ${repo}`));
@@ -49639,7 +49634,7 @@ async function setupCommand(ctx2, options) {
       await requireTools(ctx2);
       const git = new Git(ctx2.cwd);
       if (options.new !== void 0 && (!options.account || options.repo || options.publish)) {
-        throw new ClodableError({
+        throw new CloclodError({
           code: "invalid-config",
           message: "Choose the account for your new private app in Set up saving. Publishing comes later."
         });
@@ -49663,20 +49658,20 @@ async function setupCommand(ctx2, options) {
       const changes = await planKit(project, config2);
       if (!ctx2.out.json) {
         ctx2.out.line();
-        ctx2.out.line(import_picocolors4.default.bold("Clodable adds a few plain files to your project:"));
+        ctx2.out.line(import_picocolors4.default.bold("Cloclod adds a few plain files to your project:"));
         renderKit(ctx2, changes, true);
       }
       if (interactive) {
         const ok = await confirm({ message: "Add them?" });
         if (isCancel(ok) || !ok)
-          throw new ClodableError({
+          throw new CloclodError({
             code: "unknown",
             message: "Setup cancelled. Nothing was changed."
           });
       }
-      panelStep(ctx2, "setup:files", "running", "Adding Clodable's files");
+      panelStep(ctx2, "setup:files", "running", "Adding Cloclod's files");
       await applyKit(root, changes);
-      panelStep(ctx2, "setup:files", "done", "Added Clodable's files");
+      panelStep(ctx2, "setup:files", "done", "Added Cloclod's files");
       if (!existsSync28(join32(root, "node_modules"))) {
         ctx2.out.event(
           step("setup:packages", "running", "Installing your app's packages", "a minute or two")
@@ -49696,7 +49691,7 @@ async function setupCommand(ctx2, options) {
       }
       ctx2.out.event(step("setup:save", "running", "Saving it to your draft on GitHub"));
       const ws = await Workspace.open({ cwd: root, ...ctx2.github ? { github: ctx2.github } : {} });
-      const saved = await save2(ws, { message: "Set up Clodable", kind: "setup" });
+      const saved = await save2(ws, { message: "Set up Cloclod", kind: "setup" });
       ctx2.out.event(
         !saved.saved ? step("setup:save", "skipped", "Nothing new to save") : saved.pushed ? step("setup:save", "done", "Saved to your draft on GitHub") : step(
           "setup:save",
@@ -49707,7 +49702,7 @@ async function setupCommand(ctx2, options) {
       );
       let published = false;
       if (saved.saved && (options.publish || interactive && await confirmPublish())) {
-        await drive(ctx2, publish(ws, { message: "Set up Clodable" }));
+        await drive(ctx2, publish(ws, { message: "Set up Cloclod" }));
         published = true;
       }
       return {
@@ -49732,7 +49727,7 @@ async function setupCommand(ctx2, options) {
 }
 async function confirmPublish() {
   const ok = await confirm({
-    message: "Publish the setup now? It only adds Clodable's files. Your site looks the same.",
+    message: "Publish the setup now? It only adds Cloclod's files. Your site looks the same.",
     initialValue: true
   });
   return !isCancel(ok) && ok;
@@ -49798,7 +49793,7 @@ async function statusCommand(ctx2, options) {
           `${label("Live site")}${plural3(s.behindLive, "newer publish")}, brought in when you publish`
         );
       }
-      const live = s.lastPublish ? `${s.lastPublish.url ? `${link(s.lastPublish.url)} ${ash("\xB7")} ` : ""}${ash(`published ${formatRelative(s.lastPublish.at)}`)}` : s.project.liveUrl ? link(s.project.liveUrl) : ash("not published with Clodable yet");
+      const live = s.lastPublish ? `${s.lastPublish.url ? `${link(s.lastPublish.url)} ${ash("\xB7")} ` : ""}${ash(`published ${formatRelative(s.lastPublish.at)}`)}` : s.project.liveUrl ? link(s.project.liveUrl) : ash("not published with Cloclod yet");
       out.line(`${label("Live")}${live}`);
       if (s.pullRequest) out.line(`${label("On GitHub")}${link(s.pullRequest.url)}`);
       out.line();
@@ -49829,7 +49824,7 @@ async function historyCommand(ctx2, options) {
         );
       }
       out.line();
-      out.line(ash("Bring back any version:  clodable restore <code>"));
+      out.line(ash("Bring back any version:  cloclod restore <code>"));
       out.line();
     }
   );
@@ -49869,7 +49864,7 @@ async function inboxCommand(ctx2, options) {
 
 // src/index.ts
 var version2 = true ? "0.2.2" : "0.1.0-dev";
-var cli = cac("clodable");
+var cli = cac("cloclod");
 cli.option("--json", "Print one JSON event per line (for programs)");
 cli.option("--cwd <dir>", "Run in another folder");
 var ctx = (options) => createContext(options);
@@ -49891,7 +49886,7 @@ cli.command("history", "Your saves and publishes").option("--limit <n>", "How ma
   (options) => historyCommand(ctx(options), { limit: options.limit ? Number(options.limit) : void 0 })
 );
 cli.command("check", "Run the publish checks without publishing").action((options) => checkCommand(ctx(options)));
-cli.command("setup", "Bring your app home: connect GitHub, add Clodable's files").option("--repo <owner/name>", "The GitHub repository of your app").option("--new <name>", "Set up saving for a local prototype in a new private GitHub app").option("--account <login>", "The connected GitHub account approved for the new app").option("-y, --yes", "Don't ask questions").option("--publish", "Publish the setup right away").option("--backend <where>", "Where the data lives: lovable-cloud, supabase or none").option("--hosting <where>", "Where the site is live: lovable, github or none (not online yet)").action(
+cli.command("setup", "Bring your app home: connect GitHub, add Cloclod's files").option("--repo <owner/name>", "The GitHub repository of your app").option("--new <name>", "Set up saving for a local prototype in a new private GitHub app").option("--account <login>", "The connected GitHub account approved for the new app").option("-y, --yes", "Don't ask questions").option("--publish", "Publish the setup right away").option("--backend <where>", "Where the data lives: lovable-cloud, supabase or none").option("--hosting <where>", "Where the site is live: lovable, github or none (not online yet)").action(
   (options) => setupCommand(ctx(options), {
     repo: options.repo,
     new: options.new,
@@ -49902,7 +49897,7 @@ cli.command("setup", "Bring your app home: connect GitHub, add Clodable's files"
     ...["lovable", "github", "none"].includes(options.hosting) ? { hosting: options.hosting } : {}
   })
 );
-cli.command("doctor", "Check that everything Clodable needs is in place").action((options) => doctorCommand(ctx(options)));
+cli.command("doctor", "Check that everything Cloclod needs is in place").action((options) => doctorCommand(ctx(options)));
 cli.command(
   "config [key] [value]",
   "Read or change where your app runs: backend (lovable-cloud, supabase, none), hosting (lovable, github, none)"
@@ -49943,7 +49938,7 @@ cli.command(
 );
 var text = (value) => value === void 0 || value === false || value === "" ? void 0 : String(value);
 var yes = (value) => value === void 0 ? void 0 : !/^(no|false|0)$/i.test(String(value));
-cli.command("move [step] [arg]", MOVE_HELP).option("--org <slug>", "create: the Supabase organization").option("--region <code>", "create: where it runs (eu-central-1\u2026)").option("--name <name>", "create: the project's name").option("--file <path>", "export: the zip Lovable gave (else the newest in Downloads)").option("--private", "files: read Lovable Cloud's service key from stdin, for private folders").option("--fix", "diagnose: apply Clodable's own fixes on the copy").option("--account <slug>", "site: the Netlify team the site goes in").option("--domain <domain>", "emails: the domain emails come from").option("--sender <address>", "emails: the sender address (no-reply@ the domain by default)").option(
+cli.command("move [step] [arg]", MOVE_HELP).option("--org <slug>", "create: the Supabase organization").option("--region <code>", "create: where it runs (eu-central-1\u2026)").option("--name <name>", "create: the project's name").option("--file <path>", "export: the zip Lovable gave (else the newest in Downloads)").option("--private", "files: read Lovable Cloud's service key from stdin, for private folders").option("--fix", "diagnose: apply Cloclod's own fixes on the copy").option("--account <slug>", "site: the Netlify team the site goes in").option("--domain <domain>", "emails: the domain emails come from").option("--sender <address>", "emails: the sender address (no-reply@ the domain by default)").option(
   "--skip",
   "emails: go live without emails of your own for now; domain: keep the Netlify address; settings, secrets, vault: go on without the ones left"
 ).option("--hook", "emails: send sign-in emails through the app's own templates (auth-email-hook)").option("--set", "facts: record what Claude found in the app's code (JSON on stdin)").option("--sign-up <yes|no>", "golive: whether anyone may sign up (no: only invited people)").option("--confirm-email <yes|no>", "golive: whether new people confirm their email first").action(
@@ -49966,7 +49961,7 @@ cli.command("move [step] [arg]", MOVE_HELP).option("--org <slug>", "create: the 
     confirmEmail: yes(options.confirmEmail)
   })
 );
-cli.command("kit", "Show (or add) the files Clodable keeps in your project").option("--apply", "Write them").option("--runtime", "Refresh only the installed runtime and its instructions").option("--live-url <url>", "Your live site's address").action(
+cli.command("kit", "Show (or add) the files Cloclod keeps in your project").option("--apply", "Write them").option("--runtime", "Refresh only the installed runtime and its instructions").option("--live-url <url>", "Your live site's address").action(
   (options) => kitCommand(ctx(options), {
     apply: options.apply,
     liveUrl: options.liveUrl,

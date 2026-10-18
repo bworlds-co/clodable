@@ -1,4 +1,4 @@
-import { ClodableError, messageOf } from "../errors.js";
+import { CloclodError, messageOf } from "../errors.js";
 import { forgetSecret, readSecret } from "../local-secrets.js";
 
 /**
@@ -159,7 +159,7 @@ export class SupabaseApi {
   static async required(): Promise<SupabaseApi> {
     const api = await SupabaseApi.onThisComputer();
     if (!api) {
-      throw new ClodableError({
+      throw new CloclodError({
         code: "supabase-auth",
         message: "Supabase isn't connected on this computer yet.",
         hint: "Connect your Supabase account first: it's the first step of the move.",
@@ -178,7 +178,7 @@ export class SupabaseApi {
           headers: {
             Authorization: `Bearer ${this.token}`,
             Accept: "application/json",
-            "User-Agent": "clodable",
+            "User-Agent": "cloclod",
             ...(options.body !== undefined ? { "Content-Type": "application/json" } : {}),
           },
           ...(options.form
@@ -193,7 +193,7 @@ export class SupabaseApi {
           await wait(1000 * attempt);
           continue;
         }
-        throw new ClodableError({
+        throw new CloclodError({
           code: "offline",
           message: "Couldn't reach Supabase.",
           hint: "Check your internet connection, then try again.",
@@ -222,7 +222,7 @@ export class SupabaseApi {
           await forgetSecret(SUPABASE_TOKEN).catch(() => {});
         }
         if (response.status === 404 && method === "GET" && /^\/v1\/projects\/[a-z]+$/.test(path)) {
-          throw new ClodableError({
+          throw new CloclodError({
             code: "not-found",
             message: "Your new backend isn't available to this Supabase account.",
             hint: "Open Supabase and check the account and project. It may have been removed or your access may have changed. Your live app hasn't changed.",
@@ -391,7 +391,7 @@ export class SupabaseApi {
 }
 
 /** Supabase's answer, in the builder's words. Its own message goes to the details. */
-function describeFailure(status: number, text: string, permission?: string): ClodableError {
+function describeFailure(status: number, text: string, permission?: string): CloclodError {
   let message = text;
   try {
     const body = JSON.parse(text) as { message?: string; error?: string };
@@ -401,15 +401,15 @@ function describeFailure(status: number, text: string, permission?: string): Clo
   }
   const details = `Supabase answered ${status}: ${message.slice(0, 500)}`;
   if (status === 401) {
-    return new ClodableError({
+    return new CloclodError({
       code: "supabase-auth",
       message: "Supabase didn't accept your access token.",
-      hint: "It may have expired or been deleted. Connect your Supabase account again in the Clodable panel.",
+      hint: "It may have expired or been deleted. Connect your Supabase account again in the Cloclod panel.",
       details,
     });
   }
   if (/active free projects/i.test(message)) {
-    return new ClodableError({
+    return new CloclodError({
       code: "supabase-limit",
       message:
         "You already run 2 free Supabase projects, the most Supabase allows per person across all your organizations.",
@@ -418,7 +418,7 @@ function describeFailure(status: number, text: string, permission?: string): Clo
     });
   }
   if (status === 402) {
-    return new ClodableError({
+    return new CloclodError({
       code: "supabase-limit",
       message: "This goes past what your Supabase plan includes.",
       hint: "Check your plan in Supabase (Organization → Billing), then try again.",
@@ -426,7 +426,7 @@ function describeFailure(status: number, text: string, permission?: string): Clo
     });
   }
   if (status === 403) {
-    return new ClodableError({
+    return new CloclodError({
       code: "supabase-auth",
       message: permission
         ? `Your Supabase access token is missing a permission: ${permission}.`
@@ -435,7 +435,7 @@ function describeFailure(status: number, text: string, permission?: string): Clo
       details,
     });
   }
-  return new ClodableError({
+  return new CloclodError({
     code: "supabase-failed",
     message: "Supabase refused the request.",
     hint: "Try again in a minute. If it keeps happening, share the details with your developer.",

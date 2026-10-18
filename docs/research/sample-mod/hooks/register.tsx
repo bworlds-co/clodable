@@ -1,11 +1,11 @@
-// clodable-sample: one Pane, one AbovePrompt band, one ToolUse restyle (TSX).
+// cloclod-sample: one Pane, one AbovePrompt band, one ToolUse restyle (TSX).
 // JSX compiles to the global `h`; tags come from $.ui.resolve(e), never globals.
 import type { Register } from 'claude-code'
 import { atom, read, update } from 'claude-code'
 
 const PANE = 'publish'
 // Reactive session value: a ui.render hook that reads it redraws when it changes.
-const edits = atom({ plugin: 'clodable-sample', key: 'edits' }, 0)
+const edits = atom({ plugin: 'cloclod-sample', key: 'edits' }, 0)
 // Module-level variable: lost on every hot reload.
 // Note: Text takes no `key` prop (silently dropped); key Box/Button/Input/Select.
 let lastPublish = 'never'

@@ -5,7 +5,7 @@ import { PREFIX, ROUTES } from "./shared.js";
  * The toolbar's script tag. Neither deferred nor async, and first in <head>: the toolbar starts
  * before any script of the app, keeps the browser's own fetch, and its token never meets one.
  */
-export const TOOLBAR_TAG = `<script src="${ROUTES.toolbar}" data-clodable-toolbar></script>`;
+export const TOOLBAR_TAG = `<script src="${ROUTES.toolbar}" data-cloclod-toolbar></script>`;
 
 /** Just after the page's opening <head …> (not a <header>), else just after <body …>. */
 function afterOpening(html: string): number | undefined {
@@ -15,7 +15,7 @@ function afterOpening(html: string): number | undefined {
 
 /** Insert the toolbar script into an HTML document, once. */
 export function injectToolbar(html: string): string | undefined {
-  if (html.includes("data-clodable-toolbar")) return html;
+  if (html.includes("data-cloclod-toolbar")) return html;
   const at = afterOpening(html);
   return at === undefined ? undefined : html.slice(0, at) + TOOLBAR_TAG + html.slice(at);
 }
@@ -25,7 +25,7 @@ const TAG_BYTES = Buffer.from(TOOLBAR_TAG, "utf8");
 /** Byte-level version of injectToolbar, so no multi-byte character is ever decoded and re-encoded. */
 export function injectToolbarBytes(bytes: Uint8Array): Uint8Array | undefined {
   const buf = Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-  if (buf.includes("data-clodable-toolbar")) return bytes;
+  if (buf.includes("data-cloclod-toolbar")) return bytes;
   // Latin-1 reads one character per byte: a position in that text is the same position in bytes.
   const at = afterOpening(buf.toString("latin1"));
   if (at === undefined) return undefined;

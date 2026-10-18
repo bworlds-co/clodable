@@ -208,7 +208,7 @@ export interface LocalPostgres {
 /** Start PostgreSQL with a source app (`src`) and a fresh Supabase project (`dst`). */
 export async function startLocalPostgres(): Promise<LocalPostgres> {
   const bin = PG_BIN!;
-  const dir = await mkdtemp(join(tmpdir(), "clodable-pg-"));
+  const dir = await mkdtemp(join(tmpdir(), "cloclod-pg-"));
   const port = await freePort();
   execFileSync(
     join(bin, "initdb"),
