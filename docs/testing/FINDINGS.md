@@ -234,17 +234,17 @@ Review started 2026-10-17; continued into 2026-10-18. Repository baseline: `c219
 
 - The Supabase connection panel said Clodable uses the token after the move, then instructed the builder to delete it as soon as the move finishes. Following that advice would break the connection needed for later database changes.
 - Cause: the closing note described a temporary migration token although the connection is retained for ongoing use.
-- Fix: explain that the connection supports later database changes and that revoking the token requires reconnecting before those changes. No account, token, permission or expiry was changed.
+- Fix: [PR #67](https://github.com/bworlds-co/clodable/pull/67), merged after CI, explains that the connection supports later database changes and that revoking the token requires reconnecting before those changes. No account, token, permission or expiry was changed.
 - Validation: plugin validation and all 129 existing plugin tests pass. A fresh Desktop conversation shows the consistent connection guidance; screenshot 48. No token was entered or created.
 
 ## F22 — major — An idea needs a supported route into saving
 
 - The owner approved the product direction on 2026-10-18. Implemented in [draft PR #65](https://github.com/bworlds-co/clodable/pull/65), with passing CI: Start from an idea → describe it to Claude → local preview → Set up saving → named GitHub account and private-app consent → normal draft/Publish workflow.
 - Initial Desktop book-swap run: `/clodable` offered both starting choices, Claude created Vite/React without creating a remote, borrowed/returned a sample book and explained browser-only data. The panel changed to Your local app and Set up saving. Consent named @emmanuelvulk and private visibility. Screenshot 42 shows the starting screen.
-- The initial form stayed clickable while Claude started. The latest source replaces it with progress immediately and prevents repeated submissions. The bar now names both starting routes. Final Desktop retest pending.
+- The initial form stayed clickable while Claude started. The latest source replaces it with progress immediately and prevents repeated submissions. The bar now names both starting routes. Immediate request feedback is covered by the plugin test; the two complete local-prototype runs predate that last waiting-state polish.
 - Verification: lint/typecheck/build, 191 package tests and 132 plugin tests pass. Coverage includes idea submission without an account, named consent, typing a changed name without Enter, account-change refusal, secret-key stops, preserved prototype files, draft-only saves, failure recovery and the existing import route. Inline-edit and broken-page recovery scripts pass, restoring their fixture byte for byte. The isolated real-Supabase migration script also passed again, on its own ports.
 - Two independent Desktop starts produced working book and plant prototypes. I borrowed/returned a book, watered/undid a plant and confirmed both choices survived reload. Two fresh conversations reached the simplified account consent; cancel/reopen and empty-name recovery stayed local. Screenshots 44–46. The initial account screen showed healthy development tools; the revised screen shows the account and hides those details.
-- Fresh conversations briefly offered import while their folder was still being checked. The panel now waits before choosing a setup route. An empty name asks for a name without an unnecessary Ask Claude action.
+- Fresh conversations briefly offered import while their folder was still being checked. The panel now waits before choosing a setup route. A final fresh conversation reached Your local app and the account-consent screen without the initial import form (screenshot 49; `local_9e43134e-56e4-47bd-92a5-49d7a95157bb`). An empty name asks for a name without an unnecessary Ask Claude action.
 - The new tests require private repositories `emmanuelvulk/clodable-idea-books-test` and `emmanuelvulk/clodable-idea-plants-test`. Approval is requested before either creation; no new remote or public site has been created for Nadia yet.
 
 ### Nadia test locations

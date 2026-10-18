@@ -1,6 +1,6 @@
 # Clodable in Claude Desktop: UX review
 
-**2026-10-17–18 · Desktop UX review, with explicit limits to sign-off.** Nineteen focused fixes are merged. Sam’s full journey passed twice; Tom’s main editing and recovery actions passed in two fresh fixtures. The owner approved Léa’s copy preparation and Nadia’s from-idea direction on October 18. Léa is now blocked by Lovable’s export limit and a missing Supabase connection; Nadia’s new route is implemented in draft PR #65 and tested through local preview and account consent. This is not a claim that all four journeys ran end to end twice. Evidence and retained test resources are in [FINDINGS.md](FINDINGS.md).
+**2026-10-17–18 · Desktop UX review, with explicit limits to sign-off.** Twenty focused fixes are merged. Sam’s full journey passed twice; Tom’s main editing and recovery actions passed in two fresh fixtures. The owner approved Léa’s copy preparation and Nadia’s from-idea direction on October 18. Léa is now blocked by Lovable’s export limit and a missing Supabase connection; Nadia’s new route is implemented in draft PR #65 and tested through local preview and account consent. This is not a claim that all four journeys ran end to end twice. Evidence and retained test resources are in [FINDINGS.md](FINDINGS.md).
 
 ## Judgment
 
@@ -23,7 +23,7 @@ Desktop currently labels the brief's Ask mode **Manual**. I exercised it during 
 
 ## What changed
 
-Nineteen focused fixes were merged as separate pull requests after CI:
+Twenty focused fixes were merged as separate pull requests after CI:
 
 | Fix | Result | Evidence |
 |---|---|---|
@@ -46,6 +46,7 @@ Nineteen focused fixes were merged as separate pull requests after CI:
 | [#63](https://github.com/bworlds-co/clodable/pull/63) · One installed runtime | The panel, Claude and the default preview use the installed plugin’s CLI. Fresh conversations prepare the ignored local copy automatically. | Two fresh Desktop fixtures, matching bundle hashes, natural-language status checks without extra prompts, and functioning previews. Inline editing and broken-page recovery passed through the new launcher. Screenshots 37 and 38. |
 | [#64](https://github.com/bworlds-co/clodable/pull/64) · Migration backend recovery | Keeps account/access errors intact and checks a remembered destination before calling it ready. | 187 package tests, 129 plugin tests and isolated real-Supabase migration passed. Fresh Desktop correctly requests Supabase reconnection; screenshot 41. |
 | [#66](https://github.com/bworlds-co/clodable/pull/66) · Migration explanations | Claude distinguishes an unsuccessful check from a deleted, paused or empty backend and no longer promises automatic replacement. | Two independent model replays and a fresh Desktop read-only diagnosis; screenshot 47. |
+| [#67](https://github.com/bworlds-co/clodable/pull/67) · Connection lifetime | Removes contradictory advice to delete a token still needed for later database changes. | 129 existing plugin tests and a fresh Desktop panel check; screenshot 48. No credential change. |
 
 Lint and typecheck pass. The current idea-route branch passes **191 package tests** and **132 plugin tests**, including the new private-app CLI contract. These counts include earlier preview-port preservation and failed-copy checks. Inline-edit, broken-page recovery, and isolated migration scripts passed again for the idea route; earlier checks also exercised the installed runtime’s launcher. The migration script used its own ports and did not use the owner's other Supabase stack. The updated plugin was built and copied into Desktop's cache; existing conversations retain their earlier code.
 
@@ -53,7 +54,7 @@ Lint and typecheck pass. The current idea-route branch passes **191 package test
 
 | Moment | Today | Recommendation |
 |---|---|---|
-| Choose a starting point | The approved implementation offers an existing GitHub app or an idea; Desktop retesting is underway. | Keep shaping in the conversation and account consent in the panel. |
+| Choose a starting point | The approved implementation offers an existing GitHub app or an idea. Local preview and consent pass; remote saving is waiting for test-resource approval. | Keep shaping in the conversation and account consent in the panel. |
 | Understand an existing app | Builder answers where data and site live. | Let Claude inspect first; show its conclusion and ask the builder only to confirm or correct it. |
 | Create hosting/backend | Panel gathers choices, then sends a request to Claude, which may explore before running the command. | Keep account/cost consent in the panel; consider running the exact creation operation there. Claude handles app-specific integration and explanations. |
 | Shape the product | Conversation plus preview. | Keep this split. It matches the builder's intent and avoids another editor to learn. |
@@ -93,7 +94,7 @@ This revisits **Q5f's command-led navigation**. Desktop owns the misleading erro
 - **Token onboarding:** accounts were already connected. Finding and pasting a new token was not tested; no sign-out or token creation was attempted.
 - **Léa:** both copy-preparation steps were approved. Lovable refused the export (`api_error_database_too_large_for_export`); Supabase now requests reconnection. The destination’s availability is unresolved, not proven deleted. Her copied data, people, files, functions and sign-in rehearsal remain untested in Desktop. The isolated migration test is not a substitute.
 - **Nadia:** the approved route is implemented in [draft PR #65](https://github.com/bworlds-co/clodable/pull/65), with passing CI. Two local prototype journeys and fresh account-consent screens pass. Automated tests cover private creation, preserved prototype files, secret-key stops and draft-only saves. Full Desktop saving/publishing tests await the requested approval for `emmanuelvulk/clodable-idea-books-test` and `emmanuelvulk/clodable-idea-plants-test`. Neither has been created.
-- **Desktop limitations:** its initial slash-command error, technical permission dialogs, repository/branch labels and generic marketplace source-mismatch error are external. Released install succeeded twice after using the matching tagged source; ordinary Discover search did not surface the custom listing until its source filter was selected.
+- **Desktop limitations:** its initial slash-command error, technical permission dialogs, repository/branch labels, a spurious “Fix merge conflicts” suggestion on a clean app, and the generic marketplace source-mismatch error are external. Released install succeeded twice after using the matching tagged source; ordinary Discover search did not surface the custom listing until its source filter was selected.
 
 The brief’s full sign-off criterion remains unmet. The supported everyday path is much clearer and has been exercised repeatedly; the remaining limitations above should be explicit before presenting Clodable as ready for every builder.
 
