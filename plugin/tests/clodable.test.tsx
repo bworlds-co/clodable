@@ -439,7 +439,7 @@ describe("what the CLI prints", () => {
 });
 
 describe("the Publish bar", () => {
-  test("keeps Clodable reachable while Desktop shows a survey", async ($, on) => {
+  test("keeps a separate composer entry when Desktop removes its prompt band", async ($, on) => {
     const calls = harness(on);
     await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
     await bandText($, "desktop", /not live yet/);
@@ -448,15 +448,24 @@ describe("the Publish bar", () => {
       surface: "desktop",
       props: { ...BAND.props, hasSurvey: true },
     });
-    expect(await band.find({ key: "open-clodable", text: "Clodable" })).toBeDefined();
-    await band.press({ key: "open-clodable" });
+    expect(await band.find({ key: "open-clodable" })).toBeUndefined();
+    // Desktop unmounts this entire surface for wrap-up cards, regardless of hasSurvey.
+    await band.unmount();
+    const footer = await $.ui.mount({
+      plugin: "clodable",
+      component: "SessionMode",
+      surface: "desktop",
+      props: { modes: ["Chat mode"] },
+    });
+    expect(await footer.find({ key: "open-clodable", text: "Open Clodable" })).toBeDefined();
+    await footer.press({ key: "open-clodable" });
     expect((calls as any).opened).toContainEqual({
       id: "clodable",
       title: "Clodable",
       focus: true,
       closeOnEscape: true,
     });
-    await band.unmount();
+    await footer.unmount();
   });
 
   test("shows unpublished changes with a Publish button, on desktop and terminal", async ($, on) => {

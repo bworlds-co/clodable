@@ -2121,6 +2121,35 @@ export const register: Register = (on) => {
     return verdict;
   }).catch(() => ({ decision: "ask" as const }));
 
+  // Desktop hides AbovePrompt during its end-of-turn choice card. Keep one entry
+  // in the independent composer footer, without duplicating it in the normal bar.
+  on("ui.render", { component: "SessionMode" }, async ($, e, next) => {
+    const engine = await next(e);
+    if (e.surface !== "desktop") return engine;
+    const s = await read($, status);
+    const invite =
+      s !== null && !s.ready && s.reason === "not-a-repo" && (emptyFolder || hasLocalApp);
+    if (inApp !== true && !invite) return engine;
+    const { Box, Button: drawButton } = $.ui.resolve(e);
+    const Button = heldButton(drawButton);
+    return (
+      <Box flexDirection="row" columnGap={1}>
+        {engine}
+        <Button
+          key="open-clodable"
+          plain
+          onPress={() =>
+            background(
+              openPane($, s?.ready && (s.movingOffLovable || s.finishingMove) ? "move" : "app"),
+            )
+          }
+        >
+          Open Clodable
+        </Button>
+      </Box>
+    );
+  });
+
   // ── The bar above the prompt ─────────────────────────────────────────────
   on("ui.render", { component: "AbovePrompt" }, async ($, e, next) => {
     const s = await read($, status);
@@ -2150,15 +2179,22 @@ export const register: Register = (on) => {
         >
           <Box flexDirection="row" columnGap={1} alignItems="center" flexShrink={1} minWidth={0}>
             {mark}
-            <Button
-              key="open-clodable"
-              plain
-              onPress={() =>
-                background(openPane($, s?.ready && s.movingOffLovable ? "move" : "app"))
-              }
-            >
-              Clodable
-            </Button>
+            {!desktop ? (
+              <Button
+                key="open-clodable"
+                plain
+                onPress={() =>
+                  background(
+                    openPane(
+                      $,
+                      s?.ready && (s.movingOffLovable || s.finishingMove) ? "move" : "app",
+                    ),
+                  )
+                }
+              >
+                Clodable
+              </Button>
+            ) : null}
             {left}
           </Box>
           <Box flexDirection="row" columnGap={1} alignItems="center" flexShrink={0}>
