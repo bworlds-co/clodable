@@ -215,9 +215,9 @@ When Lovable hosts your site, a Publish that goes through ends at **Published on
 
 ### Clodable's tools cover part of your app
 
-- **When:** the preview is short, for example when Claude Desktop shares its height between panes, and Clodable's toolbar sits over a button or link of your app.
-- **Why:** the toolbar floats over the bottom of the page.
-- **What to do:** hide the tools with the toolbar's last button, or ⌥⇧H. A small Clodable mark stays in the corner: press it, or ⌥⇧H again, to bring them back. Giving the preview more room helps too.
+- **When:** in the preview, Clodable's toolbar sits over a button or link of your app.
+- **Why:** the toolbar floats over the bottom of the page. In a short preview, such as when Claude Desktop splits its height between panes, it starts folded as a small **Tools** button, and opens when you press it.
+- **What to do:** hide the tools with the toolbar's last button, or ⌥⇧H. A small Clodable mark stays in the corner (it reads **Copy · Tools** while the preview uses a copy of your data): press it, or ⌥⇧H again, to bring the tools back.
 - **Check:** the button or link of your app can be pressed.
 - **Still stuck?** [Tell us what happened](https://github.com/bworlds-co/clodable/issues/new).
 
@@ -402,6 +402,15 @@ These come from Claude Desktop itself, so Clodable can't change them. Here's how
 - **Why:** these questions are Claude Desktop's. Clodable's own buttons (setting up, Publish, creating your hosting or your backend) run without them; the questions come from extra commands Claude chose to run. A question can describe a command that only reads as one that changes something.
 - **What to do:** before you answer, you can ask Claude, in plain words, what the command does. In **Auto** mode, Clodable's own steps went through without these questions in our tests.
 - **Check:** the step finishes, and the panel shows it done.
+- **Still stuck?** [Tell us what happened](https://github.com/bworlds-co/clodable/issues/new).
+
+### A button that asks you to confirm does nothing in the preview
+
+- **When:** in the preview, you press a button that should first ask you to confirm, such as Delete, and nothing happens.
+- **Why:** Claude Desktop's preview cancels the browser's own confirmation box without showing it. A usual browser shows it, so your visitors aren't affected.
+- **What to do:** ask Claude to show that confirmation inside your app instead of the browser's box.
+- **Check:** press the button again in the preview: your app asks, and the action goes through when you confirm.
+- *For a developer:* in Desktop's Browser pane, `window.confirm` returns `false` at once.
 - **Still stuck?** [Tell us what happened](https://github.com/bworlds-co/clodable/issues/new).
 
 ### “Fix merge conflicts”
