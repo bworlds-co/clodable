@@ -433,6 +433,26 @@ describe("what the CLI prints", () => {
 });
 
 describe("the Publish bar", () => {
+  test("keeps Clodable reachable while Desktop shows a survey", async ($, on) => {
+    const calls = harness(on);
+    await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+    await bandText($, "desktop", /not live yet/);
+    const band = await $.ui.mount({
+      ...BAND,
+      surface: "desktop",
+      props: { ...BAND.props, hasSurvey: true },
+    });
+    expect(await band.find({ key: "open-clodable", text: "Clodable" })).toBeDefined();
+    await band.press({ key: "open-clodable" });
+    expect((calls as any).opened).toContainEqual({
+      id: "clodable",
+      title: "Clodable",
+      focus: true,
+      closeOnEscape: true,
+    });
+    await band.unmount();
+  });
+
   test("shows unpublished changes with a Publish button, on desktop and terminal", async ($, on) => {
     harness(on);
     await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
