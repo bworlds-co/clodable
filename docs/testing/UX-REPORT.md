@@ -1,6 +1,6 @@
 # Clodable in Claude Desktop: UX review
 
-**2026-10-17–18 · Desktop UX review, with explicit limits to sign-off.** Seventeen focused fixes are merged. Sam’s full journey passed twice; Tom’s main editing and recovery actions passed in two fresh fixtures. Léa’s remaining copy work needs owner permission, and Nadia’s complete from-idea route needs a product decision. This is not a claim that all four journeys ran end to end twice. Evidence and retained test resources are in [FINDINGS.md](FINDINGS.md).
+**2026-10-17–18 · Desktop UX review, with explicit limits to sign-off.** Twenty focused fixes are merged. Sam’s full journey passed twice; Tom’s main editing and recovery actions passed in two fresh fixtures. The owner approved Léa’s copy preparation and Nadia’s from-idea direction on October 18. Léa is now blocked by Lovable’s export limit and a missing Supabase connection; Nadia’s new route is implemented in PR #65; both local prototypes now pass private saving, hosting setup, Publish and live-page interactions. This is not a claim that all four journeys ran end to end twice. Evidence and retained test resources are in [FINDINGS.md](FINDINGS.md).
 
 ## Judgment
 
@@ -14,16 +14,18 @@ The brand and calm typography are appropriate. The practical priority is truthfu
 
 | Builder | Observed experience | Judgment and limits |
 |---|---|---|
-| Sam | Two complete fresh runs reached the web, added a backend in test-org, and published visitor notes that survived a public-page reload. | The core promise works. Setup still asks infrastructure questions and can trigger technical permission prompts. The explicit live-data confirmation is a useful, understandable pause. |
+| Sam | Two complete fresh runs reached the web, added a backend in test-org, and published visitor notes that survived a public-page reload. | The core promise works. The approved redesign replaces the infrastructure form with conversational inspection and runs hosting/backend creation after panel consent. The earlier full live runs predate that redesign; two new isolated Desktop setup runs cover the changed creation path. The explicit live-data confirmation is a useful, understandable pause. |
 | Tom | Plain edit, inline edit, Point & ask, History Restore, conversational restore, Publish/Undo, key-stop recovery and broken-page recovery worked in Desktop. A simultaneous live edit stopped safely and could be recovered. | Everyday work feels direct. Restore is readable and durable Undo is available. Both fresh fixtures passed the main actions. Conflict recovery now asks before choosing; the final sequence passed in two further fresh fixtures, keeping the preview intact until the builder chose. Both then published successfully. |
-| Léa | Claude inspected the app and named its AI, sign-in and settings needs. The Carefully route reached the step-by-step Lovable export instructions. | The sequence is understandable so far, but the actual export/copy remains untested. Permission is pending for the pre-existing destination and the Lovable export. The isolated migration test is technical evidence, not a completed builder journey. |
-| Nadia | Empty-folder panel asks for a GitHub app. Claude made working local book/plant prototypes. After the fixes, the panel updates and both surfaces explain that Clodable is not saving or publishing them yet. | The current product has no complete starting-from-an-idea journey. F09/F15 make the limit honest; they cannot make this journey complete without a product decision. |
+| Léa | Claude inspected the app and named its AI, sign-in and settings needs. The Carefully route reached the step-by-step Lovable export instructions. | The sequence is understandable so far, but the actual export/copy remains untested. The approved export attempt was refused by Lovable’s database-size limit. The recorded destination is not visible in test-org, and the Supabase connection now needs to be restored. No data was copied. The isolated migration test is technical evidence, not a completed builder journey. |
+| Nadia | The empty-folder panel now offers Start from an idea alongside GitHub import. Claude makes the local prototype before account setup. After the fixes, the panel updates and both surfaces explain that Clodable is not saving or publishing them yet. | The owner approved the new route ([PR #65](https://github.com/bworlds-co/clodable/pull/65)). Two Desktop runs produced working book and plant prototypes whose sample interactions survived reload. Both reached explicit private-GitHub consent in fresh conversations. After owner approval, both created private repositories, set up hosting in the authorized Netlify team, and published successfully. Borrow/return and water/undo worked on the live pages and survived reload; their data remains browser-local as disclosed. |
 
 Desktop currently labels the brief's Ask mode **Manual**. I exercised it during backend setup. Three surrounding inspection/help commands triggered technical permission prompts. Returning to Auto avoided continuing that experiment; no broad permanent permission was granted.
 
 ## What changed
 
-Seventeen focused fixes were merged as separate pull requests after CI:
+The approved conversation-first pass is implemented in [PR #68](https://github.com/bworlds-co/clodable/pull/68), stacked on Nadia's existing feature branch. Home is short; History and Settings are separate views. Claude can open the appropriate controls from an ordinary request. App discovery and uncertain choices stay in chat, while account consent, costs, secret fields and fixed creation stay in the panel. Migration shows its current action before optional background detail. The final fresh History request received a brief acknowledgement instead of another copy of the list. These changes are loaded locally in Desktop; they are not a released build.
+
+Twenty focused fixes were merged as separate pull requests after CI:
 
 | Fix | Result | Evidence |
 |---|---|---|
@@ -44,54 +46,85 @@ Seventeen focused fixes were merged as separate pull requests after CI:
 | [#61](https://github.com/bworlds-co/clodable/pull/61) · Conflict check | Checks in a temporary copy so a stopped Publish leaves the preview intact. | Real-git regression and two fresh Desktop conflicts, both recovered and published with the chosen heading. Screenshot 35 shows the working preview during the choice. |
 | [#62](https://github.com/bworlds-co/clodable/pull/62) · Preview confirmation | Keeps local addresses and unsolicited page tours out of Claude’s reply. | Two independent model replays and a fresh Desktop reply: “Your preview is open beside this conversation.” Screenshot 36. |
 | [#63](https://github.com/bworlds-co/clodable/pull/63) · One installed runtime | The panel, Claude and the default preview use the installed plugin’s CLI. Fresh conversations prepare the ignored local copy automatically. | Two fresh Desktop fixtures, matching bundle hashes, natural-language status checks without extra prompts, and functioning previews. Inline editing and broken-page recovery passed through the new launcher. Screenshots 37 and 38. |
+| [#64](https://github.com/bworlds-co/clodable/pull/64) · Migration backend recovery | Keeps account/access errors intact and checks a remembered destination before calling it ready. | 187 package tests, 129 plugin tests and isolated real-Supabase migration passed. Fresh Desktop correctly requests Supabase reconnection; screenshot 41. |
+| [#66](https://github.com/bworlds-co/clodable/pull/66) · Migration explanations | Claude distinguishes an unsuccessful check from a deleted, paused or empty backend and no longer promises automatic replacement. | Two independent model replays and a fresh Desktop read-only diagnosis; screenshot 47. |
+| [#67](https://github.com/bworlds-co/clodable/pull/67) · Connection lifetime | Removes contradictory advice to delete a token still needed for later database changes. | 129 existing plugin tests and a fresh Desktop panel check; screenshot 48. No credential change. |
 
-Lint and typecheck pass. The package suite passed **186 tests**; the latest plugin suite passed **129 tests**. The 12 CLI contract tests also passed after adding preview-port preservation and failed-copy checks. Inline-edit, broken-page recovery, and isolated migration scripts passed; the first two were repeated through the installed runtime’s launcher. The migration script used its own ports and did not use the owner's other Supabase stack. The updated plugin was built and copied into Desktop's cache; existing conversations retain their earlier code.
+Lint and typecheck pass. The conversation-first branch passes **193 package tests** and **138 plugin tests**, including the new private-app CLI contract. These counts include earlier preview-port preservation and failed-copy checks. Inline-edit, broken-page recovery, and isolated migration scripts passed again for the idea route; earlier checks also exercised the installed runtime’s launcher. The migration script used its own ports and did not use the owner's other Supabase stack. The updated plugin was built and copied into Desktop's cache; existing conversations retain their earlier code.
 
 ## Where each moment belongs
 
 | Moment | Today | Recommendation |
 |---|---|---|
-| Choose a starting point | Setup assumes an existing GitHub app. | Give the initial panel two explicit routes: an existing app, or an idea. |
-| Understand an existing app | Builder answers where data and site live. | Let Claude inspect first; show its conclusion and ask the builder only to confirm or correct it. |
-| Create hosting/backend | Panel gathers choices, then sends a request to Claude, which may explore before running the command. | Keep account/cost consent in the panel; consider running the exact creation operation there. Claude handles app-specific integration and explanations. |
+| Choose a starting point | The approved implementation offers an existing GitHub app or an idea. Both idea journeys now pass local preview, consent, private saving and publication. | Keep shaping in the conversation and account consent in the panel. |
+| Understand an existing app | Claude reads the code and current status, then clarifies uncertain facts in conversation. | Approved and implemented. Ask one relevant question at a time; recorded addresses are not proof that a service is live. |
+| Create hosting/backend | The panel gathers account/cost consent and runs the exact operation. Backend creation returns app integration to Claude. | Approved and implemented. Keep product decisions in chat and secret values in fields. |
 | Shape the product | Conversation plus preview. | Keep this split. It matches the builder's intent and avoids another editor to learn. |
 | Publish and recover | Bar, home, History and per-reply Restore. | Keep Publish in the builder's control. The History confirmation appeared beside Restore, and the durable Undo action remained available. Ask before choosing incompatible edits. No change to the settled ten-second Undo behavior. |
-| Move off Lovable | Dedicated mode in the same panel, with conversational piloting. | Retain the current structure until Léa's real journey has been tested. The evidence here does not justify splitting it yet. |
+| Move off Lovable | Dedicated mode in the same panel, with conversational piloting. The current action comes first; progress and assessment expand on request. | Keep a dedicated task view in the same panel, put the current action first and make the detailed assessment available on demand. Do not change migration orchestration before Léa's real journey supplies evidence. |
 
-## Structural decisions for the owner
+## Panel focus and mods capability review — October 18
 
-### 1. Make starting with an idea a supported route
+The owner's concern about crowding matches the evidence. The home has accumulated several jobs in one narrow column. In migration, the assessment and notes precede the current action; a missing connection brings the long assessment back. Screenshot 48 and F24 document the problem. Smaller type or tighter spacing would make it harder to read without clarifying what matters.
+
+Clodable already makes substantial use of mods: a pane, the band above the prompt, readable tool activity, contextual Saved/Restore actions, question context, notices, commands, tool guards and state updates. The opportunity is better allocation of work across those surfaces, not using every API.
+
+The [official interface guide](https://code.claude.com/docs/en/plugins/mods/interface) supports stateful views built from ordinary controls. The [mods API](https://code.claude.com/docs/en/plugins/mods/api) supports tools that Claude can call, and process/network operations performed by the mod. Clodable now registers `open_panel`, `app_context` and `remember_app`. Navigation opens the requested view without creating, publishing or restoring anything. Desktop tests have exercised natural-language History and hosting navigation, recording confirmed facts, direct creation after consent, and the return to Claude for backend integration.
+
+The [built-in diff mod](https://github.com/anthropics/claude-code/blob/main/mods/diff/README.md) is a useful design reference for focused detail, folded secondary information and respecting a person's decision to close a pane. Its documented automatic-opening rules target terminal layouts; they are not evidence of identical Desktop behavior. The [mods overview](https://code.claude.com/docs/en/plugins/mods/overview) and interface documentation distinguish supported surfaces. Clodable cannot redesign Desktop's permission prompt or message box. A custom client renderer, more panes or extra model calls are not prerequisites for this UX pass.
+
+Recommended allocation:
+
+| Surface | Job |
+|---|---|
+| Conversation and preview | Shape the app, explain choices and inspect results. |
+| Existing bar | Show saved/live state and offer the everyday actions. |
+| App overview | Show a short status, actionable blockers and the next step; provide access to History and Settings. |
+| History / Settings views | Show details when requested, with a clear way back. |
+| Setup / migration task view | Show the current action and its necessary explanation first; retain progress and reveal background detail on demand. |
+
+The owner approved all three product choices on October 18: focused views and natural navigation, inspect-then-confirm setup, and direct hosting/backend creation after consent. They also explicitly chose the conversation for work that benefits from dialogue. Nadia's prototype-first direction was already approved. No further structural decision is needed for this pass; remaining resource approvals and external migration blockers are separate.
+
+## Structural decisions and their status
+
+### 1. Start from an idea — approved October 18; two saving/publishing journeys passed
 
 Nadia produced a working page but had no way to enter Clodable's saving/publishing loop. Add an initial choice that explains what happens next: Claude shapes the idea, then Clodable establishes the supported app and saving arrangement with explicit account consent. Preserve the prototype if setup cannot finish.
 
-This extends **Q14's self-serve setup scope** and needs a decision about creating GitHub apps. It preserves **Q1's Claude-first product**. Merely adding a nicer empty-state illustration would leave the same dead end.
+This extends **Q14's self-serve setup scope**. The owner approved creating a private GitHub app after explicit account consent; the decision is recorded in DECISIONS.md. It preserves **Q1's Claude-first product**. Merely adding a nicer empty-state illustration would leave the same dead end.
 
-### 2. Confirm discovered infrastructure instead of asking builders to identify it
+### 2. Confirm discovered infrastructure — approved and implemented
 
 The setup questions ask builders to name hosting and database arrangements before they have seen value. Sam's answers were known from the test brief; that does not prove an ordinary builder could answer them. Have Claude inspect the app, show a short conclusion, and ask only where evidence is insufficient.
 
 This changes **Q17's two-question setup**, using the existing assessment approach from **Q5d**. Evidence supports testing this direction; it is not user-research proof that every question can be removed.
 
-### 3. Give deterministic account setup a shorter path
+### 3. Run fixed account setup after panel consent — approved and implemented
 
-Sam pressed one backend action but met three technical permission prompts around it. The supported command itself was allowed. Consider keeping account selection, exact creation and progress in the panel, then returning the result to Claude for integration and explanation.
+Sam pressed one backend action but met three technical permission prompts around it. The supported command itself was allowed. Account selection, exact creation and progress now stay in the panel, then the result returns to Claude for integration and explanation.
 
 This changes **Q17/Q5b's choice that Claude pilots these operations**. It can preserve Q1's distinction between judgment and mechanics. Do not solve the problem by broadly allowing arbitrary shell exploration. Do not extend this recommendation to every migration step without Léa's evidence.
 
-### 4. Make the product discoverable without knowing slash commands
+### 4. Natural-language navigation — approved and implemented
 
-The first `/clodable` message can produce Desktop's “isn't a command here” error while opening the panel correctly. Nadia's follow-up also depended on remembering a command. Prefer a visible entry point, or a supported tool that lets Claude open the appropriate panel when the builder asks naturally.
+The first `/clodable` message can produce Desktop's “isn't a command here” error while opening the panel correctly. Nadia's follow-up also depended on remembering a command. The new navigation-only `open_panel` tool lets Claude open the appropriate view when the builder asks naturally; slash commands remain available as a fallback.
 
 This revisits **Q5f's command-led navigation**. Desktop owns the misleading error and its repository/branch labels; Clodable cannot fix those surfaces. Any proposal must use the plugin APIs Desktop actually offers.
+
+### 5. Focused panel views — approved and implemented
+
+The panel now has a short app overview, dedicated History and Settings views, and task views that lead with the current action. Keep one Clodable panel with clear navigation. Combine this with decision 4's natural-language opening so builders do not have to learn a menu or slash commands before they can proceed. Preserve account consent, important blockers, and access to the complete assessment.
+
+This changes the panel's structure and therefore belongs to the owner under the testing brief. The implementation reduces simultaneous information and has been reloaded into Desktop for focused verification. This remains an expert review, not a measured study with representative builders. It does not require changing the brand, Claude-first principle, live-data rule or settled Publish/Undo behavior.
 
 ## Remaining risks and completion work
 
 - **Release validation:** K3 is fixed and retested locally. The two installation passes verified the existing 0.2.2 release; these fixes have not been released. Shipping and testing a new tagged release requires owner approval. Existing conversations and preview servers need a fresh start to load an update.
 - **Conflict recovery:** the final sequence passed twice with fresh fixtures and both choices. This is bounded evidence for these cases, not a promise that every simultaneous edit can be combined automatically.
 - **Token onboarding:** accounts were already connected. Finding and pasting a new token was not tested; no sign-out or token creation was attempted.
-- **Léa:** permission is still pending to inspect/reuse the pre-existing destination and to request/download the Lovable export. Her copied data, people, files, functions and sign-in rehearsal remain untested in Desktop. The isolated migration test is not a substitute.
-- **Nadia:** local prototypes work, but saving and publishing from an idea remain unsupported. The corrected explanation is not a completed journey.
-- **Desktop limitations:** its initial slash-command error, technical permission dialogs, repository/branch labels and generic marketplace source-mismatch error are external. Released install succeeded twice after using the matching tagged source; ordinary Discover search did not surface the custom listing until its source filter was selected.
+- **Léa:** both copy-preparation steps were approved. Lovable refused the export (`api_error_database_too_large_for_export`); Supabase now requests reconnection. The destination’s availability is unresolved, not proven deleted. Her copied data, people, files, functions and sign-in rehearsal remain untested in Desktop. The isolated migration test is not a substitute.
+- **Nadia:** the owner approved both test repositories, and both were created privately through Desktop. The book and plant journeys now pass local prototype → named account consent → private saving → hosting in the authorized Netlify team → Publish → live-page interaction and reload. Both GitHub publication workflows succeeded. These prototypes deliberately use browser-local sample data; this does not verify shared data or sign-in. Details and retained resources are in FINDINGS.md.
+- **Desktop limitations:** its initial slash-command error, technical permission dialogs, repository/branch labels, a spurious “Fix merge conflicts” suggestion on a clean app, and the generic marketplace source-mismatch error are external. Released install succeeded twice after using the matching tagged source; ordinary Discover search did not surface the custom listing until its source filter was selected.
 
 The brief’s full sign-off criterion remains unmet. The supported everyday path is much clearer and has been exercised repeatedly; the remaining limitations above should be explicit before presenting Clodable as ready for every builder.
 

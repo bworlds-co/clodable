@@ -43,6 +43,63 @@ function clodableWith(env: Record<string, string>, ...args: string[]) {
 }
 
 describe("clodable --json", () => {
+  it("sets up saving for a local idea only in the approved account, with a private destination", async () => {
+    const root = join(sb.dir, "idea");
+    const bare = join(sb.dir, "idea.git");
+    const bin = join(sb.dir, "idea-tools");
+    await mkdir(root);
+    await mkdir(join(root, "node_modules"));
+    await mkdir(bin);
+    await writeFile(
+      join(bin, "gh"),
+      '#!/bin/sh\nif [ "$1 $2" = "api user" ]; then echo \'{"login":"ada","name":"Ada","id":1}\'; fi\n',
+      { mode: 0o755 },
+    );
+    await writeFile(
+      join(root, "package.json"),
+      JSON.stringify({ name: "idea", dependencies: { vite: "*", react: "*" } }),
+    );
+    await writeFile(join(root, "index.html"), "<h1>My first idea</h1>");
+    const env = { CLODABLE_FAKE_GITHUB: bare, PATH: `${bin}:${process.env.PATH}` };
+    const rejected = clodableWith(
+      env,
+      "setup",
+      "--cwd",
+      root,
+      "--new",
+      "my-idea",
+      "--account",
+      "someone-else",
+      "--yes",
+    );
+    expect(rejected.result).toMatchObject({ ok: false, error: { code: "gh-auth" } });
+    const started = clodableWith(
+      env,
+      "setup",
+      "--cwd",
+      root,
+      "--new",
+      "my-idea",
+      "--account",
+      "ada",
+      "--yes",
+    );
+    expect(started.result).toMatchObject({
+      ok: true,
+      data: { saved: true, pushed: true, published: false, appType: "vite-spa" },
+    });
+    expect(started.events).toContainEqual(
+      expect.objectContaining({ id: "setup:app", state: "done" }),
+    );
+    const status = clodableWith(env, "status", "--cwd", root);
+    expect(status.result.data.project).toMatchObject({ hosting: "none", backend: "none" });
+    const remote = spawnSync("git", ["--git-dir", bare, "ls-tree", "--name-only", "main"], {
+      encoding: "utf8",
+    });
+    expect(remote.stdout.trim()).toBe("README.md");
+    expect(readFileSync(join(root, "index.html"), "utf8")).toBe("<h1>My first idea</h1>");
+  });
+
   it("refreshes the installed runtime without changing account settings, and runs it without npm", async () => {
     const source = join(sb.dir, "installed copy.mjs");
     const bundle =

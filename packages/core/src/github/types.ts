@@ -50,6 +50,8 @@ export interface Deployment {
 }
 
 export interface GitHubAdapter {
+  /** A new private app, with only GitHub's initial README; never reuse an existing name. */
+  createPrivateRepository?(name: string): Promise<{ repo: RepoInfo; cloneUrl: string }>;
   /** Is the GitHub CLI installed and signed in? */
   ready(): Promise<{ installed: boolean; authenticated: boolean }>;
   viewer(): Promise<Viewer>;

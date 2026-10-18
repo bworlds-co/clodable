@@ -35,7 +35,7 @@ Clodable is a Claude Code plugin that makes Claude Desktop's **Code** tab feel l
 
 **Where things happen:**
 - **The conversation:** the builder asks; Claude reads and changes the app's code, and explains.
-- **The panel** (docked on the right; `/clodable` opens it): setup, then the app's home. That home holds History with Restore, "Worth a look", where the site and data live, the app's settings, and connecting Netlify and Supabase. It also runs the move off Lovable (`/move-off-lovable`).
+- **The panel** (docked on the right; `/clodable` or a natural-language request opens it): a short app overview, separate History and Settings views, and focused account-consent and migration views. The current task comes first; background details are available on demand. Claude inspects and clarifies the app's setup in the conversation. These structural changes were approved on October 18.
 - **The bar** (above the message box): where things stand ("2 changes not live yet", "Everything is live") with History, Preview and Publish.
 - **The preview** (Desktop's Browser pane), with Clodable's toolbar inside the page: **Edit text**, **Point & ask**, and **Try to fix** on a broken page.
 - **Toasts** for passing confirmations.
@@ -77,7 +77,7 @@ Proposals have to fit these limits.
 Go through them as the builder would. Start each from a fresh conversation and, when it creates things, from a reset.
 
 - **Sam: from a Lovable app to a live site with data** (`fresh-app`).
-  1. `/clodable`, then set up, and answer the two questions.
+  1. Ask Claude to set up the app, then use the setup controls. Claude inspects the app and asks about uncertain facts, one question at a time.
   2. **Put my site online**, then **Publish**. Check the live address in a browser.
   3. **Add a backend** (Supabase, in **test-org**).
   4. Ask Claude for a feature that saves data, for example "let visitors leave a note on the home page". Publish it and use it on the live site.
@@ -110,6 +110,8 @@ Use the builder's usual setup: Desktop's **Auto** permission mode and its defaul
 | `~/Clodable Demo/crumb-site` | A stand-in GitHub on this Mac | Set up, with fake services. Rebuild with `pnpm tsx scripts/demo-workspace.mts`. Its "live" site isn't real |
 | `~/Clodable Tests/hirebright-score` | `vulk-corp/hirebright-score` | A real Lovable Cloud project. Only the steps above |
 | `~/Clodable Tests/tiny-notes-wall` | `vulk-corp/tiny-notes-wall` | A Lovable app, not set up. Ask before using it |
+| `~/Clodable Tests/nadia-idea-books` | `emmanuelvulk/clodable-idea-books-test` (private) | Owner approved creation for Nadia's saving/publishing test on October 18 |
+| `~/Clodable Tests/nadia-idea-plants` | `emmanuelvulk/clodable-idea-plants-test` (private) | Owner approved creation for Nadia's saving/publishing test on October 18 |
 
 **Accounts already connected.** Clodable holds their tokens.
 

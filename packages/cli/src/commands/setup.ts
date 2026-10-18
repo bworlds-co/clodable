@@ -22,7 +22,9 @@ import {
   type ProjectInfo,
   packageManagerHere,
   parseGitHubRemote,
+  pendingNewApp,
   planKit,
+  prepareNewApp,
   publish,
   type StepId,
   type StepState,
@@ -58,6 +60,14 @@ export async function doctor(cwd: string): Promise<DoctorItem[]> {
   // Demos and tests: a folder on this computer stands in for GitHub (CLODABLE_FAKE_GITHUB).
   const fake = process.env.CLODABLE_FAKE_GITHUB;
   const standIn = Boolean(fake && remote && resolve(cwd, remote) === resolve(fake));
+  const pending = await pendingNewApp(cwd);
+  if (pending)
+    items.push({
+      id: "new-app",
+      label: "Saving setup",
+      status: "info",
+      detail: `${pending.account}/${pending.name}`,
+    });
   items.push({
     id: "repo",
     label: "Your app on GitHub",
@@ -497,6 +507,8 @@ export async function setupCommand(
     publish?: boolean;
     backend?: ProjectConfig["backend"];
     hosting?: ProjectConfig["hosting"];
+    new?: string;
+    account?: string;
   },
 ) {
   const interactive = !ctx.out.json && process.stdin.isTTY && !options.yes;
@@ -506,18 +518,35 @@ export async function setupCommand(
       ctx.out.header("let's bring your app home");
       await requireTools(ctx);
       const git = new Git(ctx.cwd);
-      const root = (await git.isRepo())
-        ? await git.root()
-        : await bringIn(ctx, await pickRepo(ctx, options.repo, interactive));
+      if (options.new !== undefined && (!options.account || options.repo || options.publish)) {
+        throw new ClodableError({
+          code: "invalid-config",
+          message:
+            "Choose the account for your new private app in Set up saving. Publishing comes later.",
+        });
+      }
+      const started =
+        options.new !== undefined
+          ? await drive(
+              ctx,
+              prepareNewApp(ctx.cwd, { name: options.new, account: options.account! }, ctx.github),
+            )
+          : undefined;
+      const root =
+        started?.root ??
+        ((await git.isRepo())
+          ? await git.root()
+          : await bringIn(ctx, await pickRepo(ctx, options.repo, interactive)));
 
       const project = await detectProject(root);
       const loaded = await loadConfig(root);
       // Where the data and the live site are decides what Clodable can do for this app.
       const config = {
         ...loaded,
+        ...(started ? { liveBranch: started.liveBranch } : {}),
         ...(await whereItRuns(project, {
-          backend: options.backend ?? loaded.backend,
-          hosting: options.hosting ?? loaded.hosting,
+          backend: options.backend ?? (started && !project.supabase.used ? "none" : loaded.backend),
+          hosting: options.hosting ?? (started ? "none" : loaded.hosting),
           interactive,
         })),
       };
@@ -586,6 +615,7 @@ export async function setupCommand(
         appType: project.appType,
         files: changes.filter((c) => c.action !== "unchanged").map((c) => c.path),
         saved: saved.saved,
+        pushed: saved.pushed,
         published,
       };
     },

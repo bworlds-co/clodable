@@ -51,7 +51,6 @@ import {
   LEAVE_DRAFT,
   moveCommandLine,
   OUR_PUBLISH,
-  onlineCommandLine,
   PRIVATE_FOLDER,
   PRIVATE_FOLDER_DENY,
   PUSH_OR_REWRITE,
@@ -97,7 +96,6 @@ import {
   doneTitle,
   fixRequest,
   hostOf,
-  OWN_COMMAND,
   pageName,
   plural,
   pointedAt,
@@ -111,11 +109,16 @@ import {
 } from "./words.ts";
 
 const PANE = "clodable";
-/**
- * What the panel shows: the app (History, Publish), or the move off Lovable. Unset, the move once
- * one has started, the app otherwise. /move-off-lovable asks for the move; History, for the app.
- */
-let paneView: "app" | "move" | null = null;
+/** One panel, opened on the detail or consent the builder actually needs. */
+const PANE_VIEWS = ["app", "history", "settings", "site", "backend", "move", "saving"] as const;
+type PaneView = (typeof PANE_VIEWS)[number];
+let paneView: PaneView | null = null;
+let showAssessment = false;
+let showMoveProgress = false;
+let inspectingApp = false;
+/** Fixed account creation stays here; Claude handles the app-specific work afterwards. */
+let provisioning: { kind: "site" | "backend"; title: string } | null = null;
+let provisionProblem: { kind: "site" | "backend"; message: string } | null = null;
 
 // Desktop clicks a button by the number its drawing gave it, and every redraw numbers each button
 // anew and forgets the old numbers: a click that lands after a redraw Desktop hasn't caught up with
@@ -172,6 +175,10 @@ let confirming:
   | null = null;
 let repoChoices: Array<{ value: string; label: string }> = [];
 let chosenRepo = "";
+let setupChoice: "import" | "idea" | "saving" | null = null;
+let newAppName = "";
+let setupProblem: { message: string; help: boolean } | null = null;
+let ideaRequested = false;
 let deviceCode = "";
 const requests = new Map<string, string>();
 /**
@@ -348,6 +355,20 @@ async function syncFolder($: EngineInterface): Promise<string> {
 async function lookAtFolder($: EngineInterface) {
   inApp = (await $.fs.exists(".clodable/config.json").catch(() => false)) ? true : null;
   emptyFolder = false;
+  setupChoice = null;
+  newAppName = "";
+  setupProblem = null;
+  ideaRequested = false;
+  inspectingApp = false;
+  paneView = null;
+  showAssessment = false;
+  showMoveProgress = false;
+  siteOptions = null;
+  backendOptions = null;
+  siteTeam = "";
+  backendOrg = "";
+  addingBackend = false;
+  provisionProblem = null;
   versions = null;
   replySaves = [];
   blockSaves.clear();
@@ -829,20 +850,23 @@ async function fixIt($: EngineInterface) {
 
 /** Record where the data or the live site is, then refresh what the bar and the panel show. */
 async function setWhere($: EngineInterface, key: "backend" | "hosting", value: string) {
-  if (savingWhere[key]) return;
+  if (savingWhere[key]) return false;
   savingWhere[key] = value;
   // Shown as answered right away; saving it takes a second or two.
   await update<ClodableStatus | ClodableNotReady | null>($, status, (current) =>
     current?.ready ? ({ ...current, [key]: value } as ClodableStatus) : current,
   );
   $.ui.invalidate("ui.render");
+  let saved = false;
   try {
     const result = await cli($, ["config", key, value]);
+    saved = result.ok;
     if (!result.ok) $.ui.toast(`Couldn't save that: ${result.error?.message ?? "unknown problem"}`);
   } finally {
     delete savingWhere[key];
   }
   await refreshStatus($);
+  return saved;
 }
 
 /** What moving off Lovable involves for this app, read from its code. */
@@ -1104,7 +1128,7 @@ async function loadOptions($: EngineInterface, kind: "site" | "backend") {
 /** The app isn't on the web after all: say so, and open the panel on putting it online. */
 async function goOnline($: EngineInterface) {
   await setWhere($, "hosting", "none");
-  await openPane($);
+  await openPane($, "site");
 }
 
 /** The builder says they signed in on the new site: look again, and say so if nothing is seen. */
@@ -1145,15 +1169,18 @@ async function moveWith($: EngineInterface, args: string[], value: string) {
   await moveStep($, args, text);
 }
 
-async function openPane($: EngineInterface, view: "app" | "move" | null = "app") {
+async function openPane($: EngineInterface, view: PaneView | null = "app") {
   paneView = view;
+  if (view === "backend") addingBackend = true;
+  if (view === "saving") setupChoice = "saving";
   $.ui.invalidate("ui.render");
-  await $.ui.open({ id: PANE, title: "Clodable", focus: true, closeOnEscape: true });
+  const opened = await $.ui.open({ id: PANE, title: "Clodable", focus: true, closeOnEscape: true });
   background(refreshChecks($));
   background(refreshStatus($));
-  background(loadSettings($));
+  if (view === "settings" || view === "site") background(loadSettings($));
   // Opened again: where the move stands now, not when it was last looked at.
   if (move) background(loadMove($));
+  return opened;
 }
 
 async function loadSettings($: EngineInterface) {
@@ -1389,6 +1416,134 @@ async function registerCommands($: EngineInterface) {
   }
 }
 
+/** Navigation and app facts belong to the conversation; account consent stays in the panel. */
+async function registerAppTools($: EngineInterface) {
+  await $.tool.register({
+    name: "open_panel",
+    description:
+      "Open a focused Clodable view when the builder needs controls: app, history, settings (including secret fields), site (hosting consent), backend (database account consent), move, or saving (private GitHub app consent). This only opens the view; it never creates accounts, publishes, restores, or confirms anything. Answer ordinary questions in the conversation without opening a panel. Use this instead of asking the builder to type a slash command.",
+    inputSchema: {
+      type: "object",
+      properties: { view: { type: "string", enum: [...PANE_VIEWS] } },
+      required: ["view"],
+      additionalProperties: false,
+    },
+    isDeferred: false,
+  });
+  await $.tool.register({
+    name: "app_context",
+    description:
+      "Read Clodable's current app status and recorded hosting/database arrangement. Safe facts only, no keys. Before setup decisions, inspect the app's code too. Recorded URLs or database clients may be stale or placeholders: they do not prove a live site, a connected database or ownership. If hosting is unknown, first ask whether people already use the site. Explain the useful conclusion briefly and ask one relevant question at a time; wait for the answer. Do not guess unknown facts.",
+    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+    isDeferred: false,
+  });
+  await $.tool.register({
+    name: "remember_app",
+    description:
+      "Record where this app's data and website live after inspecting the code and discussing the conclusion with the builder. Ask about anything uncertain first. A Supabase URL cannot distinguish Lovable Cloud from a personally owned Supabase. No hosting file does not prove the site is offline; a recorded address or database client may be stale or a placeholder and does not prove a live service. Unsupported or unresolved arrangements must stay unknown. This updates Clodable's setup notes, not the live services; it creates nothing and grants no consent to change live data.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        backend: { type: "string", enum: ["none", "supabase", "lovable-cloud", "unknown"] },
+        hosting: { type: "string", enum: ["none", "github", "lovable", "unknown"] },
+      },
+      additionalProperties: false,
+    },
+    isDeferred: false,
+  });
+}
+
+const INSPECT_APP_DETAILS = `Read Clodable's app_context, then inspect the app's code and safe configuration to understand how it saves data and how visitors reach it. Don't read secret stores or print environment values. Existing source files, package names and deployment configuration are clues, not proof of ownership or whether a site is live. A Supabase address alone does not distinguish Lovable Cloud from the builder's own Supabase. A recorded website address or database client may be stale or a placeholder; neither proves a live website or a connected database. When hosting is unknown, establish whether people already use the site before asking how it is updated. Do not call an unsupported backend "none". Explain the useful conclusion in one plain sentence, without listing filenames or technical clues. Ask one focused question at a time, only when it affects the next step, and wait for the answer before asking about another unknown. Ask in terms of what the builder does (for example, "Do you update the public site by pressing Publish in Lovable?" or "Do people already use this at a web address?"). Don't ask them to name infrastructure types. After they confirm or correct your conclusion, call remember_app for the known facts; leave anything unresolved unknown. Do not create services, connect accounts, publish or change live data. If they already asked for a feature, continue towards that request once these facts are clear. Open a consent view only when an action needs it.`;
+
+async function inspectApp($: EngineInterface) {
+  if (inspectingApp || turnActive) return;
+  inspectingApp = true;
+  $.ui.invalidate("ui.render");
+  await askClaude($, "Take a look at my app so we can finish setting it up.", INSPECT_APP_DETAILS);
+}
+
+async function inspectNewSetup($: EngineInterface) {
+  const s = await read($, status);
+  if (s?.ready && (s.backend === "unknown" || s.hosting === "unknown")) await inspectApp($);
+}
+
+/** One exact creation operation after the builder selects an account and presses its consent. */
+async function provisionService($: EngineInterface, kind: "site" | "backend") {
+  if (provisioning || turnActive || isPiloting()) return;
+  const s = await read($, status);
+  if (provisioning || !s?.ready || s.movingOffLovable || s.finishingMove) return;
+  const team = siteOptions?.teams.find((x) => x.slug === siteTeam);
+  const org = backendOptions?.organizations.find((x) => x.slug === backendOrg);
+  if (kind === "site" && (s.hosting !== "none" || !team || !s.netlifyConnected)) return;
+  if (
+    kind === "backend" &&
+    (s.backend !== "none" ||
+      !org ||
+      !s.databaseConnected ||
+      !backendOptions?.costs[org.slug] ||
+      (org.plan === "free" && org.freeLeft === 0))
+  )
+    return;
+  // Set the lock before the first operation: repeated clicks must never create duplicates.
+  provisioning = {
+    kind,
+    title: kind === "site" ? "Preparing your web address…" : "Creating your backend…",
+  };
+  provisionProblem = null;
+  $.ui.invalidate("ui.render");
+  const args =
+    kind === "site"
+      ? ["site", "create", "--team", team!.slug]
+      : [
+          "backend",
+          "create",
+          "--org",
+          org!.slug,
+          ...(backendOptions?.region?.code ? ["--region", backendOptions.region.code] : []),
+        ];
+  const { result } = await streamCli($, args, (step) => {
+    provisioning = { kind, title: step.title };
+    $.ui.invalidate("ui.render");
+  });
+  if (!result?.ok) {
+    provisionProblem = {
+      kind,
+      message: result?.error?.message ?? "Setup stopped before finishing. Your app is still here.",
+    };
+  }
+  await refreshStatus($);
+  provisioning = null;
+  $.ui.invalidate("ui.render");
+  if (!result?.ok) return;
+  await shareAppRules($);
+  background(loadSettings($));
+  background(refreshChecks($));
+  if (kind === "backend") {
+    addingBackend = false;
+    await askClaude(
+      $,
+      "Connect my app to the backend I just created.",
+      `Clodable has already created the backend with the builder's account and cost consent. Do not run backend create again. Its public address and key are in .env (VITE_SUPABASE_URL, VITE_SUPABASE_PUBLISHABLE_KEY); server keys stay on this computer. Read AGENTS.md for the app's database commands. If no Supabase client exists, install @supabase/supabase-js and add src/integrations/supabase/client.ts using those public environment variables. Preserve the existing app. If the conversation already contains a feature request, continue it; otherwise just connect the client and say what is ready in one sentence. Every live database change still needs the builder's explicit confirmation. Never print keys or publish.`,
+    );
+  } else {
+    background(saveNow($, "Set up hosting"));
+    $.ui.toast("Your web address is ready. Publish makes the site public.");
+    await $.session
+      .append({
+        message: {
+          type: "user",
+          content: [
+            {
+              type: "text",
+              text: "Clodable finished the hosting setup the builder approved in its panel. The address is ready; no Publish was performed. Use app_context for current status. Don't repeat site creation or publish.",
+            },
+          ],
+        },
+      })
+      .catch(() => {});
+  }
+}
+
 /** Before Claude changes the live database: what it means, beside the request to allow it. */
 function liveDataNotice($: EngineInterface, toolUseId: string | undefined, sql: string) {
   if (!toolUseId) return;
@@ -1478,6 +1633,7 @@ export const register: Register = (on) => {
       background(read($, activity).then((a) => (a.kind === "idle" ? refreshStatus($) : undefined)));
     });
     // Commands last: a name that's taken must not stop the rest of the setup.
+    await registerAppTools($);
     await registerCommands($);
     return next(e);
   });
@@ -1512,6 +1668,74 @@ export const register: Register = (on) => {
     if (await isApp()) await askUndo($);
     else await openPane($);
     return {};
+  });
+
+  on("tool.call", { tool: "mcp__clodable__open_panel" }, async ($, e) => {
+    const view = (e as { view?: unknown }).view;
+    if (!PANE_VIEWS.includes(view as PaneView))
+      return { result: "Choose an available Clodable view.", isError: true };
+    await syncFolder($);
+    const opened = await openPane($, view as PaneView);
+    return {
+      result: `${opened.isPlaced ? "Opened" : "Requested"} Clodable's ${view} view.${opened.isPlaced ? "" : " The interface has not confirmed it is visible; don't claim it is open."} No account was created, action confirmed or site published. Acknowledge briefly; do not repeat the panel's contents in chat unless the builder asks you to explain them. Never ask for a token here.`,
+    };
+  });
+
+  on("tool.call", { tool: "mcp__clodable__app_context" }, async ($) => {
+    await syncFolder($);
+    await refreshStatus($);
+    return { result: JSON.stringify(await read($, status)) };
+  });
+
+  on("tool.call", { tool: "mcp__clodable__remember_app" }, async ($, e) => {
+    await syncFolder($);
+    const current = await read($, status);
+    if (!current?.ready)
+      return { result: "Set up Clodable first. The local app is unchanged.", isError: true };
+    if (current.movingOffLovable || current.finishingMove)
+      return {
+        result:
+          "A move is already under way. Use the move's steps; don't overwrite its setup notes.",
+        isError: true,
+      };
+    const values = e as { backend?: unknown; hosting?: unknown };
+    if (values.backend === undefined && values.hosting === undefined)
+      return {
+        result: "No setup facts were supplied. Leave unresolved facts unknown.",
+        isError: true,
+      };
+    const allowed = {
+      backend: ["none", "supabase", "lovable-cloud", "unknown"],
+      hosting: ["none", "github", "lovable", "unknown"],
+    };
+    for (const key of ["backend", "hosting"] as const) {
+      if (
+        values[key] !== undefined &&
+        (typeof values[key] !== "string" || !allowed[key].includes(String(values[key])))
+      )
+        return {
+          result:
+            "That arrangement is not supported. Leave it unknown and discuss it with the builder.",
+          isError: true,
+        };
+    }
+    for (const key of ["backend", "hosting"] as const) {
+      if (
+        values[key] !== undefined &&
+        values[key] !== current[key] &&
+        !(await setWhere($, key, String(values[key])))
+      )
+        return {
+          result:
+            "Could not finish recording the app's setup. Read app_context before trying again.",
+          isError: true,
+        };
+    }
+    await shareAppRules($);
+    return {
+      result:
+        "Recorded the app's setup. No live service was changed or created. Read app_context if you need the current state.",
+    };
   });
 
   // Remember what each turn was asked, so its save gets a meaningful name.
@@ -1554,6 +1778,8 @@ export const register: Register = (on) => {
 
   // Auto-save after every reply of the main conversation.
   on("turn.complete", async ($, e, next) => {
+    ideaRequested = false;
+    if (e.agentId === undefined) inspectingApp = false;
     const asked = requests.get(e.turnId);
     requests.delete(e.turnId);
     if (fixing?.turnId === e.turnId) {
@@ -1601,7 +1827,17 @@ export const register: Register = (on) => {
   on("tool.call", { tool: "Bash" }, async (_$, e, next) => {
     const command = String((e as { command?: unknown }).command ?? "");
     if (PRIVATE_FOLDER.test(command)) return { deny: PRIVATE_FOLDER_DENY };
+    if (/\bclodable(?:\.mjs)?["']?\s+setup\b[^\n]*--new\b/.test(command)) {
+      return {
+        deny: "The builder chooses the GitHub account and creates their private app in Clodable's Set up saving panel. Ask them to use that button; keep their local work intact.",
+      };
+    }
     if (!(await isApp())) return next(e);
+    if (/\bclodable(?:\.mjs)?["']?\s+(site|backend)\s+create\b/.test(command)) {
+      return {
+        deny: "The builder selects the account and confirms creation in Clodable's hosting or backend view. Open it with open_panel; don't create a service from the conversation.",
+      };
+    }
     if (SECRET_STEP.test(command)) {
       return {
         deny: "This step takes a secret (a token, a key, a password), so the builder does it in the Clodable panel, never through the chat. Ask them to use the panel (type /clodable), then carry on.",
@@ -1709,11 +1945,25 @@ export const register: Register = (on) => {
   // Permissions: quiet for safe work, always explicit before touching live data.
   on("tool.check", async ($, e, next) => {
     const verdict = await next(e);
-    if (verdict.decision === "deny" || !(await isApp())) return verdict;
+    if (verdict.decision === "deny") return verdict;
+    if (
+      [
+        "mcp__clodable__open_panel",
+        "mcp__clodable__app_context",
+        "mcp__clodable__remember_app",
+      ].includes(e.tool)
+    )
+      return { ...verdict, decision: "allow" };
+    if (!(await isApp())) return verdict;
     // Starting the app's own preview (its entry in .claude/launch.json) is always fine. Allowing it
     // here also means Auto mode's classifier isn't asked about Clodable's own call, which no request
     // of Claude's explains, and which it would refuse.
     const input = (e.input ?? {}) as Record<string, unknown>;
+    if (
+      e.tool === "Bash" &&
+      /\bclodable(?:\.mjs)?["']?\s+(site|backend)\s+create\b/.test(String(input.command ?? ""))
+    )
+      return { ...verdict, decision: "deny" };
     const local =
       input.url === undefined ||
       /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?(\/|$)/.test(String(input.url));
@@ -1824,7 +2074,7 @@ export const register: Register = (on) => {
       ...("Select" in table ? { Select: table.Select } : {}),
       ...("Input" in table ? { Input: table.Input } : {}),
     };
-    const { Box, Text, Link } = ui;
+    const { Box, Text, Button, Link } = ui;
     const s = await read($, status);
     const a = await read($, activity);
     const doctor = await read($, checks);
@@ -1845,7 +2095,6 @@ export const register: Register = (on) => {
       return setupPane($, ui, header, s, doctor);
     }
 
-    if (versions === null) background(refreshVersions($));
     const desktop = e.surface === "desktop";
 
     const view = paneView ?? (s.movingOffLovable || s.finishingMove ? "move" : "app");
@@ -1855,37 +2104,219 @@ export const register: Register = (on) => {
       settingsAsked = true;
       background(loadSettings($));
     }
-    const url = s.lastPublish?.url ?? s.liveUrl;
+    const url = s.hosting === "none" ? undefined : (s.lastPublish?.url ?? s.liveUrl);
+    const navigation = (
+      <Box flexDirection="row" flexWrap="wrap" columnGap={1} rowGap={1}>
+        {(
+          [
+            ["app", "Your app"],
+            ["history", "History"],
+            ["settings", "Settings"],
+          ] as const
+        ).map(([target, label]) =>
+          view === target ? (
+            <Text key={`nav-${target}`} bold>
+              {label}
+            </Text>
+          ) : (
+            <Button key={`nav-${target}`} plain onPress={() => background(openPane($, target))}>
+              {label}
+            </Button>
+          ),
+        )}
+      </Box>
+    );
+    const heading = (
+      <Box flexDirection="column" rowGap={1}>
+        {header}
+        {navigation}
+      </Box>
+    );
+    if (view === "history") {
+      if (versions === null) background(refreshVersions($));
+      return (
+        <Box flexDirection="column" rowGap={2} paddingX={2} paddingY={1}>
+          {heading}
+          {confirming?.kind === "undo" ||
+          a.kind === "publishing" ||
+          a.kind === "undoing" ||
+          a.kind === "failed"
+            ? stateCard($, ui, s, a, now, desktop)
+            : null}
+          {historySection($, ui, s, desktop, now)}
+          {s.lastPublish && !confirming ? (
+            <Button key="undo" variant="secondary" onPress={() => background(askUndo($))}>
+              Undo last publish
+            </Button>
+          ) : null}
+        </Box>
+      );
+    }
+    if (view === "settings") {
+      return (
+        <Box flexDirection="column" rowGap={2} paddingX={2} paddingY={1}>
+          {heading}
+          {url ? siteLink(ui, url) : null}
+          {setupFacts($, ui, s)}
+          {databaseCard($, ui, s)}
+          {s.backend === "none" ? (
+            <Button
+              key="add-backend"
+              variant="secondary"
+              onPress={() => background(openPane($, "backend"))}
+            >
+              Add sign-in or saved data
+            </Button>
+          ) : null}
+          {s.hosting === "none" ? (
+            <Button
+              key="settings-site"
+              variant="secondary"
+              onPress={() => background(openPane($, "site"))}
+            >
+              Set up hosting
+            </Button>
+          ) : null}
+          {settingsCard($, ui, s)}
+          {movedOffCard($, ui, s, desktop)}
+          {lovableHostingCard(ui, s)}
+          {warningsSection($, ui, doctor)}
+          {s.pullRequest ? <Link href={s.pullRequest.url} label="Draft on GitHub ↗" /> : null}
+        </Box>
+      );
+    }
+    if (view === "site" || view === "backend") {
+      const unknown = s[view === "site" ? "hosting" : "backend"] === "unknown";
+      return (
+        <Box flexDirection="column" rowGap={2} paddingX={2} paddingY={1}>
+          {heading}
+          {provisioning ? <Text bold>{provisioning.title}</Text> : null}
+          {provisionProblem?.kind === view ? (
+            <Box flexDirection="column" rowGap={1}>
+              <Text color="error">{provisionProblem.message}</Text>
+              <Button
+                key="provision-help"
+                variant="secondary"
+                onPress={() =>
+                  background(
+                    askClaude(
+                      $,
+                      "Help me finish this account setup.",
+                      `Clodable's ${view} setup stopped: ${provisionProblem?.message}. Read app_context and investigate safely. Do not create another service or retry creation through commands; the builder controls that in the panel. Explain the next step briefly.`,
+                    ),
+                  )
+                }
+              >
+                Ask Claude for help
+              </Button>
+            </Box>
+          ) : null}
+          {unknown ? (
+            appQuestions($, ui, s)
+          ) : view === "site" ? (
+            <Box flexDirection="column" rowGap={2}>
+              {siteCard($, ui, s)}
+              {s.hosting !== "none" && !s.site ? (
+                <Text>Your app already has hosting. Ask Claude if you want to change it.</Text>
+              ) : null}
+              {s.site?.live ? <Text>Your site is live.</Text> : null}
+              {s.site ? settingsCard($, ui, s) : null}
+            </Box>
+          ) : (
+            <Box flexDirection="column" rowGap={2}>
+              {backendCard($, ui, s)}
+              {databaseCard($, ui, s)}
+              {s.backend === "supabase" && s.databaseConnected !== false ? (
+                <Text>Your backend is ready. Continue shaping your app in the conversation.</Text>
+              ) : null}
+              {s.backend === "lovable-cloud" ? (
+                <Text>
+                  Your data is on Lovable Cloud. Ask Claude about moving it to your own account.
+                </Text>
+              ) : null}
+            </Box>
+          )}
+        </Box>
+      );
+    }
+    const urgent =
+      a.kind === "publishing" ||
+      a.kind === "undoing" ||
+      a.kind === "failed" ||
+      confirming?.kind === "undo" ||
+      s.merging ||
+      s.conflicts.length > 0;
+    const unknown = s.backend === "unknown" || s.hosting === "unknown";
+    const warnings = doctor.filter((check) => check.status === "warn" || check.status === "fail");
+    const missingSettings =
+      (appSettingsStatus?.wanted ?? []).filter(
+        (name) => !(appSettingsStatus?.local ?? []).includes(name),
+      ) ?? [];
     return (
       <Box flexDirection="column" rowGap={2} paddingX={2} paddingY={1}>
         <Box flexDirection="column" rowGap={1} alignItems="flex-start">
-          {header}
+          {heading}
           {url ? siteLink(ui, url) : null}
         </Box>
-        {appQuestions($, ui, s)}
-        {movedOffCard($, ui, s, desktop)}
-        {a.kind === "publishing" || a.kind === "undoing" ? null : siteCard($, ui, s)}
-        {backendCard($, ui, s)}
-        {databaseCard($, ui, s)}
-        {settingsCard($, ui, s)}
-        {stateCard($, ui, s, a, now, desktop)}
-        {lovableHostingCard(ui, s)}
+        {urgent
+          ? stateCard($, ui, s, a, now, desktop)
+          : unknown
+            ? appQuestions($, ui, s)
+            : s.hosting === "none"
+              ? card(
+                  ui,
+                  <Text bold>Your app isn't public yet</Text>,
+                  <Text dimColor>
+                    Keep shaping it in the conversation. Set up hosting when you're ready to put it
+                    on the web.
+                  </Text>,
+                  [
+                    <Button
+                      key="home-site"
+                      variant="primary"
+                      onPress={() => background(openPane($, "site"))}
+                    >
+                      Set up hosting
+                    </Button>,
+                  ],
+                )
+              : s.site && !s.site.live && s.site.statusKnown !== false
+                ? siteCard($, ui, s)
+                : stateCard($, ui, s, a, now, desktop)}
+        {provisioning ? <Text dimColor>{provisioning.title}</Text> : null}
+        {s.backend === "supabase" && s.databaseConnected === false ? (
+          <Button key="home-connect" plain onPress={() => background(openPane($, "backend"))}>
+            Reconnect your database account
+          </Button>
+        ) : null}
+        {missingSettings.length > 0 ? (
+          <Button key="home-settings" plain onPress={() => background(openPane($, "settings"))}>
+            {plural(missingSettings.length, "app setting")} needs a value
+          </Button>
+        ) : null}
+        {warnings.length > 0 ? (
+          <Box flexDirection="column" rowGap={1}>
+            {warnings
+              .filter((check) => check.status === "fail")
+              .map((check) => (
+                <Text key={`blocker-${check.id}`} color="error">
+                  {check.label}
+                </Text>
+              ))}
+            <Button key="home-checks" plain onPress={() => background(openPane($, "settings"))}>
+              Review {plural(warnings.length, "check")}
+            </Button>
+          </Box>
+        ) : null}
         {moveLine($, ui, s)}
-        {historySection($, ui, s, desktop, now)}
-        {warningsSection($, ui, doctor)}
-        <Box flexDirection="column" rowGap={1} alignItems="flex-start">
-          <Text dimColor>
-            Saved to GitHub after every reply. Only Publish changes your live site.
-          </Text>
-          {s.pullRequest ? <Link href={s.pullRequest.url} label="Draft on GitHub ↗" /> : null}
-        </Box>
+        <Text dimColor>Describe what you'd like to change in the conversation.</Text>
       </Box>
     );
   });
 
   // ── Plain-language activity ─────────────────────────────────────────────
   on("ui.render", { component: "ToolUse" }, async ($, e, next) => {
-    if (!(await isApp())) return next(e);
+    if (!e.props.tool.startsWith("mcp__clodable__") && !(await isApp())) return next(e);
     const row = describeTool(e.props);
     if (!row) return next(e);
     const { Box, Text } = $.ui.resolve(e);
@@ -1918,7 +2349,10 @@ export const register: Register = (on) => {
   });
 
   on("ui.render", { component: "ToolGroup" }, async ($, e, next) => {
-    if (e.props.isExpanded || !(await isApp())) return next(e);
+    const ours =
+      e.props.calls.length > 0 &&
+      e.props.calls.every((call) => call.tool.startsWith("mcp__clodable__"));
+    if (e.props.isExpanded || (!ours && !(await isApp()))) return next(e);
     const { Box, Text } = $.ui.resolve(e);
     return (
       <Box flexDirection="row" columnGap={1}>
@@ -2012,7 +2446,7 @@ function barSides(
   // In the terminal, where there's no logo, a colored dot carries the state.
   const dot = (color: string) => (desktop ? null : <Text color={color}>●</Text>);
   const history = (
-    <Button key="history" variant="secondary" onPress={() => background(openPane($))}>
+    <Button key="history" variant="secondary" onPress={() => background(openPane($, "history"))}>
       History
     </Button>
   );
@@ -2138,11 +2572,7 @@ function barSides(
   if (!s.ready) {
     return {
       left: [
-        <Text>
-          {s.reason === "not-a-repo"
-            ? "Bring your app into this folder to save and publish"
-            : s.message}
-        </Text>,
+        <Text>{s.reason === "not-a-repo" ? "Start an idea or bring in your app" : s.message}</Text>,
       ],
       right: [
         <Button key="setup" variant="primary" onPress={() => background(openPane($))}>
@@ -2372,18 +2802,142 @@ function setupPane(
   doctor: ClodableCheck[],
 ) {
   const { Box, Text, Button, Link, Select, Input } = ui;
+  if (!s) {
+    return (
+      <Box flexDirection="column" rowGap={1} paddingX={1}>
+        {header}
+        <Text dimColor>Checking your app…</Text>
+      </Box>
+    );
+  }
   const tools = doctor.filter((c) => ["node", "git", "gh", "github"].includes(c.id));
   const blocking = tools.filter((c) => c.status === "fail");
   const github = doctor.find((c) => c.id === "github");
+  const noRemote = doctor.some((c) => c.id === "repo" && c.status === "fail");
+  const localPrototype =
+    (s?.reason === "not-a-repo" && !emptyFolder) || (s?.reason === "no-kit" && noRemote);
+  const pendingName = doctor.find((c) => c.id === "new-app")?.detail?.split("/")[1];
+  if (localPrototype && setupChoice !== "saving") {
+    return (
+      <Box flexDirection="column" rowGap={1} paddingX={1}>
+        {header}
+        <Text bold>Your local app</Text>
+        <Text>Keep shaping your local app with Claude.</Text>
+        <Text dimColor>Your files are on this computer. Clodable isn't saving them yet.</Text>
+        <Button
+          key="set-up-saving"
+          variant="primary"
+          dimColor={turnActive}
+          onPress={() => {
+            if (turnActive) return;
+            setupChoice = "saving";
+            background(refreshChecks($));
+            newAppName ||=
+              pendingName ??
+              cwd
+                .split("/")
+                .at(-1)
+                ?.toLowerCase()
+                .replace(/[^a-z0-9-]+/g, "-") ??
+              "my-app";
+            $.ui.invalidate("ui.render");
+          }}
+        >
+          Set up saving
+        </Button>
+        <Text dimColor>Choose your GitHub account next. Nothing goes live until you publish.</Text>
+      </Box>
+    );
+  }
+  if (s?.reason === "not-a-repo" && emptyFolder && setupChoice !== "import") {
+    return (
+      <Box flexDirection="column" rowGap={1} paddingX={1}>
+        {header}
+        <Text bold>What would you like to make?</Text>
+        {setupChoice === "idea" && (ideaRequested || turnActive) ? (
+          <Text dimColor>
+            Claude is making your first version. Follow the conversation, then try the preview.
+          </Text>
+        ) : setupChoice === "idea" ? (
+          <Box flexDirection="column" rowGap={1}>
+            <Text>Describe who it's for and what they should be able to do.</Text>
+            {Input ? (
+              <Input
+                key="idea-description"
+                label="Your idea"
+                placeholder="A place for neighbours to lend books…"
+                submitLabel="Make a first version"
+                onSubmit={(value) => {
+                  if (!value.trim() || ideaRequested || turnActive) return;
+                  ideaRequested = true;
+                  $.ui.invalidate("ui.render");
+                  const text = `Make a first version of this idea: ${value.trim()}`;
+                  detailsFor.set(text, IDEA_DETAILS);
+                  background(
+                    $.prompt.submit({ text, asUser: true }).catch(() => {
+                      ideaRequested = false;
+                      $.ui.toast("Claude couldn't start yet. Try your idea again.");
+                      $.ui.invalidate("ui.render");
+                    }),
+                  );
+                }}
+              />
+            ) : (
+              <Text>Tell Claude your idea in the conversation.</Text>
+            )}
+            <Text dimColor>
+              Start with a local preview. You can connect saving when you're ready.
+            </Text>
+            <Button
+              key="back-to-start"
+              plain
+              onPress={() => {
+                setupChoice = null;
+                $.ui.invalidate("ui.render");
+              }}
+            >
+              Back
+            </Button>
+          </Box>
+        ) : (
+          <Box flexDirection="column" rowGap={1}>
+            <Button
+              key="start-idea"
+              variant="primary"
+              onPress={() => {
+                setupChoice = "idea";
+                $.ui.invalidate("ui.render");
+              }}
+            >
+              Start from an idea
+            </Button>
+            <Text dimColor>Describe it to Claude and try a first version on this computer.</Text>
+            <Button
+              key="choose-import"
+              variant="secondary"
+              onPress={() => {
+                setupChoice = "import";
+                $.ui.invalidate("ui.render");
+              }}
+            >
+              Bring an app from GitHub
+            </Button>
+          </Box>
+        )}
+      </Box>
+    );
+  }
   return (
     <Box flexDirection="column" rowGap={1} paddingX={1}>
       {header}
       <Text>
-        {s?.reason === "not-a-repo" && !emptyFolder
-          ? "Keep shaping your local app with Claude."
-          : "Let's bring your app home. It takes a minute, once."}
+        {setupChoice === "saving"
+          ? "Set up saving for your app."
+          : s?.reason === "not-a-repo" && !emptyFolder
+            ? "Keep shaping your local app with Claude."
+            : "Let's bring your app home. It takes a minute, once."}
       </Text>
-      {section(ui, "1 · Tools")}
+      {section(ui, setupChoice === "saving" ? "1 · Your account" : "1 · Tools")}
       {fetchingNode ? (
         <Text dimColor>Getting Node.js ready for your app: about a minute, once.</Text>
       ) : tools.length === 0 && (checksFailed || s?.reason === "unknown") ? (
@@ -2398,26 +2952,32 @@ function setupPane(
       ) : tools.length === 0 ? (
         <Text dimColor>Checking…</Text>
       ) : null}
-      {tools.map((c) => (
-        <Box flexDirection="column">
-          <Text color={c.status === "ok" ? "success" : "error"}>
-            {c.status === "ok" ? "✓" : "✕"} {c.label} {c.detail ? `· ${c.detail}` : ""}
-          </Text>
-          {c.status !== "ok" && c.id === "git" && c.fix?.includes("xcode-select") ? (
-            // macOS: Apple's own installer for Git, no Terminal needed.
-            <Box flexDirection="row" columnGap={1} alignItems="center">
-              <Button key="install-git" variant="primary" onPress={() => background(installGit($))}>
-                Install Git
-              </Button>
-              <Button key="git-check-again" plain onPress={() => background(refreshChecks($))}>
-                Check again
-              </Button>
-            </Box>
-          ) : c.status !== "ok" && c.fix ? (
-            <Text dimColor> {c.fix}</Text>
-          ) : null}
-        </Box>
-      ))}
+      {tools
+        .filter((c) => setupChoice !== "saving" || c.id === "github" || c.status !== "ok")
+        .map((c) => (
+          <Box flexDirection="column">
+            <Text color={c.status === "ok" ? "success" : "error"}>
+              {c.status === "ok" ? "✓" : "✕"} {c.label} {c.detail ? `· ${c.detail}` : ""}
+            </Text>
+            {c.status !== "ok" && c.id === "git" && c.fix?.includes("xcode-select") ? (
+              // macOS: Apple's own installer for Git, no Terminal needed.
+              <Box flexDirection="row" columnGap={1} alignItems="center">
+                <Button
+                  key="install-git"
+                  variant="primary"
+                  onPress={() => background(installGit($))}
+                >
+                  Install Git
+                </Button>
+                <Button key="git-check-again" plain onPress={() => background(refreshChecks($))}>
+                  Check again
+                </Button>
+              </Box>
+            ) : c.status !== "ok" && c.fix ? (
+              <Text dimColor> {c.fix}</Text>
+            ) : null}
+          </Box>
+        ))}
       {github && github.status !== "ok" ? (
         <Box flexDirection="column" rowGap={1}>
           <Button
@@ -2441,8 +3001,66 @@ function setupPane(
         </Box>
       ) : null}
       {section(ui, "2 · Your app")}
-      {blocking.length > 0 ? (
+      {setupChoice === "saving" && tools.length === 0 ? (
+        <Text dimColor>Checking your GitHub account before creating anything…</Text>
+      ) : blocking.length > 0 ? (
         <Text dimColor>Once the tools above are ready, pick your app here.</Text>
+      ) : setupChoice === "saving" && localPrototype ? (
+        <Box flexDirection="column" rowGap={1}>
+          <Text>Save to {github?.detail ?? "your GitHub account"} · Private</Text>
+          <Text dimColor>
+            Clodable creates a private app in this account and saves your files there. Only you and
+            people you give access can see the code. This doesn't put your site online.
+          </Text>
+          {setupProgress(ui, "Setting up saving…")}
+          {setupProblem ? (
+            <Box flexDirection="column" rowGap={1}>
+              <Text color="error">{setupProblem.message}</Text>
+              {setupProblem.help ? (
+                <Button
+                  key="prepare-local-app"
+                  plain
+                  onPress={() =>
+                    background(
+                      askClaude(
+                        $,
+                        "Prepare my local app for saving with Clodable, keeping my design and content.",
+                        IDEA_PREPARE_DETAILS,
+                      ),
+                    )
+                  }
+                >
+                  Ask Claude for help
+                </Button>
+              ) : null}
+            </Box>
+          ) : null}
+          {!settingUp && Input ? (
+            <Input
+              key="new-app-name"
+              label="App name"
+              value={newAppName}
+              submitLabel="Use this name"
+              onInput={(value) => {
+                newAppName = value.trim();
+              }}
+              onSubmit={(value) => {
+                newAppName = value.trim();
+                $.ui.invalidate("ui.render");
+              }}
+            />
+          ) : null}
+          {!settingUp ? (
+            <Button
+              key="create-private-app"
+              variant="primary"
+              dimColor={turnActive || !github?.detail}
+              onPress={() => background(setUpSaving($, (github?.detail ?? "").replace(/^@/, "")))}
+            >
+              Create private app and save
+            </Button>
+          ) : null}
+        </Box>
       ) : s?.reason === "no-kit" ? (
         <Box flexDirection="column" rowGap={1}>
           <Text>This folder already holds an app. Clodable can set itself up right here.</Text>
@@ -2507,12 +3125,27 @@ function setupPane(
         <Text dimColor>Open Clodable in Claude Desktop or the terminal to pick your app.</Text>
       )}
       <Text dimColor>
-        {s?.reason === "no-kit"
-          ? "Clodable adds a few plain files and saves them, with any changes in progress, to your draft on GitHub. Nothing goes live."
-          : s?.reason === "not-a-repo" && !emptyFolder
-            ? "Your local files stay as they are. Nothing goes live."
-            : "Clodable copies your app from GitHub into this folder and adds a few plain files. Nothing goes live."}
+        {setupChoice === "saving"
+          ? "Publishing stays a separate choice. You can set up hosting after saving."
+          : s?.reason === "no-kit"
+            ? "Clodable adds a few plain files and saves them, with any changes in progress, to your draft on GitHub. Nothing goes live."
+            : s?.reason === "not-a-repo" && !emptyFolder
+              ? "Your local files stay as they are. Nothing goes live."
+              : "Clodable copies your app from GitHub into this folder and adds a few plain files. Nothing goes live."}
       </Text>
+      {setupChoice === "saving" && !settingUp ? (
+        <Button
+          key="keep-local"
+          plain
+          onPress={() => {
+            setupChoice = null;
+            setupProblem = null;
+            $.ui.invalidate("ui.render");
+          }}
+        >
+          Keep working locally
+        </Button>
+      ) : null}
     </Box>
   );
 }
@@ -2792,14 +3425,8 @@ function databaseCard($: EngineInterface, ui: PaneUi, s: ClodableStatus) {
 /** Netlify's page for personal access tokens. */
 const NETLIFY_TOKENS = "https://app.netlify.com/user/applications#personal-access-tokens";
 
-/** While Claude runs a request from the panel, its button gives way to this. */
-function claudeOnIt(ui: PaneUi) {
-  const { Text } = ui;
-  return <Text dimColor>Claude is on it, in the conversation.</Text>;
-}
-
 /**
- * Not online yet: Netlify connected here, then Claude puts the site online (the builder's request)
+ * Not online yet: Netlify connected here, then Clodable creates the address after consent
  * and the next Publish makes it public. Once it's there, until that Publish, the card says so.
  */
 function siteCard($: EngineInterface, ui: PaneUi, s: ClodableStatus) {
@@ -2892,28 +3519,25 @@ function siteCard($: EngineInterface, ui: PaneUi, s: ClodableStatus) {
         <Text dimColor>{`Netlify team: ${teams[0]?.name ?? ""}`}</Text>
       )}
     </Box>,
-    isPiloting()
-      ? [claudeOnIt(ui)]
-      : [pilotButton($, ui, "site-create", "Set up hosting", siteRequest($, siteTeam))],
+    provisioning
+      ? []
+      : turnActive || isPiloting()
+        ? [<Text dimColor>Wait for Claude to finish before creating the site.</Text>]
+        : [
+            <Button
+              key="site-create"
+              variant="primary"
+              onPress={() => background(provisionService($, "site"))}
+            >
+              Create my web address
+            </Button>,
+          ],
   );
 }
 
-/** Putting the site online, in the builder's words, with the command beside for Claude. */
-function siteRequest($: EngineInterface, team: string): Ask {
-  const command = onlineCommandLine($.plugin.root, [
-    "site",
-    "create",
-    ...(team ? ["--team", team] : []),
-  ]);
-  return {
-    text: "Prepare a web address for my app. I’ll press Publish when I’m ready to make it public.",
-    details: `From Clodable: run \`${command}\`. ${OWN_COMMAND} This is hosting setup, which the builder just requested. It does not publish. Create the empty site now; the builder presses Publish later. It creates the site on the builder's own Netlify, gives it the app's settings and backend keys, and sets up Publish (netlify.toml and a GitHub Actions workflow). Then tell them in plain words: their site's address, and that it goes online when they press Publish. If the app's server code reads settings with no value yet, say which ones to paste in the panel. If it stops, find out why and fix what you can.`,
-  };
-}
-
 /**
- * No backend yet: one quiet line. Asked, Supabase connected here, then Claude creates the backend
- * (the builder's request) and connects the app to it.
+ * No backend yet: Supabase account and cost consent here, then Clodable creates it
+ * and returns the app-specific integration to the conversation.
  */
 function backendCard($: EngineInterface, ui: PaneUi, s: ClodableStatus) {
   const { Box, Text, Button, Link, Select } = ui;
@@ -2941,6 +3565,7 @@ function backendCard($: EngineInterface, ui: PaneUi, s: ClodableStatus) {
       variant="secondary"
       onPress={() => {
         addingBackend = false;
+        paneView = "app";
         $.ui.invalidate("ui.render");
       }}
     >
@@ -3040,40 +3665,38 @@ function backendCard($: EngineInterface, ui: PaneUi, s: ClodableStatus) {
           Pause one in Supabase, or pick an organization on a paid plan.
         </Text>
       ) : null}
+      {!cost ? (
+        <Box flexDirection="column" rowGap={1}>
+          <Text color="warning">
+            The cost couldn't be confirmed. Check again before creating your backend.
+          </Text>
+          <Button
+            key="backend-cost-retry"
+            variant="secondary"
+            onPress={() => background(loadOptions($, "backend"))}
+          >
+            Check again
+          </Button>
+        </Box>
+      ) : null}
     </Box>,
-    isPiloting()
-      ? [claudeOnIt(ui)]
-      : full
-        ? [notNow]
-        : [
-            notNow,
-            pilotButton(
-              $,
-              ui,
-              "backend-create",
-              "Create my backend",
-              backendRequest($, org, backendOptions?.region?.code),
-            ),
-          ],
+    provisioning
+      ? []
+      : turnActive || isPiloting()
+        ? [<Text dimColor>Wait for Claude to finish before creating the backend.</Text>]
+        : full || !cost
+          ? [notNow]
+          : [
+              notNow,
+              <Button
+                key="backend-create"
+                variant="primary"
+                onPress={() => background(provisionService($, "backend"))}
+              >
+                Create my backend
+              </Button>,
+            ],
   );
-}
-
-/** Creating the backend, in the builder's words, with the command beside for Claude. */
-function backendRequest(
-  $: EngineInterface,
-  org: { slug: string; name: string } | undefined,
-  region: string | undefined,
-): Ask {
-  const command = onlineCommandLine($.plugin.root, [
-    "backend",
-    "create",
-    ...(org ? ["--org", org.slug] : []),
-    ...(region ? ["--region", region] : []),
-  ]);
-  return {
-    text: `Add a backend to my app${org ? ` in my Supabase organization “${org.name}”` : ""}, then tell me what it lets me do.`,
-    details: `From Clodable: run \`${command}\`. ${OWN_COMMAND} It creates a project on the builder's own Supabase (about 2 minutes), writes its public address and key in .env (VITE_SUPABASE_URL, VITE_SUPABASE_PUBLISHABLE_KEY), keeps its server keys for the preview on this computer, and turns on your database commands (AGENTS.md now says how). If the app has no Supabase client yet, add one the way Lovable's templates do: install @supabase/supabase-js and create src/integrations/supabase/client.ts exporting \`supabase = createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY)\`. Don't build any feature yet. Then tell them in plain words that their app has a backend, and what it lets them add (sign-in, saving data, uploads). If it stops, find out why and fix what you can.`,
-  };
 }
 
 /** The settings the app's server code reads, missing on this computer or on the site. */
@@ -3083,18 +3706,49 @@ function settingsCard($: EngineInterface, ui: PaneUi, s: ClodableStatus) {
   return fields ? card(ui, <Text bold>Your app's settings</Text>, fields) : null;
 }
 
-/**
- * Where the data and the live site are, asked once in the app's view: they decide what Clodable can
- * do (change the database, put the site online, the last click in Lovable after Publish).
- */
+/** Missing setup facts are a conversation, not an infrastructure questionnaire. */
 function appQuestions($: EngineInterface, ui: PaneUi, s: ClodableStatus) {
-  const { Box, Text } = ui;
-  const questions = whereQuestions($, ui, s);
-  if (questions.length === 0) return null;
+  const { Text, Button } = ui;
+  if (s.backend !== "unknown" && s.hosting !== "unknown") return null;
+  return card(
+    ui,
+    <Text bold>Let's understand your app</Text>,
+    <Text dimColor>
+      Claude can look at how your app works and ask you about anything it can't tell.
+    </Text>,
+    inspectingApp || turnActive
+      ? [<Text dimColor>Continue in the conversation.</Text>]
+      : [
+          <Button key="inspect-app" variant="primary" onPress={() => background(inspectApp($))}>
+            Look at my app
+          </Button>,
+        ],
+  );
+}
+
+function setupFacts($: EngineInterface, ui: PaneUi, s: ClodableStatus) {
+  const { Box, Text, Button } = ui;
+  if (s.backend === "unknown" || s.hosting === "unknown") return appQuestions($, ui, s);
+  const data =
+    s.backend === "lovable-cloud"
+      ? "Data: Lovable Cloud"
+      : s.backend === "supabase"
+        ? "Data: your Supabase"
+        : "No database yet";
+  const site =
+    s.hosting === "lovable"
+      ? "Site: published through Lovable"
+      : s.hosting === "github"
+        ? "Site: connected to Publish"
+        : "Not on the web yet";
   return (
-    <Box flexDirection="column" rowGap={2}>
-      <Text bold>{questions.length === 2 ? "Two quick questions" : "One quick question"}</Text>
-      {questions}
+    <Box flexDirection="column" rowGap={1} alignItems="flex-start">
+      <Text bold>Your app's setup</Text>
+      <Text dimColor>{site}</Text>
+      <Text dimColor>{data}</Text>
+      <Button key="discuss-setup" plain onPress={() => background(inspectApp($))}>
+        Discuss this with Claude
+      </Button>
     </Box>
   );
 }
@@ -3357,86 +4011,6 @@ function restoreQuestion(
   );
 }
 
-/** Two questions, asked once: where the data and the live site are decide what Clodable can do. */
-function whereQuestions($: EngineInterface, ui: PaneUi, s: ClodableStatus): RenderElement[] {
-  const questions: RenderElement[] = [];
-  if (s.backend === "unknown") {
-    questions.push(
-      whereQuestion(
-        $,
-        ui,
-        "backend",
-        "Where does your app's data live?",
-        s.madeWithLovable
-          ? [
-              ["lovable-cloud", "On Lovable Cloud"],
-              ["supabase", "In my own Supabase"],
-              ["none", "No database yet"],
-            ]
-          : [
-              ["supabase", "In my own Supabase"],
-              ["none", "No database yet"],
-            ],
-        s.madeWithLovable
-          ? "Not sure? If your project in Lovable has Cloud (Database, Users…), it's Lovable Cloud."
-          : "No sign-in and nothing saved for people yet? Then there's no database yet.",
-      ),
-    );
-  }
-  if (s.hosting === "unknown") {
-    questions.push(
-      whereQuestion(
-        $,
-        ui,
-        "hosting",
-        "Where is your site live?",
-        s.madeWithLovable
-          ? [
-              ["lovable", "On Lovable"],
-              ["github", "Elsewhere (Netlify, Vercel…)"],
-              ["none", "Not online yet"],
-            ]
-          : [
-              ["github", "Online already (Netlify, Vercel…)"],
-              ["none", "Not online yet"],
-            ],
-        s.madeWithLovable
-          ? "If you click Publish in Lovable to update your site, it's on Lovable."
-          : "If people can visit it at a web address, it's online.",
-      ),
-    );
-  }
-  return questions;
-}
-
-function whereQuestion(
-  $: EngineInterface,
-  ui: PaneUi,
-  key: "backend" | "hosting",
-  title: string,
-  choices: Array<[value: string, label: string]>,
-  hint: string,
-) {
-  const { Box, Text, Button } = ui;
-  return (
-    <Box key={`question-${key}`} flexDirection="column" rowGap={1}>
-      <Text>{title}</Text>
-      <Box flexDirection="row" columnGap={1} rowGap={1} flexWrap="wrap">
-        {choices.map(([value, label]) => (
-          <Button
-            key={`${key}-${value}`}
-            variant="secondary"
-            onPress={() => background(setWhere($, key, value))}
-          >
-            {label}
-          </Button>
-        ))}
-      </Box>
-      <Text dimColor>{hint}</Text>
-    </Box>
-  );
-}
-
 // ── The move off Lovable (top level, so they can use $) ─────────────────────
 
 /** The move off Lovable and the questions it needs, with the way back to the app. */
@@ -3452,7 +4026,7 @@ function movePane(
   const moving = s.backend === "lovable-cloud" || s.finishingMove;
   if (s.backend === "lovable-cloud" && !assessment && !assessing) background(loadAssessment($));
   if (moving && !move && !loadingMove && !moveError) background(loadMove($));
-  const questions = whereQuestions($, ui, s);
+  const questions = appQuestions($, ui, s);
   // Known not to be on Lovable Cloud: nothing to move.
   const elsewhere = !moving && s.backend !== "unknown";
   return (
@@ -3480,18 +4054,23 @@ function movePane(
               : "Your data, your people and your backend come to your own Supabase, step by step. Your live app keeps running on Lovable until you switch."}
         </Text>
       </Box>
-      {questions.length > 0 ? (
-        <Box flexDirection="column" rowGap={2}>
-          <Text bold>
-            {questions.length === 2 ? "First, two quick questions" : "One quick question"}
-          </Text>
-          {questions}
-        </Box>
-      ) : null}
+      {questions}
       {moving ? (
         <Box flexDirection="column" rowGap={2}>
-          {whatMoves(ui)}
           {moveSection($, ui, s, now)}
+          {assessment && "checked" in assessment && assessment.checked ? (
+            <Button
+              key="move-assessment"
+              plain
+              onPress={() => {
+                showAssessment = !showAssessment;
+                $.ui.invalidate("ui.render");
+              }}
+            >
+              {showAssessment ? "Hide what moves" : "What moves with my app?"}
+            </Button>
+          ) : null}
+          {showAssessment || (assessment && "error" in assessment) ? whatMoves(ui) : null}
         </Box>
       ) : null}
     </Box>
@@ -3505,13 +4084,12 @@ function whatMoves(ui: PaneUi) {
     return <Text color="error">Couldn't look at your app: {assessment.error}</Text>;
   }
   if (!assessment?.checked) return null;
-  const started = (move?.steps ?? []).some((x) => x.id === "connect" && x.state === "done");
   const items = assessment.items ?? [];
   const notes: string[] = assessment.notes ?? [];
   return (
     <Box flexDirection="column" rowGap={2}>
       <Text>{MOVE_LEVELS[assessment.level] ?? ""}</Text>
-      {!started && items.length > 0 ? (
+      {items.length > 0 ? (
         <Box flexDirection="column" rowGap={1}>
           <Text bold>What moves</Text>
           {items.map((item) => (
@@ -3580,45 +4158,33 @@ function moveSection($: EngineInterface, ui: PaneUi, s: ClodableStatus, now: num
   const at = current ? stages.findIndex((x) => x.steps.includes(current)) : stages.length - 1;
   // Steps after the one the builder is on read as later ones, done or not: they come next.
   const currentIndex = current ? steps.indexOf(current) : steps.length;
-  const detail: Record<string, string | undefined> = {
-    backend: move?.home?.name,
-    website: move?.site?.url,
-  };
+  const stage = stages[at];
+  const { Button } = ui;
   return (
     <Box flexDirection="column" rowGap={2}>
-      {stages.map((stage, index) =>
-        index > at ? (
-          // A stage still ahead: its name only, its steps folded until it comes.
-          <Text key={`stage-${stage.id}`} dimColor>
-            {stage.title}
-          </Text>
-        ) : stage.steps.every((x) => x.state === "done") ? (
-          // A stage that's done: one line.
-          <Text key={`stage-${stage.id}`} color="success">
-            ✓ {stage.title}
-            {detail[stage.id] ? `  · ${detail[stage.id]}` : ""}
-          </Text>
-        ) : (
-          <Box key={`stage-${stage.id}`} flexDirection="column" rowGap={1}>
-            {stage.title ? (
-              <Box flexDirection="column">
-                <Text bold>{stage.title}</Text>
-                <Text dimColor>{stage.about}</Text>
-              </Box>
-            ) : null}
-            {stage.id === "golive" ? otherWay($, ui, method) : null}
-            {stage.steps.map((step) =>
-              stepRow(
-                ui,
-                step,
-                steps.indexOf(step) > currentIndex ? "later" : step.state,
-                step === current ? here : null,
-              ),
-            )}
-          </Box>
-        ),
-      )}
-      {current ? null : here}
+      {stage ? <Text bold>{stage.title}</Text> : null}
+      {stage?.id === "golive" ? otherWay($, ui, method) : null}
+      {current ? stepRow(ui, current, current.state, here) : here}
+      <Button
+        key="move-progress"
+        plain
+        onPress={() => {
+          showMoveProgress = !showMoveProgress;
+          $.ui.invalidate("ui.render");
+        }}
+      >
+        {showMoveProgress ? "Hide progress" : "See all steps"}
+      </Button>
+      {showMoveProgress
+        ? stages.map((item) => (
+            <Box key={`stage-${item.id}`} flexDirection="column" rowGap={1}>
+              <Text bold>{item.title}</Text>
+              {item.steps.map((step) =>
+                stepRow(ui, step, steps.indexOf(step) > currentIndex ? "later" : step.state, null),
+              )}
+            </Box>
+          ))
+        : null}
     </Box>
   );
 }
@@ -5028,6 +5594,7 @@ async function runSetup($: EngineInterface, args: string[]): Promise<Result | un
   if (settingUp) return undefined;
   settingUp = true;
   setupSteps = [];
+  setupProblem = null;
   $.ui.invalidate("ui.render");
   let outcome: { result?: Result; failure?: unknown } = {};
   try {
@@ -5050,10 +5617,42 @@ async function runSetup($: EngineInterface, args: string[]): Promise<Result | un
   if (!result?.ok) {
     if (failure !== undefined) note($, `setup didn't run: ${String(failure)}`.slice(0, 400));
     $.ui.toast(result?.error?.message ?? "Setup didn't finish.");
+    setupProblem = {
+      message: [result?.error?.message ?? "Setup didn't finish.", result?.error?.hint]
+        .filter(Boolean)
+        .join(" "),
+      help: true,
+    };
+    $.ui.invalidate("ui.render");
     return undefined;
   }
   setupSteps = [];
   return result;
+}
+
+const IDEA_DETAILS = `The builder chose Start from an idea. Make a small, working local prototype with Vite and React in this folder, with dev and build scripts and .gitignore excluding node_modules, dist and .env files. Use sample data and browser storage only; explain what is local when relevant. Do not create a GitHub app, connect accounts, add a backend or publish. Do not initialize git or add Clodable's setup files yet. Open the preview in Desktop, try its main interaction, and say it is a local first version. Clodable is not saving to GitHub yet. When they want saving, tell them to press Set up saving in the Clodable panel; that panel gets account consent. Keep progress and final replies free of git vocabulary and local addresses.`;
+const IDEA_PREPARE_DETAILS = `Keep the existing app's design, content and local work. Prepare it as a supported Vite + React app with dev and build scripts, checking that it builds. Keep environment files and generated dependencies ignored. Do not create a remote app, connect accounts or publish. Once ready, ask the builder to try Set up saving in Clodable again. All account consent and GitHub creation happen in the panel. Use plain builder language.`;
+
+async function setUpSaving($: EngineInterface, account: string) {
+  if (turnActive) return;
+  const name = newAppName.trim();
+  if (!name) {
+    setupProblem = { message: "Give your app a name before creating it.", help: false };
+    $.ui.invalidate("ui.render");
+    return;
+  }
+  if (!account) return;
+  const result = await runSetup($, ["--new", name, "--account", account]);
+  if (!result) return;
+  setupChoice = null;
+  await shareAppRules($);
+  $.ui.toast(
+    result.data?.pushed
+      ? "Saved to your private app on GitHub."
+      : "Your app is connected. Your latest changes are still on this computer; Clodable will try saving them again.",
+  );
+  await refreshStatus($);
+  await refreshChecks($);
 }
 
 async function bringIn($: EngineInterface) {
@@ -5080,6 +5679,7 @@ async function bringIn($: EngineInterface) {
   }
   await refreshStatus($);
   await refreshChecks($);
+  await inspectNewSetup($);
 }
 
 /**
@@ -5100,6 +5700,7 @@ async function setUpHere($: EngineInterface) {
   $.ui.toast("Your app is ready. Ask Claude for any change.");
   await refreshStatus($);
   await refreshChecks($);
+  await inspectNewSetup($);
 }
 
 /** The setup screen's Check again: the tools and where this folder stands, looked at once more. */

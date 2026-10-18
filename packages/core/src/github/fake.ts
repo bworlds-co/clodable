@@ -1,5 +1,5 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ClodableError } from "../errors.js";
@@ -71,6 +71,32 @@ export class FakeGitHub implements GitHubAdapter {
 
   async ready() {
     return { installed: true, authenticated: true };
+  }
+
+  async createPrivateRepository(name: string): Promise<{ repo: RepoInfo; cloneUrl: string }> {
+    if (existsSync(this.bareRepo))
+      throw new ClodableError({
+        code: "already-there",
+        message: "That app name is already in use.",
+      });
+    const seed = await mkdtemp(join(tmpdir(), "clodable-new-app-"));
+    try {
+      const git = new Git(seed);
+      await git.ok(["init", "--quiet", "--initial-branch=main"]);
+      await git.setLocalIdentity({ name: "GitHub", email: "noreply@github.com" });
+      await writeFile(join(seed, "README.md"), `# ${name}\n`);
+      await git.commitAll("Initial app", { kind: "setup" });
+      await mkdir(join(this.bareRepo, ".."), { recursive: true });
+      await git.ok(["clone", "--bare", seed, this.bareRepo]);
+      Object.assign(this.info, {
+        owner: this.user.login,
+        name,
+        url: `https://github.com/${this.user.login}/${name}`,
+      });
+      return { repo: this.info, cloneUrl: this.bareRepo };
+    } finally {
+      await rm(seed, { recursive: true, force: true });
+    }
   }
 
   async viewer() {

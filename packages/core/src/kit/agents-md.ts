@@ -24,9 +24,14 @@ const LOVABLE_CLOUD = `## Database and backend: on Lovable Cloud
 
 const NO_BACKEND = `## Database and backend: none yet
 - This app has no database, no sign-in and no backend yet.
-- When the builder asks for something that needs one (accounts and sign-in, saving data people enter, uploads), say so in one plain sentence and ask them to click **Add a backend** in the Clodable panel (type \`/clodable\`). Clodable creates it on their own Supabase (free to start) and connects the app; then ask them to tell you when it's there.
+- When the builder asks for something that needs one (accounts and sign-in, saving data people enter, uploads), explain why in one plain sentence and open Clodable's backend consent view with \`open_panel\` (view \`backend\`). Clodable creates it after account/cost consent, then asks you to connect the app and continue the original request. Don't ask the builder to repeat it.
 - Don't set up a database or a sign-in service any other way, and don't fake one in the browser's storage for things that must last.
 - Once the backend is there, these instructions change to say how to work with it.`;
+
+const UNKNOWN_BACKEND = `## Database and backend: not confirmed yet
+- Inspect the app's code and Clodable's app_context before making a database or backend change. Explain what you find in the conversation and ask only about what remains uncertain.
+- A Supabase URL alone does not establish whether the project belongs to Lovable Cloud or the builder. An unfamiliar service is not evidence that no backend exists.
+- Record confirmed facts with remember_app. Until ownership and access are established, do not change the database, deploy backend functions or create a replacement service. The preview may already use live data.`;
 
 /** The database rules when the app talks to a Supabase project the builder can reach. */
 function supabaseSection(ref: string | undefined, cli: string): string {
@@ -76,11 +81,17 @@ ${
   input.hosting === "lovable"
     ? `- **Publish** is the builder's decision. They click Publish in Clodable, which checks the app and merges the draft into \`${input.liveBranch}\`. The site is hosted by Lovable, so it goes live once they click **Publish → Publish changes** in Lovable. Clodable reminds them.`
     : input.hosting === "none"
-      ? `- **Publish** is the builder's decision. They click Publish in Clodable, which checks the app and merges the draft into \`${input.liveBranch}\`. The app isn't online yet: they first click **Set up hosting** in the Clodable panel (their own Netlify, free to start). This prepares a web address; it does not publish. Run the setup command supplied by the panel. Their first **Publish** makes the app public, and each Publish updates it after that.`
+      ? `- **Publish** is the builder's decision. They click Publish in Clodable, which checks the app and merges the draft into \`${input.liveBranch}\`. The app isn't online yet: they first click **Set up hosting** in the Clodable panel (their own Netlify, free to start). This prepares a web address; it does not publish. Open the \`site\` view with Clodable's \`open_panel\` tool for account consent. The panel runs creation; do not run it yourself. Their first **Publish** makes the app public, and each Publish updates it after that.`
       : `- **Publish** is the builder's decision. They click Publish in Clodable, which checks the app, merges the draft into \`${input.liveBranch}\`, and the host puts it live.`
 }
 - Never push to \`${input.liveBranch}\`, never force-push, and never merge pull requests yourself.
 - If asked to "publish" or "put it live", tell them to click **Publish** in the Clodable bar above the message box.
+
+## Conversation and Clodable
+- Keep explanations and product decisions in the conversation. Open a panel only for requested details, account consent, secret fields or an action's controls.
+- Use Clodable's \`app_context\` tool to read status. If hosting or database ownership is unknown, inspect the code, explain the useful conclusion in plain words, and ask one focused question at a time about what you cannot establish. Wait for the answer before asking about another unknown. A Supabase URL does not prove ownership; absent hosting files do not prove a site is offline. A recorded address or database client may be stale or a placeholder, so it does not establish a live service. Leave unsupported or unresolved facts unknown.
+- After the builder confirms or corrects your conclusion, use \`remember_app\` to record the known facts. Don't create or change a service to find out.
+- Use \`open_panel\` to open \`history\`, \`settings\`, \`site\`, \`backend\`, \`move\` or \`saving\` when needed; don't ask the builder to type slash commands when this tool is available. Creation and Publish remain the builder's controls.
 
 ## The preview
 - The app runs locally in the preview, configured in \`.claude/launch.json\`. Use that configuration; don't start another dev server.
@@ -94,7 +105,9 @@ ${
     ? LOVABLE_CLOUD
     : input.backend === "none"
       ? NO_BACKEND
-      : supabaseSection(input.supabaseRef, cli)
+      : input.backend === "unknown"
+        ? UNKNOWN_BACKEND
+        : supabaseSection(input.supabaseRef, cli)
 }
 
 ## Clodable commands

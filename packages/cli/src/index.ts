@@ -80,6 +80,8 @@ cli
 cli
   .command("setup", "Bring your app home: connect GitHub, add Clodable's files")
   .option("--repo <owner/name>", "The GitHub repository of your app")
+  .option("--new <name>", "Set up saving for a local prototype in a new private GitHub app")
+  .option("--account <login>", "The connected GitHub account approved for the new app")
   .option("-y, --yes", "Don't ask questions")
   .option("--publish", "Publish the setup right away")
   .option("--backend <where>", "Where the data lives: lovable-cloud, supabase or none")
@@ -87,6 +89,8 @@ cli
   .action((options) =>
     setupCommand(ctx(options), {
       repo: options.repo,
+      new: options.new,
+      account: options.account,
       yes: options.yes,
       publish: options.publish,
       ...(["lovable-cloud", "supabase", "none"].includes(options.backend)

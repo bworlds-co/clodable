@@ -85,6 +85,18 @@ export function describeTool(call: ToolLike): FriendlyRow | undefined {
   const running = call.isRunning;
   const file = typeof input.file_path === "string" ? friendlyFile(input.file_path) : "a file";
   switch (call.tool) {
+    case "mcp__clodable__open_panel":
+      return { text: verb(running, "Opening Clodable", "Opened Clodable"), tone: "quiet" };
+    case "mcp__clodable__app_context":
+      return {
+        text: verb(running, "Looking at your app's setup", "Checked your app's setup"),
+        tone: "look",
+      };
+    case "mcp__clodable__remember_app":
+      return {
+        text: verb(running, "Remembering your app's setup", "Remembered your app's setup"),
+        tone: "quiet",
+      };
     case "Edit":
     case "MultiEdit":
       return { text: `${verb(running, "Updating", "Updated")} ${file}`, tone: "work" };

@@ -89,7 +89,8 @@ export interface SiteOnlineOutcome {
 /**
  * Put the app online on the builder's own Netlify: a site named after the app, the backend's
  * address and keys and the settings pasted here, and what each Publish needs to put it live there.
- * Running it again (after a failure, or on a site deleted in Netlify) picks up where it was.
+ * Running it again after a failure picks up where it was. An unavailable remembered site is
+ * an access problem to resolve, never permission to create a replacement.
  */
 export async function* putSiteOnline(
   ws: Workspace,
@@ -107,9 +108,7 @@ export async function* putSiteOnline(
   const token = (await readSecret(NETLIFY_TOKEN))!;
 
   yield step("site", "running", "Setting up hosting", "Creating your site on Netlify");
-  const known = ws.config.netlify
-    ? await netlify.site(ws.config.netlify.siteId).catch(() => undefined)
-    : undefined;
+  const known = ws.config.netlify ? await netlify.site(ws.config.netlify.siteId) : undefined;
   const site = known ?? (await createNetlifySite(netlify, ws.project.name, options.team));
   const url = siteUrl(site);
   const online: OnlineSite = {
@@ -206,7 +205,7 @@ export async function* createBackend(
   yield step("backend", "running", "Creating your backend");
   // An earlier run made the project, then stopped: carry on with it.
   const earlier = ws.config.supabase.projectRef;
-  const started = earlier ? await api.project(earlier).catch(() => undefined) : undefined;
+  const started = earlier ? await api.project(earlier) : undefined;
   let ref: string;
   if (started) {
     ref = started.ref;

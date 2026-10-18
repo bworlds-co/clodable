@@ -37,6 +37,20 @@ These decisions were settled with the project owner on 2026-10-10 in a structure
 | Q18 | **A builder installs nothing by hand but Clodable** (2026-10-15). On a Mac with no recent Node.js, the plugin fetches one (an LTS release from nodejs.org, pinned and checked by SHA-256), and with no GitHub CLI, the CLI fetches one (pinned, checked), as it does for gitleaks. Both go in the plugin's data folder, which Claude Code removes with the plugin. Their folder goes on the session's PATH (`$.env.set`): the builder's own tools first, Clodable's after them, or first when the builder has no Node.js recent enough. The preview starts through `sh` with the same folder. Git: an **Install Git** button opens Apple's installer. An app's package manager that isn't installed (Bun) falls back to npm | "Way too long and too complicated for a non-technical user": Get started had Node.js, the GitHub CLI, Git and a GitHub sign-in before Clodable itself. Adding the plugin happens in Claude Desktop itself (Customize › Plugins › Add marketplace › Add from a repository), not in Terminal |
 | Q8 | **Name: Clodable.** It replaces the working name "lovasource" | The owner's final decision. The name puns on Claude and Lovable, and "clod" is a lump of clay you shape |
 
+## 2026-10-18 · Start from an idea
+
+The owner approved Nadia's proposed route from the Desktop UX report. An empty folder offers **Start from an idea** alongside GitHub import. Claude shapes a local prototype in the conversation, with no account required to begin. Clodable states that it is local and not yet saved to GitHub. **Set up saving** names the connected GitHub account and asks for consent to create a private app there. Saving then follows the existing draft and Publish model; hosting and a backend remain separate choices. This extends the setup scope without changing Q1 or making the prototype public.
+
+## 2026-10-18 · Conversation first, focused controls
+
+The owner approved all three recommendations from the Desktop UX review and added: **when something works better in the main conversation, do it there instead of in a panel.**
+
+- **Focused panel:** one Clodable panel with a short app overview and separate History and Settings views. Setup and migration show the current action first; progress and the detailed assessment are available on demand. Claude can open the appropriate view through a navigation tool, so slash commands are a fallback. This revises Q5f's command-led navigation.
+- **Inspect, then confirm:** Claude reads the app and explains what it found in the conversation. Ask only about uncertain facts in the builder's terms, and record the confirmed arrangement. A Supabase address does not prove account ownership, and absent hosting configuration does not prove an app is offline. This replaces Q17's default two-question form.
+- **Fixed account setup:** account selection, costs and secrets stay in the panel. After the builder confirms, Clodable runs the exact hosting/backend creation operation through its existing CLI and shows progress. Claude handles app-specific integration and explanations afterwards. This revises Q17's conversational execution of those two operations; Q5b's migration orchestration remains unchanged.
+
+Keep Q1's split between Claude's judgment and Clodable's mechanics. Publish, live-data confirmation, the live database rule, the brand and the ten-second Undo behavior remain settled. This approval changes product behavior; it does not authorize additional test repositories, a release, new credentials, paid resources or changes to Léa's live app.
+
 ## Open (to settle with the owner)
 
 - **The default host for clients leaving Lovable's hosting.** Research is in progress. The kit is host-agnostic: anything that deploys `main` works.

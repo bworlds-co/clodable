@@ -23467,9 +23467,13 @@ var LOVABLE_CLOUD = `## Database and backend: on Lovable Cloud
 - Changes to backend functions (\`supabase/functions/\`) only reach Lovable Cloud through Lovable. Avoid them, and if one is needed, tell the builder to make it in Lovable.`;
 var NO_BACKEND = `## Database and backend: none yet
 - This app has no database, no sign-in and no backend yet.
-- When the builder asks for something that needs one (accounts and sign-in, saving data people enter, uploads), say so in one plain sentence and ask them to click **Add a backend** in the Clodable panel (type \`/clodable\`). Clodable creates it on their own Supabase (free to start) and connects the app; then ask them to tell you when it's there.
+- When the builder asks for something that needs one (accounts and sign-in, saving data people enter, uploads), explain why in one plain sentence and open Clodable's backend consent view with \`open_panel\` (view \`backend\`). Clodable creates it after account/cost consent, then asks you to connect the app and continue the original request. Don't ask the builder to repeat it.
 - Don't set up a database or a sign-in service any other way, and don't fake one in the browser's storage for things that must last.
 - Once the backend is there, these instructions change to say how to work with it.`;
+var UNKNOWN_BACKEND = `## Database and backend: not confirmed yet
+- Inspect the app's code and Clodable's app_context before making a database or backend change. Explain what you find in the conversation and ask only about what remains uncertain.
+- A Supabase URL alone does not establish whether the project belongs to Lovable Cloud or the builder. An unfamiliar service is not evidence that no backend exists.
+- Record confirmed facts with remember_app. Until ownership and access are established, do not change the database, deploy backend functions or create a replacement service. The preview may already use live data.`;
 function supabaseSection(ref, cli2) {
   return `## Database: live data, handle with care
 ${ref ? `- The app uses Supabase project \`${ref}\`. The preview uses **live data**: real customers, real orders.` : "- If the app uses a database, the preview uses **live data**: real customers, real orders."}
@@ -23503,9 +23507,15 @@ The person you're working with is a **builder**: they know their product deeply,
 
 ## How changes reach the live site
 - Every reply is **saved** automatically to the builder's draft (\`draft/<their GitHub login>\`). You don't need to commit, push or open pull requests.
-${input2.hosting === "lovable" ? `- **Publish** is the builder's decision. They click Publish in Clodable, which checks the app and merges the draft into \`${input2.liveBranch}\`. The site is hosted by Lovable, so it goes live once they click **Publish \u2192 Publish changes** in Lovable. Clodable reminds them.` : input2.hosting === "none" ? `- **Publish** is the builder's decision. They click Publish in Clodable, which checks the app and merges the draft into \`${input2.liveBranch}\`. The app isn't online yet: they first click **Set up hosting** in the Clodable panel (their own Netlify, free to start). This prepares a web address; it does not publish. Run the setup command supplied by the panel. Their first **Publish** makes the app public, and each Publish updates it after that.` : `- **Publish** is the builder's decision. They click Publish in Clodable, which checks the app, merges the draft into \`${input2.liveBranch}\`, and the host puts it live.`}
+${input2.hosting === "lovable" ? `- **Publish** is the builder's decision. They click Publish in Clodable, which checks the app and merges the draft into \`${input2.liveBranch}\`. The site is hosted by Lovable, so it goes live once they click **Publish \u2192 Publish changes** in Lovable. Clodable reminds them.` : input2.hosting === "none" ? `- **Publish** is the builder's decision. They click Publish in Clodable, which checks the app and merges the draft into \`${input2.liveBranch}\`. The app isn't online yet: they first click **Set up hosting** in the Clodable panel (their own Netlify, free to start). This prepares a web address; it does not publish. Open the \`site\` view with Clodable's \`open_panel\` tool for account consent. The panel runs creation; do not run it yourself. Their first **Publish** makes the app public, and each Publish updates it after that.` : `- **Publish** is the builder's decision. They click Publish in Clodable, which checks the app, merges the draft into \`${input2.liveBranch}\`, and the host puts it live.`}
 - Never push to \`${input2.liveBranch}\`, never force-push, and never merge pull requests yourself.
 - If asked to "publish" or "put it live", tell them to click **Publish** in the Clodable bar above the message box.
+
+## Conversation and Clodable
+- Keep explanations and product decisions in the conversation. Open a panel only for requested details, account consent, secret fields or an action's controls.
+- Use Clodable's \`app_context\` tool to read status. If hosting or database ownership is unknown, inspect the code, explain the useful conclusion in plain words, and ask one focused question at a time about what you cannot establish. Wait for the answer before asking about another unknown. A Supabase URL does not prove ownership; absent hosting files do not prove a site is offline. A recorded address or database client may be stale or a placeholder, so it does not establish a live service. Leave unsupported or unresolved facts unknown.
+- After the builder confirms or corrects your conclusion, use \`remember_app\` to record the known facts. Don't create or change a service to find out.
+- Use \`open_panel\` to open \`history\`, \`settings\`, \`site\`, \`backend\`, \`move\` or \`saving\` when needed; don't ask the builder to type slash commands when this tool is available. Creation and Publish remain the builder's controls.
 
 ## The preview
 - The app runs locally in the preview, configured in \`.claude/launch.json\`. Use that configuration; don't start another dev server.
@@ -23514,7 +23524,7 @@ ${input2.hosting === "lovable" ? `- **Publish** is the builder's decision. They 
 - The preview toolbar at the bottom of the page belongs to Clodable. It's not part of the app. Don't edit or remove it.
 - Requests from the preview arrive as messages that start with "From the preview". Treat them like requests from the builder.
 
-${input2.backend === "lovable-cloud" ? LOVABLE_CLOUD : input2.backend === "none" ? NO_BACKEND : supabaseSection(input2.supabaseRef, cli2)}
+${input2.backend === "lovable-cloud" ? LOVABLE_CLOUD : input2.backend === "none" ? NO_BACKEND : input2.backend === "unknown" ? UNKNOWN_BACKEND : supabaseSection(input2.supabaseRef, cli2)}
 
 ## Clodable commands
 - Run \`${cli2} <command>\` for status, history, restore and other Clodable commands.${input2.cliCommand ? " This is the installed copy. Don't fetch a different version with npx." : ""}
@@ -24572,7 +24582,7 @@ function parseGitHubRemote(url2) {
 
 // ../core/src/github/fake.ts
 import { existsSync as existsSync12, readFileSync, writeFileSync } from "node:fs";
-import { mkdtemp as mkdtemp5, rm as rm7 } from "node:fs/promises";
+import { mkdir as mkdir8, mkdtemp as mkdtemp5, rm as rm7, writeFile as writeFile8 } from "node:fs/promises";
 import { tmpdir as tmpdir4 } from "node:os";
 import { join as join16 } from "node:path";
 var FakeGitHub = class _FakeGitHub {
@@ -24622,6 +24632,32 @@ var FakeGitHub = class _FakeGitHub {
   }
   async ready() {
     return { installed: true, authenticated: true };
+  }
+  async createPrivateRepository(name) {
+    if (existsSync12(this.bareRepo))
+      throw new ClodableError({
+        code: "already-there",
+        message: "That app name is already in use."
+      });
+    const seed = await mkdtemp5(join16(tmpdir4(), "clodable-new-app-"));
+    try {
+      const git = new Git(seed);
+      await git.ok(["init", "--quiet", "--initial-branch=main"]);
+      await git.setLocalIdentity({ name: "GitHub", email: "noreply@github.com" });
+      await writeFile8(join16(seed, "README.md"), `# ${name}
+`);
+      await git.commitAll("Initial app", { kind: "setup" });
+      await mkdir8(join16(this.bareRepo, ".."), { recursive: true });
+      await git.ok(["clone", "--bare", seed, this.bareRepo]);
+      Object.assign(this.info, {
+        owner: this.user.login,
+        name,
+        url: `https://github.com/${this.user.login}/${name}`
+      });
+      return { repo: this.info, cloneUrl: this.bareRepo };
+    } finally {
+      await rm7(seed, { recursive: true, force: true });
+    }
   }
   async viewer() {
     return this.user;
@@ -24716,7 +24752,7 @@ ${input2.body}`]);
 // ../core/src/github/gh-binary.ts
 import { createHash as createHash5 } from "node:crypto";
 import { existsSync as existsSync13 } from "node:fs";
-import { chmod as chmod5, mkdir as mkdir8, mkdtemp as mkdtemp6, rename as rename5, rm as rm8, symlink, unlink, writeFile as writeFile8 } from "node:fs/promises";
+import { chmod as chmod5, mkdir as mkdir9, mkdtemp as mkdtemp6, rename as rename5, rm as rm8, symlink, unlink, writeFile as writeFile9 } from "node:fs/promises";
 import { join as join17 } from "node:path";
 var GH_VERSION = "2.102.0";
 var RELEASES2 = {
@@ -24786,10 +24822,10 @@ async function download2(release, dir, path2) {
   const bytes = Buffer.from(await response.arrayBuffer());
   const digest = createHash5("sha256").update(bytes).digest("hex");
   if (digest !== release.sha256) throw new Error("the download didn't match its checksum");
-  await mkdir8(dir, { recursive: true });
+  await mkdir9(dir, { recursive: true });
   const work = await mkdtemp6(join17(dir, ".download-"));
   try {
-    await writeFile8(join17(work, name), bytes);
+    await writeFile9(join17(work, name), bytes);
     const inside2 = process.platform === "win32" ? `bin/${executable2}` : `${name.replace(/\.(zip|tar\.gz)$/, "")}/bin/${executable2}`;
     const unpacked = await exec2("tar", ["-xf", name, inside2], { cwd: work, timeout: 6e4 });
     if (unpacked.exitCode !== 0) throw new Error(unpacked.stderr.trim() || "couldn't unpack it");
@@ -24804,7 +24840,7 @@ async function download2(release, dir, path2) {
 async function linkInBin(path2) {
   if (process.platform === "win32") return;
   const link2 = join17(toolsBin(), executable2);
-  await mkdir8(toolsBin(), { recursive: true });
+  await mkdir9(toolsBin(), { recursive: true });
   await unlink(link2).catch(() => {
   });
   await symlink(path2, link2).catch(() => {
@@ -24851,6 +24887,46 @@ ${result.stdout}`.trim()
       timeout: 2e4
     });
     return { installed: true, authenticated: status2.exitCode === 0 };
+  }
+  async createPrivateRepository(name) {
+    const result = await this.run(["api", "user/repos", "--method", "POST", "--input", "-"], {
+      input: JSON.stringify({ name, private: true, auto_init: true })
+    });
+    if (result.exitCode !== 0) {
+      throw ghError(result, {
+        code: "not-found",
+        message: "Couldn't create your private app on GitHub.",
+        hint: "That name may already be in use, or your account may not allow new apps. Your local work is still here. Check GitHub before trying again.",
+        details: result.stderr
+      });
+    }
+    const created = JSON.parse(result.stdout);
+    return {
+      repo: {
+        owner: created.owner.login,
+        name: created.name,
+        url: created.html_url,
+        defaultBranch: created.default_branch,
+        isPrivate: created.private
+      },
+      cloneUrl: created.clone_url
+    };
+  }
+  /** Use the connected GitHub account for this app, irrespective of the Mac's SSH identity. */
+  async configureCredentials() {
+    const git = (args) => exec2("git", args, { cwd: this.cwd, timeout: 1e4 });
+    const key2 = "credential.https://github.com.helper";
+    await git(["config", "--local", "--unset-all", key2]);
+    for (const value of ["", `!'${await ghBinary()}' auth git-credential`]) {
+      const result = await git(["config", "--local", "--add", key2, value]);
+      if (result.exitCode !== 0)
+        throw new ClodableError({
+          code: "gh-auth",
+          message: "Couldn't connect this app to your GitHub account.",
+          hint: "Try Set up saving again.",
+          details: result.stderr
+        });
+    }
   }
   /** The builder's own repositories (not forks), most recently changed first. */
   async repositories(limit = 40) {
@@ -25253,7 +25329,7 @@ import { join as join22 } from "node:path";
 
 // ../core/src/move/export.ts
 import { createWriteStream as createWriteStream3, existsSync as existsSync15 } from "node:fs";
-import { copyFile, readdir as readdir4, rm as rm11, stat as stat2, writeFile as writeFile9 } from "node:fs/promises";
+import { copyFile, readdir as readdir4, rm as rm11, stat as stat2, writeFile as writeFile10 } from "node:fs/promises";
 import { homedir as homedir2 } from "node:os";
 import { basename as basename4, extname, join as join19 } from "node:path";
 
@@ -25449,7 +25525,7 @@ async function readExport(source, dir) {
   await takeBackup(source, dir);
   const backup = join19(dir, BACKUP);
   const listing = await listArchive(backup);
-  await writeFile9(join19(dir, "toc.list"), listing, { mode: 384 });
+  await writeFile10(join19(dir, "toc.list"), listing, { mode: 384 });
   const toc = parseToc(listing);
   if (toc.entries.length === 0) {
     throw new ClodableError({
@@ -25867,7 +25943,7 @@ async function newBackendSignIn(api, ref, site) {
 
 // ../core/src/move/switch.ts
 import { existsSync as existsSync16 } from "node:fs";
-import { readFile as readFile11, writeFile as writeFile10 } from "node:fs/promises";
+import { readFile as readFile11, writeFile as writeFile11 } from "node:fs/promises";
 import { join as join21 } from "node:path";
 function writeGrants(grants) {
   const lines = [];
@@ -26125,7 +26201,7 @@ async function* goLive(ws, options = {}) {
     const before = await readFile11(path2, "utf8");
     const after = rewriteEnv(before, values);
     if (after !== before) {
-      await writeFile10(path2, after);
+      await writeFile11(path2, after);
       files.push(name);
     }
   }
@@ -26138,7 +26214,7 @@ async function* goLive(ws, options = {}) {
         `project_id = "${state.home.ref}"`
       );
       if (after !== before) {
-        await writeFile10(toml, after);
+        await writeFile11(toml, after);
         files.push("supabase/config.toml");
       }
     }
@@ -26146,7 +26222,7 @@ async function* goLive(ws, options = {}) {
       if (!file3.text.includes(from)) continue;
       const next = repoint(file3.text, from, state.home.ref, { ...keys.legacy, anon: backend.anon });
       if (next.text !== file3.text) {
-        await writeFile10(join21(ws.root, file3.path), next.text);
+        await writeFile11(join21(ws.root, file3.path), next.text);
         files.push(file3.path.replace(/^\//, ""));
       }
     }
@@ -28177,10 +28253,129 @@ async function moveProgress(ws) {
   };
 }
 
-// ../core/src/online.ts
+// ../core/src/new-app.ts
 import { existsSync as existsSync20 } from "node:fs";
-import { readFile as readFile15, writeFile as writeFile11 } from "node:fs/promises";
+import { appendFile as appendFile2, readFile as readFile15, realpath } from "node:fs/promises";
 import { join as join25 } from "node:path";
+var PENDING = ".clodable/local/new-app.json";
+async function pendingNewApp(root) {
+  const path2 = join25(root, PENDING);
+  return existsSync20(path2) ? JSON.parse(await readFile15(path2, "utf8")) : void 0;
+}
+async function* prepareNewApp(root, options, github = new GhCli(root)) {
+  if (!/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,99}$/.test(options.name) || /\.git$/i.test(options.name)) {
+    throw new ClodableError({
+      code: "invalid-config",
+      message: "Give your app a short name using letters, numbers or dashes."
+    });
+  }
+  const viewer = await github.viewer();
+  if (viewer.login !== options.account) {
+    throw new ClodableError({
+      code: "gh-auth",
+      message: "The connected GitHub account has changed.",
+      hint: "Open Set up saving again and check the account before continuing."
+    });
+  }
+  const project = await detectProject(root);
+  if (project.appType === "unknown") {
+    throw new ClodableError({
+      code: "invalid-config",
+      message: "Your local app needs a little preparation before saving.",
+      hint: "Ask Claude to prepare this prototype for Clodable, keeping your design and content."
+    });
+  }
+  const git = new Git(root);
+  let pending = await pendingNewApp(root);
+  if (pending && (pending.name !== options.name || pending.account !== options.account)) {
+    if (pending.destination)
+      throw new ClodableError({
+        code: "invalid-config",
+        message: "Saving was already started for a different app name or account.",
+        hint: `Continue with ${pending.account}/${pending.name}. Your local work is still here.`
+      });
+    pending = { ...options };
+    await writeJsonFile(join25(root, PENDING), pending);
+  }
+  if (await git.isRepo()) {
+    if (!pending || await realpath(await git.root()) !== await realpath(root)) {
+      throw new ClodableError({
+        code: "already-there",
+        message: "This folder already belongs to an app.",
+        hint: "Open Clodable to set up that app. Start a new idea in an empty folder."
+      });
+    }
+  } else {
+    pending = { ...options };
+    await writeJsonFile(join25(root, PENDING), pending);
+    await git.ok(["init", "--initial-branch=main"]);
+  }
+  await keepIgnored(root);
+  const ignored = await readFile15(join25(root, ".gitignore"), "utf8");
+  const missing = ["node_modules/", "dist/", ".env", ".env.*", "!.env.example"].filter(
+    (line) => !ignored.split("\n").includes(line)
+  );
+  if (missing.length)
+    await appendFile2(join25(root, ".gitignore"), `
+# Local app files
+${missing.join("\n")}
+`);
+  yield step("setup:app", "running", "Checking your local app before saving");
+  await git.stageAll();
+  const secrets = (await scanStaged(root)).filter((f) => f.severity === "block");
+  if (secrets.length) {
+    throw new ClodableError({
+      code: "secret-found",
+      message: "A secret key needs to stay out of your app's code.",
+      hint: "Ask Claude to move it out, then try Set up saving again. Nothing was sent to GitHub.",
+      files: secrets.map((f) => f.file)
+    });
+  }
+  if (!pending.destination) {
+    if (!github.createPrivateRepository)
+      throw new ClodableError({
+        code: "unknown",
+        message: "This GitHub connection can't create a new app."
+      });
+    yield step(
+      "setup:app",
+      "running",
+      "Creating your private app on GitHub",
+      `${options.account}/${options.name}`
+    );
+    pending.destination = await github.createPrivateRepository(options.name);
+    await writeJsonFile(join25(root, PENDING), pending);
+  }
+  const { repo, cloneUrl } = pending.destination;
+  if (!repo.isPrivate || repo.owner !== options.account || repo.name !== options.name) {
+    throw new ClodableError({
+      code: "gh-auth",
+      message: "GitHub returned a different app than the one you approved.",
+      hint: "Nothing was sent. Check your GitHub account before continuing."
+    });
+  }
+  const remote = await git.remoteUrl("origin");
+  if (remote && remote !== cloneUrl)
+    throw new ClodableError({
+      code: "already-there",
+      message: "This folder is connected to a different app.",
+      hint: "Your files are unchanged. Ask Claude to check the connection before saving."
+    });
+  if (!remote) await git.ok(["remote", "add", "origin", cloneUrl]);
+  if (github instanceof GhCli) await github.configureCredentials();
+  await git.ok(["fetch", "origin", repo.defaultBranch]);
+  if (!await git.head()) {
+    await git.ok(["symbolic-ref", "HEAD", `refs/heads/${repo.defaultBranch}`]);
+    await git.ok(["reset", "--mixed", `origin/${repo.defaultBranch}`]);
+  }
+  yield step("setup:app", "done", "Your private app is ready for its first save");
+  return { root, liveBranch: repo.defaultBranch };
+}
+
+// ../core/src/online.ts
+import { existsSync as existsSync21 } from "node:fs";
+import { readFile as readFile16, writeFile as writeFile12 } from "node:fs/promises";
+import { join as join26 } from "node:path";
 async function siteChoices(ws) {
   const netlify = await NetlifyApi.onThisComputer();
   const teams = netlify ? await netlify.accounts() : [];
@@ -28211,7 +28406,7 @@ async function* putSiteOnline(ws, options = {}) {
   const netlify = await NetlifyApi.required();
   const token = await readSecret(NETLIFY_TOKEN);
   yield step("site", "running", "Setting up hosting", "Creating your site on Netlify");
-  const known = ws.config.netlify ? await netlify.site(ws.config.netlify.siteId).catch(() => void 0) : void 0;
+  const known = ws.config.netlify ? await netlify.site(ws.config.netlify.siteId) : void 0;
   const site = known ?? await createNetlifySite(netlify, ws.project.name, options.team);
   const url2 = siteUrl(site);
   const online = {
@@ -28273,7 +28468,7 @@ async function* createBackend(ws, options = {}) {
   const api = await SupabaseApi.required();
   yield step("backend", "running", "Creating your backend");
   const earlier = ws.config.supabase.projectRef;
-  const started = earlier ? await api.project(earlier).catch(() => void 0) : void 0;
+  const started = earlier ? await api.project(earlier) : void 0;
   let ref;
   if (started) {
     ref = started.ref;
@@ -28315,15 +28510,15 @@ async function* createBackend(ws, options = {}) {
   yield step("backend", "running", "Creating your backend", "Connecting your app to it");
   const backend = backendOf(ref, await homeKeys(api, ref));
   const files = [];
-  const envPath = join25(ws.root, ENV_FILE);
-  const before = existsSync20(envPath) ? await readFile15(envPath, "utf8") : "";
+  const envPath = join26(ws.root, ENV_FILE);
+  const before = existsSync21(envPath) ? await readFile16(envPath, "utf8") : "";
   const after = envWith(before, {
     VITE_SUPABASE_PROJECT_ID: ref,
     VITE_SUPABASE_PUBLISHABLE_KEY: backend.publishable,
     VITE_SUPABASE_URL: backend.url
   });
   if (after !== before) {
-    await writeFile11(envPath, after);
+    await writeFile12(envPath, after);
     files.push(ENV_FILE);
   }
   await rememberSettings(ws.root, {
@@ -28373,12 +28568,12 @@ function pickOrganization(organizations, slug) {
 // ../core/src/publish.ts
 import { mkdtemp as mkdtemp8, rm as rm13 } from "node:fs/promises";
 import { tmpdir as tmpdir5 } from "node:os";
-import { join as join28 } from "node:path";
+import { join as join29 } from "node:path";
 
 // ../core/src/publish-functions.ts
-import { existsSync as existsSync21 } from "node:fs";
+import { existsSync as existsSync22 } from "node:fs";
 import { readdir as readdir7 } from "node:fs/promises";
-import { join as join26 } from "node:path";
+import { join as join27 } from "node:path";
 async function changedFunctions(ws, sha) {
   const files = await ws.git.diffNames(`${sha}^..${sha}`);
   const names2 = /* @__PURE__ */ new Set();
@@ -28390,8 +28585,8 @@ async function changedFunctions(ws, sha) {
     else names2.add(match[1]);
   }
   if (shared) {
-    const dir = join26(ws.root, "supabase", "functions");
-    if (existsSync21(dir)) {
+    const dir = join27(ws.root, "supabase", "functions");
+    if (existsSync22(dir)) {
       for (const entry of await readdir7(dir, { withFileTypes: true })) {
         if (entry.isDirectory() && !entry.name.startsWith("_")) names2.add(entry.name);
       }
@@ -28464,9 +28659,9 @@ async function* deployThroughCli(ref, root, names2, outcome) {
 }
 
 // ../core/src/waits.ts
-import { existsSync as existsSync22 } from "node:fs";
-import { readdir as readdir8, readFile as readFile16 } from "node:fs/promises";
-import { join as join27 } from "node:path";
+import { existsSync as existsSync23 } from "node:fs";
+import { readdir as readdir8, readFile as readFile17 } from "node:fs/promises";
+import { join as join28 } from "node:path";
 function timing(options) {
   return {
     sleep: options.sleep ?? ((ms) => new Promise((resolve9) => setTimeout(resolve9, ms))),
@@ -28475,11 +28670,11 @@ function timing(options) {
   };
 }
 async function runsChecksOnPullRequests(root) {
-  const dir = join27(root, ".github", "workflows");
-  if (!existsSync22(dir)) return false;
+  const dir = join28(root, ".github", "workflows");
+  if (!existsSync23(dir)) return false;
   for (const name of await readdir8(dir)) {
     if (!/\.ya?ml$/.test(name)) continue;
-    const text2 = await readFile16(join27(dir, name), "utf8").catch(() => "");
+    const text2 = await readFile17(join28(dir, name), "utf8").catch(() => "");
     if (/\bpull_request(_target)?\b/.test(text2)) return true;
   }
   return false;
@@ -28844,7 +29039,7 @@ async function* undoPublish(ws, options = {}) {
   const [target] = options.sha ? await ws.git.log(`${options.sha}^!`) : await ws.git.log(ws.liveRef, { firstParent: true, limit: 1 });
   if (!target)
     throw new ClodableError({ code: "not-found", message: "There's no publish to undo yet." });
-  const dir = await mkdtemp8(join28(tmpdir5(), "clodable-undo-"));
+  const dir = await mkdtemp8(join29(tmpdir5(), "clodable-undo-"));
   const branch = `undo/${target.sha.slice(0, 7)}`;
   try {
     const side = await ws.git.worktreeAdd(dir, branch, ws.liveRef);
@@ -30885,18 +31080,18 @@ async function dbCommand(ctx2, options) {
 }
 
 // src/commands/dev.ts
-import { existsSync as existsSync26 } from "node:fs";
-import { dirname as dirname9, join as join30, resolve as resolve7 } from "node:path";
+import { existsSync as existsSync27 } from "node:fs";
+import { dirname as dirname9, join as join31, resolve as resolve7 } from "node:path";
 
 // ../preview/src/dev-server.ts
-import { existsSync as existsSync25, readFileSync as readFileSync3, statSync as statSync2 } from "node:fs";
-import { dirname as dirname8, join as join29 } from "node:path";
+import { existsSync as existsSync26, readFileSync as readFileSync3, statSync as statSync2 } from "node:fs";
+import { dirname as dirname8, join as join30 } from "node:path";
 import { pathToFileURL } from "node:url";
 
 // ../preview/src/plugin.ts
 import { randomBytes as randomBytes3 } from "node:crypto";
-import { existsSync as existsSync24, readFileSync as readFileSync2, realpathSync as realpathSync4 } from "node:fs";
-import { readFile as readFile18, writeFile as writeFile12 } from "node:fs/promises";
+import { existsSync as existsSync25, readFileSync as readFileSync2, realpathSync as realpathSync4 } from "node:fs";
+import { readFile as readFile19, writeFile as writeFile13 } from "node:fs/promises";
 import { isAbsolute, relative as relative4, resolve as resolve6, sep as sep4 } from "node:path";
 import { stripVTControlCharacters as stripVTControlCharacters2 } from "node:util";
 
@@ -47641,8 +47836,8 @@ function editText(code2, file3, location, before, after) {
 }
 
 // ../preview/src/toolbar-source.ts
-import { existsSync as existsSync23 } from "node:fs";
-import { readFile as readFile17 } from "node:fs/promises";
+import { existsSync as existsSync24 } from "node:fs";
+import { readFile as readFile18 } from "node:fs/promises";
 import { fileURLToPath as fileURLToPath2 } from "node:url";
 var cached2;
 async function toolbarSource() {
@@ -47650,8 +47845,8 @@ async function toolbarSource() {
   const live = Boolean(process.env.CLODABLE_TOOLBAR_DEV);
   if (cached2 && !live) return cached2;
   const dist = fileURLToPath2(new URL("../dist/toolbar.js", import.meta.url));
-  if (!live && existsSync23(dist)) {
-    cached2 = await readFile17(dist, "utf8");
+  if (!live && existsSync24(dist)) {
+    cached2 = await readFile18(dist, "utf8");
     return cached2;
   }
   const esbuild = await import("esbuild");
@@ -47779,10 +47974,10 @@ ${await toolbarSource()}
     const location = parseSourceAttr(String(body.src ?? ""));
     const rel = location && inside(root, location.file);
     const full = rel && resolve6(root, rel);
-    if (!location || !full || !EDITABLE.test(full) || !tagged.has(full) || !existsSync24(full)) {
+    if (!location || !full || !EDITABLE.test(full) || !tagged.has(full) || !existsSync25(full)) {
       return { ok: false, editable: false, reason: "not-found" };
     }
-    const code2 = await readFile18(full, "utf8");
+    const code2 = await readFile19(full, "utf8");
     if (probe) {
       return probeText(
         code2,
@@ -47797,7 +47992,7 @@ ${await toolbarSource()}
     if (!after.trim()) return { ok: false, reason: "empty" };
     const result = editText(code2, location.file, location, before, after);
     if (!result.ok) return result;
-    await writeFile12(full, result.code);
+    await writeFile13(full, result.code);
     await writeInbox(root, {
       kind: "edit",
       page: toolbarPage(body.page) ?? { url: "", path: "/" },
@@ -47979,8 +48174,8 @@ function backendPlugin(current) {
 function resolveProjectVite(root) {
   let dir = root;
   while (true) {
-    const pkgPath = join29(dir, "node_modules", "vite", "package.json");
-    if (existsSync25(pkgPath)) {
+    const pkgPath = join30(dir, "node_modules", "vite", "package.json");
+    if (existsSync26(pkgPath)) {
       const pkg = JSON.parse(readFileSync3(pkgPath, "utf8"));
       const dot = pkg.exports?.["."];
       const pick2 = (entry2) => {
@@ -47992,7 +48187,7 @@ function resolveProjectVite(root) {
         return void 0;
       };
       const entry = pick2(dot) ?? pkg.module ?? pkg.main ?? "dist/node/index.js";
-      return join29(dirname8(pkgPath), entry);
+      return join30(dirname8(pkgPath), entry);
     }
     const parent = dirname8(dir);
     if (parent === dir) break;
@@ -48105,7 +48300,7 @@ var import_picocolors2 = __toESM(require_picocolors(), 1);
 function findAppRoot(start) {
   let dir = resolve7(start);
   while (true) {
-    if (existsSync26(join30(dir, "package.json"))) return dir;
+    if (existsSync27(join31(dir, "package.json"))) return dir;
     const parent = dirname9(dir);
     if (parent === dir) return resolve7(start);
     dir = parent;
@@ -48113,7 +48308,7 @@ function findAppRoot(start) {
 }
 async function devCommand(ctx2, options) {
   const root = findAppRoot(ctx2.cwd);
-  if (!existsSync26(join30(root, "node_modules")) && existsSync26(join30(root, "package.json"))) {
+  if (!existsSync27(join31(root, "node_modules")) && existsSync27(join31(root, "package.json"))) {
     const pm = detectPackageManager(root);
     process.stdout.write(
       `
@@ -48153,10 +48348,10 @@ async function devCommand(ctx2, options) {
           if (fresh) known.set(move.home.ref, fresh);
           return fresh;
         },
-        watch: join30(root, MOVE_PATH)
+        watch: join31(root, MOVE_PATH)
       },
       // The settings the app's server code reads, from Clodable's private store on this computer.
-      settings: { current: () => localSettings(root), watch: join30(root, SETTINGS_PATH) }
+      settings: { current: () => localSettings(root), watch: join31(root, SETTINGS_PATH) }
     });
     process.stdout.write(
       `
@@ -49068,8 +49263,8 @@ async function settingsCommand(ctx2, options) {
 }
 
 // src/commands/setup.ts
-import { existsSync as existsSync27, readdirSync } from "node:fs";
-import { join as join31, resolve as resolve8 } from "node:path";
+import { existsSync as existsSync28, readdirSync } from "node:fs";
+import { join as join32, resolve as resolve8 } from "node:path";
 var import_picocolors4 = __toESM(require_picocolors(), 1);
 var MIN_NODE = [20, 19];
 var REQUIRED = ["node", "git", "gh", "github"];
@@ -49081,6 +49276,14 @@ async function doctor(cwd2) {
   const parsed = remote ? parseGitHubRemote(remote) : void 0;
   const fake = process.env.CLODABLE_FAKE_GITHUB;
   const standIn = Boolean(fake && remote && resolve8(cwd2, remote) === resolve8(fake));
+  const pending = await pendingNewApp(cwd2);
+  if (pending)
+    items.push({
+      id: "new-app",
+      label: "Saving setup",
+      status: "info",
+      detail: `${pending.account}/${pending.name}`
+    });
   items.push({
     id: "repo",
     label: "Your app on GitHub",
@@ -49159,7 +49362,7 @@ async function appChecks(git) {
     status: project.appType === "unknown" ? "warn" : "ok",
     detail: `${typeLabel}${project.lovable.generated ? ", made with Lovable" : ""}`
   });
-  const installed = existsSync27(join31(root, "node_modules"));
+  const installed = existsSync28(join32(root, "node_modules"));
   items.push({
     id: "deps",
     label: "App dependencies",
@@ -49380,7 +49583,7 @@ async function pickRepo(ctx2, given, interactive) {
 }
 async function bringIn(ctx2, repo) {
   const empty = readdirSync(ctx2.cwd).filter((n4) => !n4.startsWith(".")).length === 0;
-  const target = empty ? ctx2.cwd : join31(ctx2.cwd, repo.split("/")[1]);
+  const target = empty ? ctx2.cwd : join32(ctx2.cwd, repo.split("/")[1]);
   ctx2.out.event(step("setup:app", "running", `Bringing in ${repo}`));
   try {
     await new GhCli(ctx2.cwd).clone(repo, target);
@@ -49404,14 +49607,25 @@ async function setupCommand(ctx2, options) {
       ctx2.out.header("let's bring your app home");
       await requireTools(ctx2);
       const git = new Git(ctx2.cwd);
-      const root = await git.isRepo() ? await git.root() : await bringIn(ctx2, await pickRepo(ctx2, options.repo, interactive));
+      if (options.new !== void 0 && (!options.account || options.repo || options.publish)) {
+        throw new ClodableError({
+          code: "invalid-config",
+          message: "Choose the account for your new private app in Set up saving. Publishing comes later."
+        });
+      }
+      const started = options.new !== void 0 ? await drive(
+        ctx2,
+        prepareNewApp(ctx2.cwd, { name: options.new, account: options.account }, ctx2.github)
+      ) : void 0;
+      const root = started?.root ?? (await git.isRepo() ? await git.root() : await bringIn(ctx2, await pickRepo(ctx2, options.repo, interactive)));
       const project = await detectProject(root);
       const loaded = await loadConfig(root);
       const config2 = {
         ...loaded,
+        ...started ? { liveBranch: started.liveBranch } : {},
         ...await whereItRuns(project, {
-          backend: options.backend ?? loaded.backend,
-          hosting: options.hosting ?? loaded.hosting,
+          backend: options.backend ?? (started && !project.supabase.used ? "none" : loaded.backend),
+          hosting: options.hosting ?? (started ? "none" : loaded.hosting),
           interactive
         })
       };
@@ -49432,7 +49646,7 @@ async function setupCommand(ctx2, options) {
       panelStep(ctx2, "setup:files", "running", "Adding Clodable's files");
       await applyKit(root, changes);
       panelStep(ctx2, "setup:files", "done", "Added Clodable's files");
-      if (!existsSync27(join31(root, "node_modules"))) {
+      if (!existsSync28(join32(root, "node_modules"))) {
         ctx2.out.event(
           step("setup:packages", "running", "Installing your app's packages", "a minute or two")
         );
@@ -49470,6 +49684,7 @@ async function setupCommand(ctx2, options) {
         appType: project.appType,
         files: changes.filter((c2) => c2.action !== "unchanged").map((c2) => c2.path),
         saved: saved.saved,
+        pushed: saved.pushed,
         published
       };
     },
@@ -49645,9 +49860,11 @@ cli.command("history", "Your saves and publishes").option("--limit <n>", "How ma
   (options) => historyCommand(ctx(options), { limit: options.limit ? Number(options.limit) : void 0 })
 );
 cli.command("check", "Run the publish checks without publishing").action((options) => checkCommand(ctx(options)));
-cli.command("setup", "Bring your app home: connect GitHub, add Clodable's files").option("--repo <owner/name>", "The GitHub repository of your app").option("-y, --yes", "Don't ask questions").option("--publish", "Publish the setup right away").option("--backend <where>", "Where the data lives: lovable-cloud, supabase or none").option("--hosting <where>", "Where the site is live: lovable, github or none (not online yet)").action(
+cli.command("setup", "Bring your app home: connect GitHub, add Clodable's files").option("--repo <owner/name>", "The GitHub repository of your app").option("--new <name>", "Set up saving for a local prototype in a new private GitHub app").option("--account <login>", "The connected GitHub account approved for the new app").option("-y, --yes", "Don't ask questions").option("--publish", "Publish the setup right away").option("--backend <where>", "Where the data lives: lovable-cloud, supabase or none").option("--hosting <where>", "Where the site is live: lovable, github or none (not online yet)").action(
   (options) => setupCommand(ctx(options), {
     repo: options.repo,
+    new: options.new,
+    account: options.account,
     yes: options.yes,
     publish: options.publish,
     ...["lovable-cloud", "supabase", "none"].includes(options.backend) ? { backend: options.backend } : {},
