@@ -35,7 +35,7 @@ These decisions were settled with the project owner on 2026-10-10 in a structure
 | Q16 | **A dev-only preview toolbar** with inline text editing (no AI, no plan usage), device sizes and "Try to fix" | These are Lovable habits that Desktop alone doesn't cover. The toolbar works in any browser, with any agent |
 | Q17 | **An app that isn't online, or has no backend, gets one from Clodable** (2026-10-15). The hosting question gains *Not online yet*: such an app gets **Put your site online**, a site on the builder's own Netlify that each Publish updates through the move's GitHub Actions workflow. An app with no database gets **Add a backend**: a project on the builder's own Supabase, its public address and key in `.env`, Claude's database commands on. Netlify and Supabase only, in the builder's accounts, as in the move (Q5c). Claude runs both as the builder's request (Q5b); tokens are pasted in the panel. A Publish no host reported says "Published on GitHub", never "You're live". The two questions are asked of every app, with Lovable's answers only for apps made with Lovable (revises Q5f) | Asked before launch: a builder starting from scratch, with no host, pressed Publish and was told "your host will put it live" while nothing was online. The move already had every piece |
 | Q18 | **A builder installs nothing by hand but Clodable** (2026-10-15). On a Mac with no recent Node.js, the plugin fetches one (an LTS release from nodejs.org, pinned and checked by SHA-256), and with no GitHub CLI, the CLI fetches one (pinned, checked), as it does for gitleaks. Both go in the plugin's data folder, which Claude Code removes with the plugin. Their folder goes on the session's PATH (`$.env.set`): the builder's own tools first, Clodable's after them, or first when the builder has no Node.js recent enough. The preview starts through `sh` with the same folder. Git: an **Install Git** button opens Apple's installer. An app's package manager that isn't installed (Bun) falls back to npm | "Way too long and too complicated for a non-technical user": Get started had Node.js, the GitHub CLI, Git and a GitHub sign-in before Clodable itself. Adding the plugin happens in Claude Desktop itself (Customize › Plugins › Add marketplace › Add from a repository), not in Terminal |
-| Q8 | **Name: Clodable.** It replaces the working name "lovasource" | The owner's final decision. The name puns on Claude and Lovable, and "clod" is a lump of clay you shape |
+| Q8 | **Name: Clodable.** It replaces the working name "lovasource". Since 2026-10-18 the name is **Cloclod**: see [The name is Cloclod](#2026-10-18--the-name-is-cloclod) | The owner's final decision. The name puns on Claude and Lovable, and "clod" is a lump of clay you shape |
 
 ## 2026-10-18 · Start from an idea
 
@@ -51,6 +51,17 @@ The owner approved all three recommendations from the Desktop UX review and adde
 
 Keep Q1's split between Claude's judgment and Clodable's mechanics. Publish, live-data confirmation, the live database rule, the brand and the ten-second Undo behavior remain settled. This approval changes product behavior; it does not authorize additional test repositories, a release, new credentials, paid resources or changes to Léa's live app.
 
+## 2026-10-18 · The name is Cloclod
+
+The owner renamed the product **Cloclod** before its public launch. This revises Q8.
+
+- **Why not Clodable.** It reads like Claudable, an open-source project with the same pitch: a Lovable-style app builder that runs locally on Claude Code. And Anthropic's naming rule asks products not to use the Claude Code or Anthropic names as part of their own name, or in a way that suggests Anthropic built or endorses them ([Claude Code's legal page](https://code.claude.com/docs/en/legal-and-compliance)).
+- **Why Cloclod.** It keeps *the clod*, the mascot's name (a lump of clay), so the mascot, the 16 × 16 mark, the drawings and the palette stay as they are. It also winks at "Cloclo", a French nickname for Claude.
+- **How to write it.** **Cloclod** in sentences, one word with a capital C. `cloclod` in ids, commands and the wordmark.
+- **A clean cut.** Nobody uses Clodable yet, so nothing supports the old name: no `/clodable` alias, no migration for earlier installs, no redirect package. Renamed now: everything people read or type, and the ids (the plugin and its marketplace, `cloclod@cloclod`; `/cloclod`; the skills `cloclod-guide` and `cloclod-move`; the npm package and command, `cloclod`; the repository's address). Kept for a later change: the `.clodable/` folder in apps and the files in it, the `CLODABLE_*` settings, the `@clodable/*` workspace packages, the AGENTS.md markers, the cache, settings and secret-store folders, and the NDJSON events.
+- **The name, the logo and the mascot leave the MIT license.** They belong to BWorlds, and forks are welcome under their own name and art ([TRADEMARKS.md](../TRADEMARKS.md)). The code and the docs stay MIT (Q15).
+- **The trademark question stays open.** Cloclod still evokes Claude, so the check before public launch remains (below).
+
 ## Open (to settle with the owner)
 
 - **The default host for clients leaving Lovable's hosting.** Research is in progress. The kit is host-agnostic: anything that deploys `main` works.
@@ -58,4 +69,4 @@ Keep Q1's split between Claude's judgment and Clodable's mechanics. Publish, liv
 - **How the setup wizard handles prerequisites on Windows** (settled for macOS by Q18).
 - **Production secrets:** a secure form that writes straight to the host and Supabase, never through the chat. This is the proposal.
 - **v1 scope and the first pilot client.**
-- **Trademark check before public launch.** The name evokes Claude and Lovable.
+- **Trademark check before public launch.** The name evokes Claude: see [The name is Cloclod](#2026-10-18--the-name-is-cloclod).
