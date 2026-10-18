@@ -136,7 +136,7 @@ export async function* publish(ws: Workspace, options: PublishOptions = {}): Flo
     throw new ClodableError({
       code: "on-live-branch",
       message: "You're working directly on the live version.",
-      hint: "Run `clodable save` once to move your work onto your draft, then publish.",
+      hint: "Ask Claude to move your work onto your draft, then publish again.",
     });
   }
   yield step(

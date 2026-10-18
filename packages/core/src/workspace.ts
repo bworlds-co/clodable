@@ -41,7 +41,7 @@ export class Workspace {
       throw new ClodableError({
         code: "not-a-repo",
         message: "This folder isn't connected to GitHub yet.",
-        hint: "Run `clodable setup` here to bring in your app from GitHub.",
+        hint: "Type /clodable to open the Clodable panel and set this folder up there.",
       });
     }
     const root = await probe.root();
@@ -49,7 +49,7 @@ export class Workspace {
       throw new ClodableError({
         code: "not-set-up",
         message: "Clodable isn't set up in this project.",
-        hint: "Run `clodable setup` here to add it. Until then, Clodable leaves this project alone.",
+        hint: "Type /clodable to open the Clodable panel and set it up here. Until then, Clodable leaves this project alone.",
       });
     }
     const git = new Git(root);

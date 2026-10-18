@@ -21017,7 +21017,7 @@ async function loadConfig(root) {
     throw new ClodableError({
       code: "invalid-config",
       message: "Clodable's settings file can't be read.",
-      hint: `Check ${CONFIG_PATH} for a typo, or delete it and run \`clodable setup\` again.`,
+      hint: `Ask Claude to check ${CONFIG_PATH} for a typo and fix it.`,
       details: String(error62),
       files: [CONFIG_PATH]
     });
@@ -21027,7 +21027,7 @@ async function loadConfig(root) {
     throw new ClodableError({
       code: "invalid-config",
       message: "Clodable's settings file has a value it doesn't understand.",
-      hint: `Check ${CONFIG_PATH}.`,
+      hint: `Ask Claude to check ${CONFIG_PATH} and fix that value.`,
       details: external_exports.prettifyError(parsed.error),
       files: [CONFIG_PATH]
     });
@@ -24351,7 +24351,7 @@ ${kindTrailer(options.kind)}`
         throw new ClodableError({
           code: "git-identity",
           message: "Saving needs to know who you are.",
-          hint: "Run `clodable setup` once to connect your GitHub account.",
+          hint: "Type /clodable to open the Clodable panel and connect your GitHub account there. Your changes stay on this computer meanwhile.",
           details: result.stderr
         });
       }
@@ -25230,7 +25230,7 @@ ${result.stdout}`.trim();
     return new ClodableError({
       code: "gh-auth",
       message: "Clodable isn't connected to your GitHub account.",
-      hint: "Run `clodable setup` to connect it.",
+      hint: "Type /clodable to open the Clodable panel and connect it there.",
       details: text2
     });
   }
@@ -29124,7 +29124,7 @@ async function* publish(ws, options = {}) {
     throw new ClodableError({
       code: "on-live-branch",
       message: "You're working directly on the live version.",
-      hint: "Run `clodable save` once to move your work onto your draft, then publish."
+      hint: "Ask Claude to move your work onto your draft, then publish again."
     });
   }
   yield step(
@@ -29446,7 +29446,7 @@ var Workspace = class _Workspace {
       throw new ClodableError({
         code: "not-a-repo",
         message: "This folder isn't connected to GitHub yet.",
-        hint: "Run `clodable setup` here to bring in your app from GitHub."
+        hint: "Type /clodable to open the Clodable panel and set this folder up there."
       });
     }
     const root = await probe.root();
@@ -29454,7 +29454,7 @@ var Workspace = class _Workspace {
       throw new ClodableError({
         code: "not-set-up",
         message: "Clodable isn't set up in this project.",
-        hint: "Run `clodable setup` here to add it. Until then, Clodable leaves this project alone."
+        hint: "Type /clodable to open the Clodable panel and set it up here. Until then, Clodable leaves this project alone."
       });
     }
     const git = new Git(root);
