@@ -527,7 +527,7 @@ The owner initially requested collection without implementation, then completed 
 
 ## F41 — blocker — The Clodable bar disappears, removing access to the panel
 
-- **Status:** merged in [PR #98](https://github.com/bworlds-co/clodable/pull/98); CI and native Desktop regression passed. Issue: https://github.com/bworlds-co/clodable/issues/92.
+- **Status:** reopened: [PR #98](https://github.com/bworlds-co/clodable/pull/98) passed ordinary question/survey regression, but a fresh native migration session still loses the bar with Desktop’s end-of-turn wrap-up question. Further diagnosis in progress. Issue: https://github.com/bworlds-co/clodable/issues/92.
 - **Observed:** the owner reports that the Clodable bar disappeared during publish recovery. The screenshot shows **How is Claude doing this session?** above the message box, with Clodable's status and actions absent.
 - **Builder impact:** essential status, Preview and Publish controls disappear without explanation precisely when the builder needs recovery. This also undermines instructions in the conversation that refer to the bar.
 - **Confirmed cause:** the `AbovePrompt` renderer in `plugin/hooks/register.tsx` immediately returns `next(e)` when `e.props.hasSurvey` is true, omitting Clodable entirely. This is Clodable's handling of Desktop's survey, not evidence that the plugin unloaded. The test harness currently defaults `hasSurvey` to false.
@@ -563,7 +563,7 @@ The owner initially requested collection without implementation, then completed 
 
 ## F44 — major — Resumed migration summary loses rehearsal evidence and overstates readiness
 
-- **Status:** implemented; 217 package tests, 151 plugin tests, build and typecheck pass. Native/model verification in progress. Issue: https://github.com/bworlds-co/clodable/issues/95.
+- **Status:** merged in [PR #105](https://github.com/bworlds-co/clodable/pull/105). 217 package tests, 151 plugin tests, build, typecheck and CI passed. Native Desktop recovered the seven historical observations and distinguished missing evidence; summary brevity and broad health wording continue in F45. Issue: https://github.com/bworlds-co/clodable/issues/95.
 - **Observed:** the owner followed scenario 03's status prompt. Claude correctly identifies a prepared copy, unpublished hosting, emails next and AI still pending. However, it reports no evidence of note editing, note attachments, Wall posting or cover images. Its final recap changes that uncertainty into **uploads ... haven't been tried**. It also says the copy is **built and working** and **nothing on the copy still uses Lovable Cloud**, before acknowledging that Summarize still depends on Lovable's AI.
 - **Contradicting evidence:** this file's **Tiny Notes authenticated rehearsal — October 18** records private-note creation/editing and reload, uploading/opening a text attachment, and a Wall post whose cover was visible anonymously. F31 records note and attachment deletion; the completion pass records the greeting. These establish prior checks on the retained copy, not a fresh check in the owner's current session or proof of source-account/file transfer.
 - **Builder impact:** the builder cannot trust the resumed checklist: completed tests become missing work while broad reassurance can hide a remaining service dependency. The intended handoff is an existing copy to try, not a fresh migration from zero.
@@ -576,7 +576,7 @@ The owner initially requested collection without implementation, then completed 
 
 ## F45 — polish — Migration orientation requires a lengthy investigation and oversized recap
 
-- **Status:** open; implementation authorized after the owner completed review. Issue: https://github.com/bworlds-co/clodable/issues/96.
+- **Status:** summary guidance updated; model/native verification in progress. Issue: https://github.com/bworlds-co/clodable/issues/96.
 - **Observed:** a status request produces six commands, multiple tool groups, transcript retrieval and several progress messages, followed by a long report and another largely repeated recap in a question card. The answer opens with **about halfway**, although remaining steps have unequal effort and unresolved service setup.
 - **Builder impact:** the builder must read across screens to learn the current stage and the useful next action. A guessed fraction can create false expectations about how much work remains. The request explicitly asks what was tested, so evidence is appropriate; repeated summaries and narration of transcript searching add little value.
 - **Proposed fix:** lead with the stage, the live-app boundary, a compact tested/pending summary and one relevant next choice. Make detailed evidence available on request, using a durable record rather than broad transcript reconstruction. Describe completed milestones instead of estimating a fraction without a basis.

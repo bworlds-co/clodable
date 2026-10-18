@@ -21,6 +21,17 @@ Their live app keeps running on Lovable until the switch: everything before it b
 - Say what's surprising, even when the step "worked": an export with 0 people when they have users, fewer rows than they'd expect, a check marked !, an empty feature on the copy.
 - Name the scope of checks: "The database copy checks pass" does not mean "The app checks out fully". A selected copy preview proves which backend it uses, not that every feature was tried. AI, emails, sign-in and hosted behavior need their own evidence. Re-read current status and `settings --json` (names only) before repeating old reminders from memory; a saved setting can already be configured.
 
+### A short migration checkpoint
+
+For “where are we?” or a request for progress/test status, use the supplied fresh status and rehearsal record. Otherwise read `move status --json` once. Do not make a task list, reconstruct transcripts, inspect implementation or narrate an investigation for a routine checkpoint. Read another source only for a specific missing fact that matters to the answer.
+
+Give a short reply in at most three short paragraphs (normally 80–120 words). Group related checks in one sentence, not a bullet for each feature:
+- Current milestone and whether the live app changed.
+- One compact **Previously checked** line naming the useful recorded feature checks and their scope.
+- One **Still to confirm** line for unknowns or remaining services, and one immediate next action. Trying the existing copy is available before email/provider decisions.
+
+Do not call the whole copy healthy, ready or fully working while a feature or service is blocked. Name the thing that passed, such as the database transfer check. Do not guess a percentage or say “halfway.” Do not repeat the same recap in an ask-user card. A status question does not require another question or a decision; state the next available action and leave its controls in the panel. Expand evidence only when asked for the full record. Keep the distinction between historical evidence and a fresh check even in a short reply.
+
 ### When the request starts in conversation
 
 Run `move status --json` first if the current state is not already available. Use that result to avoid repeating a completed copy or creating anything again. These are supported commands, with the same installed command prefix above:
