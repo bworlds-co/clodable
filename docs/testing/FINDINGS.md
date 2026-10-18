@@ -363,3 +363,11 @@ F28 merged as [#71](https://github.com/bworlds-co/clodable/pull/71) after CI pas
 - Polish / conversational friction: the fresh preview request spent several minutes inspecting Clodable’s implementation and looking up the supported command before switching. The skill’s opening still assumes every request came from a panel button with its command attached. A direct request needs concise supported-command guidance; the existing source inspection was unnecessary for this established operation. This remains a recorded improvement opportunity, not a failure of the copy.
 
 - Source-scope check: GitHub main still points to `76f3ecfa5f35860734f34cbc8bb8816d6d08032c`, the preflight revision. The preview was switched to live data and back only to verify state synchronization; no live data was edited. The rehearsal remains on Copy.
+
+
+## F30 — polish — The floating toolbar covers signup in a short preview
+
+- **Observed:** with Browser above the Clodable panel, the short preview put “No account? Sign up” behind the floating toolbar. Attempts to press the link hit Edit text instead. No text was changed. Exiting Edit text and hiding Clodable’s tools exposed the link and opened Create account.
+- **Why it matters:** an app control becomes hard to discover and use when Desktop divides the available height between panels. The existing Hide control is a working recovery, but builders should not have to discover that to sign up.
+- **Follow-up:** evaluate a compact toolbar for short previews while keeping Copy/live-data status visible and all editing controls reachable. This remains polish, with the existing hide control used for the current test.
+- **Handoff:** the copy’s Create account form is open in Desktop at port 8082. The owner was asked to enter a test account personally, because computer-use rules reserve new credential entry for them. No credentials were entered or requested in chat. Desktop control is paused for that handoff; the public Wall, copy checks and preview-state synchronization are complete. The greeting and AI settings are still unset. GitHub main remains at the preflight revision.
