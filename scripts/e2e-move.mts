@@ -7,19 +7,22 @@
  * 3. A fresh project, and Clodable's copy into it as Supabase's own `postgres` role (not a
  *    superuser), with the PostgreSQL tools Clodable fetches for builders.
  * 4. Proof: the checks agree, people sign in with their original passwords, a session from before
- *    the move still refreshes, a new sign-up gets its profile, a new post saves.
+ *    the move still refreshes, a new sign-up gets its profile, a new post saves, and real public
+ *    and private files keep their bytes and access rules.
  *
  *   pnpm tsx scripts/e2e-move.mts
  *
- * Needs Docker and the supabase CLI. Runs its own stack on ports 55320-55329 under the project id
- * clodable-e2e-move, and stops only that one: other local Supabase projects are left alone.
+ * Needs Docker and the supabase CLI. Runs its own target on ports 55320-55329 and source on
+ * 55420-55429, under clodable-e2e-move and clodable-e2e-source. Stops only those two projects.
  */
 import { execFileSync } from "node:child_process";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { createServer, type Server } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { postgresTool, psqlSql, runFlow } from "../packages/core/src/index.ts";
 import { readExport } from "../packages/core/src/move/export.ts";
+import { copyFiles } from "../packages/core/src/move/files.ts";
 import { copyExport } from "../packages/core/src/move/restore.ts";
 import { verifyCopy } from "../packages/core/src/move/verify.ts";
 import { makeZip } from "../packages/core/test/move-fixtures.ts";
@@ -50,6 +53,7 @@ begin insert into public.profiles (id, display_name) values (new.id, new.raw_use
 create trigger on_auth_user_created after insert on auth.users for each row execute function public.handle_new_user();
 insert into storage.buckets (id, name, public) values ('avatars', 'avatars', false), ('images', 'images', true);
 create policy "own avatar" on storage.objects for select to authenticated using (bucket_id = 'avatars' and owner_id = auth.uid()::text);
+create policy "upload own avatar" on storage.objects for insert to authenticated with check (bucket_id = 'avatars' and (storage.foldername(name))[1] = auth.uid()::text);
 create function public.digest_url() returns text language sql as $$ select 'https://${SRC}.supabase.co/functions/v1/digest' $$;
 -- What a working app grants its API (newer Supabase projects don't grant it on their own).
 grant select, insert, update, delete on public.posts, public.profiles to authenticated;
@@ -64,24 +68,37 @@ function check(condition: unknown, text: string) {
 }
 
 const dir = await mkdtemp(join(tmpdir(), "clodable-e2e-move-"));
-const supabase = (...args: string[]) =>
-  execFileSync("supabase", [...args, "--workdir", dir], {
+const sourceDir = join(dir, "source");
+const supabase = (workdir: string, ...args: string[]) =>
+  execFileSync("supabase", [...args, "--workdir", workdir], {
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
   });
 
-async function startFresh(withApp: boolean) {
-  await rm(join(dir, "supabase", "migrations"), { recursive: true, force: true });
+async function startFresh(workdir: string, withApp: boolean) {
+  await mkdir(workdir, { recursive: true });
+  supabase(workdir, "init");
+  let config = await readFile(join(workdir, "supabase", "config.toml"), "utf8");
+  config = config.replace(
+    /^project_id = .*$/m,
+    `project_id = "${withApp ? "clodable-e2e-source" : "clodable-e2e-move"}"`,
+  );
+  const offset = withApp ? 100 : 0;
+  for (const port of Object.values(PORTS)) {
+    config = config.replaceAll(`= ${port - 1000}`, `= ${port + offset}`);
+  }
+  await writeFile(join(workdir, "supabase", "config.toml"), config);
   if (withApp) {
-    execFileSync("mkdir", ["-p", join(dir, "supabase", "migrations")]);
-    await writeFile(join(dir, "supabase", "migrations", "20250101000000_app.sql"), APP);
+    await mkdir(join(workdir, "supabase", "migrations"), { recursive: true });
+    await writeFile(join(workdir, "supabase", "migrations", "20250101000000_app.sql"), APP);
   }
   supabase(
+    workdir,
     "start",
     "-x",
     "analytics,edge-runtime,functions,imgproxy,inbucket,realtime,studio,vector,meta",
   );
-  const status = JSON.parse(supabase("status", "-o", "json")) as Record<string, string>;
+  const status = JSON.parse(supabase(workdir, "status", "-o", "json")) as Record<string, string>;
   return {
     api: status.API_URL!,
     anon: status.ANON_KEY ?? status.PUBLISHABLE_KEY!,
@@ -109,21 +126,48 @@ const target = {
   ssl: false,
 };
 
+let filesBridge: Server | undefined;
+const previousProjectUrl = process.env.CLODABLE_SUPABASE_PROJECT_URL;
+
+/** The real source and target have local addresses; route Clodable's project refs to those two. */
+async function bridgeFiles(source: string, destination: string) {
+  filesBridge = createServer(async (request, response) => {
+    try {
+      const match = request.url?.match(/^\/([^/]+)(\/storage\/v1\/.*)$/);
+      const base = match?.[1] === SRC ? source : match?.[1] === DST ? destination : undefined;
+      if (!base || !match) {
+        response.writeHead(404).end();
+        return;
+      }
+      const chunks: Buffer[] = [];
+      for await (const chunk of request) chunks.push(Buffer.from(chunk));
+      const headers = new Headers();
+      for (const name of ["apikey", "authorization", "content-type", "cache-control", "x-upsert"]) {
+        const value = request.headers[name];
+        if (typeof value === "string") headers.set(name, value);
+      }
+      const answer = await fetch(`${base}${match[2]}`, {
+        method: request.method ?? "GET",
+        headers,
+        ...(chunks.length ? { body: Buffer.concat(chunks) } : {}),
+      });
+      response.writeHead(answer.status, {
+        "content-type": answer.headers.get("content-type") ?? "application/octet-stream",
+      });
+      response.end(Buffer.from(await answer.arrayBuffer()));
+    } catch {
+      response.writeHead(502).end();
+    }
+  });
+  await new Promise<void>((resolve) => filesBridge!.listen(0, "127.0.0.1", resolve));
+  const address = filesBridge.address();
+  if (!address || typeof address === "string") throw new Error("File bridge has no port");
+  process.env.CLODABLE_SUPABASE_PROJECT_URL = `http://127.0.0.1:${address.port}/{ref}`;
+}
+
 try {
   step("A Lovable Cloud-like app on a local Supabase");
-  supabase("init");
-  let config = await readFile(join(dir, "supabase", "config.toml"), "utf8");
-  config = config
-    .replace(/^project_id = .*$/m, 'project_id = "clodable-e2e-move"')
-    .replace(/^port = 54321$/m, `port = ${PORTS.api}`)
-    .replace(/^port = 54322$/m, `port = ${PORTS.db}`)
-    .replace(/^shadow_port = 54320$/m, `shadow_port = ${PORTS.shadow}`)
-    .replace(/^port = 54323$/m, `port = ${PORTS.studio}`)
-    .replace(/^port = 54324$/m, `port = ${PORTS.smtp}`)
-    .replace(/^port = 54327$/m, `port = ${PORTS.analytics}`)
-    .replace(/^port = 54329$/m, `port = ${PORTS.pooler}`);
-  await writeFile(join(dir, "supabase", "config.toml"), config);
-  const before = await startFresh(true);
+  const before = await startFresh(sourceDir, true);
   ok(`running at ${before.api}`);
 
   const people = [
@@ -146,8 +190,9 @@ try {
   });
   check(session.status === 200, "Ada signed in (a session and a refresh token exist)");
   const oldRefresh = String(session.body.refresh_token);
+  const sourceSql = psqlSql({ ...target, port: PORTS.db + 100 });
   const sql = psqlSql(target);
-  await sql.run(
+  await sourceSql.run(
     "insert into public.posts (author, title) select id, 'Hello from ' || email from auth.users;",
   );
   const sourcePost = await fetch(`${before.api}/rest/v1/posts`, {
@@ -161,13 +206,35 @@ try {
   });
   check(sourcePost.status === 201, "Ada posts through the app's API");
 
+  const privatePath = `${session.body.user.id}/private.txt`;
+  const privateText = "Ada's private file, copied byte for byte.\n";
+  const publicText = "A public file, copied byte for byte.\n";
+  for (const file of [
+    { path: `avatars/${privatePath}`, body: privateText, key: String(session.body.access_token) },
+    { path: "images/public.txt", body: publicText, key: before.service },
+  ]) {
+    const uploaded = await fetch(`${before.api}/storage/v1/object/${file.path}`, {
+      method: "POST",
+      headers: {
+        apikey: before.anon,
+        Authorization: `Bearer ${file.key}`,
+        "content-type": "text/plain",
+      },
+      body: file.body,
+    });
+    check(
+      uploaded.ok,
+      `${file.path.startsWith("avatars") ? "Private" : "Public"} source file uploaded`,
+    );
+  }
+
   step("Lovable's export: pg_dump 18, custom format, zstd, zipped");
   const backup = join(dir, "app_261011.backup");
   execFileSync(await postgresTool("pg_dump"), ["-Fc", "--compress=zstd", "-f", backup], {
     env: {
       ...process.env,
       PGHOST: "127.0.0.1",
-      PGPORT: String(PORTS.db),
+      PGPORT: String(PORTS.db + 100),
       PGUSER: "supabase_admin",
       PGPASSWORD: "postgres",
       PGDATABASE: "postgres",
@@ -181,8 +248,7 @@ try {
   ok("exported");
 
   step("A fresh Supabase project");
-  supabase("stop", "--no-backup");
-  const after = await startFresh(false);
+  const after = await startFresh(dir, false);
   ok("running, empty");
 
   step("Clodable reads the export and copies it in");
@@ -204,6 +270,22 @@ try {
   check(
     checks.every((c) => c.ok),
     "every check agrees",
+  );
+
+  step("Public and private files, from the real source to the real copy");
+  await bridgeFiles(before.api, after.api);
+  const filesTarget = {
+    from: SRC,
+    to: DST,
+    secretKey: after.service,
+    sourceKey: before.service,
+    maxBytes: 50 * 1024 * 1024,
+    sql,
+  };
+  const files = await runFlow(copyFiles(filesTarget, work, summary.buckets));
+  check(
+    files.total === 2 && files.copied === 2 && files.failed === 0 && files.waiting.length === 0,
+    "both files copied and compared byte for byte",
   );
 
   step("People and the app, on the copy");
@@ -247,12 +329,46 @@ try {
   });
   const visible = (await mine.json()) as unknown[];
   check(visible.length === 1, "Ada sees only her own profile");
+  const publicFile = await fetch(`${after.api}/storage/v1/object/public/images/public.txt`);
+  check(
+    publicFile.ok && (await publicFile.text()) === publicText,
+    "anonymous visitors can read the public file",
+  );
+  const privateFile = await fetch(`${after.api}/storage/v1/object/avatars/${privatePath}`, {
+    headers: { apikey: after.anon, Authorization: `Bearer ${token}` },
+  });
+  check(
+    privateFile.ok && (await privateFile.text()) === privateText,
+    "Ada can read her copied private file",
+  );
+  const bob = await auth(after.api, after.anon, "token?grant_type=password", {
+    email: people[1]!.email,
+    password: people[1]!.password,
+  });
+  for (const outsider of [after.anon, String(bob.body.access_token)]) {
+    const refused = await fetch(`${after.api}/storage/v1/object/avatars/${privatePath}`, {
+      headers: { apikey: after.anon, Authorization: `Bearer ${outsider}` },
+    });
+    check(!refused.ok, "another person or anonymous visitor cannot read Ada's private file");
+  }
+  const repeated = await runFlow(copyFiles(filesTarget, work, summary.buckets));
+  check(
+    repeated.copied === 2 && repeated.failed === 0,
+    "repeating the file step safely keeps both files",
+  );
   const [digest] = await sql.rows<{ url: string }>("select public.digest_url() as url");
   check(digest?.url.includes(DST) && !digest.url.includes(SRC), "functions call the new backend");
   console.log("\nThe move works on a real Supabase.\n");
 } finally {
-  try {
-    supabase("stop", "--no-backup");
-  } catch {}
+  if (previousProjectUrl === undefined) delete process.env.CLODABLE_SUPABASE_PROJECT_URL;
+  else process.env.CLODABLE_SUPABASE_PROJECT_URL = previousProjectUrl;
+  await new Promise<void>((resolve) =>
+    filesBridge ? filesBridge.close(() => resolve()) : resolve(),
+  );
+  for (const workdir of [dir, sourceDir]) {
+    try {
+      supabase(workdir, "stop", "--no-backup");
+    } catch {}
+  }
   await rm(dir, { recursive: true, force: true });
 }

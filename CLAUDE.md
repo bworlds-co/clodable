@@ -24,7 +24,7 @@ CLODABLE_TOOLBAR_DEV=1 pnpm tsx scripts/dev-example.mts lovable-vite 5199   # ex
 pnpm tsx scripts/toolbar-shots.mts && pnpm tsx scripts/readme-assets.mts    # screenshots
 pnpm tsx scripts/export-brand.mts && pnpm tsx scripts/mascot-assets.mts     # logo files, mascot drawings, link preview
 pnpm tsx scripts/e2e-edit.mts http://127.0.0.1:5199 examples/lovable-vite   # real inline edit, restored after
-pnpm tsx scripts/e2e-move.mts   # move off Lovable on a real local Supabase (Docker; own ports 55320-55329)
+pnpm tsx scripts/e2e-move.mts   # move off Lovable on a real local Supabase (Docker; own ports 55320-55329 and 55420-55429)
 pnpm tsx scripts/e2e-errors.mts http://127.0.0.1:5199 examples/lovable-vite # Try to fix card: break, reload, fix, restored after
 ```
 
