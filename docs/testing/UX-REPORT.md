@@ -141,15 +141,17 @@ The brief’s full sign-off criterion remains unmet. The supported everyday path
 Sam’s first-run cloud resources were removed after ownership checks and the throwaway repository was reset before the second run. The retained review site is [github-import-20261017.netlify.app](https://github-import-20261017.netlify.app), with its test-org backend. The marketplace is pinned to the released tag; the source build was then copied back into the cache for fresh-session retests. FINDINGS.md records these resources, exact test locations, screenshots, and the installation distinction. No release, paid resource or live/Lovable migration was performed. The owner reconnected Supabase personally in the panel.
 
 
-## Exact handoff after the latest pass
+## Who does the remaining work
 
-There is no remaining product-structure decision. The approved conversation-first design is implemented. The source fixes and populated local migration checks are complete; they are not released.
+The agent runs the scenarios in Desktop and makes ordinary test choices from the available evidence. The owner is not expected to operate the remaining screens or complete a production migration just to finish this UX review. No product-structure decision is pending. The approved conversation-first design is implemented; the local source fixes are not released.
 
-The Mac is unlocked; saved-setting native checks and approved Netlify hosting preparation are complete. The remaining work is bounded by access and live-service choices:
+Netlify reconnection and approved hosting preparation are complete. Tiny Notes has an unpublished test site in Vulk, with a successful test build. A further native pass verified natural return to the unfinished move, empty and malformed domain handling, and navigation through overview, Settings and History without changing app data or migration progress. F36 fixes the empty-field wording. A read-only check also found an existing verified Resend sending domain; the owner should not be asked to find account information the agent can discover.
 
-1. Netlify reconnection and hosting preparation are complete. The owner approved the workflow/site access and the panel created tiny-notes-wall in Vulk (`emmanuel-acqvas8`). The site is unpublished; its test build passed. No further reconnection is needed.
-2. Choose the AI provider and enter its key in the secure panel. Then adapt and test Summarize against that provider. Choose a sending domain if email delivery is part of this rehearsal; review any DNS changes before applying them.
-3. Complete a separate sign-in personally, without signing out of the existing preview. Existing credentials are not needed in this report or conversation.
-4. Decide when to authorize the actual live move and the Clodable release. No pause, final export, public cutover, domain change, Lovable disconnection, package publication or release tag has been performed.
+The remaining real-service evidence has specific limits:
 
-A second real Lovable migration from fresh state is still outstanding. Recopying the current backend would replace the owner's test account; no such reset was done. The automated two-run evidence closes a mechanics gap while keeping this distinction explicit.
+- **AI and email delivery:** the agent prepares and performs the tests. A real AI call needs an authorized credential and spending permission. Connecting email creates a domain-scoped sending credential and configures the test backend, so the exact sender and access must be approved before activation. Existing sender metadata can be inspected first. Credentials belong in the secure field; choosing an unrelated existing sender is not implied by its availability.
+- **Separate sign-in:** the retained owner-created session works. A fresh credential-based login is unverified in this real app; populated local migrations verify original-password sign-in separately. The existing session must not be destroyed to force another owner handoff.
+- **Live move and release:** pausing the app, the final export/copy, public cutover, domain changes, Lovable disconnection, package publication and release tagging remain reserved. They are outside the authorized copy-only test, not routine tasks delegated to the owner.
+- **Second real migration:** a fresh Lovable rehearsal remains outstanding. Both free test-org slots are occupied, and recopying the current backend would replace the owner's test account. The two populated local runs provide additional mechanics evidence without being represented as a second real Desktop migration.
+
+These limits remain explicit in the sign-off. They do not turn the unfinished test plan into an owner checklist.
