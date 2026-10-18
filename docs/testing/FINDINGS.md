@@ -239,10 +239,16 @@ Review started 2026-10-17; continued into 2026-10-18. Repository baseline: `c219
 
 ## F22 — major — An idea needs a supported route into saving
 
-- The owner approved the product direction on 2026-10-18. Implemented locally: Start from an idea → describe it to Claude → local preview → Set up saving → named GitHub account and private-app consent → normal draft/Publish workflow.
+- The owner approved the product direction on 2026-10-18. Implemented in [draft PR #65](https://github.com/bworlds-co/clodable/pull/65), with passing CI: Start from an idea → describe it to Claude → local preview → Set up saving → named GitHub account and private-app consent → normal draft/Publish workflow.
 - Initial Desktop book-swap run: `/clodable` offered both starting choices, Claude created Vite/React without creating a remote, borrowed/returned a sample book and explained browser-only data. The panel changed to Your local app and Set up saving. Consent named @emmanuelvulk and private visibility. Screenshot 42 shows the starting screen.
 - The initial form stayed clickable while Claude started. The latest source replaces it with progress immediately and prevents repeated submissions. The bar now names both starting routes. Final Desktop retest pending.
-- Verification: lint/typecheck/build, 191 package tests and 132 plugin tests pass. Coverage includes idea submission without an account, named consent, typing a changed name without Enter, account-change refusal, secret-key stops, preserved prototype files, draft-only saves, failure recovery and the existing import route. Inline-edit and broken-page recovery scripts pass, restoring their fixture byte for byte.
+- Verification: lint/typecheck/build, 191 package tests and 132 plugin tests pass. Coverage includes idea submission without an account, named consent, typing a changed name without Enter, account-change refusal, secret-key stops, preserved prototype files, draft-only saves, failure recovery and the existing import route. Inline-edit and broken-page recovery scripts pass, restoring their fixture byte for byte. The isolated real-Supabase migration script also passed again, on its own ports.
 - Two independent Desktop starts produced working book and plant prototypes. I borrowed/returned a book, watered/undid a plant and confirmed both choices survived reload. Two fresh conversations reached the simplified account consent; cancel/reopen and empty-name recovery stayed local. Screenshots 44–46. The initial account screen showed healthy development tools; the revised screen shows the account and hides those details.
 - Fresh conversations briefly offered import while their folder was still being checked. The panel now waits before choosing a setup route. An empty name asks for a name without an unnecessary Ask Claude action.
 - The new tests require private repositories `emmanuelvulk/clodable-idea-books-test` and `emmanuelvulk/clodable-idea-plants-test`. Approval is requested before either creation; no new remote or public site has been created for Nadia yet.
+
+### Nadia test locations
+
+- Local prototypes: `~/Clodable Tests/nadia-idea-books` and `~/Clodable Tests/nadia-idea-plants`. Neither has a GitHub destination yet.
+- Initial Desktop conversations: `local_b5116954-e151-4dbe-9fb4-5335755646ff` (books) and `local_048af90f-2127-49a7-8a31-9d397d9aad2a` (plants). Fresh consent checks: `local_f0a51684-9f1f-454a-baff-3bb729bc0c83` (books), `local_ed6cf93e-c607-4eeb-94b8-2bd16f573c09` (plants).
+- Evidence: screenshots 42–46; package/plugin/build logs `/tmp/clodable-idea-full-final.log`, `/tmp/clodable-idea-plugin-final.log`, `/tmp/clodable-idea-build.log`; isolated migration `/tmp/clodable-idea-e2e-move.log`.
