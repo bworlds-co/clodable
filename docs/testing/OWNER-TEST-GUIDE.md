@@ -72,6 +72,7 @@ Claude should explain outcomes in your app's words, make small changes directly,
 - **Seven owner-review verification sessions were also archived** after the final checks. Your three numbered test sessions and unrelated conversations remain.
 - **52 sessions archived in the earlier cleanup**, with history retained. Three unrelated sessions temporarily caught by a sidebar-grouping mistake were restored and verified. The earlier **H1 title SEO optimization** conversation was also restored and retained.
 - **Ten local test folders archived** at `/Users/manu/Documents/Clodable Test Archive/2026-10-18`. Its `cleanup-manifest.json` records original locations. The two retained app folders keep their original paths.
+- The later `owner-review-regression` local fixtures were archived separately at `/Users/manu/Documents/Clodable Test Archive/2026-10-18-owner-review`, with their own recovery manifest.
 - `_runs` keeps screenshots and regression evidence; it is not a manual-test app. The original `~/Clodable Demo` also remains outside the three-scenario workspace.
 - Five duplicate Tiny Notes preview servers were stopped. The original copy preview and the everyday app preview were kept.
 - No cloud resource, remote repository, credential, live app or download was deleted or reset. Archived books/plants examples retain their test websites.
