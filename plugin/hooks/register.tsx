@@ -4467,10 +4467,7 @@ function createStep($: EngineInterface, { ui }: StepView) {
               $.ui.invalidate("ui.render");
             }}
           />
-          <Text dimColor>
-            Picked from where this computer is. Choose where most of your app's users are: it's
-            faster for them.
-          </Text>
+          <Text dimColor>Choose where most of your app's users are: it's faster for them.</Text>
         </Box>
       ) : null}
       {org?.plan === "free" && org?.freeLeft === 0 ? (
