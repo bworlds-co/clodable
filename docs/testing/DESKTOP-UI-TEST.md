@@ -110,6 +110,8 @@ Use the builder's usual setup: Desktop's **Auto** permission mode and its defaul
 | `~/Clodable Demo/crumb-site` | A stand-in GitHub on this Mac | Set up, with fake services. Rebuild with `pnpm tsx scripts/demo-workspace.mts`. Its "live" site isn't real |
 | `~/Clodable Tests/hirebright-score` | `vulk-corp/hirebright-score` | A real Lovable Cloud project. Only the steps above |
 | `~/Clodable Tests/tiny-notes-wall` | `vulk-corp/tiny-notes-wall` | A Lovable app, not set up. Ask before using it |
+| `~/Clodable Tests/nadia-idea-books` | `emmanuelvulk/clodable-idea-books-test` (private) | Owner approved creation for Nadia's saving/publishing test on October 18 |
+| `~/Clodable Tests/nadia-idea-plants` | `emmanuelvulk/clodable-idea-plants-test` (private) | Owner approved creation for Nadia's saving/publishing test on October 18 |
 
 **Accounts already connected.** Clodable holds their tokens.
 
