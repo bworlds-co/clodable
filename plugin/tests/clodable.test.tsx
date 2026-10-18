@@ -464,6 +464,20 @@ describe("the Publish bar", () => {
     }
   });
 
+  test("a fresh session offers retry for a failed delivery with no new changes", async ($, on) => {
+    harness(on, {
+      ...STATUS,
+      unpublished: [],
+      pendingPublish: { sha: "failed-version", title: "New welcome", state: "failed" },
+    });
+    await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+    expect(await bandText($, "desktop", /Latest publish/)).toBe("Latest publish didn't go live");
+    const band = await $.ui.mount({ ...BAND, surface: "desktop" });
+    expect(await band.find({ key: "publish", text: "Retry Publish" })).toBeDefined();
+    expect(await band.find({ text: "Everything is live" })).toBeUndefined();
+    await band.unmount();
+  });
+
   test("says everything is live when the draft is empty", async ($, on) => {
     harness(on, {
       ...STATUS,

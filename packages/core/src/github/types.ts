@@ -68,6 +68,8 @@ export interface GitHubAdapter {
   /** Squash-merge. Returns the merge commit on the base branch. */
   merge(number: number, input: { subject: string; body: string }): Promise<{ sha: string }>;
   deploymentsFor(sha: string): Promise<Deployment[]>;
+  /** Retry only Clodable's failed hosting workflow at this exact SHA; never dispatch a newer ref. */
+  retryDeployment?(sha: string): Promise<"started" | "running" | false>;
   /**
    * The GitHub Actions build of a commit (the site's own workflow), while it runs: undefined when
    * the host builds outside GitHub.

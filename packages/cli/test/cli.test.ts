@@ -43,6 +43,22 @@ function clodableWith(env: Record<string, string>, ...args: string[]) {
 }
 
 describe("clodable --json", () => {
+  it("reports retained failed delivery and confirms the same version on retry", async () => {
+    await sb.write("src/app.txt", "New welcome\n");
+    const failed = clodableWith({ CLODABLE_FAKE_HOST: "failed" }, "publish");
+    expect(failed.result).toMatchObject({ ok: false, error: { code: "deploy-failed" } });
+    const before = clodable("status").result.data;
+    expect(before.pendingPublish).toMatchObject({ state: "failed" });
+    expect(before.unpublished).toEqual([]);
+    const retried = clodable("publish");
+    expect(retried.result).toMatchObject({
+      ok: true,
+      data: { sha: before.pendingPublish.sha, deploy: "live" },
+    });
+    expect(clodable("status").result.data.pendingPublish).toBeUndefined();
+    expect(await sb.remoteLog()).toHaveLength(2);
+  });
+
   it("sets up saving for a local idea only in the approved account, with a private destination", async () => {
     const root = join(sb.dir, "idea");
     const bare = join(sb.dir, "idea.git");

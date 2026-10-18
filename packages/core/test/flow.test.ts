@@ -55,6 +55,70 @@ describe("projects Clodable wasn't set up in", () => {
   });
 });
 
+describe("retrying a failed publish", () => {
+  for (const legacy of [false, true]) {
+    it(`retries the same version without another edit or publication (legacy: ${legacy})`, async () => {
+      const config = JSON.parse(await readFile(join(sb.work, ".clodable/config.json"), "utf8"));
+      config.netlify = {
+        siteId: "test",
+        name: "test",
+        account: "test",
+        url: "https://test.example",
+        admin: "https://test.example",
+      };
+      await sb.write(".clodable/config.json", JSON.stringify(config));
+      await sb.write("src/app.txt", "The intended new wording\n");
+      const failure = {
+        id: 1,
+        environment: "Production",
+        isProduction: true,
+        state: "failure" as const,
+      };
+      sb.github.deploymentFor = () => [failure];
+      await expectError(publishAll(), "deploy-failed");
+      const ws = await sb.ws();
+      const pending = (await ws.state()).pendingPublish!;
+      expect(pending.state).toBe("failed");
+      expect((await status(ws)).unpublished).toEqual([]);
+      await save(ws, { message: "Read-only reply" });
+      expect(sb.github.pullRequests).toHaveLength(1);
+      if (legacy) await ws.updateState({ pendingPublish: undefined });
+      const before = await sb.remoteLog();
+      const sha = pending.sha;
+      let retried = "";
+      let polls = 0;
+      sb.github.retryDeployment = async (target) => {
+        retried = target;
+        // The old failure can remain the only report until the new build registers.
+        sb.github.deploymentFor = () =>
+          ++polls < 2 ? [failure] : [{ ...failure, id: 2, state: "success" }, failure];
+        return "started";
+      };
+      const result = await publishAll();
+      expect(result).toMatchObject({ sha, deploy: "live" });
+      expect(retried).toBe(sha);
+      expect(await sb.remoteLog()).toEqual(before);
+      expect(sb.github.pullRequests).toHaveLength(1);
+      expect(await readFile(join(sb.work, "src/app.txt"), "utf8")).toBe(
+        "The intended new wording\n",
+      );
+      expect((await (await sb.ws()).state()).pendingPublish).toBeUndefined();
+    });
+  }
+
+  it("keeps failed delivery visible in a fresh workspace even with no new changes", async () => {
+    await sb.write("src/app.txt", "New text\n");
+    sb.github.deploymentFor = () => [
+      { id: 1, environment: "Production", isProduction: true, state: "failure" },
+    ];
+    await expectError(publishAll(), "deploy-failed");
+    const fresh = await sb.ws();
+    expect((await status(fresh)).pendingPublish?.state).toBe("failed");
+    await expectError(runFlow(publish(fresh, instant())), "deploy-failed");
+    expect((await fresh.state()).pendingPublish?.state).toBe("failed");
+  });
+});
+
 describe("saving", () => {
   it("saves to the person's draft and opens its pull request", async () => {
     await sb.write("src/app.txt", "Welcome to Crumb & Co.\nWarm bread every morning.\n");

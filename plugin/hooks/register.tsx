@@ -736,9 +736,14 @@ async function publishNow($: EngineInterface) {
   if (result.ok) {
     const data = result.data ?? {};
     const onLovable = data.deploy === "lovable";
+    const deliveryPending =
+      !data.noHost &&
+      (data.deploy === "pending" ||
+        data.deploy === "unknown" ||
+        (data.site && data.site.state !== "live"));
     const at = Date.now();
     await update<ClodableActivity>($, activity, (x) => ({
-      kind: "published",
+      kind: deliveryPending ? "idle" : "published",
       steps: x.steps,
       title: data.title,
       url: data.url ?? null,
@@ -749,13 +754,15 @@ async function publishNow($: EngineInterface) {
     }));
     sayDoneUntil($, at);
     $.ui.toast(
-      onLovable
-        ? "Published on GitHub. Click Publish in Lovable to put it live."
-        : data.noHost
-          ? "Published on GitHub. No host has put your app on the web yet."
-          : data.url
-            ? `You're live! ${data.url}`
-            : "Published!",
+      deliveryPending
+        ? "Your host hasn't confirmed this version is live yet."
+        : onLovable
+          ? "Published on GitHub. Click Publish in Lovable to put it live."
+          : data.noHost
+            ? "Published on GitHub. No host has put your app on the web yet."
+            : data.url
+              ? `You're live! ${data.url}`
+              : "Published!",
     );
     const pending: string[] = data.functions?.pending ?? [];
     if (pending.length > 0) {
@@ -2333,6 +2340,7 @@ export const register: Register = (on) => {
       );
     }
     const urgent =
+      Boolean(s.pendingPublish) ||
       a.kind === "publishing" ||
       a.kind === "undoing" ||
       a.kind === "failed" ||
@@ -2578,6 +2586,26 @@ function barSides(
       right: [
         <Button key="progress" variant="secondary" onPress={() => background(openPane($))}>
           See progress
+        </Button>,
+      ],
+    };
+  }
+  if (s?.ready && s.pendingPublish && (a.kind !== "failed" || a.error?.code === "deploy-failed")) {
+    return {
+      left: [
+        <Text>
+          {s.pendingPublish.state === "failed"
+            ? "Latest publish didn't go live"
+            : "Latest publish isn't confirmed live"}
+        </Text>,
+      ],
+      right: [
+        history,
+        <Button key="hosting-connection" plain onPress={() => background(openPane($, "site"))}>
+          Connection
+        </Button>,
+        <Button key="publish" variant="primary" onPress={() => background(publishNow($))}>
+          {s.unpublished.length > 0 ? "Publish" : "Retry Publish"}
         </Button>,
       ],
     };
@@ -3238,6 +3266,33 @@ function stateCard(
       </Text>,
       [],
       steps,
+    );
+  }
+  if (s.pendingPublish && (a.kind !== "failed" || a.error?.code === "deploy-failed")) {
+    return card(
+      ui,
+      <Text bold>
+        {s.pendingPublish.state === "failed"
+          ? "Your latest publish didn't go live"
+          : "Your latest publish isn't confirmed live"}
+      </Text>,
+      <Text
+        dimColor
+      >{`“${s.pendingPublish.title}” is saved. ${s.unpublished.length > 0 ? "You also have new changes ready to publish." : "After fixing the hosting problem, retry this same version without editing your app."}`}</Text>,
+      [
+        <Button
+          key="hosting-connection"
+          variant="secondary"
+          onPress={() => background(openPane($, "site"))}
+        >
+          Publishing connection
+        </Button>,
+        <Button key="publish" variant="primary" onPress={() => background(publishNow($))}>
+          {s.unpublished.length > 0 ? "Publish" : "Retry Publish"}
+        </Button>,
+        fixButton($, ui, "fix", false),
+      ],
+      a.error ? <Text>{a.error.message}</Text> : null,
     );
   }
   if (a.kind === "failed" && a.error) {
@@ -3933,7 +3988,7 @@ function lovableHostingCard(ui: PaneUi, s: ClodableStatus) {
 /** An unknown host, a pending site or a publish with no host is never evidence of being live. */
 function siteIsLive(s: ClodableStatus): boolean {
   if (s.site) return s.site.live;
-  return s.hosting === "github" && !s.lastPublish?.noHost;
+  return s.hosting === "github" && !s.lastPublish?.noHost && !s.pendingPublish;
 }
 
 /** Every version, newest first: what's not live yet, then what was published. */

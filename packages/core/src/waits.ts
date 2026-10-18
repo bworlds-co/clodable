@@ -144,12 +144,15 @@ async function* followDeployment(
   sha: string,
   o: Timing,
   shown: { id: StepId; title: string; unreportedAfterMs: number },
+  ignoredDeploymentIds: number[] = [],
 ): Flow<DeploymentEnd> {
   const started = o.now().getTime();
   const deadline = started + ws.config.publish.deployTimeoutMinutes * 60_000;
   let line = "";
   while (true) {
-    const deployments = await ws.github.deploymentsFor(sha).catch(() => []);
+    const deployments = (await ws.github.deploymentsFor(sha).catch(() => [])).filter(
+      (d) => !ignoredDeploymentIds.includes(d.id),
+    );
     const deployment = deployments.find((d) => d.isProduction) ?? deployments[0];
     // A build GitHub runs for this commit says the host is connected, and what it's doing.
     const build = await ws.github.buildProgress?.(sha).catch(() => undefined);
@@ -174,6 +177,7 @@ export async function* waitForDeploy(
   ws: Workspace,
   sha: string,
   o: Timing,
+  ignoredDeploymentIds: number[] = [],
 ): Flow<{
   state: PublishResult["deploy"];
   url?: string;
@@ -192,15 +196,23 @@ export async function* waitForDeploy(
     );
     // Moving off Lovable: the new site on Netlify follows each Publish, through GitHub.
     const moving = (await loadMove(ws.root)).site;
-    const site = moving ? yield* followSite(ws, sha, o, moving.url) : undefined;
+    const site = moving
+      ? yield* followSite(ws, sha, o, moving.url, ignoredDeploymentIds)
+      : undefined;
     return { state: "lovable", ...(url ? { url } : {}), ...(site ? { site } : {}) };
   }
   yield step("deploy", "running", "Going live");
-  const end = yield* followDeployment(ws, sha, o, {
-    id: "deploy",
-    title: "Going live",
-    unreportedAfterMs: 75_000,
-  });
+  const end = yield* followDeployment(
+    ws,
+    sha,
+    o,
+    {
+      id: "deploy",
+      title: "Going live",
+      unreportedAfterMs: 75_000,
+    },
+    ignoredDeploymentIds,
+  );
   const liveUrl = ws.config.liveUrl ? { url: ws.config.liveUrl } : {};
   switch (end.state) {
     case "success": {
@@ -212,8 +224,8 @@ export async function* waitForDeploy(
       yield step("deploy", "failed", "Your host couldn't put it live");
       throw new ClodableError({
         code: "deploy-failed",
-        message: "Your changes are published on GitHub, but your host couldn't put them live.",
-        hint: "Your previous version is still live. Ask Claude to look at the host's report.",
+        message: "Your changes are saved, but your host couldn't put them live.",
+        hint: "Your previous version is still live. Fix the hosting problem, then retry Publish; no new app change is needed.",
         ...(end.deployment.logUrl ? { details: end.deployment.logUrl } : {}),
       });
     case "unreported": {
@@ -245,13 +257,20 @@ async function* followSite(
   sha: string,
   o: Timing,
   url: string,
+  ignoredDeploymentIds: number[] = [],
 ): Flow<NonNullable<PublishResult["site"]>> {
   yield step("move:site", "running", "Updating your site on Netlify");
-  const end = yield* followDeployment(ws, sha, o, {
-    id: "move:site",
-    title: "Updating your site on Netlify",
-    unreportedAfterMs: 120_000,
-  });
+  const end = yield* followDeployment(
+    ws,
+    sha,
+    o,
+    {
+      id: "move:site",
+      title: "Updating your site on Netlify",
+      unreportedAfterMs: 120_000,
+    },
+    ignoredDeploymentIds,
+  );
   if (end.state === "success") {
     const siteUrl = end.deployment.url ?? url;
     yield step("move:site", "done", "Your site on Netlify is up to date", siteUrl);

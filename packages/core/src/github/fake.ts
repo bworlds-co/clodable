@@ -33,6 +33,8 @@ export class FakeGitHub implements GitHubAdapter {
     },
   ];
 
+  retryDeployment: (sha: string) => Promise<"started" | "running" | false> = async () => false;
+
   /**
    * With `stateFile`, pull requests survive across processes. That lets the CLI run against a
    * fake GitHub for demos (`CLODABLE_FAKE_GITHUB=<bare repo>`).
@@ -45,6 +47,10 @@ export class FakeGitHub implements GitHubAdapter {
     fake.stateFile = stateFile;
     // A repository nothing puts online yet: no host reports a deployment.
     if (process.env.CLODABLE_FAKE_HOST === "none") fake.deploymentFor = () => [];
+    if (process.env.CLODABLE_FAKE_HOST === "failed")
+      fake.deploymentFor = () => [
+        { id: 1, environment: "Production", isProduction: true, state: "failure" },
+      ];
     if (existsSync(stateFile)) {
       fake.pullRequests.push(...(JSON.parse(readFileSync(stateFile, "utf8")) as PullRequest[]));
     }

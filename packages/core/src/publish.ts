@@ -2,6 +2,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { checksFailed, runChecks } from "./checks/index.js";
+import type { LocalState } from "./config.js";
 import { BEFORE_RESTORE, ensurePullRequest, sameAsLive, save } from "./draft.js";
 import { ClodableError } from "./errors.js";
 import { type Flow, step } from "./events.js";
@@ -9,7 +10,7 @@ import { type Commit, kindTrailer } from "./git.js";
 import { clodableFile, keepIgnored } from "./kit/index.js";
 import { loadMove, updateMove } from "./move/state.js";
 import { deployChangedFunctions, type FunctionsOutcome } from "./publish-functions.js";
-import { timing, waitForCiIfAny, waitForDeploy } from "./waits.js";
+import { type Timing, timing, waitForCiIfAny, waitForDeploy } from "./waits.js";
 import type { Workspace } from "./workspace.js";
 
 export interface PublishOptions {
@@ -71,6 +72,35 @@ export function publishTitle(saves: Commit[]): string {
 export async function* publish(ws: Workspace, options: PublishOptions = {}): Flow<PublishResult> {
   const wait = timing(options);
   const warnings: string[] = [];
+
+  // A failed delivery can leave the old draft behind. Retry before save() opens a second request.
+  const earlier = await ws.state();
+  if (earlier.pendingPublish || earlier.pullRequest) {
+    await ws.git.fetch(ws.remote, ws.liveBranch);
+    const [latest] = await ws.git.log(ws.liveRef, { firstParent: true, limit: 1 });
+    const pending =
+      earlier.pendingPublish ??
+      (latest?.kind === "publish" && earlier.pullRequest && earlier.lastPublish?.sha !== latest.sha
+        ? {
+            sha: latest.sha,
+            title: latest.subject,
+            at: latest.date,
+            pullRequest: earlier.pullRequest,
+            state: "pending" as const,
+          }
+        : undefined);
+    const branch = await ws.git.currentBranch();
+    if (
+      pending &&
+      branch &&
+      branch !== ws.liveBranch &&
+      latest?.sha === pending.sha &&
+      !(await ws.git.hasChanges()) &&
+      (await ws.git.run(["diff", "--quiet", pending.sha, "HEAD"])).exitCode === 0
+    ) {
+      return yield* retryPublish(ws, pending, branch, wait);
+    }
+  }
 
   // 1. Save anything not saved yet.
   yield step("save", "running", "Saving your latest changes");
@@ -161,9 +191,31 @@ export async function* publish(ws: Workspace, options: PublishOptions = {}): Flo
   const saves = await ws.git.log(`${ws.liveRef}..HEAD`, { noMerges: true, limit: 200 });
   // Saves that cancel out leave the files as they're live: publishing them would change nothing.
   if (saves.length === 0 || (await sameAsLive(ws, { clodablesToo: true }))) {
+    const state = await ws.state();
+    const [latest] = await ws.git.log(ws.liveRef, { firstParent: true, limit: 1 });
+    let pending = state.pendingPublish;
+    // Recover a failure from an older Clodable that kept the draft's request but no delivery record.
+    if (
+      !pending &&
+      latest?.kind === "publish" &&
+      state.pullRequest &&
+      state.lastPublish?.sha !== latest.sha
+    ) {
+      pending = {
+        sha: latest.sha,
+        title: latest.subject,
+        at: latest.date,
+        pullRequest: state.pullRequest,
+        state: "pending",
+      };
+    }
+    if (pending && latest?.sha === pending.sha) {
+      return yield* retryPublish(ws, pending, branch, wait);
+    }
     throw new ClodableError({
       code: "nothing-to-publish",
-      message: "There's nothing new to publish. Your live site already has everything.",
+      message: "There's no new app change to publish.",
+      hint: "This does not confirm which version visitors see. Ask Claude to check the hosting status if your site looks out of date.",
     });
   }
 
@@ -220,10 +272,72 @@ export async function* publish(ws: Workspace, options: PublishOptions = {}): Flo
     kindTrailer("publish"),
   ].join("\n");
   const { sha } = await ws.github.merge(pr.number, { subject: title, body });
-  yield step("merge", "done", "Published");
+  const pending: NonNullable<LocalState["pendingPublish"]> = {
+    sha,
+    title,
+    at: wait.now().toISOString(),
+    pullRequest: { number: pr.number, url: pr.url },
+    state: "pending",
+  };
+  await ws.updateState({ pendingPublish: pending });
+  yield step("merge", "done", "Ready for your host");
+  return yield* finishPublish(ws, pending, branch, wait, warnings);
+}
 
-  // 7. Wait for the host.
-  const deployed = yield* waitForDeploy(ws, sha, wait);
+async function* retryPublish(
+  ws: Workspace,
+  pending: NonNullable<LocalState["pendingPublish"]>,
+  branch: string,
+  wait: Timing,
+): Flow<PublishResult> {
+  await ws.updateState({ pendingPublish: pending });
+  const deliveries = await ws.github.deploymentsFor(pending.sha);
+  const latest = deliveries.find((d) => d.isProduction) ?? deliveries[0];
+  if (latest?.state !== "success") {
+    const ownedSite = ws.config.netlify ?? (await loadMove(ws.root)).site;
+    if (ownedSite && ws.github.retryDeployment) {
+      yield step("deploy", "running", "Retrying the same version");
+      const retry = await ws.github.retryDeployment(pending.sha);
+      if (retry === "started") {
+        pending = {
+          ...pending,
+          state: "pending",
+          ignoredDeploymentIds: deliveries.map((d) => d.id),
+        };
+        await ws.updateState({ pendingPublish: pending });
+      } else if (!retry && (latest?.state === "failure" || latest?.state === "error" || !latest)) {
+        throw new ClodableError({
+          code: "deploy-failed",
+          message: "This version couldn't be retried automatically.",
+          hint: "Ask Claude to check the hosting report. Keep the app unchanged; don't make an edit to trigger publishing.",
+        });
+      }
+    }
+  }
+  return yield* finishPublish(ws, pending, branch, wait, []);
+}
+
+async function* finishPublish(
+  ws: Workspace,
+  pending: NonNullable<LocalState["pendingPublish"]>,
+  branch: string,
+  wait: Timing,
+  warnings: string[],
+): Flow<PublishResult> {
+  const { sha, title, pullRequest: pr } = pending;
+  // 7. Host delivery is separate from accepting the version for publication.
+  let deployed: {
+    state: PublishResult["deploy"];
+    url?: string;
+    site?: PublishResult["site"];
+    noHost?: true;
+  };
+  try {
+    deployed = yield* waitForDeploy(ws, sha, wait, pending.ignoredDeploymentIds);
+  } catch (error) {
+    await ws.updateState({ pendingPublish: { ...pending, state: "failed" } });
+    throw error;
+  }
 
   // 8. Edge functions go live now, never earlier.
   const functions = yield* deployChangedFunctions(ws, sha);
@@ -245,6 +359,12 @@ export async function* publish(ws: Workspace, options: PublishOptions = {}): Flo
       ...(deployed.noHost ? { noHost: true } : {}),
     },
     pullRequest: undefined,
+    pendingPublish:
+      deployed.state === "live" ||
+      (deployed.state === "lovable" && (!deployed.site || deployed.site.state === "live")) ||
+      deployed.noHost
+        ? undefined
+        : { ...pending, state: deployed.site?.state === "failed" ? "failed" : "pending" },
   });
   yield step("fresh-draft", "done", "Fresh draft ready");
   // The site on Netlify, before the switch (beside Lovable's hosting) or after it (the live one).

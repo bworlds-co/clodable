@@ -16,6 +16,7 @@ export interface ClodableStatus {
     /** No host ever reported putting the app online: it's on GitHub only. */
     noHost?: boolean;
   } | null;
+  pendingPublish?: { sha: string; title: string; state: "pending" | "failed" };
   pullRequest: { number: number; url: string } | null;
   /** Where the data lives. On Lovable Cloud, the database and backend can't be changed from here. */
   backend: "unknown" | "lovable-cloud" | "supabase" | "none";
