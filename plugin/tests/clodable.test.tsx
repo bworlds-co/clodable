@@ -3543,7 +3543,12 @@ describe("everywhere else", () => {
     });
     expect(ran).toHaveLength(0);
     expect(await pane.find({ key: "create-private-app" })).toBeUndefined();
-    await pane.input({ key: "new-app-name", kind: "submit", text: "books-nearby" });
+    await $.ui.input({
+      plugin: "clodable",
+      key: "new-app-name",
+      kind: "submit",
+      text: "books-nearby",
+    });
     for (let i = 0; i < 30 && !ran.length; i++) await pane.redraw();
     expect(ran[0]).toEqual([
       "setup",
