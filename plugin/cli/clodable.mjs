@@ -50169,7 +50169,7 @@ async function inboxCommand(ctx2, options) {
 }
 
 // src/index.ts
-var version2 = true ? "0.2.2" : "0.1.0-dev";
+var version2 = true ? "0.3.0" : "0.1.0-dev";
 var cli = cac("clodable");
 cli.option("--json", "Print one JSON event per line (for programs)");
 cli.option("--cwd <dir>", "Run in another folder");

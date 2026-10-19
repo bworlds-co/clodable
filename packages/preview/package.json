@@ -1,6 +1,6 @@
 {
   "name": "@clodable/preview",
-  "version": "0.2.2",
+  "version": "0.3.0",
   "description": "Clodable's dev-only preview toolbar for Vite apps: inline text edits, device sizes, and Try to fix.",
   "license": "MIT",
   "type": "module",
