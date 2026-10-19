@@ -12,7 +12,7 @@ Updated October 20, 2026. Open Claude Desktop → **Code** and use the three num
 
 Keep **Auto** permissions and the current default model. The two newly prepared sessions use Opus 5.5 Extra, as Desktop selected it. If you start a new session, choose **This computer** and the matching folder.
 
-The installed Clodable build contains the UX fixes. It still carries the `0.2.2` label; reinstalling the released version would not test all these fixes. Describe changes in the conversation. Use the panel for controls and enter any requested secret there. **Open Clodable**, beside the composer, remains available when Desktop hides its status bar for a question card. All three retained sessions were refreshed with fixes through PR #114. The agent verified migration progress and email requests in retained and fresh Desktop conversations. No reinstall is needed.
+Clodable **0.3.0 is released and installed** in all three scenarios. The marketplace is pinned to `clodable--v0.3.0`; the installed plugin and all three local runtimes match that release. All three retained conversations have been reloaded. Describe changes in the conversation. Use the panel for controls and enter any requested secret there. **Open Clodable**, beside the composer, remains available when Desktop hides its status bar for a question card. Migration progress and email navigation were verified in retained and fresh Desktop conversations before release; reopening the current migration step was checked again with the released plugin. No reinstall is needed. Restart an already-running preview before the next test to load its updated runtime.
 
 ## 01 — Start from an idea
 
@@ -62,6 +62,12 @@ Then:
 Try the Wall, a disposable private note, an attachment, and deleting that note. The greeting is configured. **Summarize** still awaits AI setup; email delivery has not been verified. If Desktop opens a different preview address, you may need to sign in again yourself. The original copy preview was retained.
 
 **Stop before Publish, pausing the live app, the final copy, domain changes or finishing in Lovable.** Publish is not a private migration check: it can affect the live Lovable app through the shared code. Email/provider setup and the live switch remain separate decisions.
+
+## This week’s real migration
+
+Use 0.3.0 for the full rehearsal. Choose the source app and destination before beginning; the retained Tiny Notes copy is already partway through a move. A fresh rehearsal must establish its own export and feature evidence rather than inherit those results. Both free test-org slots are occupied, so agree on the destination before creating or resetting anything.
+
+Verify existing accounts, data, files, the app’s AI or other external services, email delivery and hosted behavior. Keep the live app running until the working copy has passed those checks. The final pause/export/copy, live switch and Lovable disconnection remain an explicit decision at that point. Releasing Clodable did not perform any of those steps.
 
 ## What a good conversation should feel like
 
