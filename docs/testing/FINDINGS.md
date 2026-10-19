@@ -525,9 +525,9 @@ The owner initially requested collection without implementation, then completed 
 
 - **Implemented (October 18):** existing sites now expose **Publishing connection** in the site view and **Hosting and connection** in Settings. **Use saved connection** refreshes this app’s encrypted publishing credential; a replacement token stays in the panel/stdin. The operation verifies the saved site and account first and never creates a site or publishes. Removed the unconditional “Your site is live” line from this recovery view. CLI integration covers unchanged site/config/workflow, token secrecy and refusal of a mismatched account; plugin regression covers existing hosting and no publication. Native Desktop (`local_63ea9544-079d-46ac-b3b2-39061f9c6f62`) opened the controls from a normal request and retained them with a useful error when the isolated fixture had no saved token. No owner credential or cloud site was changed.
 
-## F41 — blocker — The Clodable bar disappears, removing access to the panel
+## F41 — accepted Desktop limitation — The bar hides while a question box is open
 
-- **Status:** merged in [PR #108](https://github.com/bworlds-co/clodable/pull/108), following PR #98. The Desktop wrap-up case now has a persistent composer entry. 151 plugin tests, typecheck, lint and CI passed. Issue: https://github.com/bworlds-co/clodable/issues/92.
+- **Status:** **closed as accepted / not planned, by owner decision on October 19.** The owner accepts that Desktop hides the bar while its question box is open and asked to remove this from outstanding work. Further bar investigation is stopped. The existing footer opener is unchanged; this closure does not claim that the bar stays visible. Issue: https://github.com/bworlds-co/clodable/issues/92.
 - **Observed:** the owner reports that the Clodable bar disappeared during publish recovery. The screenshot shows **How is Claude doing this session?** above the message box, with Clodable's status and actions absent.
 - **Builder impact:** essential status, Preview and Publish controls disappear without explanation precisely when the builder needs recovery. This also undermines instructions in the conversation that refer to the bar.
 - **Confirmed cause:** the `AbovePrompt` renderer in `plugin/hooks/register.tsx` immediately returns `next(e)` when `e.props.hasSurvey` is true, omitting Clodable entirely. This is Clodable's handling of Desktop's survey, not evidence that the plugin unloaded. The test harness currently defaults `hasSurvey` to false.
@@ -578,7 +578,7 @@ The owner initially requested collection without implementation, then completed 
 
 ## F45 — polish — Migration orientation requires a lengthy investigation and oversized recap
 
-- **Status:** merged in [PR #109](https://github.com/bworlds-co/clodable/pull/109), following PR #106. A fresh session exposed an overly long feature list, now tightened in both the guide and navigation response. Model replay and final fresh Desktop check passed with three grouped paragraphs. 151 plugin tests, build, typecheck, lint and CI passed. Issue: https://github.com/bworlds-co/clodable/issues/96.
+- **Status:** **reopened October 19 after owner retest.** PRs #106/#109 passed the recorded fresh-session checks, but the retained session again gives a lengthy list, a guessed “about halfway” estimate and a duplicated question-card recap. Its broad “copy is healthy” wording also overstates readiness while AI is blocked. Existing-session validation is required. Issue: https://github.com/bworlds-co/clodable/issues/96.
 - **Observed:** a status request produces six commands, multiple tool groups, transcript retrieval and several progress messages, followed by a long report and another largely repeated recap in a question card. The answer opens with **about halfway**, although remaining steps have unequal effort and unresolved service setup.
 - **Builder impact:** the builder must read across screens to learn the current stage and the useful next action. A guessed fraction can create false expectations about how much work remains. The request explicitly asks what was tested, so evidence is appropriate; repeated summaries and narration of transcript searching add little value.
 - **Proposed fix:** lead with the stage, the live-app boundary, a compact tested/pending summary and one relevant next choice. Make detailed evidence available on request, using a durable record rather than broad transcript reconstruction. Describe completed milestones instead of estimating a fraction without a basis.
@@ -589,7 +589,7 @@ The owner initially requested collection without implementation, then completed 
 
 ## F46 — major — Asking about the move does not reopen its migration panel
 
-- **Status:** merged in [PR #107](https://github.com/bworlds-co/clodable/pull/107); 151 plugin tests, two model replays, CI and fresh native Desktop verification passed. Issue: https://github.com/bworlds-co/clodable/issues/97.
+- **Status:** **reopened October 19 after owner retest.** PR #107 passed a fresh native conversation, but the retained session still leaves the migration panel closed after both the original progress request and the follow-up to set up emails. Fresh-session success did not establish reliability in resumed conversations. Issue: https://github.com/bworlds-co/clodable/issues/97.
 - **Observed:** after the scenario 03 progress request, Claude delivers a long conversational report and next-action question without opening the migration panel. The owner explicitly expected the same panel as `/move-off-lovable`. The review agent's initial assessment missed this navigation failure.
 - **Builder impact:** the builder loses the persistent progress view and current-step controls, and must know a slash command to recover them. Conversation-first interaction should open the appropriate controls automatically, not replace migration navigation with prose.
 - **Compounding failure confirmed by the owner:** the Clodable bar is also absent in this scenario (F41). There is no visible panel-opening control to compensate for Claude's omitted navigation. Test the complete route from an ordinary migration request to a visible panel, plus a discoverable manual entry point.
@@ -610,3 +610,23 @@ All nine owner-review issues (#89–#97, F38–F46) are closed with merged fixes
 - The host can still hide its above-prompt band during a choice card. **Open Clodable** remains beside the composer and opens the appropriate app/migration controls. Desktop annotations remain separate from Clodable's explicitly expanded editing tools.
 
 Remaining real-service sign-off limits are unchanged: AI and email setup/delivery, separate real sign-in, hosted behavior, a second fresh real migration, live cutover and release installation. These were not silently completed or turned into an owner-operated test checklist. See UX-REPORT.md.
+
+## Owner retest — October 19
+
+F41 was briefly reopened after the owner questioned the footer opener and missing bar. The owner then explicitly accepted the bar hiding while Desktop’s question box is open and asked to remove it from outstanding work. Issue #92 is closed as not planned; no further bar change is scheduled. F47 below remains open. Subsequent screenshots also reopen F45/#96 and F46/#97. The October 18 report/PDF describes the earlier completion state; the current open findings are the reconnection success state, migration panel routing and checkpoint presentation.
+
+## F47 — major — Successful publishing reconnection leaves the recovery form open
+
+- **Status:** open, [issue #111](https://github.com/bworlds-co/clodable/issues/111).
+- **Observed:** after **Publishing connection updated. You can retry Publish.**, the panel still shows **Use saved connection**, the empty Netlify token field, **Reconnect** and the token-page link. The owner asks why those controls remain.
+- **Builder impact:** success looks incomplete and suggests another credential operation is necessary. The useful next action is missing from this view.
+- **Confirmed cause:** `reconnectHosting` stores only a message; `hostingConnection` unconditionally restores the form once `connecting` is null, regardless of success or failure.
+- **Expected behavior:** after confirmed success, replace the recovery form with a concise confirmation and a clear route back to the appropriate publishing controls. Keep **Change connection** as a secondary action. Reconnection must never publish automatically. Failures retain actionable recovery controls.
+- **Evidence:** owner screenshots in `~/Clodable Tests/_runs/2026-10-19-owner-retest/`, plus inspection of `reconnectHosting` and `hostingConnection`. No credential update, publication or product-code change performed in this retest response.
+
+### Migration continuation regression — October 19
+
+- The owner’s original progress request still produces no migration panel in the retained session. The follow-up **Let’s set up emails for my users next. I’ll give you my domain.** also leaves the panel closed, asks for a domain in chat and promises panel content later. The panel should open at its existing email-preparation step immediately; doing so needs no domain, provider change or service creation.
+- Previous rehearsal evidence is now recovered, but the response again includes **about halfway**, multiple sections and a repeated question-card recap. The broad **copy is healthy** claim conflicts with the blocked AI feature. F45/#96 and F46/#97 are reopened; F41/#92 remains accepted and closed.
+- The screenshots do not establish whether the navigation call was omitted or failed. Inspect the retained session’s actual tool trace before assigning a technical cause. Verify ordinary progress and email-continuation requests in that retained conversation after refresh, as well as in a fresh conversation. No slash-command/manual-opening workaround satisfies the automatic navigation acceptance criterion.
+- Evidence: `migration-checkpoint-panel-still-closed.png` and `email-request-panel-still-closed.png` in `~/Clodable Tests/_runs/2026-10-19-owner-retest/`. This response records the regression only; no email setup, credential entry, cloud mutation or app change was performed.
