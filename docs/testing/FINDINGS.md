@@ -527,7 +527,7 @@ The owner initially requested collection without implementation, then completed 
 
 ## F41 — blocker — The Clodable bar disappears, removing access to the panel
 
-- **Status:** merged in [PR #108](https://github.com/bworlds-co/clodable/pull/108), following PR #98. The Desktop wrap-up case now has a persistent composer entry. 151 plugin tests, typecheck, lint and CI passed. Issue: https://github.com/bworlds-co/clodable/issues/92.
+- **Status:** **reopened October 19 after owner retest.** PR #108 preserved technical panel access, but its faint footer opener does not meet the expected Clodable-bar experience. The owner could not find it and rejected the placement. The bar remains absent during native end-of-turn choices; a proper supported solution is still under investigation. Issue: https://github.com/bworlds-co/clodable/issues/92.
 - **Observed:** the owner reports that the Clodable bar disappeared during publish recovery. The screenshot shows **How is Claude doing this session?** above the message box, with Clodable's status and actions absent.
 - **Builder impact:** essential status, Preview and Publish controls disappear without explanation precisely when the builder needs recovery. This also undermines instructions in the conversation that refer to the bar.
 - **Confirmed cause:** the `AbovePrompt` renderer in `plugin/hooks/register.tsx` immediately returns `next(e)` when `e.props.hasSurvey` is true, omitting Clodable entirely. This is Clodable's handling of Desktop's survey, not evidence that the plugin unloaded. The test harness currently defaults `hasSurvey` to false.
@@ -610,3 +610,16 @@ All nine owner-review issues (#89–#97, F38–F46) are closed with merged fixes
 - The host can still hide its above-prompt band during a choice card. **Open Clodable** remains beside the composer and opens the appropriate app/migration controls. Desktop annotations remain separate from Clodable's explicitly expanded editing tools.
 
 Remaining real-service sign-off limits are unchanged: AI and email setup/delivery, separate real sign-in, hosted behavior, a second fresh real migration, live cutover and release installation. These were not silently completed or turned into an owner-operated test checklist. See UX-REPORT.md.
+
+## Owner retest — October 19
+
+The October 18 closure was premature for F41: its fallback passed technical accessibility checks but failed discoverability and did not preserve the expected bar. Issue #92 is reopened. No replacement implementation has been chosen. The owner also found F47 below. The October 18 report/PDF describes the earlier completion state and is superseded by these open findings.
+
+## F47 — major — Successful publishing reconnection leaves the recovery form open
+
+- **Status:** open, [issue #111](https://github.com/bworlds-co/clodable/issues/111).
+- **Observed:** after **Publishing connection updated. You can retry Publish.**, the panel still shows **Use saved connection**, the empty Netlify token field, **Reconnect** and the token-page link. The owner asks why those controls remain.
+- **Builder impact:** success looks incomplete and suggests another credential operation is necessary. The useful next action is missing from this view.
+- **Confirmed cause:** `reconnectHosting` stores only a message; `hostingConnection` unconditionally restores the form once `connecting` is null, regardless of success or failure.
+- **Expected behavior:** after confirmed success, replace the recovery form with a concise confirmation and a clear route back to the appropriate publishing controls. Keep **Change connection** as a secondary action. Reconnection must never publish automatically. Failures retain actionable recovery controls.
+- **Evidence:** owner screenshots in `~/Clodable Tests/_runs/2026-10-19-owner-retest/`, plus inspection of `reconnectHosting` and `hostingConnection`. No credential update, publication or product-code change performed in this retest response.
