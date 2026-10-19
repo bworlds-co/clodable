@@ -266,7 +266,7 @@ const savingWhere: Partial<Record<"backend" | "hosting", string>> = {};
 let addingBackend = false;
 /** A token on its way to Supabase or Netlify, checked by the CLI. */
 let connecting: "supabase" | "netlify" | null = null;
-let siteConnectionMessage: string | null = null;
+let siteConnectionResult: { ok: boolean; message: string } | null = null;
 /** What Netlify offers for a new site, once connected: its teams. */
 let siteOptions: { teams: Array<{ slug: string; name: string }> } | null = null;
 let siteTeam = "";
@@ -370,7 +370,7 @@ async function lookAtFolder($: EngineInterface) {
   paneView = null;
   showAssessment = false;
   showMoveProgress = false;
-  siteConnectionMessage = null;
+  siteConnectionResult = null;
   siteOptions = null;
   backendOptions = null;
   siteTeam = "";
@@ -1120,21 +1120,27 @@ async function connectService($: EngineInterface, service: "supabase" | "netlify
 async function reconnectHosting($: EngineInterface, token?: string) {
   if (connecting) return;
   connecting = "netlify";
-  siteConnectionMessage = null;
+  siteConnectionResult = null;
   $.ui.invalidate("ui.render");
   try {
     if (token !== undefined) {
       if (!token.trim()) return;
       const connected = await cli($, ["connect", "netlify"], 60_000, token.trim());
       if (!connected.ok) {
-        siteConnectionMessage = connected.error?.message ?? "Netlify didn't accept that token.";
+        siteConnectionResult = {
+          ok: false,
+          message: connected.error?.message ?? "Netlify didn't accept that token.",
+        };
         return;
       }
     }
     const result = await cli($, ["site", "reconnect"], 60_000);
-    siteConnectionMessage = result.ok
-      ? "Publishing connection updated. You can retry Publish."
-      : (result.error?.message ?? "Couldn't update this app's publishing connection.");
+    siteConnectionResult = {
+      ok: result.ok,
+      message: result.ok
+        ? "Publishing connection updated. This did not publish your app."
+        : (result.error?.message ?? "Couldn't update this app's publishing connection."),
+    };
   } finally {
     connecting = null;
     await refreshStatus($);
@@ -3592,6 +3598,31 @@ const NETLIFY_TOKENS = "https://app.netlify.com/user/applications#personal-acces
 /** Always reachable for an existing site, even when its last publication failed. */
 function hostingConnection($: EngineInterface, ui: PaneUi) {
   const { Box, Text, Button, Link } = ui;
+  if (siteConnectionResult?.ok) {
+    return (
+      <Box flexDirection="column" rowGap={1}>
+        <Text bold>Publishing connection</Text>
+        <Text>{siteConnectionResult.message}</Text>
+        <Button
+          key="site-reconnect-done"
+          variant="primary"
+          onPress={() => background(openPane($, "app"))}
+        >
+          Back to publishing
+        </Button>
+        <Button
+          key="site-reconnect-change"
+          variant="secondary"
+          onPress={() => {
+            siteConnectionResult = null;
+            $.ui.invalidate("ui.render");
+          }}
+        >
+          Change connection
+        </Button>
+      </Box>
+    );
+  }
   return (
     <Box flexDirection="column" rowGap={1}>
       <Text bold>Publishing connection</Text>
@@ -3600,7 +3631,7 @@ function hostingConnection($: EngineInterface, ui: PaneUi) {
         stores it on this computer and in this app's encrypted publishing settings. This does not
         publish your app.
       </Text>
-      {siteConnectionMessage ? <Text>{siteConnectionMessage}</Text> : null}
+      {siteConnectionResult ? <Text>{siteConnectionResult.message}</Text> : null}
       {connecting === "netlify" ? (
         <Text dimColor>Updating the connection…</Text>
       ) : (
