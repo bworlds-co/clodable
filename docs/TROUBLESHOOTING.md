@@ -8,7 +8,7 @@ Two things hold whatever happens. Your live site only changes when you press **P
 
 Clodable shows itself in two places:
 - **The Clodable bar**, above the message box: what's saved, what isn't live yet, and **Publish**.
-- **The Clodable panel**, on the right: your app, **History** and **Settings**. Type `/clodable` to open it, or ask Claude to open it.
+- **The Clodable panel**, on the right: **Your app**, **History** and **Settings**. Press **Open Clodable**, beside the message box, type `/clodable`, or ask Claude to open it.
 
 Not on this page? [Tell us what happened](https://github.com/bworlds-co/clodable/issues/new): the words on screen, what you pressed just before, and a screenshot if you can. Never include a key, a token or a password.
 
@@ -20,21 +20,21 @@ Not on this page? [Tell us what happened](https://github.com/bworlds-co/clodable
 
 - **When:** Claude tells you, in a folder that holds an app Clodable hasn't been set up in. The panel says “This folder already holds an app. Clodable can set itself up right here.”
 - **Why:** Clodable only acts in apps it was set up in, so your other projects stay exactly as they are.
-- **What to do:** type `/clodable` to open the Clodable panel. If your app is on GitHub, press **Set up Clodable here**. If it isn't yet, press **Set up saving**: the panel names your GitHub account and creates a private app there.
+- **What to do:** type `/clodable` to open the Clodable panel. If your app is on GitHub, press **Set up Clodable here**. If it isn't yet, press **Set up saving**: the panel names the GitHub account it will use. Check the app's name, then press **Create private app**.
 - **Check:** the Clodable bar appears above the message box, and the panel shows your app's name at the top.
 - **Still stuck?** [Tell us what happened](https://github.com/bworlds-co/clodable/issues/new).
 
 ### “Your files are on this computer. Clodable isn't saving them yet.”
 
-- **When:** Claude made a first version of your idea in this folder, or the folder holds files that aren't on GitHub. Claude may say “This folder isn't connected to GitHub yet.”
+- **When:** Claude made a first version of your idea in this folder, or the folder holds files that aren't on GitHub. The Clodable bar says “Only on this computer”, and Claude may say “This folder isn't connected to GitHub yet.”
 - **Why:** Clodable saves your work to your GitHub account, and this folder isn't connected to it yet. Your files are safe on this computer.
-- **What to do:** type `/clodable` to open the Clodable panel and press **Set up saving**. The panel names your GitHub account and asks before creating a private app there. Nothing goes on the web until you publish. In an empty folder, the panel offers **Start from an idea** or **Bring an app from GitHub** instead.
-- **Check:** the Clodable bar appears, and Claude's next reply that changes your app shows **✓ Saved**.
+- **What to do:** press **Set up saving** in the Clodable bar, or ask Claude to save your app. The panel names the GitHub account it will use and creates nothing until you say so: check the app's name, then press **Create private app**. Nothing goes on the web until you publish. In an empty folder, the bar says “Describe your idea to Claude” instead: describe it in the conversation, or press **Bring an app from GitHub** for an app you already have there.
+- **Check:** the bar no longer says “Only on this computer”, and Claude's next reply that changes your app shows **✓ Saved**.
 - **Still stuck?** [Tell us what happened](https://github.com/bworlds-co/clodable/issues/new).
 
 ### “✕ Git”
 
-- **When:** setting up, the panel's **1 · Tools** shows ✕ next to Git.
+- **When:** setting up, the panel shows ✕ next to Git, under **1 · Tools** (or **1 · Your account** when you set up saving).
 - **Why:** this Mac doesn't have Git yet. Clodable needs it to keep each version of your app.
 - **What to do:** press **Install Git**. Apple's installer opens in its own window: follow it, then press **Check again**.
 - **Check:** the panel shows ✓ Git.
@@ -42,7 +42,7 @@ Not on this page? [Tell us what happened](https://github.com/bworlds-co/clodable
 
 ### “✕ GitHub account”
 
-- **When:** setting up, the panel's **1 · Tools** shows ✕ next to GitHub account.
+- **When:** setting up, the panel shows ✕ next to GitHub account, under **1 · Tools** (or **1 · Your account** when you set up saving).
 - **Why:** Clodable isn't signed in to your GitHub account on this computer yet.
 - **What to do:** press **Connect GitHub**. The panel shows a one-time code: press **Copy the code**, open **github.com/login/device**, paste the code and approve. You can ignore the Terminal command written under ✕ GitHub account: the button does the same.
 - **Check:** the panel shows ✓ GitHub account, with your GitHub name.
@@ -105,7 +105,7 @@ Clodable saves your changes to your draft on GitHub after each of Claude's repli
 
 ## Publishing and Undo
 
-When Publish stops, the bar says **Not published** and a few words of why. **See why** opens the whole story in the panel. Whatever the reason, nothing went live and your live site keeps working.
+When Publish stops, the bar says **Not published** and a few words of why. **See why** opens the whole story in the panel. Whatever the reason, nothing went live and your live site keeps working. When your host fails after Publish, the bar says “Latest publish didn't go live” instead: see below.
 
 When Lovable hosts your site, a Publish that goes through ends at **Published on GitHub** rather than **You're live**: see below.
 
@@ -151,13 +151,13 @@ When Lovable hosts your site, a Publish that goes through ends at **Published on
 - *For a developer:* these are the CI checks on the draft's pull request.
 - **Still stuck?** [Tell us what happened](https://github.com/bworlds-co/clodable/issues/new).
 
-### “Your changes are published on GitHub, but your host couldn't put them live.”
+### “Latest publish didn't go live”
 
-- **When:** after **Publish**, your host (Netlify, Vercel…) tried to put the new version live, and failed.
-- **Why:** something in the host's build or settings went wrong. Your previous version is still live.
-- **What to do:** press **Fix it**: Claude reads the host's report and fixes the cause. Then press **Publish** again.
-- **Check:** the bar says **You're live**, and your site shows the change.
-- *For a developer:* **Details** links to the host's log. On a site Clodable set up on Netlify, the build is the `clodable-netlify.yml` GitHub Actions workflow.
+- **When:** after **Publish**, your host (Netlify, Vercel…) tried to put the new version live, and failed. The panel says “Your latest publish didn't go live” and “Your changes are saved, but your host couldn't put them live.” While your host hasn't answered yet, the bar says “Latest publish isn't confirmed live” instead.
+- **Why:** something in the host's build, settings or access went wrong. Your previous version is still live, and the new one is saved.
+- **What to do:** press **Fix it**: Claude reads the host's report and fixes the cause, without changing the rest of your app. If your host no longer accepts Clodable's access, press **Publishing connection** (**Connection** in the bar), then **Use saved connection**, or paste a new Netlify token and press **Reconnect**. Then press **Retry Publish**: it sends the same version again, with no new change needed.
+- **Check:** the bar says **You're live**, and your site shows the change. After a reconnection, the panel first says “Publishing connection updated. This did not publish your app.”: press **Back to publishing**, then **Retry Publish**.
+- *For a developer:* **Retry Publish** reruns the hosting workflow for the same commit (on a site Clodable set up on Netlify, the `clodable-netlify.yml` GitHub Actions workflow). When it can't, the panel says “This version couldn't be retried automatically.”: read the host's log, and don't make an edit just to trigger a publish. “This connection doesn't match your app's hosting account.” means the token comes from a different Netlify account than the one that holds the site.
 - **Still stuck?** [Tell us what happened](https://github.com/bworlds-co/clodable/issues/new).
 
 ### “Your changes are saved on this computer, but GitHub can't be reached to publish them.”
@@ -216,8 +216,8 @@ When Lovable hosts your site, a Publish that goes through ends at **Published on
 ### Clodable's tools cover part of your app
 
 - **When:** in the preview, Clodable's toolbar sits over a button or link of your app.
-- **Why:** the toolbar floats over the bottom of the page. In a short preview, such as when Claude Desktop splits its height between panes, it starts folded as a small **Tools** button, and opens when you press it.
-- **What to do:** hide the tools with the toolbar's last button, or ⌥⇧H. A small Clodable mark stays in the corner (it reads **Copy · Tools** while the preview uses a copy of your data): press it, or ⌥⇧H again, to bring the tools back.
+- **Why:** the toolbar floats over the bottom of the page. It starts folded as a small **Tools** button (**Copy · Tools** while the preview uses a copy of your data), and opens when you press it.
+- **What to do:** hide the tools with the toolbar's last button, or ⌥⇧H. The small **Tools** button stays in the corner: press it, or ⌥⇧H again, to bring the tools back.
 - **Check:** the button or link of your app can be pressed.
 - **Still stuck?** [Tell us what happened](https://github.com/bworlds-co/clodable/issues/new).
 
@@ -367,10 +367,10 @@ The move runs in the Clodable panel, one step at a time, and Claude runs each st
 
 ### “Netlify didn't accept your access token.”
 
-- **When:** the move's **Prepare your website** step, when Clodable looks at your Netlify account. The panel shows a **Netlify token** field and **Check again** instead of **Prepare my website**.
+- **When:** the move's **Prepare your website** step, when Clodable looks at your Netlify account. The panel shows a **Netlify token** field and **Check again** instead of **Prepare my website**. On an app that's already online, it can also show under **Publishing connection**, after you paste a token there.
 - **Why:** Netlify no longer accepts the token kept on this computer: it may have expired or been deleted. Nothing was created, and your live app hasn't changed.
 - **What to do:** press **Open Netlify's token page ↗**, create a personal access token named Clodable, paste it in the **Netlify token** field and press **Reconnect**.
-- **Check:** the step names your Netlify team, or lets you choose one, and shows **Prepare my website**.
+- **Check:** the step names your Netlify team, or lets you choose one, and shows **Prepare my website**. Under **Publishing connection**, the panel says “Publishing connection updated. This did not publish your app.”
 - **Still stuck?** [Tell us what happened](https://github.com/bworlds-co/clodable/issues/new).
 
 ## Claude Desktop's own quirks
@@ -385,6 +385,14 @@ These come from Claude Desktop itself, so Clodable can't change them. Here's how
 - **Why:** the message comes from Claude Desktop's own handling of commands, not from Clodable. The panel opens anyway, and may show setup for a moment before your app.
 - **What to do:** look at the right side: the Clodable panel is there. If it isn't, ask Claude to open Clodable.
 - **Check:** the panel shows your app's name, or “What would you like to make?” in an empty folder.
+- **Still stuck?** [Tell us what happened](https://github.com/bworlds-co/clodable/issues/new).
+
+### The Clodable bar disappears while Claude asks you a question
+
+- **When:** Claude ends a reply with a question you answer by picking a choice, and the Clodable bar above the message box is gone.
+- **Why:** Claude Desktop hides everything above the message box while its question is open. Nothing changed in your app or on your live site.
+- **What to do:** press **Open Clodable**, beside the message box. It opens the Clodable panel, on your move off Lovable if one is under way, and leaves the question open.
+- **Check:** the panel shows your app, or the move's current step.
 - **Still stuck?** [Tell us what happened](https://github.com/bworlds-co/clodable/issues/new).
 
 ### “Failed to add marketplace.”

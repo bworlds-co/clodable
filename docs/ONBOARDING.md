@@ -45,8 +45,8 @@ Setup adds a few plain files to the project, merging them with anything already 
 ## 4. The first preview
 
 The preview starts by itself in Desktop. Show the builder three things:
-- The toolbar at the bottom of their app: **Edit text**, **Point & ask**, and the phone and tablet sizes.
-- The **Publish bar** above the message box. It says what's saved and what's live.
+- The toolbar at the bottom of their app, folded as **Tools** until they press it: **Edit text**, **Point & ask**, and the phone and tablet sizes.
+- The **Publish bar** above the message box. It says what's saved and what's live. When Claude Desktop hides it for a question, **Open Clodable**, beside the message box, opens the panel.
 - That they can ask for anything in their own words, and every reply is saved.
 
 ## 5. Hosting and the first Publish
@@ -83,7 +83,7 @@ An app that's already off Lovable but still calls Lovable's AI: the panel's **Se
 > **Your app now lives on your computer and on your GitHub. Here's all you need:**
 > - **Ask for a change** in your own words. You'll see it in the preview right away, and it's saved automatically.
 > - **Click Publish** when you're happy. Clodable checks everything, then your site updates.
-> - **Changed your mind?** Click **Undo** in the Clodable bar.
+> - **Changed your mind?** Click **Undo** right after publishing, or later **Undo last publish** in the Clodable panel's **History**, where **Restore** brings back any earlier version.
 > - **Something looks broken?** Click **Try to fix** on the page.
 > - Changes to your database apply right away, and Claude always asks you first.
 
@@ -97,4 +97,5 @@ An app that's already off Lovable but still calls Lovable's AI: the panel's **Se
 | “Your draft and the live site both changed the same thing.” | Click **Let Claude combine them**. Claude compares both versions and asks before choosing between them |
 | “Published on GitHub” and “Not on the web yet” | No host put the site on the web. If the site didn't change, click **Set up hosting**. If it has its own host, check that the host reports its deployments to GitHub |
 | “A secret key is in …” or “A secret key is saved in …” | Click **Fix it**: Claude moves the key out of the code. If the key was ever shared, replace it with its provider |
+| “Latest publish didn't go live” | The host failed after Publish, and the previous version is still live. Click **Fix it**, or reconnect the host under **Publishing connection**, then **Retry Publish**: it sends the same version again, with no new change |
 | Anything else | See [TROUBLESHOOTING.md](TROUBLESHOOTING.md). For a developer, **Details** under a stopped Publish shows the raw output |
