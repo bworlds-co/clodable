@@ -1074,6 +1074,53 @@ describe("apps still on Lovable", () => {
     await pane.unmount();
   });
 
+  for (const phase of ["movingOffLovable", "finishingMove"] as const) {
+    test(`refreshes migration guidance before every retained ${phase} request without advancing it`, async ($, on) => {
+      const calls = harness(on, { ...STATUS, [phase]: true });
+      const contexts: string[][] = [];
+      on("prompt.submit", (_$: unknown, e: { text: string; context?: readonly string[] }) => {
+        contexts.push([...(e.context ?? [])]);
+        return { text: e.text, context: e.context };
+      });
+      await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+      for (const text of ["Where are we in the move?", "Let's set up emails"]) {
+        await $.prompt.submit({
+          text,
+          context: ["Existing context"],
+          origin: { kind: "sdk" },
+          wait: false,
+        });
+        const added = contexts.at(-1)!.join(" ");
+        expect(added).toContain("Existing context");
+        expect(added).toContain('mcp__clodable__open_panel with view: "move"');
+        expect(added).toContain("before answering or asking for the next detail");
+        expect(added).toContain("For an unrelated app request");
+        expect(added).toContain("Missing evidence means unknown");
+      }
+      expect((calls as unknown as { opened: unknown[] }).opened).toEqual([]);
+      expect(calls.some((c) => c[0] === "move" && ["copy", "emails", "site"].includes(c[1]!))).toBe(
+        false,
+      );
+    });
+  }
+
+  test("ordinary app requests preserve context without migration guidance", async ($, on) => {
+    harness(on);
+    let context: string[] = [];
+    on("prompt.submit", (_$: unknown, e: { text: string; context?: readonly string[] }) => {
+      context = [...(e.context ?? [])];
+      return { text: e.text, context: e.context };
+    });
+    await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+    await $.prompt.submit({
+      text: "Change my heading",
+      context: ["Existing context"],
+      origin: { kind: "sdk" },
+      wait: false,
+    });
+    expect(context).toEqual(["Existing context"]);
+  });
+
   test("a move under way opens the panel on it; History opens its own focused view", async ($, on) => {
     harness(on, onLovable());
     await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
