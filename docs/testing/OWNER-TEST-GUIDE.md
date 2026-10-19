@@ -1,6 +1,6 @@
 # Try Clodable yourself
 
-Prepared October 18, 2026. Open Claude Desktop → **Code** and use the three numbered sessions below. No reinstall or new token is needed to begin.
+Updated October 20, 2026. Open Claude Desktop → **Code** and use the three numbered sessions below. No reinstall or new token is needed to begin.
 
 ## Your three starting points
 
@@ -12,7 +12,7 @@ Prepared October 18, 2026. Open Claude Desktop → **Code** and use the three nu
 
 Keep **Auto** permissions and the current default model. The two newly prepared sessions use Opus 5.5 Extra, as Desktop selected it. If you start a new session, choose **This computer** and the matching folder.
 
-The installed Clodable build contains the UX fixes. It still carries the `0.2.2` label; reinstalling the released version would not test all these fixes. Describe changes in the conversation. Use the panel for controls and enter any requested secret there. **Open Clodable**, beside the composer, remains available when Desktop hides its status bar for a question card. All three retained sessions were refreshed after the owner-review fixes through PR #109; no reinstall is needed.
+The installed Clodable build contains the UX fixes. It still carries the `0.2.2` label; reinstalling the released version would not test all these fixes. Describe changes in the conversation. Use the panel for controls and enter any requested secret there. **Open Clodable**, beside the composer, remains available when Desktop hides its status bar for a question card. All three retained sessions were refreshed with fixes through PR #114. The agent verified migration progress and email requests in retained and fresh Desktop conversations. No reinstall is needed.
 
 ## 01 — Start from an idea
 
@@ -32,7 +32,7 @@ You can stop after the local prototype. To try the GitHub-import entry instead, 
 
 ## 02 — Edit, publish and undo
 
-This is the retained disposable test app. Hosting and its database are configured. Your review left a failed host update: the refreshed panel now identifies it and exposes **Publishing connection**. Repair that connection in the panel before publishing again. With no new edits, **Retry Publish** sends the saved version again; no incidental app edit is needed. This repair has not been performed on your live test site during the UX fix pass.
+This is the retained disposable test app. Hosting and its database are configured. Your review left a failed host update: the refreshed panel now identifies it and exposes **Publishing connection**. Repair that connection in the panel before publishing again. With no new edits, **Retry Publish** sends the saved version again; no incidental app edit is needed. You updated the real connection in your October 19 retest. The agent did not refresh it again: the new success/error screens were verified with isolated local services. After a successful update, the token form now disappears; use **Back to publishing** to return without publishing, or **Change connection** to reopen the form.
 
 1. Ask: **“Show me my app, then make the home-page introduction warmer and easier to read.”** Check the preview and the saving indicator.
 2. Open the small **Tools** entry in the preview and use **Edit text**. Then use **Point & ask** on a heading and ask for a visual change.
@@ -53,7 +53,7 @@ Start with:
 
 > Where are we in the move? Explain what has been tested and what remains. Keep my live Lovable app unchanged.
 
-The migration panel should open at its current step. Expect a short checkpoint that distinguishes earlier checks from checks performed now. **Open Clodable** also reopens the move if you close its panel.
+The migration panel should open at its current step, including in this retained conversation. Asking “Let’s set up emails for my users next. I’ll give you my domain” should open the email controls immediately, before you supply a domain. Expect a short checkpoint that distinguishes earlier checks from checks performed now. **Open Clodable** also reopens the move if you close its panel.
 
 Then:
 
@@ -69,6 +69,7 @@ Claude should explain outcomes in your app's words, make small changes directly,
 
 ## Cleanup and recovery
 
+- **Two October 20 verification conversations are archived**, and their isolated local hosting fixture is in `~/Documents/Clodable Test Archive/2026-10-20/`. Your migration data and real account connections were unchanged.
 - **Seven owner-review verification sessions were also archived** after the final checks. Your three numbered test sessions and unrelated conversations remain.
 - **52 sessions archived in the earlier cleanup**, with history retained. Three unrelated sessions temporarily caught by a sidebar-grouping mistake were restored and verified. The earlier **H1 title SEO optimization** conversation was also restored and retained.
 - **Ten local test folders archived** at `/Users/manu/Documents/Clodable Test Archive/2026-10-18`. Its `cleanup-manifest.json` records original locations. The two retained app folders keep their original paths.
