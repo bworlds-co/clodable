@@ -4032,10 +4032,51 @@ describe("an app that isn't online, or has no backend", () => {
     expect(await pane.find({ key: "site-create" })).toBeUndefined();
     await pane.input({ key: "site-reconnect-token", text: token, kind: "submit" });
     expect(await shows(pane, /Publishing connection updated/)).toBeDefined();
+    expect(await pane.find({ key: "site-reconnect" })).toBeUndefined();
+    expect(await pane.find({ key: "site-reconnect-token" })).toBeUndefined();
+    expect(await pane.find({ key: "site-reconnect-done" })).toBeDefined();
+    await pane.press({ key: "site-reconnect-change" });
+    expect(await pane.find({ key: "site-reconnect-token" })).toBeDefined();
+    expect(
+      await pane.find({ type: "Text", text: /Publishing connection updated/ }),
+    ).toBeUndefined();
     expect(calls).toContainEqual(["site", "reconnect", "--json"]);
     const at = calls.findIndex((c) => c[0] === "connect");
     expect((calls as any).stdins[at]).toBe(token);
     expect(readBy(session).join(" ")).not.toContain(token);
+    expect(calls.some((c) => c[0] === "publish" || c.includes("create"))).toBe(false);
+    await pane.unmount();
+  });
+
+  test("saved connection failure keeps recovery controls; success returns to publishing without publishing", async ($, on) => {
+    let accepts = false;
+    const calls = harness(
+      on,
+      {
+        ...where("none", "github"),
+        site: { url: "https://crumb.netlify.app", live: true },
+      },
+      true,
+      {
+        reconnect: () =>
+          accepts ? out({ reconnected: true }) : out({ message: "Connection refused" }, false),
+      },
+    );
+    await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+    await $.tool.call({ tool: "mcp__clodable__open_panel", view: "site" } as never);
+    const pane = await $.ui.mount(PANE);
+    await pane.press({ key: "site-reconnect" });
+    expect(await shows(pane, "Connection refused")).toBeDefined();
+    expect(await pane.find({ key: "site-reconnect-token" })).toBeDefined();
+    expect(await pane.find({ key: "site-reconnect-done" })).toBeUndefined();
+    accepts = true;
+    await pane.press({ key: "site-reconnect" });
+    expect(await shows(pane, /Publishing connection updated/)).toBeDefined();
+    expect(await pane.find({ key: "site-reconnect" })).toBeUndefined();
+    expect(await pane.find({ key: "site-reconnect-token" })).toBeUndefined();
+    await pane.press({ key: "site-reconnect-done" });
+    expect(await shows(pane, /Publishing connection updated/)).toBeUndefined();
+    expect(await pane.find({ key: "nav-history" })).toBeDefined();
     expect(calls.some((c) => c[0] === "publish" || c.includes("create"))).toBe(false);
     await pane.unmount();
   });
