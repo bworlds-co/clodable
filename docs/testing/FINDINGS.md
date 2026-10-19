@@ -525,9 +525,9 @@ The owner initially requested collection without implementation, then completed 
 
 - **Implemented (October 18):** existing sites now expose **Publishing connection** in the site view and **Hosting and connection** in Settings. **Use saved connection** refreshes this app’s encrypted publishing credential; a replacement token stays in the panel/stdin. The operation verifies the saved site and account first and never creates a site or publishes. Removed the unconditional “Your site is live” line from this recovery view. CLI integration covers unchanged site/config/workflow, token secrecy and refusal of a mismatched account; plugin regression covers existing hosting and no publication. Native Desktop (`local_63ea9544-079d-46ac-b3b2-39061f9c6f62`) opened the controls from a normal request and retained them with a useful error when the isolated fixture had no saved token. No owner credential or cloud site was changed.
 
-## F41 — blocker — The Clodable bar disappears, removing access to the panel
+## F41 — accepted Desktop limitation — The bar hides while a question box is open
 
-- **Status:** **reopened October 19 after owner retest.** PR #108 preserved technical panel access, but its faint footer opener does not meet the expected Clodable-bar experience. The owner could not find it and rejected the placement. The bar remains absent during native end-of-turn choices; a proper supported solution is still under investigation. Issue: https://github.com/bworlds-co/clodable/issues/92.
+- **Status:** **closed as accepted / not planned, by owner decision on October 19.** The owner accepts that Desktop hides the bar while its question box is open and asked to remove this from outstanding work. Further bar investigation is stopped. The existing footer opener is unchanged; this closure does not claim that the bar stays visible. Issue: https://github.com/bworlds-co/clodable/issues/92.
 - **Observed:** the owner reports that the Clodable bar disappeared during publish recovery. The screenshot shows **How is Claude doing this session?** above the message box, with Clodable's status and actions absent.
 - **Builder impact:** essential status, Preview and Publish controls disappear without explanation precisely when the builder needs recovery. This also undermines instructions in the conversation that refer to the bar.
 - **Confirmed cause:** the `AbovePrompt` renderer in `plugin/hooks/register.tsx` immediately returns `next(e)` when `e.props.hasSurvey` is true, omitting Clodable entirely. This is Clodable's handling of Desktop's survey, not evidence that the plugin unloaded. The test harness currently defaults `hasSurvey` to false.
@@ -613,7 +613,7 @@ Remaining real-service sign-off limits are unchanged: AI and email setup/deliver
 
 ## Owner retest — October 19
 
-The October 18 closure was premature for F41: its fallback passed technical accessibility checks but failed discoverability and did not preserve the expected bar. Issue #92 is reopened. No replacement implementation has been chosen. The owner also found F47 below. The October 18 report/PDF describes the earlier completion state and is superseded by these open findings.
+F41 was briefly reopened after the owner questioned the footer opener and missing bar. The owner then explicitly accepted the bar hiding while Desktop’s question box is open and asked to remove it from outstanding work. Issue #92 is closed as not planned; no further bar change is scheduled. F47 below remains open. The October 18 report/PDF describes the earlier completion state; this retest adds the unresolved reconnection success-state finding.
 
 ## F47 — major — Successful publishing reconnection leaves the recovery form open
 
