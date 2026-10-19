@@ -428,7 +428,7 @@ function ghError(result: ExecResult, otherwise: ErrorInfo): ClodableError {
     return new ClodableError({
       code: "gh-auth",
       message: "Clodable isn't connected to your GitHub account.",
-      hint: "Run `clodable setup` to connect it.",
+      hint: "Type /clodable to open the Clodable panel and connect it there.",
       details: text,
     });
   }
