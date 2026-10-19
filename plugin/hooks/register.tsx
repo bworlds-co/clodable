@@ -1746,7 +1746,7 @@ export const register: Register = (on) => {
         ? ` Site setup is unavailable: ${moveTeamsProblem.message} ${moveTeamsProblem.reconnect ? "The panel offers Netlify reconnection; the builder enters the token there." : "The panel offers Check again."} Explain this blocker briefly; don't describe site setup as ready.`
         : "";
     return {
-      result: `${opened.isPlaced ? "Opened" : "Requested"} Clodable's ${view} view.${opened.isPlaced ? "" : " The interface has not confirmed it is visible; don't claim it is open."} No account was created, action confirmed or site published.${blocked}${view === "move" ? " For a migration progress/checkpoint request, summarize in at most three short paragraphs and 140 words: current stage/live-app boundary; grouped previous checks and their scope; remaining services or unknowns and one next action. No per-feature bullet list or repeated question-card recap. Expand only for an explicit detailed report." : ""} Acknowledge briefly; do not repeat the panel's contents in chat unless the builder asks you to explain them. Never ask for a token here.`,
+      result: `${opened.isPlaced ? "Opened" : "Requested"} Clodable's ${view} view.${opened.isPlaced ? "" : " The interface has not confirmed it is visible; don't claim it is open."} No account was created, action confirmed or site published.${blocked}${view === "move" ? ` ${MOVE_CHECKPOINT_CONTEXT}` : ""} Acknowledge briefly; do not repeat the panel's contents in chat unless the builder asks you to explain them. Never ask for a token here.`,
     };
   });
 
@@ -1815,6 +1815,23 @@ export const register: Register = (on) => {
       result:
         "Recorded the app's setup. No live service was changed or created. Read app_context if you need the current state.",
     };
+  });
+
+  // Refresh retained conversations before the model's first request. turn.start appends
+  // arrive too late to guide its first tool choices after a plugin reload.
+  on("prompt.submit", async ($, e, next) => {
+    await syncFolder($);
+    await isApp();
+    const current = await read($, status);
+    if (
+      e.text &&
+      !detailsFor.has(e.text) &&
+      current?.ready &&
+      (current.movingOffLovable || current.finishingMove)
+    ) {
+      return next({ ...e, context: [...(e.context ?? []), MOVE_TURN_CONTEXT] });
+    }
+    return next(e);
   });
 
   // Remember what each turn was asked, so its save gets a meaningful name.
@@ -5891,6 +5908,11 @@ async function runSetup($: EngineInterface, args: string[]): Promise<Result | un
   setupSteps = [];
   return result;
 }
+
+const MOVE_CHECKPOINT_CONTEXT =
+  "For a migration checkpoint (including what was tested and what remains), use fresh status and the dated rehearsal record, or read move status once. Reply in at most three short paragraphs and 140 words unless explicitly asked for a detailed report: current milestone and live-app boundary; grouped previous checks with their date/scope; remaining services or unknowns and one next action. No task list, per-feature bullets, transcript search or repeated question-card recap. Do not say halfway or call the whole copy healthy/ready when a feature is blocked. Missing evidence means unknown, not never tested. A status question needs no decision; leave next-step controls in the panel.";
+
+const MOVE_TURN_CONTEXT = `Clodable context for this turn: this app has an ongoing move off Lovable. For a migration progress, resume or setup request (including setting up users' emails or an AI provider), call mcp__clodable__open_panel with view: "move" before answering or asking for the next detail, even if earlier replies only described the controls. Opening the panel changes no app data and grants no consent. For an unrelated app request, follow that request without opening the move panel. Read move status only when fresh state is missing; never repeat a copy or create a service just to resume. Use the current clodable-move skill for steps. Keys and account consent stay in the panel; live changes still require explicit approval. ${MOVE_CHECKPOINT_CONTEXT}`;
 
 const LOCAL_APP_CONTEXT = `Clodable context: this folder is not set up for automatic saving. The builder's message in the conversation is the request; do not ask them to repeat it in a panel, type /clodable or press Start from an idea. If they ask to build an app, act on that request directly: make a small, working local prototype with Vite and React, dev and build scripts, and .gitignore excluding node_modules, dist and .env files. Inspect and preserve any existing local work; do not restart a prototype on a follow-up. Make sensible product and design choices, asking one focused question only if it is needed to proceed. Use sample data and browser storage first, and explain that it is local when relevant. If they are only exploring, asking a question or asking you to wait, respond to that intent without building. If they want to bring an existing app from GitHub, open the app view with open_panel for the import controls instead of scaffolding or cloning. Do not create a GitHub app, connect accounts, add a backend, initialize git, write Clodable setup files or publish. Open the preview in Desktop and try the main interaction before saying the prototype is ready. Keep replies brief, in product terms, without file lists, git vocabulary or local addresses. When they ask to keep/save the prototype, open the saving view with open_panel for account consent; they should not have to find a command or repeat their original request. Files are on this computer; Clodable is not saving to GitHub yet.`;
 const IDEA_PREPARE_DETAILS = `Keep the existing app's design, content and local work. Prepare it as a supported Vite + React app with dev and build scripts, checking that it builds. Keep environment files and generated dependencies ignored. Do not create a remote app, connect accounts or publish. Once ready, ask the builder to try Set up saving in Clodable again. All account consent and GitHub creation happen in the panel. Use plain builder language.`;
