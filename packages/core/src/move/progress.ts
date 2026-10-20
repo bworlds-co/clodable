@@ -304,7 +304,7 @@ function moveSteps(state: MoveState, around: Surroundings) {
     add(
       {
         id: "functions",
-        title: "Deploy your backend functions",
+        title: "Move your backend functions",
         ...(state.functions
           ? {
               detail: secretsOpen

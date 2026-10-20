@@ -221,7 +221,7 @@ export async function enableEmailHook(ws: Workspace): Promise<{ on: true }> {
   if (deployed?.status !== "ACTIVE") {
     throw new ClodableError({
       code: "move-not-ready",
-      message: "Deploy your backend functions first: the sign-in emails come from auth-email-hook.",
+      message: "Move your backend functions first: the sign-in emails come from auth-email-hook.",
       hint: "clodable move functions",
     });
   }

@@ -165,7 +165,7 @@ The live app moves over, with a pause as short as the last export takes. Claude 
 
 ## The app's settings (`process.env`)
 
-What the app's server code reads (`process.env.GREETING`, found by scanning `src/`, `server/`, `app/`; `LOVABLE_*` set apart) needs a value in the preview too, not only on the host. `clodable settings` lists them with where each has a value (this computer, the site on Netlify); `clodable setting <NAME>` (value on stdin) stores it in Clodable's private store for this app (never in the project) and, once the app has a site on Netlify, sets it there too. `clodable dev` gives them to the app as `process.env` (what the person's own shell set wins) and restarts when `.clodable/local/settings.json` (names only) changes. The panel asks for missing ones in **Try your app on the copy**, under **Put your site on Netlify**, and in the editing view's **Your app's settings**.
+What the app's server code reads (`process.env.GREETING`, found by scanning `src/`, `server/`, `app/`; `LOVABLE_*` set apart) needs a value in the preview too, not only on the host. `clodable settings` lists them with where each has a value (this computer, the site on Netlify); `clodable setting <NAME>` (value on stdin) stores it in Clodable's private store for this app (never in the project) and, once the app has a site on Netlify, sets it there too. `clodable dev` gives them to the app as `process.env` (what the person's own shell set wins) and restarts when `.clodable/local/settings.json` (names only) changes. The panel asks for missing ones in **Try your app on the copy**, under **Prepare your website**, and in the editing view's **Your app's settings**.
 
 ## Repo kit (what `clodable setup` adds to a client's repo)
 

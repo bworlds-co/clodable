@@ -4951,8 +4951,8 @@ function functionsStep($: EngineInterface, { ui, step }: StepView) {
         Your {plural(move?.functions ?? 0, "backend function")} go to your new backend, all
         together.
       </Text>
-      {pilotButton($, ui, "move-functions", again ? "Deploy them again" : "Deploy my functions", {
-        text: "Moving off Lovable: deploy my backend functions to my new backend.",
+      {pilotButton($, ui, "move-functions", again ? "Move them again" : "Move my functions", {
+        text: "Moving off Lovable: move my backend functions to my new backend.",
         details: stepDetails(runStep($, ["functions"])),
       })}
     </Box>
