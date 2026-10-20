@@ -56,3 +56,13 @@ for (const file of ["plugin/.claude-plugin/plugin.json", ".claude-plugin/marketp
   writeFileSync(path, `${JSON.stringify(json, null, 2)}\n`);
 }
 console.log(`plugin/cli/clodable.mjs · v${version}`);
+
+// The bundled CLI carries other people's code: their licenses, and Clodable's own, go beside it,
+// so every installed plugin has them.
+const notices = resolve(root, "packages/cli/dist/THIRD_PARTY_NOTICES.txt");
+if (!existsSync(notices)) {
+  console.error("Build the CLI first: pnpm --filter clodable build");
+  process.exit(1);
+}
+copyFileSync(notices, resolve(root, "plugin/cli/THIRD_PARTY_NOTICES.txt"));
+copyFileSync(resolve(root, "LICENSE"), resolve(root, "plugin/cli/LICENSE"));
