@@ -60,7 +60,9 @@ writeFileSync(marketplace, `${JSON.stringify(catalog, null, 2)}\n`);
 execFileSync("pnpm", ["build"], { cwd: root, stdio: "inherit" });
 console.log(`
 ${current} → ${next}. The marketplace now installs ${tag}, which isn't on GitHub yet. Next:
-  1. Run the checks, commit "Release ${next}", push, and open the release pull request.
-  2. When it's ready to merge, tag its last commit: claude plugin tag plugin --push
-  3. Then merge it with a merge commit (not squash or rebase).
+  1. Write docs/releases/${next}.md, run the checks, commit "Release ${next}", push, and open
+     the release pull request.
+  2. When it's ready to merge and up to date with main, tag its last commit:
+     claude plugin tag plugin --push
+  3. Then merge it right away. main must never name a tag that isn't on GitHub.
 "Releasing" in CONTRIBUTING.md has the details.`);

@@ -12,7 +12,12 @@
     {
       "name": "clodable",
       "displayName": "Clodable",
-      "source": "./plugin",
+      "source": {
+        "source": "git-subdir",
+        "url": "https://github.com/bworlds-co/clodable.git",
+        "path": "plugin",
+        "ref": "clodable--v0.3.0"
+      },
       "description": "The Publish bar and panel for Claude Desktop: every change saved to your draft on GitHub, one-click publish with checks, undo, and plain-language activity.",
       "version": "0.3.0",
       "author": {

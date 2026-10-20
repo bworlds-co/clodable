@@ -234,15 +234,11 @@ export CLODABLE_FAKE_GITHUB=/tmp/clodable-demo/.github-fake/crumb-site.git
 node <repo>/packages/cli/dist/clodable.mjs publish
 ```
 
-**Use your checkout in Claude Desktop and the terminal while you work on it.** Install it once from the folder:
+**Use your checkout in Claude Desktop and the terminal while you work on it.** The marketplace installs the last release from GitHub, so load this folder's plugin instead. In the terminal:
 ```bash
-claude plugin install clodable --marketplace "$PWD"
+claude --plugin-dir ./plugin
 ```
-In the terminal, Claude Code reads the plugin straight from `plugin/` here, so your edits apply at the next session or `/reload-plugins`. Claude Desktop loads the copy made at install time instead (`~/.claude/plugins/cache/clodable/clodable/<version>`), so point that copy at your checkout once:
-```bash
-d=$(ls -d ~/.claude/plugins/cache/clodable/clodable/*/ | head -1); rm -rf "$d" && ln -s "$PWD/plugin" "${d%/}"
-```
-Clodable only acts in apps it set up, so your other projects are unaffected. To remove it: `claude plugin marketplace remove clodable`.
+It reloads as you edit, and replaces an installed Clodable for that session. Claude Desktop can't take `--plugin-dir`: set `CLAUDE_CODE_PLUGIN_DIRS` to the absolute path of this folder's `plugin` in the `env` of `~/.claude/settings.json`, and remove it when you're done ([Working on the Claude plugin](CONTRIBUTING.md#working-on-the-claude-plugin) has the details). `claude plugin install clodable --marketplace "$PWD"` installs the release the marketplace names, from GitHub: what builders get. Clodable only acts in apps it set up, so your other projects are unaffected.
 
 | Package | What it is |
 |---|---|
