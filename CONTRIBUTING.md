@@ -1,6 +1,6 @@
 # Contributing to Clodable
 
-Thank you for helping. Clodable is for people who build apps with AI app builders such as Lovable, Bolt or Base44, and most of them aren't developers. Every change should make their day calmer.
+Thank you for helping. Clodable is for anyone who builds apps with AI, and most of them aren't developers. Every change should make their day calmer.
 
 Everyone here follows the [code of conduct](CODE_OF_CONDUCT.md).
 

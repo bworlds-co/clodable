@@ -283,4 +283,4 @@ Clodable is **early**: working end to end, and moving fast. Starting from an ide
 
 ## License
 
-[MIT](LICENSE). Clodable is not affiliated with Anthropic or Lovable.
+[MIT](LICENSE), except the Clodable name, logo and mascot: see [TRADEMARKS.md](TRADEMARKS.md). Clodable is not affiliated with Anthropic or Lovable.

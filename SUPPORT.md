@@ -1,6 +1,6 @@
 # Getting help
 
-Clodable is for people who build apps with AI app builders such as Lovable, Bolt or Base44, and most of them aren't developers. You don't need technical words to ask for help.
+Clodable is for anyone who builds apps with AI, and most of them aren't developers. You don't need technical words to ask for help.
 
 ## First, the troubleshooting page
 

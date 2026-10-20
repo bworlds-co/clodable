@@ -14,6 +14,6 @@ Clodable is free and open source, under the [MIT license](LICENSE). It sends BWo
 
 ## The name, and forks
 
-The code is MIT-licensed, and it stays MIT. BWorlds keeps the name Clodable, its logo and its mascot, the official plugin marketplace (this repository) and the `clodable` package on npm.
+The code is MIT-licensed, and it stays MIT. The name Clodable, its logo and its mascot aren't: they belong to BWorlds, as [TRADEMARKS.md](TRADEMARKS.md) explains. BWorlds also keeps the official plugin marketplace (this repository) and the `clodable` package on npm.
 
 Forks are welcome. Please give yours its own name, logo and mascot, so people can tell them apart.
