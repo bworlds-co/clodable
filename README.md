@@ -17,7 +17,6 @@
 <p align="center">
   <a href="https://github.com/bworlds-co/clodable/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/bworlds-co/clodable/ci.yml?branch=main&style=flat-square&label=ci" alt="CI status"></a>
   <a href="https://www.npmjs.com/package/clodable"><img src="https://img.shields.io/npm/v/clodable?style=flat-square" alt="npm version"></a>
-  <a href="https://www.npmjs.com/package/clodable"><img src="https://img.shields.io/node/v/clodable?style=flat-square" alt="Node.js version"></a>
   <a href="LICENSE"><img src="https://img.shields.io/github/license/bworlds-co/clodable?style=flat-square" alt="License: MIT"></a>
 </p>
 
@@ -27,14 +26,50 @@
 
 ## Get started
 
-**You'll need** a Mac with [Claude Desktop](https://claude.com/download) (on a paid Claude plan) and your app on GitHub. Lovable [puts it there in one click](https://docs.lovable.dev/integrations/github).
+**You'll need:**
+
+- A Mac.
+- [Claude Desktop](https://claude.com/download), up to date. To check, type `/status` in its **Code** tab: the **Claude Code** row should show 2.1.286 or later.
+- A paid Claude plan.
+- A GitHub account (free), where Clodable saves your app. An app you already have needs to be on it: Lovable [puts it there in one click](https://docs.lovable.dev/integrations/github).
+
+The first run may ask to install Apple's developer tools, which takes a few minutes.
 
 1. **Add Clodable to Claude Desktop.** Open **Customize › Plugins**, click **Add › Add marketplace › Add from a repository**, and enter `bworlds-co/clodable`. Then, under **Discover**, click **Add** next to Clodable.
-2. **Open an empty folder** in Claude Desktop's **Code** tab and type `/clodable`. Clodable gets what it needs the first time, signs you in to GitHub and brings your app in.
+   - You should see **Added** next to Clodable.
+   - If Discover's search doesn't find Clodable, set its **Source** filter to **clodable**.
+2. **Open an empty folder** in Claude Desktop's **Code** tab.
+   - You should see the Clodable bar above the message box: “Describe your idea to Claude”, with **Bring an app from GitHub**.
+   - If the bar doesn't show, type `/clodable`: the Clodable panel opens beside the chat. If the chat says “/clodable isn't a command here.” while the panel opens, carry on: Clodable is running.
+
+Then start from an idea, or bring an app you already have.
+
+### Start from an idea
+
+1. **Describe your app** in the message box, in your own words. For example: “Make a simple app for sharing books with my neighbours. Start with sample books.”
+   - You should see a first version in the preview beside the chat. Claude tells you it's only on this computer for now, and the bar says “Only on this computer”.
+   - If Claude only talks it through, ask it to build a first version. If the preview doesn't open, ask Claude: “Show me my app's preview.”
+2. **Keep it.** Press **Set up saving** in the bar, or tell Claude you want to keep your app.
+   - You should see the panel name your GitHub account, “Save to @you · Private”. Nothing is created yet: check the app's name, then press **Create private app**. Clodable says “Saved to your private app on GitHub.”, and from then on saves your app after each of Claude's replies.
+   - If the panel shows ✕ next to GitHub account, press **Connect GitHub** and enter the one-time code at github.com/login/device. If it shows **Install Git**, press it and follow Apple's window, then press **Check again**. If it says “Your local app needs a little preparation before saving.”, press **Ask Claude for help**, then **Create private app** again.
+3. **Put it online, when you're ready.** The bar says “Not on the web yet”. Press **Set up hosting** and follow the panel: a free Netlify account, a token you paste in the panel, then **Create my web address**. Then press **Publish**.
+   - You should see **You're live**, with your site's address.
+
+When your app needs sign-in or data that people share, ask Claude: Clodable adds a backend on your own Supabase (free to start), after you choose the account in the panel.
+
+### Bring an app you already have
+
+1. **Press Bring an app from GitHub** in the Clodable bar.
+   - You should see the Clodable panel beside the chat. The first time, it gets the tools it needs.
+   - If the panel shows **Install Git**, press it and follow Apple's window, then press **Check again**.
+2. **Bring your app in.** If the panel asks, press **Connect GitHub** and enter the one-time code at github.com/login/device. Paste your app's GitHub address, or press **Show my repositories** and pick it. Then press **Bring it in**.
+   - You should see your app in the preview beside the chat, and “Your app is ready. Ask Claude for any change.” Claude then looks at your app and asks, one question at a time, what the code can't tell: where its data lives, and how its site goes live.
+
+Putting your site online, adding a backend: Clodable sets them up in your own Netlify and Supabase accounts when you need them (both free to start). On Lovable Cloud, ask Claude to move you off Lovable, or type `/move-off-lovable` ([how it goes](#move-off-lovable-to-a-stack-you-own)).
+
+Stuck? See [Troubleshooting](docs/TROUBLESHOOTING.md).
 
 Already use Claude Code in Terminal? `claude plugin install clodable --marketplace bworlds-co/clodable` does step 1.
-
-Moving off Lovable, putting your site online, adding a backend: Clodable sets them up in your own Netlify and Supabase accounts when you need them (both free to start). On Lovable Cloud, type `/move-off-lovable` ([how it goes](#move-off-lovable-to-a-stack-you-own)).
 
 ## Why Clodable
 
@@ -44,11 +79,11 @@ AI app builders like Lovable showed that anyone can build an app by describing i
 
 **All of Claude Code, made simpler.** Clodable is a plugin for Claude Code in Claude Desktop. Claude can change any file, add tables to your database, write backend functions and fix what breaks, and the skills, plugins and connectors you already use with Claude Code keep working. Clodable adds what a builder needs, like the live preview, the Publish button and Undo, and keeps the rest out of the way.
 
-**Yours, down to the keys.** Your code is on your GitHub, your data in your own Supabase, your site on your own host. The keys to those accounts stay on your computer or in the accounts themselves, never in the chat. Clodable has no server, no account and no paid tier: it's free and open source, under the MIT license. Stop using it any day, and your app keeps running exactly as it is.
+**Yours, down to the keys.** Your code is on your GitHub, your data in your own Supabase, your site on your own host. The keys to those accounts stay on your computer or in your own accounts, and Clodable never asks for them in the chat. Clodable has no server, no account and no paid tier: it's free and open source, under the MIT license. Stop using it any day, and your app keeps running exactly as it is.
 
 **Coming from Lovable?** Clodable moves your app, your data and your users to accounts you own, step by step, while your live app keeps running. See [how the move goes](#move-off-lovable-to-a-stack-you-own).
 
-**Still early.** Clodable is v0.2: it works end to end, but it isn't perfect yet, and it changes fast. [Tell us what breaks](https://github.com/bworlds-co/clodable/issues).
+**Still early.** Clodable works end to end, but it isn't perfect yet, and it changes fast. [Tell us what breaks](https://github.com/bworlds-co/clodable/issues).
 
 <p align="center">
   <a href="#get-started">Get started</a> · <a href="#how-it-works">How it works</a> · <a href="docs/ARCHITECTURE.md">Architecture</a> · <a href="docs/DECISIONS.md">Decisions</a> · <a href="CONTRIBUTING.md">Contributing</a>
@@ -66,24 +101,24 @@ AI app builders like Lovable showed that anyone can build an app by describing i
 </p>
 
 1. **Ask for a change in your own words.** "Make the header feel warmer", or "Add a pricing page with three plans."
-2. **Watch it appear** in the live preview next to the chat. Your work is saved after every reply.
-3. **Click Publish** when you're happy. Clodable checks your app, and a minute later it's live.
+2. **Watch it appear** in the live preview next to the chat. Once you've set up saving, Clodable saves your work after every reply.
+3. **Click Publish** when you're happy. Clodable checks your app, then your site updates, usually within five minutes. While Lovable hosts your site, Publish ends at **Published on GitHub**, and you click Publish in Lovable to put it live.
 4. **Changed your mind?** Undo puts the previous version back.
 
-You never see git, branches or deploy logs. Your developer, if you have one, sees all of it on GitHub, the way developers like it.
+Clodable never uses git words: you see Saved, Publish and Undo. A developer, if you have one, finds a normal history on GitHub.
 
 ## What works today
 
-Clodable is built and tested with apps made with **Lovable**:
+Clodable is built and tested with apps it starts from your idea, and with apps made with **Lovable**:
 
-- **Your app:** either kind Lovable makes, a React app built with Vite or a TanStack Start app.
+- **Your app:** a new one Claude starts from your idea (a React app built with Vite), or either kind Lovable makes, a React app built with Vite or a TanStack Start app.
 - **Your database:** your own Supabase project, or Lovable Cloud, which Clodable moves to a Supabase project in your name. No database yet? Clodable adds one on your own Supabase when your app needs sign-in or saved data.
 - **Your site:** still on Lovable's hosting, on Netlify after the move, or on any host that deploys from GitHub, such as Vercel, Netlify or Cloudflare. Not online yet? Clodable puts it on your own Netlify, and each Publish updates it.
 - **Your computer:** a Mac with Claude Desktop. Windows hasn't been tested yet, and the move off Lovable doesn't run there yet.
 
-> **About Claude plans.** Pro and Max are personal plans. For your company's app, use **Claude Team or Enterprise**. Anthropic's consumer terms don't allow business use of personal plans in the EU. Helping a client set up? Follow the [onboarding playbook](docs/ONBOARDING.md).
+> **About Claude plans.** Pro and Max are personal plans. For your company's app, use **Claude Team or Enterprise**. In the European Economic Area and Switzerland, Anthropic's [consumer terms](https://www.anthropic.com/legal/consumer-terms) don't allow business use of personal plans. Helping a client set up? Follow the [onboarding playbook](docs/ONBOARDING.md).
 
-Apps from other AI app builders aren't supported yet. A React app built with Vite may already work, since that's what Clodable's preview runs, but none has been tested. Apps built with Next.js don't work yet.
+Apps made with other AI app builders haven't been tested yet. A React app built with Vite may already work, since that's what Clodable's preview runs. Apps built with Next.js don't work yet. Moving off a builder works for Lovable only, for now.
 
 ## Move off Lovable, to a stack you own
 
@@ -108,11 +143,11 @@ Your app, your data and your people move out of Lovable into accounts in your na
 
 1. **Claude looks at your app** to see what it uses: AI, sign-in, emails, payments, scheduled jobs, uploads. You see what it found, and each step fits your app.
 2. **You choose how to move.** *Carefully*, for an app people use: you try a working copy first, then your live app pauses for a few minutes while the latest data comes over, so nothing is lost. *In one go*, for a prototype: one export, and you're live on your own accounts.
-3. **Get ready, beside your live app.** A copy of your data and people on your Supabase, which you can try in the preview. Your site on Netlify. Your emails, your AI key, your sign-in.
+3. **Get ready, beside your live app.** A copy of your data and people on your Supabase, which you can try in the preview. Your website, prepared on Netlify. Your emails, your AI key, your sign-in.
 4. **Go live.** Clodable points your app at its new home, Publish puts it live, and your domain follows.
 5. **Finish in Lovable**, once you've signed in on the new site: unpublish, disconnect GitHub, remove Lovable Cloud. The panel gives you the exact clicks, and a message for your users.
 
-You'll create free accounts with Supabase, Netlify and Resend along the way, plus an AI provider or a Google sign-in if your app uses them. Your keys go into the Clodable panel and stay on your computer or in those accounts: never in the chat. When a part is better done with someone technical, the panel says so up front. It's the same move for everyone, developers and agencies included.
+You'll create free accounts with Supabase, Netlify and Resend along the way, plus an AI provider or a Google sign-in if your app uses them. Your keys go into the Clodable panel and stay on your computer or in your own accounts. Clodable never asks for them in the chat. When a part is better done with someone technical, the panel says so up front. It's the same move for everyone, developers and agencies included.
 
 ## In the preview
 
@@ -135,18 +170,21 @@ You'll create free accounts with Supabase, Netlify and Resend along the way, plu
   </tr>
 </table>
 
-You can also preview your app at phone and tablet sizes, with real breakpoints. The toolbar only exists on your computer: visitors never see it.
+The tools start folded as **Tools** at the bottom of the preview: press it to open them. You can also preview your app at phone and tablet sizes, with real breakpoints. The toolbar only exists on your computer: visitors never see it.
 
 ## In Claude Desktop
 
-Clodable adds a **Publish bar** above the message box. It always tells you where you stand:
+Clodable adds a **Publish bar** above the message box. It tells you where you stand:
 
 | You see | It means |
 |---|---|
+| `Only on this computer` **[Set up saving]** | Your new app isn't saved to GitHub yet |
 | `● 3 changes not live yet` **[Publish]** | Your work is saved on GitHub, in your draft |
 | `Publishing · Checking it builds…` | Clodable is putting it live, step by step |
 | `● You're live · crumb.co` **[Undo]** | Visitors now see your changes |
 | `Not published · A page doesn't build` **[Fix it]** | Nothing changed for visitors. Claude can fix it |
+
+While Claude Desktop shows a question with choices to pick from, it hides the bar. **Open Clodable**, beside the message box, still opens the panel.
 
 Claude's activity is written in plain words ("Updated the Pricing page", "Changed your database: add phone to customers"). Before anything touches your live data, Clodable asks you, and says plainly when a change can't be undone.
 
@@ -170,23 +208,29 @@ Underneath it's plain **GitHub Flow**: one draft branch per person, one pull req
 
 ## For developers
 
+You need Node.js 20.19 or newer, pnpm 10 and git. `pnpm test:plugin` also needs the Claude Code CLI.
+
 ```bash
 pnpm install
 pnpm build        # design, core, preview, CLI bundle, and the plugin's copy of it
-pnpm test         # core, preview (vitest) · plus `pnpm test:plugin` for the Claude plugin
+pnpm test         # every package (vitest) · plus `pnpm test:plugin` for the Claude plugin
 pnpm lint && pnpm typecheck
 ```
 
-**Run an example app with the toolbar**, straight from source:
+**Run an example app with the toolbar**, straight from source. The examples are separate npm projects, so install one first:
 ```bash
+npm ci --prefix examples/lovable-vite                    # or examples/lovable-tanstack
 pnpm tsx scripts/dev-example.mts lovable-vite 5199       # or lovable-tanstack
 ```
 
-**Try the whole flow without a GitHub account.** The CLI can run against a fake GitHub on your disk:
+**Try the whole flow without a GitHub account.** `scripts/demo-workspace.mts` makes a demo: the bakery example with Clodable set up, a local stand-in for GitHub, and two saves waiting to be published. It deletes and recreates the folder you give it (by default `~/Clodable Demo`), so name a new one. After `pnpm build` and the `lovable-vite` install above:
 ```bash
-git clone --bare <some-app> /tmp/demo.git && git clone /tmp/demo.git /tmp/demo && cd /tmp/demo
-export CLODABLE_FAKE_GITHUB=/tmp/demo.git
-node <repo>/packages/cli/dist/clodable.mjs save -m "warmer welcome"
+pnpm tsx scripts/demo-workspace.mts /tmp/clodable-demo
+```
+It prints how to open the demo in Claude Desktop. To publish from the terminal instead:
+```bash
+cd /tmp/clodable-demo/crumb-site
+export CLODABLE_FAKE_GITHUB=/tmp/clodable-demo/.github-fake/crumb-site.git
 node <repo>/packages/cli/dist/clodable.mjs publish
 ```
 
@@ -218,9 +262,13 @@ Clodable is built for Claude: Claude reads your app and decides, and the CLI doe
 - Change your live data without asking you first.
 - Send your code or data anywhere except your own accounts: GitHub, Supabase, your host, and the services you connect.
 - Ask for your secret keys in the chat.
-- Send a secret key to GitHub. Every save is checked with [gitleaks](https://github.com/gitleaks/gitleaks) before it leaves your computer, and a key stops it there.
+- Save to GitHub a secret key that [gitleaks](https://github.com/gitleaks/gitleaks) recognizes. Every save is checked before it leaves your computer, and such a key stops it there. Test keys, keys made for browser code, and text that only looks like a key get a note instead.
 - Ship its toolbar to your visitors.
 - Touch a project it wasn't set up in. Your other folders look and work exactly as before.
+
+## Who makes Clodable
+
+BWorlds, a small company that helps people own their AI-built apps. Clodable is free and MIT, sends us nothing, and has no paid tier. We earn from optional help with moves off Lovable and from audits, never from Clodable.
 
 ## Status
 
@@ -228,7 +276,7 @@ Clodable is built for Claude: Claude reads your app and decides, and the CLI doe
   <img src="docs/assets/mascot/still-shaping.png" alt="The mascot lying flat, still being shaped, waving" width="177">
 </p>
 
-Clodable is **v0.2**: early, working end to end, and moving fast. The move off Lovable has run end to end on test apps; Google sign-in, your own domain and the careful switch haven't yet run against real accounts. The design decisions are recorded in [docs/DECISIONS.md](docs/DECISIONS.md). Coming next:
+Clodable is **early**: working end to end, and moving fast. Starting from an idea, saving and publishing have run end to end in Claude Desktop, in our tests. The move off Lovable runs end to end in our tests, against a real Supabase running locally. On a real Lovable app, the export and a working copy on the new backend have been tried. Moving existing users and files, emails, your own AI key, Google sign-in, your app running on Netlify, your own domain and the careful switch haven't yet run against real accounts. The design decisions are recorded in [docs/DECISIONS.md](docs/DECISIONS.md). Coming next:
 - a local staging database;
 - a "wait for my developer" mode;
 - a secure form for your production keys.
