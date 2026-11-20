@@ -1,0 +1,66 @@
+name: Bug report for developers
+description: For people working on Clodable's code. Versions, steps, expected and actual.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Using Clodable on your app rather than working on its code? [Something isn't working](https://github.com/bworlds-co/clodable/issues/new?template=1-something-isnt-working.yml) is quicker.
+
+        Issues are public: remove tokens, keys and personal data from anything you paste.
+  - type: input
+    id: claude-version
+    attributes:
+      label: Claude Code version
+      description: The output of `claude --version`.
+    validations:
+      required: true
+  - type: input
+    id: plugin-version
+    attributes:
+      label: Clodable plugin version
+      description: From `claude plugin list` (the version under clodable@clodable), or the commit you run from.
+    validations:
+      required: true
+  - type: input
+    id: node-version
+    attributes:
+      label: Node.js version
+      description: The output of `node --version`.
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Operating system (optional)
+      placeholder: macOS 26.2
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected
+      description: What you expected to happen.
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual
+      description: What happened instead. Error messages and screenshots help.
+    validations:
+      required: true
+  - type: textarea
+    id: ndjson
+    attributes:
+      label: NDJSON output (if relevant)
+      description: If a `clodable` command misbehaves, run it with `--json` (for example `npx clodable status --json`) and paste what it prints.
+      render: text

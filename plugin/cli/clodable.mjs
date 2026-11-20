@@ -21017,7 +21017,7 @@ async function loadConfig(root) {
     throw new ClodableError({
       code: "invalid-config",
       message: "Clodable's settings file can't be read.",
-      hint: `Check ${CONFIG_PATH} for a typo, or delete it and run \`clodable setup\` again.`,
+      hint: `Ask Claude to check ${CONFIG_PATH} for a typo and fix it.`,
       details: String(error62),
       files: [CONFIG_PATH]
     });
@@ -21027,7 +21027,7 @@ async function loadConfig(root) {
     throw new ClodableError({
       code: "invalid-config",
       message: "Clodable's settings file has a value it doesn't understand.",
-      hint: `Check ${CONFIG_PATH}.`,
+      hint: `Ask Claude to check ${CONFIG_PATH} and fix that value.`,
       details: external_exports.prettifyError(parsed.error),
       files: [CONFIG_PATH]
     });
@@ -22773,7 +22773,7 @@ async function assessMove(project, config2, facts) {
       id: "functions",
       label: plural2(functions.length, "backend function"),
       by: "clodable",
-      detail: "Deployed to your Supabase, all together."
+      detail: "Moved to your Supabase, all together."
     });
   }
   const secretNames = /* @__PURE__ */ new Set();
@@ -23461,7 +23461,7 @@ async function siteSettings(ws) {
   if (!state.site) {
     throw new ClodableError({
       code: "move-not-ready",
-      message: "Put your site on Netlify first."
+      message: "Prepare your website first."
     });
   }
   return siteSettingsOf(await NetlifyApi.required(), state.site.account, state.site.id, ws.root);
@@ -24351,7 +24351,7 @@ ${kindTrailer(options.kind)}`
         throw new ClodableError({
           code: "git-identity",
           message: "Saving needs to know who you are.",
-          hint: "Run `clodable setup` once to connect your GitHub account.",
+          hint: "Type /clodable to open the Clodable panel and connect your GitHub account there. Your changes stay on this computer meanwhile.",
           details: result.stderr
         });
       }
@@ -25230,7 +25230,7 @@ ${result.stdout}`.trim();
     return new ClodableError({
       code: "gh-auth",
       message: "Clodable isn't connected to your GitHub account.",
-      hint: "Run `clodable setup` to connect it.",
+      hint: "Type /clodable to open the Clodable panel and connect it there.",
       details: text2
     });
   }
@@ -26235,7 +26235,7 @@ async function* goLive(ws, options = {}) {
   if (!state.home || !state.site) {
     throw new ClodableError({
       code: "move-not-ready",
-      message: "Put your site on Netlify first.",
+      message: "Prepare your website first.",
       hint: "Going live points your app and its sign-in at it."
     });
   }
@@ -27493,7 +27493,7 @@ async function* deployFunctions(api, ref, root) {
   if (functions.length === 0) {
     throw new ClodableError({
       code: "move-not-ready",
-      message: "This app has no backend functions to deploy."
+      message: "This app has no backend functions to move."
     });
   }
   const deployed = [];
@@ -27503,7 +27503,7 @@ async function* deployFunctions(api, ref, root) {
     yield step(
       "move:functions",
       "running",
-      "Deploying your backend functions",
+      "Moving your backend functions",
       `${index + 1} of ${functions.length}: ${fn.name}`
     );
     try {
@@ -27527,7 +27527,7 @@ async function* deployFunctions(api, ref, root) {
   yield step(
     "move:functions",
     failed.length > 0 ? "failed" : "done",
-    failed.length > 0 ? "Some backend functions didn't deploy" : "Deployed your backend functions",
+    failed.length > 0 ? "Some backend functions didn't move" : "Moved your backend functions",
     failed.length > 0 ? problems.join(" \xB7 ").slice(0, 500) : `${deployed.length} running`
   );
   return { deployed, failed, missingSecrets };
@@ -28072,7 +28072,7 @@ async function enableEmailHook(ws) {
   if (deployed?.status !== "ACTIVE") {
     throw new ClodableError({
       code: "move-not-ready",
-      message: "Deploy your backend functions first: the sign-in emails come from auth-email-hook.",
+      message: "Move your backend functions first: the sign-in emails come from auth-email-hook.",
       hint: "clodable move functions"
     });
   }
@@ -28204,7 +28204,7 @@ function moveSteps(state, around) {
     add(
       {
         id: "functions",
-        title: "Deploy your backend functions",
+        title: "Move your backend functions",
         ...state.functions ? {
           detail: secretsOpen ? `${count(secretsLeft.length, "secret key")} to add` : count(state.functions.deployed.length, "function")
         } : {}
@@ -29124,7 +29124,7 @@ async function* publish(ws, options = {}) {
     throw new ClodableError({
       code: "on-live-branch",
       message: "You're working directly on the live version.",
-      hint: "Run `clodable save` once to move your work onto your draft, then publish."
+      hint: "Ask Claude to move your work onto your draft, then publish again."
     });
   }
   yield step(
@@ -29446,7 +29446,7 @@ var Workspace = class _Workspace {
       throw new ClodableError({
         code: "not-a-repo",
         message: "This folder isn't connected to GitHub yet.",
-        hint: "Run `clodable setup` here to bring in your app from GitHub."
+        hint: "Type /clodable to open the Clodable panel and set this folder up there."
       });
     }
     const root = await probe.root();
@@ -29454,7 +29454,7 @@ var Workspace = class _Workspace {
       throw new ClodableError({
         code: "not-set-up",
         message: "Clodable isn't set up in this project.",
-        hint: "Run `clodable setup` here to add it. Until then, Clodable leaves this project alone."
+        hint: "Type /clodable to open the Clodable panel and set it up here. Until then, Clodable leaves this project alone."
       });
     }
     const git = new Git(root);
@@ -49497,7 +49497,7 @@ async function publishCommand(ctx2, options) {
       for (const warning of result.warnings) out.line(`${ochre("!")} ${warning}`);
       if (result.functions.pending.length > 0) {
         out.line(
-          `${ochre("!")} Backend functions to update: ${result.functions.pending.join(", ")}. Ask Claude to deploy them.`
+          `${ochre("!")} Backend functions to update: ${result.functions.pending.join(", ")}. Ask Claude to put them live.`
         );
       }
       out.line();

@@ -6,4 +6,4 @@ You don't need to run it yourself. The Clodable plugin for Claude Desktop uses i
 
 For programs, every command takes `--json` and prints one event per line (NDJSON).
 
-[MIT](https://github.com/bworlds-co/clodable/blob/main/LICENSE). Clodable is not affiliated with Anthropic or Lovable.
+[MIT](https://github.com/bworlds-co/clodable/blob/main/LICENSE). The open-source packages bundled into `dist/clodable.mjs` keep their own licenses, in `dist/THIRD_PARTY_NOTICES.txt`. Clodable is not affiliated with Anthropic or Lovable.

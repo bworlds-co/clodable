@@ -88,8 +88,9 @@ clodable("save", "-m", "Add a promise to the recipe card");
 console.log(`
   Demo ready: ${app}
 
-  1. Add Clodable to Claude, once (Desktop picks it up too):
-       claude plugin install clodable --marketplace "${repo}"
+  1. Load this checkout's plugin, once (Desktop and the terminal read it): in ~/.claude/settings.json,
+       "env": { "CLAUDE_CODE_PLUGIN_DIRS": "${join(repo, "plugin")}" }
+     (claude plugin install clodable --marketplace "${repo}" installs the last release instead.)
   2. Open the folder above in Claude Desktop → Code (start a new session).
   3. Watch the Publish bar ("2 changes not live yet"), open /clodable, try the preview toolbar,
      then click Publish. GitHub here is a local stand-in: ${origin}

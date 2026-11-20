@@ -156,7 +156,7 @@ export class Git {
         throw new ClodableError({
           code: "git-identity",
           message: "Saving needs to know who you are.",
-          hint: "Run `clodable setup` once to connect your GitHub account.",
+          hint: "Type /clodable to open the Clodable panel and connect your GitHub account there. Your changes stay on this computer meanwhile.",
           details: result.stderr,
         });
       }

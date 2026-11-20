@@ -170,7 +170,7 @@ export async function* deployFunctions(
   if (functions.length === 0) {
     throw new ClodableError({
       code: "move-not-ready",
-      message: "This app has no backend functions to deploy.",
+      message: "This app has no backend functions to move.",
     });
   }
   const deployed: string[] = [];
@@ -180,7 +180,7 @@ export async function* deployFunctions(
     yield step(
       "move:functions",
       "running",
-      "Deploying your backend functions",
+      "Moving your backend functions",
       `${index + 1} of ${functions.length}: ${fn.name}`,
     );
     try {
@@ -205,7 +205,7 @@ export async function* deployFunctions(
   yield step(
     "move:functions",
     failed.length > 0 ? "failed" : "done",
-    failed.length > 0 ? "Some backend functions didn't deploy" : "Deployed your backend functions",
+    failed.length > 0 ? "Some backend functions didn't move" : "Moved your backend functions",
     failed.length > 0 ? problems.join(" · ").slice(0, 500) : `${deployed.length} running`,
   );
   return { deployed, failed, missingSecrets };

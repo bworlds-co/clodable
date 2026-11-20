@@ -22,6 +22,7 @@ import {
   GhCli,
   Git,
   inboxOwner,
+  loadConfig,
   lovableAiLeft,
   mergeManagedBlock,
   ProjectConfigSchema,
@@ -36,6 +37,7 @@ import {
   storeSecret,
   summarizeBuildOutput,
   toolsBin,
+  Workspace,
   writeInbox,
 } from "../src/index.js";
 import { buildLine } from "../src/waits.js";
@@ -889,7 +891,10 @@ describe("GitHub through gh", () => {
       (gh: GhCli) => gh.checks(7),
       (gh: GhCli) => gh.setSecret("NETLIFY_AUTH_TOKEN", "nfp_x"),
     ]) {
-      await expect(withGh("signed-out", call)).rejects.toMatchObject({ code: "gh-auth" });
+      await expect(withGh("signed-out", call)).rejects.toMatchObject({
+        code: "gh-auth",
+        hint: "Type /clodable to open the Clodable panel and connect it there.",
+      });
       await expect(withGh("offline", call)).rejects.toMatchObject({
         code: "offline",
         message: "GitHub can't be reached right now.",
@@ -926,6 +931,88 @@ describe("GitHub through gh", () => {
     await expect(withGh("missing", clone)).rejects.toMatchObject({ code: "unknown" });
     await expect(withGh("no-host", clone)).rejects.toMatchObject({ code: "offline" });
     await expect(withGh("offline", clone)).rejects.toMatchObject({ code: "offline" });
+  });
+});
+
+describe("what a stopped builder is told to do", () => {
+  // Builders work in Claude Desktop: the panel (/clodable) and Claude, never a terminal command.
+  const noCommand = expect.not.stringMatching(/`clodable |\bnpx\b/);
+  const folder = () => mkdtemp(join(tmpdir(), "clodable-hint-"));
+
+  it("opens the Clodable panel in a folder Clodable isn't set up in", async () => {
+    const empty = await folder();
+    const app = await folder();
+    try {
+      await expect(Workspace.open({ cwd: empty })).rejects.toMatchObject({
+        code: "not-a-repo",
+        hint: "Type /clodable to open the Clodable panel and set this folder up there.",
+      });
+      spawnSync("git", ["init", "--quiet"], { cwd: app });
+      await expect(Workspace.open({ cwd: app })).rejects.toMatchObject({
+        code: "not-set-up",
+        hint: expect.stringMatching(/^Type \/clodable to open the Clodable panel and set it up/),
+      });
+    } finally {
+      await rm(empty, { recursive: true, force: true });
+      await rm(app, { recursive: true, force: true });
+    }
+  });
+
+  it("connects GitHub in the panel when a save doesn't know who's saving", async () => {
+    const dir = await folder();
+    // No identity anywhere: not the developer's own git settings, nor one git would guess.
+    const names = [
+      "GIT_AUTHOR_NAME",
+      "GIT_AUTHOR_EMAIL",
+      "GIT_COMMITTER_NAME",
+      "GIT_COMMITTER_EMAIL",
+    ];
+    const env: Record<string, string> = {
+      GIT_CONFIG_GLOBAL: "/dev/null",
+      GIT_CONFIG_NOSYSTEM: "1",
+      GIT_CONFIG_COUNT: "1",
+      GIT_CONFIG_KEY_0: "user.useConfigOnly",
+      GIT_CONFIG_VALUE_0: "true",
+    };
+    const before = Object.fromEntries(
+      [...names, "EMAIL", ...Object.keys(env)].map((k) => [k, process.env[k]]),
+    );
+    for (const name of [...names, "EMAIL"]) delete process.env[name];
+    Object.assign(process.env, env);
+    try {
+      spawnSync("git", ["init", "--quiet"], { cwd: dir });
+      await writeFile(join(dir, "index.html"), "<h1>Hello</h1>\n");
+      await expect(new Git(dir).commitAll("A first page", { kind: "save" })).rejects.toMatchObject({
+        code: "git-identity",
+        message: "Saving needs to know who you are.",
+        hint: expect.stringMatching(/^Type \/clodable to open the Clodable panel and connect/),
+      });
+    } finally {
+      for (const [name, value] of Object.entries(before)) {
+        if (value === undefined) delete process.env[name];
+        else process.env[name] = value;
+      }
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("asks Claude to fix Clodable's settings file, never to edit or set it up by hand", async () => {
+    const dir = await folder();
+    try {
+      await mkdir(join(dir, ".clodable"));
+      await writeFile(join(dir, ".clodable/config.json"), "{ liveBranch: main }");
+      await expect(loadConfig(dir)).rejects.toMatchObject({
+        code: "invalid-config",
+        hint: "Ask Claude to check .clodable/config.json for a typo and fix it.",
+      });
+      await writeFile(join(dir, ".clodable/config.json"), JSON.stringify({ backend: "mars" }));
+      await expect(loadConfig(dir)).rejects.toMatchObject({
+        code: "invalid-config",
+        hint: noCommand,
+      });
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 });
 

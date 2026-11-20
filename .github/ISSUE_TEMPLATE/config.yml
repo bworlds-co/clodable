@@ -1,0 +1,10 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security problem
+    url: https://github.com/bworlds-co/clodable/security/advisories/new
+    about: Privately, so it can be fixed before it's public. Please don't open an issue for it.
+  # GitHub only shows http(s) links here and silently drops mailto: ones,
+  # so this links to SUPPORT.md and the address is written out below.
+  - name: Ask something privately
+    url: https://github.com/bworlds-co/clodable/blob/main/SUPPORT.md#something-private
+    about: Email contact@bworlds.co for anything you'd rather not post in public. The maintainer reads it.

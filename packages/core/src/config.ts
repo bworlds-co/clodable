@@ -124,7 +124,7 @@ export async function loadConfig(root: string): Promise<ProjectConfig> {
     throw new ClodableError({
       code: "invalid-config",
       message: "Clodable's settings file can't be read.",
-      hint: `Check ${CONFIG_PATH} for a typo, or delete it and run \`clodable setup\` again.`,
+      hint: `Ask Claude to check ${CONFIG_PATH} for a typo and fix it.`,
       details: String(error),
       files: [CONFIG_PATH],
     });
@@ -134,7 +134,7 @@ export async function loadConfig(root: string): Promise<ProjectConfig> {
     throw new ClodableError({
       code: "invalid-config",
       message: "Clodable's settings file has a value it doesn't understand.",
-      hint: `Check ${CONFIG_PATH}.`,
+      hint: `Ask Claude to check ${CONFIG_PATH} and fix that value.`,
       details: z.prettifyError(parsed.error),
       files: [CONFIG_PATH],
     });

@@ -51,6 +51,10 @@ The owner approved all three recommendations from the Desktop UX review and adde
 
 Keep Q1's split between Claude's judgment and Clodable's mechanics. Publish, live-data confirmation, the live database rule, the brand and the ten-second Undo behavior remain settled. This approval changes product behavior; it does not authorize additional test repositories, a release, new credentials, paid resources or changes to Léa's live app.
 
+## 2026-10-18 · The name, the logo and the mascot belong to BWorlds
+
+The owner decided that Clodable's code and docs stay MIT (Q15), while the name **Clodable**, its logo and its mascot don't: they belong to BWorlds. Forks are welcome under their own name and art. [TRADEMARKS.md](../TRADEMARKS.md) lists the files, and each folder of brand files carries a `NOTICE.md`. `LICENSE` keeps the standard MIT text, so GitHub still reads the repository as MIT.
+
 ## Open (to settle with the owner)
 
 - **The default host for clients leaving Lovable's hosting.** Research is in progress. The kit is host-agnostic: anything that deploys `main` works.

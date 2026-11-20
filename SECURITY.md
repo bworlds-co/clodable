@@ -4,12 +4,16 @@ Clodable works with people's live apps and live data, so we take reports serious
 
 ## Reporting a vulnerability
 
-Please **don't open a public issue**. Report it privately through GitHub's "Report a vulnerability" (Security tab), with:
+Please **don't open a public issue**. Report it privately through GitHub's [Report a vulnerability](https://github.com/bworlds-co/clodable/security/advisories/new) (Security tab), with:
 - the steps to reproduce it;
 - the affected version;
 - the impact.
 
+Can't use GitHub? Email the same details to [contact@bworlds.co](mailto:contact@bworlds.co).
+
 We aim to reply within 3 working days.
+
+Don't post keys, passwords or your users' data in issues, even in a screenshot: issues are public.
 
 ## How Clodable is built to be safe
 

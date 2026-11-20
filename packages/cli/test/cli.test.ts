@@ -389,7 +389,11 @@ describe("clodable --json", () => {
     for (const command of ["save", "status", "publish"]) {
       const run = clodable(command);
       expect(run.code).toBe(1);
-      expect(run.result.error).toMatchObject({ code: "not-set-up", hint: expect.any(String) });
+      // Builders open the Clodable panel; they have no `clodable` command to run.
+      expect(run.result.error).toMatchObject({
+        code: "not-set-up",
+        hint: expect.stringMatching(/^Type \/clodable to open the Clodable panel/),
+      });
     }
     const drafts = spawnSync("git", ["branch", "--list", "draft/*"], {
       cwd: sb.bare,

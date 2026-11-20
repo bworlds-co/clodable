@@ -121,7 +121,7 @@ export async function assessMove(
       id: "functions",
       label: plural(functions.length, "backend function"),
       by: "clodable",
-      detail: "Deployed to your Supabase, all together.",
+      detail: "Moved to your Supabase, all together.",
     });
   }
 

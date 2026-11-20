@@ -43,7 +43,8 @@ if (!existsSync(bundle)) {
 mkdirSync(resolve(root, "plugin/cli"), { recursive: true });
 copyFileSync(bundle, resolve(root, "plugin/cli/clodable.mjs"));
 
-// Keep the plugin, the CLI and the marketplace on one version.
+// Keep the plugin, the CLI and the marketplace on one version. Once a release has pinned the
+// marketplace's entry to its tag (scripts/release.mjs), the pin names this version's tag too.
 const version = JSON.parse(
   readFileSync(resolve(root, "packages/cli/package.json"), "utf8"),
 ).version;
@@ -52,7 +53,20 @@ for (const file of ["plugin/.claude-plugin/plugin.json", ".claude-plugin/marketp
   const json = JSON.parse(readFileSync(path, "utf8"));
   if (json.version !== undefined) json.version = version;
   if (json.metadata?.version !== undefined) json.metadata.version = version;
-  for (const plugin of json.plugins ?? []) plugin.version = version;
+  for (const plugin of json.plugins ?? []) {
+    plugin.version = version;
+    if (plugin.source?.ref !== undefined) plugin.source.ref = `clodable--v${version}`;
+  }
   writeFileSync(path, `${JSON.stringify(json, null, 2)}\n`);
 }
 console.log(`plugin/cli/clodable.mjs · v${version}`);
+
+// The bundled CLI carries other people's code: their licenses, and Clodable's own, go beside it,
+// so every installed plugin has them.
+const notices = resolve(root, "packages/cli/dist/THIRD_PARTY_NOTICES.txt");
+if (!existsSync(notices)) {
+  console.error("Build the CLI first: pnpm --filter clodable build");
+  process.exit(1);
+}
+copyFileSync(notices, resolve(root, "plugin/cli/THIRD_PARTY_NOTICES.txt"));
+copyFileSync(resolve(root, "LICENSE"), resolve(root, "plugin/cli/LICENSE"));
