@@ -3687,6 +3687,78 @@ describe("everywhere else", () => {
     await pane.unmount();
   });
 
+  test("a setup that stops gives Claude what Clodable reported, not a request to prepare the app", async ($, on) => {
+    harness(on, { code: "not-a-repo", message: "Local folder" }, false, {
+      doctor: out([
+        { id: "github", status: "ok", label: "GitHub account", detail: "@ada" },
+        { id: "repo", status: "fail", label: "Your app on GitHub" },
+      ]),
+    });
+    on("fs.list", () => ({
+      value: [{ name: "package.json", kind: "file", size: 100, mtimeMs: 0, isLink: false }],
+    }));
+    on("process.spawn", async function* () {
+      for (const event of [
+        { type: "step", id: "setup:tools", state: "done", title: "Your tools are ready" },
+        {
+          type: "step",
+          id: "setup:app",
+          state: "running",
+          title: "Creating your private app on GitHub",
+        },
+        {
+          type: "result",
+          ok: false,
+          error: {
+            code: "unknown",
+            message: "Something unexpected went wrong.",
+            hint: "Try again. If it keeps happening, share the details with your developer.",
+            details: "git fetch origin main\nfatal: couldn't find remote ref main",
+          },
+        },
+      ]) {
+        yield { stream: "stdout" as const, text: `${JSON.stringify(event)}\n` };
+      }
+      return { value: { code: 2, signal: null } };
+    });
+    const submitted: string[] = [];
+    const session = mock.session(on);
+    on("prompt.submit", (_$: unknown, e: { text: string }) => {
+      submitted.push(e.text);
+      return { text: e.text };
+    });
+    await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+    const pane = await $.ui.mount(PANE_PROPS as never);
+    for (let i = 0; i < 30 && !(await pane.find({ key: "set-up-saving" })); i++)
+      await pane.redraw();
+    await pane.press({ key: "set-up-saving" });
+    for (let i = 0; i < 30 && !(await pane.find({ type: "Text", text: /Save to @ada/ })); i++)
+      await pane.redraw();
+    await $.ui.input({ plugin: "clodable", key: "new-app-name", kind: "submit", text: "tiny" });
+    for (let i = 0; i < 30 && !(await pane.find({ key: "setup-help" })); i++) await pane.redraw();
+    // The builder reads the plain words; the git output stays out of the panel.
+    expect(
+      await pane.find({ type: "Text", text: /Something unexpected went wrong/ }),
+    ).toBeDefined();
+    expect(await pane.find({ type: "Text", text: /remote ref/ })).toBeUndefined();
+    expect(await pane.find({ type: "Text", text: /your developer/ })).toBeUndefined();
+    expect(
+      await pane.find({
+        type: "Text",
+        text: /Ask Claude for help to find out what stopped saving/,
+      }),
+    ).toBeDefined();
+    expect(await pane.find({ key: "new-app-name" })).toBeDefined();
+    await pane.press({ key: "setup-help" });
+    for (let i = 0; i < 30 && submitted.length === 0; i++) await Promise.resolve();
+    await pane.unmount();
+    expect(submitted[0]).toMatch(/Set up saving didn't finish/);
+    await $.turn.start({ text: submitted[0]!, turnId: "setup-help" } as never);
+    const details = readBy(session).join("\n");
+    expect(details).toContain("fatal: couldn't find remote ref main");
+    expect(details).toContain("never run setup yourself");
+  });
+
   const quiet = async ($: any) => {
     for (let i = 0; i < 30; i++) await Promise.resolve();
     const band = await $.ui.mount({ ...BAND, surface: "desktop" });

@@ -177,7 +177,8 @@ let repoChoices: Array<{ value: string; label: string }> = [];
 let chosenRepo = "";
 let setupChoice: "import" | "saving" | null = null;
 let newAppName = "";
-let setupProblem: { message: string; help: boolean } | null = null;
+/** Why setup stopped: the builder's words, and what Clodable reported for Claude to look into. */
+let setupProblem: { message: string; help: boolean; reported?: string } | null = null;
 /** Connecting GitHub: asking it for a code, the code to enter on GitHub, or it didn't finish. */
 let gitHubSignIn:
   | { step: "asking" }
@@ -3161,14 +3162,14 @@ function setupPane(
               <Text color="error">{setupProblem.message}</Text>
               {setupProblem.help ? (
                 <Button
-                  key="prepare-local-app"
+                  key="setup-help"
                   plain
                   onPress={() =>
                     background(
                       askClaude(
                         $,
-                        "Prepare my local app for saving with Clodable, keeping my design and content.",
-                        IDEA_PREPARE_DETAILS,
+                        "Set up saving didn't finish. Find out why and fix it, keeping my design and content.",
+                        `${SETUP_HELP_DETAILS}\n\nWhat Clodable reported:\n${setupProblem?.reported ?? setupProblem?.message}`,
                       ),
                     )
                   }
@@ -5916,12 +5917,20 @@ async function runSetup($: EngineInterface, args: string[]): Promise<Result | un
   const { result, failure } = outcome;
   if (!result?.ok) {
     if (failure !== undefined) note($, `setup didn't run: ${String(failure)}`.slice(0, 400));
-    $.ui.toast(result?.error?.message ?? "Setup didn't finish.");
+    const error = result?.error;
+    const hint =
+      args.includes("--new") && error?.code === "unknown"
+        ? "Ask Claude for help to find out what stopped saving."
+        : error?.hint;
+    $.ui.toast(error?.message ?? "Setup didn't finish.");
     setupProblem = {
-      message: [result?.error?.message ?? "Setup didn't finish.", result?.error?.hint]
-        .filter(Boolean)
-        .join(" "),
+      message: [error?.message ?? "Setup didn't finish.", hint].filter(Boolean).join(" "),
       help: true,
+      // The step that failed and its output: the builder sees none of it, Claude reads it.
+      reported: (error
+        ? [`${error.code}: ${error.message}`, error.details].filter(Boolean).join("\n")
+        : String(failure ?? "no result")
+      ).slice(0, 4000),
     };
     $.ui.invalidate("ui.render");
     return undefined;
@@ -5937,6 +5946,7 @@ const MOVE_TURN_CONTEXT = `Clodable context for this turn: this app has an ongoi
 
 const LOCAL_APP_CONTEXT = `Clodable context: this folder is not set up for automatic saving. The builder's message in the conversation is the request; do not ask them to repeat it in a panel, type /clodable or press Start from an idea. If they ask to build an app, act on that request directly: make a small, working local prototype with Vite and React, dev and build scripts, and .gitignore excluding node_modules, dist and .env files. Inspect and preserve any existing local work; do not restart a prototype on a follow-up. Make sensible product and design choices, asking one focused question only if it is needed to proceed. Use sample data and browser storage first, and explain that it is local when relevant. If they are only exploring, asking a question or asking you to wait, respond to that intent without building. If they want to bring an existing app from GitHub, open the app view with open_panel for the import controls instead of scaffolding or cloning. Do not create a GitHub app, connect accounts, add a backend, initialize git, write Clodable setup files or publish. Open the preview in Desktop and try the main interaction before saying the prototype is ready. Keep replies brief, in product terms, without file lists, git vocabulary or local addresses. When they ask to keep/save the prototype, open the saving view with open_panel for account consent; they should not have to find a command or repeat their original request. Files are on this computer; Clodable is not saving to GitHub yet.`;
 const IDEA_PREPARE_DETAILS = `Keep the existing app's design, content and local work. Prepare it as a supported Vite + React app with dev and build scripts, checking that it builds. Keep environment files and generated dependencies ignored. Do not create a remote app, connect accounts or publish. Once ready, ask the builder to try Set up saving in Clodable again. All account consent and GitHub creation happen in the panel. Use plain builder language.`;
+const SETUP_HELP_DETAILS = `From Clodable: Set up saving stopped. What it reported is below; how far it got is in .clodable/local/new-app.json (a destination recorded there is a private app that already exists on GitHub). Find the cause in this folder and fix what's safe on this computer. If the app itself needs preparing: ${IDEA_PREPARE_DETAILS} Never create, rename or delete anything on GitHub, and never run setup yourself: once it's fixed, ask the builder to press Create private app again with the same name. If it's something Clodable itself got wrong, say so plainly.`;
 
 async function setUpSaving($: EngineInterface, account: string) {
   if (turnActive) return;
