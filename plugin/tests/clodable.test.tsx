@@ -3741,6 +3741,13 @@ describe("everywhere else", () => {
       await pane.find({ type: "Text", text: /Something unexpected went wrong/ }),
     ).toBeDefined();
     expect(await pane.find({ type: "Text", text: /remote ref/ })).toBeUndefined();
+    expect(await pane.find({ type: "Text", text: /✓ Your tools are ready/ })).toBeDefined();
+    expect(
+      await pane.find({ type: "Text", text: /✕ Creating your private app on GitHub/ }),
+    ).toBeDefined();
+    expect(
+      await pane.find({ type: "Text", text: /◐|Creating your private app on GitHub…/ }),
+    ).toBeUndefined();
     expect(await pane.find({ type: "Text", text: /your developer/ })).toBeUndefined();
     expect(
       await pane.find({

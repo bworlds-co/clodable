@@ -5918,6 +5918,9 @@ async function runSetup($: EngineInterface, args: string[]): Promise<Result | un
   if (!result?.ok) {
     if (failure !== undefined) note($, `setup didn't run: ${String(failure)}`.slice(0, 400));
     const error = result?.error;
+    setupSteps = setupSteps.map((step) =>
+      step.state === "running" ? { ...step, state: "failed" } : step,
+    );
     const hint =
       args.includes("--new") && error?.code === "unknown"
         ? "Ask Claude for help to find out what stopped saving."
