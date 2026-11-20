@@ -178,7 +178,12 @@ let chosenRepo = "";
 let setupChoice: "import" | "saving" | null = null;
 let newAppName = "";
 let setupProblem: { message: string; help: boolean } | null = null;
-let deviceCode = "";
+/** Connecting GitHub: asking it for a code, the code to enter on GitHub, or it didn't finish. */
+let gitHubSignIn:
+  | { step: "asking" }
+  | { step: "code"; code: string; copied: boolean }
+  | { step: "failed" }
+  | null = null;
 const requests = new Map<string, string>();
 /**
  * What Claude also needs about a request Clodable sends in the builder's name (the element and its
@@ -3010,7 +3015,7 @@ function setupPane(
   s: ClodableNotReady | null,
   doctor: ClodableCheck[],
 ) {
-  const { Box, Text, Button, Link, Select, Input } = ui;
+  const { Box, Text, Button, Select, Input } = ui;
   if (!s) {
     return (
       <Box flexDirection="column" rowGap={1} paddingX={1}>
@@ -3107,6 +3112,8 @@ function setupPane(
       ) : null}
       {tools
         .filter((c) => setupChoice !== "saving" || c.id === "github" || c.status !== "ok")
+        // An account not connected yet isn't an error: the steps below connect it.
+        .filter((c) => c.id !== "github" || c.status === "ok")
         .map((c) => (
           <Box flexDirection="column">
             <Text color={c.status === "ok" ? "success" : "error"}>
@@ -3131,33 +3138,16 @@ function setupPane(
             ) : null}
           </Box>
         ))}
-      {github && github.status !== "ok" ? (
-        <Box flexDirection="column" rowGap={1}>
-          <Button
-            key="connect-github"
-            variant="primary"
-            onPress={() => background(connectGitHub($))}
-          >
-            Connect GitHub
-          </Button>
-          {deviceCode ? (
-            <Box flexDirection="column">
-              <Text>
-                Your one-time code: <Text bold>{deviceCode}</Text>
-              </Text>
-              <Link href="https://github.com/login/device" label="Open github.com/login/device" />
-              <Button key="copy-code" plain onPress={() => $.ui.copy({ text: deviceCode })}>
-                Copy the code
-              </Button>
-            </Box>
-          ) : null}
-        </Box>
-      ) : null}
+      {github && github.status !== "ok" ? connectGitHubSteps($, ui) : null}
       {section(ui, "2 · Your app")}
       {setupChoice === "saving" && tools.length === 0 ? (
         <Text dimColor>Checking your GitHub account before creating anything…</Text>
       ) : blocking.length > 0 ? (
-        <Text dimColor>Once the tools above are ready, pick your app here.</Text>
+        <Text dimColor>
+          {setupChoice === "saving"
+            ? "Once your GitHub account is connected, you name your app here."
+            : "Once the tools above are ready, pick your app here."}
+        </Text>
       ) : setupChoice === "saving" && localPrototype ? (
         <Box flexDirection="column" rowGap={1}>
           <Text>Save to {github?.detail ?? "your GitHub account"} · Private</Text>
@@ -6029,21 +6019,80 @@ async function installGit($: EngineInterface) {
   $.ui.toast("Follow Apple's window to install Git, then press Check again.");
 }
 
+/**
+ * GitHub's own sign-in for the GitHub CLI: a one-time code the builder enters on github.com, then
+ * the CLI holds the account. It ends when they approve, or when the code runs out (15 minutes).
+ */
 async function connectGitHub($: EngineInterface) {
-  deviceCode = "";
+  gitHubSignIn = { step: "asking" };
   $.ui.invalidate("ui.render");
   await toolsFirst($);
-  for await (const chunk of $.process.spawn({
-    argv: ["gh", "auth", "login", "--web", "--git-protocol", "https", "--hostname", "github.com"],
-    input: "\n",
-  })) {
-    const code = chunk.text.match(/one-time code:\s*([A-Z0-9]{4}-[A-Z0-9]{4})/);
-    if (code) {
-      deviceCode = code[1]!;
-      $.ui.invalidate("ui.render");
+  try {
+    for await (const chunk of $.process.spawn({
+      argv: ["gh", "auth", "login", "--web", "--git-protocol", "https", "--hostname", "github.com"],
+      input: "\n",
+    })) {
+      // Its words change between releases ("First copy your one-time code: ABCD-1234", "One-time
+      // code (ABCD-1234) copied to clipboard"); the code's shape doesn't.
+      const code = chunk.text.match(/\b([A-Z0-9]{4}-[A-Z0-9]{4})\b/);
+      if (code && gitHubSignIn?.step !== "code") {
+        gitHubSignIn = {
+          step: "code",
+          code: code[1]!,
+          copied: /copied to clipboard/i.test(chunk.text),
+        };
+        $.ui.invalidate("ui.render");
+      }
     }
+  } catch (error) {
+    note($, `github sign-in: ${String(error)}`.slice(0, 400));
   }
-  deviceCode = "";
   await refreshChecks($);
+  const connected = (await read($, checks)).some((c) => c.id === "github" && c.status === "ok");
+  gitHubSignIn = connected ? null : { step: "failed" };
+  $.ui.invalidate("ui.render");
   await refreshStatus($);
+}
+
+/** Connecting GitHub in the panel, one step at a time, in GitHub's words where it has its own. */
+function connectGitHubSteps($: EngineInterface, ui: PaneUi) {
+  const { Box, Text, Button, Link } = ui;
+  const s = gitHubSignIn;
+  if (s?.step === "asking") return <Text dimColor>Asking GitHub for a code…</Text>;
+  if (s?.step === "code")
+    return (
+      <Box flexDirection="column" rowGap={1}>
+        <Text>
+          Your code: <Text bold>{s.code}</Text>
+          {s.copied ? " · copied" : ""}
+        </Text>
+        {numbered(ui, [
+          "Open GitHub and sign in, or create a free account.",
+          `${s.copied ? "Paste" : "Enter"} the code, then authorize GitHub CLI: it's what Clodable saves your app with.`,
+          "Come back here: this updates by itself.",
+        ])}
+        <Box flexDirection="row" columnGap={2} alignItems="center">
+          <Link href="https://github.com/login/device" label="Open GitHub ↗" />
+          <Button key="copy-code" plain onPress={() => $.ui.copy({ text: s.code })}>
+            Copy the code
+          </Button>
+        </Box>
+      </Box>
+    );
+  return (
+    <Box flexDirection="column" rowGap={1}>
+      {s?.step === "failed" ? (
+        <Text color="error">GitHub didn't connect. The code may have run out: try again.</Text>
+      ) : (
+        <Text dimColor>
+          Clodable keeps your app in your own GitHub account, private. Connect it once.
+        </Text>
+      )}
+      <Box flexDirection="row">
+        <Button key="connect-github" variant="primary" onPress={() => background(connectGitHub($))}>
+          {s?.step === "failed" ? "Try again" : "Connect GitHub"}
+        </Button>
+      </Box>
+    </Box>
+  );
 }

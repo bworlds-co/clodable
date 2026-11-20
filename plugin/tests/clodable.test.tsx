@@ -3631,6 +3631,62 @@ describe("everywhere else", () => {
     await pane.unmount();
   });
 
+  test("Connect GitHub shows the one-time code in the GitHub CLI's old and new words, and no command", async ($, on) => {
+    harness(on, { code: "not-a-repo", message: "Local folder" }, false, {
+      doctor: out([
+        {
+          id: "github",
+          status: "fail",
+          label: "GitHub account",
+          fix: "Run `gh auth login --web` to connect your account",
+        },
+      ]),
+    });
+    on("fs.list", () => ({
+      value: [{ name: "package.json", kind: "file", size: 100, mtimeMs: 0, isLink: false }],
+    }));
+    let said = "";
+    let signedIn = () => {};
+    on("process.spawn", async function* (_$: unknown, e: { argv: readonly string[] }) {
+      expect(e.argv.slice(0, 3)).toEqual(["gh", "auth", "login"]);
+      yield { stream: "stderr" as const, text: said };
+      await new Promise<void>((done) => {
+        signedIn = done;
+      });
+      return { value: { code: 0, signal: null } };
+    });
+    await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+    const pane = await $.ui.mount(PANE_PROPS as never);
+    for (let i = 0; i < 30 && !(await pane.find({ key: "set-up-saving" })); i++)
+      await pane.redraw();
+    await pane.press({ key: "set-up-saving" });
+    for (let i = 0; i < 30 && !(await pane.find({ key: "connect-github" })); i++)
+      await pane.redraw();
+    // Not connected yet is a step to take, not an error, and never a Terminal command.
+    expect(await pane.find({ type: "Text", text: /gh auth login/ })).toBeUndefined();
+    expect(await pane.find({ type: "Text", text: /✕ GitHub account/ })).toBeUndefined();
+    expect(await pane.find({ type: "Text", text: /your own GitHub account/ })).toBeDefined();
+    for (const [words, code, enter] of [
+      ["! First copy your one-time code: 692F-5730\n", "692F-5730", /Enter the code/],
+      ["! One-time code (C804-E40D) copied to clipboard\n", "C804-E40D", /Paste the code/],
+    ] as const) {
+      said = words;
+      await pane.press({ key: "connect-github" });
+      for (let i = 0; i < 30 && !(await pane.find({ type: "Text", text: code })); i++)
+        await pane.redraw();
+      expect(await pane.find({ type: "Text", text: code })).toBeDefined();
+      expect(await pane.find({ type: "Text", text: enter })).toBeDefined();
+      expect(await pane.find({ type: "Text", text: /updates by itself/ })).toBeDefined();
+      expect(await pane.find({ key: "connect-github" })).toBeUndefined();
+      // GitHub never heard back (the account is still not connected): it says so, with a retry.
+      signedIn();
+      for (let i = 0; i < 30 && !(await pane.find({ key: "connect-github" })); i++)
+        await pane.redraw();
+      expect(await pane.find({ type: "Text", text: /didn't connect/ })).toBeDefined();
+    }
+    await pane.unmount();
+  });
+
   const quiet = async ($: any) => {
     for (let i = 0; i < 30; i++) await Promise.resolve();
     const band = await $.ui.mount({ ...BAND, surface: "desktop" });
