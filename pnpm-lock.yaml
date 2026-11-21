@@ -62,6 +62,8 @@ importers:
 
   packages/design: {}
 
+  packages/i18n: {}
+
   packages/preview:
     dependencies:
       '@babel/parser':
