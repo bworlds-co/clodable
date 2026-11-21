@@ -1,5 +1,6 @@
 import { ClodableError, type ErrorInfo } from "../errors.js";
 import { type ExecResult, exec } from "../exec.js";
+import { Git } from "../git.js";
 import { ghBinary } from "./gh-binary.js";
 import type {
   BuildProgress,
@@ -87,7 +88,8 @@ export class GhCli implements GitHubAdapter {
 
   /** Use the connected GitHub account for this app, irrespective of the Mac's SSH identity. */
   async configureCredentials(): Promise<void> {
-    const git = (args: string[]) => exec("git", args, { cwd: this.cwd, timeout: 10_000 });
+    const repository = new Git(this.cwd);
+    const git = (args: string[]) => repository.run(args, { timeout: 10_000 });
     const key = "credential.https://github.com.helper";
     await git(["config", "--local", "--unset-all", key]);
     for (const value of ["", `!'${await ghBinary()}' auth git-credential`]) {
@@ -124,9 +126,10 @@ export class GhCli implements GitHubAdapter {
    * `gh auth setup-git` does, for this folder only).
    */
   async clone(repo: string, target: string): Promise<void> {
+    const git = new Git(this.cwd);
+    await git.ready();
     const helper = `!'${await ghBinary()}' auth git-credential`;
-    const cloned = await exec(
-      "git",
+    const cloned = await git.run(
       [
         "-c",
         "credential.helper=",
@@ -136,7 +139,7 @@ export class GhCli implements GitHubAdapter {
         `https://github.com/${repo}.git`,
         target,
       ],
-      { cwd: this.cwd, timeout: 10 * 60_000, env: { GIT_TERMINAL_PROMPT: "0" } },
+      { timeout: 10 * 60_000 },
     );
     if (cloned.exitCode !== 0) {
       throw ghError(cloned, {
@@ -146,9 +149,9 @@ export class GhCli implements GitHubAdapter {
       });
     }
     const key = "credential.https://github.com.helper";
+    const clonedGit = new Git(target);
     for (const value of ["", helper]) {
-      await exec("git", ["config", "--local", "--add", key, value], {
-        cwd: target,
+      await clonedGit.run(["config", "--local", "--add", key, value], {
         timeout: 10_000,
       });
     }

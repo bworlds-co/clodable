@@ -441,8 +441,8 @@ var ExecProcess = class {
     };
     this._command = command;
     this._args = args ?? [];
-    this._processClosed = new Promise((resolve9) => {
-      this._resolveClose = resolve9;
+    this._processClosed = new Promise((resolve10) => {
+      this._resolveClose = resolve10;
     });
   }
   kill(signal) {
@@ -525,8 +525,8 @@ var ExecProcess = class {
   }
   _resetState() {
     this._aborted = false;
-    this._processClosed = new Promise((resolve9) => {
-      this._resolveClose = resolve9;
+    this._processClosed = new Promise((resolve10) => {
+      this._resolveClose = resolve10;
     });
     this._thrownError = void 0;
   }
@@ -965,9 +965,473 @@ async function mentions(root, dirs, pattern, budget = 400) {
 }
 
 // ../core/src/checks/secrets.ts
+import { mkdtemp as mkdtemp3, rm as rm3 } from "node:fs/promises";
+import { tmpdir as tmpdir2 } from "node:os";
+import { join as join6, relative, resolve as resolve3, sep } from "node:path";
+
+// ../core/src/git.ts
+import { existsSync as existsSync3 } from "node:fs";
 import { mkdtemp as mkdtemp2, rm as rm2 } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join as join4, relative, resolve as resolve2, sep } from "node:path";
+import { join as join5 } from "node:path";
+
+// ../core/src/git-readiness.ts
+import { constants } from "node:fs";
+import { access, realpath } from "node:fs/promises";
+import { join as join4, resolve as resolve2 } from "node:path";
+var PROBE_MS = 5e3;
+function unavailable(reason, detail, install2 = false) {
+  return {
+    ok: false,
+    error: {
+      code: "tools-unavailable",
+      message: "Saving needs Git to work on this computer.",
+      hint: install2 ? "Run `xcode-select --install`, finish Apple's installation, then check again." : "Ask Claude to check Git on this computer, then press Check again.",
+      details: `Git readiness: ${reason}
+${detail}`.trim()
+    }
+  };
+}
+async function gitReadiness(cwd2) {
+  const executable3 = await commandPath("git", cwd2);
+  if (!executable3)
+    return unavailable("not-found", "Git was not found on PATH.", process.platform === "darwin");
+  const resolved3 = await realpath(resolve2(cwd2, executable3)).catch(() => executable3);
+  if (process.platform === "darwin" && resolved3 === "/usr/bin/git") {
+    const selected = await exec2("/usr/bin/xcode-select", ["--print-path"], {
+      cwd: cwd2,
+      timeout: PROBE_MS
+    });
+    const directory = selected.stdout.trim();
+    const locations = [directory, join4(directory, "Contents/Developer")];
+    const installed = selected.exitCode === 0 && directory.length > 0 && (await Promise.all(
+      locations.map(
+        (location) => access(join4(location, "usr/bin/git"), constants.X_OK).then(
+          () => true,
+          () => false
+        )
+      )
+    )).some(Boolean);
+    if (!installed)
+      return unavailable(
+        "apple-tools-unavailable",
+        `${executable3}
+${selected.stderr || selected.stdout || "No usable developer directory."}`,
+        selected.exitCode !== 0 && !process.env.DEVELOPER_DIR
+      );
+  }
+  const version3 = await exec2(executable3, ["--version"], { cwd: cwd2, timeout: PROBE_MS });
+  if (version3.exitCode !== 0 || !/^git version\s+\S+/m.test(version3.stdout))
+    return unavailable(
+      "probe-failed",
+      `${executable3} --version (exit ${version3.exitCode})
+${version3.stderr || version3.stdout}`
+    );
+  return { ok: true, executable: executable3 };
+}
+async function requireGit(cwd2) {
+  const readiness = await gitReadiness(cwd2);
+  if (!readiness.ok) throw new ClodableError(readiness.error);
+  return readiness.executable;
+}
+
+// ../core/src/git.ts
+var COMMIT_KINDS = ["save", "restore", "sync", "publish", "undo", "setup"];
+var KIND_KEY = "Clodable-Kind";
+var kindTrailer = (kind) => `${KIND_KEY}: ${kind}`;
+var KIND_LINE = new RegExp(`\\n?${KIND_KEY}:.*$`, "m");
+function kindOf(value) {
+  const kind = value.trim();
+  return COMMIT_KINDS.includes(kind) ? kind : void 0;
+}
+var FIELD = "";
+var RECORD = "";
+var Git = class _Git {
+  constructor(cwd2) {
+    this.cwd = cwd2;
+  }
+  cwd;
+  readiness;
+  environment;
+  /** Shared by this operation's commands; a failed check can be retried after repair. */
+  ready() {
+    const environment = JSON.stringify([process.env.PATH, process.env.DEVELOPER_DIR]);
+    if (environment !== this.environment) {
+      this.environment = environment;
+      this.readiness = void 0;
+    }
+    if (!this.readiness) {
+      const pending = requireGit(this.cwd).catch((error62) => {
+        if (this.readiness === pending) this.readiness = void 0;
+        throw error62;
+      });
+      this.readiness = pending;
+    }
+    return this.readiness;
+  }
+  async run(args, options = {}) {
+    return exec2(await this.ready(), args, {
+      cwd: this.cwd,
+      env: { GIT_TERMINAL_PROMPT: "0", GIT_OPTIONAL_LOCKS: "0", LC_ALL: "C" },
+      ...options.input !== void 0 ? { input: options.input } : {},
+      ...options.timeout !== void 0 ? { timeout: options.timeout } : {}
+    });
+  }
+  /** Run and return trimmed stdout; throw with git's message on failure. */
+  async ok(args, options = {}) {
+    const result = await this.run(args, options);
+    if (result.exitCode !== 0) {
+      throw new ClodableError({
+        code: "unknown",
+        message: "Something unexpected went wrong.",
+        hint: "Try again. If it keeps happening, share the details with your developer.",
+        details: `git ${args.join(" ")}
+${result.stderr || result.stdout}`.trim()
+      });
+    }
+    return result.stdout.trim();
+  }
+  async isRepo() {
+    const result = await this.run(["rev-parse", "--is-inside-work-tree"]);
+    return result.exitCode === 0 && result.stdout.trim() === "true";
+  }
+  async root() {
+    return this.ok(["rev-parse", "--show-toplevel"]);
+  }
+  async currentBranch() {
+    const result = await this.run(["symbolic-ref", "--quiet", "--short", "HEAD"]);
+    return result.exitCode === 0 ? result.stdout.trim() : void 0;
+  }
+  async head() {
+    const result = await this.run(["rev-parse", "--verify", "--quiet", "HEAD"]);
+    return result.exitCode === 0 ? result.stdout.trim() : void 0;
+  }
+  async revParse(ref) {
+    const result = await this.run(["rev-parse", "--verify", "--quiet", `${ref}^{commit}`]);
+    return result.exitCode === 0 ? result.stdout.trim() : void 0;
+  }
+  /** Changed paths in the working tree, including untracked files (respecting .gitignore). */
+  async changedFiles() {
+    const out = await this.ok(["status", "--porcelain=v1", "-z", "--untracked-files=all"]);
+    const entries = out.split("\0").filter(Boolean);
+    const files = [];
+    for (let i2 = 0; i2 < entries.length; i2++) {
+      const entry = entries[i2];
+      const status2 = entry.slice(0, 2);
+      files.push(entry.slice(3));
+      if (status2.startsWith("R") || status2.startsWith("C")) i2++;
+    }
+    return files;
+  }
+  async hasChanges() {
+    return (await this.changedFiles()).length > 0;
+  }
+  async identity() {
+    const name = (await this.run(["config", "user.name"])).stdout.trim();
+    const email3 = (await this.run(["config", "user.email"])).stdout.trim();
+    return name && email3 ? { name, email: email3 } : void 0;
+  }
+  async setLocalIdentity(identity) {
+    await this.ok(["config", "--local", "user.name", identity.name]);
+    await this.ok(["config", "--local", "user.email", identity.email]);
+  }
+  /** Stage everything and commit. Returns the new commit's sha, or undefined if nothing changed. */
+  async commitAll(subject, options) {
+    await this.ok(["add", "--all"]);
+    const staged = await this.run(["diff", "--cached", "--quiet"]);
+    if (staged.exitCode === 0 && !options.allowEmpty) return void 0;
+    const message = [
+      cleanSubject(subject),
+      options.body?.trim() ? `
+${options.body.trim()}` : "",
+      `
+${kindTrailer(options.kind)}`
+    ].join("\n");
+    const identityArgs = options.identity ? ["-c", `user.name=${options.identity.name}`, "-c", `user.email=${options.identity.email}`] : [];
+    const result = await this.run(
+      [
+        ...identityArgs,
+        "commit",
+        "--quiet",
+        "--no-verify",
+        ...options.allowEmpty ? ["--allow-empty"] : [],
+        "-F",
+        "-"
+      ],
+      { input: message }
+    );
+    if (result.exitCode !== 0) {
+      if (/tell me who you are|user\.email|empty ident/i.test(result.stderr)) {
+        throw new ClodableError({
+          code: "git-identity",
+          message: "Saving needs to know who you are.",
+          hint: "Type /clodable to open the Clodable panel and connect your GitHub account there. Your changes stay on this computer meanwhile.",
+          details: result.stderr
+        });
+      }
+      throw new ClodableError({
+        code: "unknown",
+        message: "Your changes couldn't be saved.",
+        details: result.stderr || result.stdout
+      });
+    }
+    return this.head();
+  }
+  async remoteUrl(remote = "origin") {
+    const result = await this.run(["remote", "get-url", remote]);
+    return result.exitCode === 0 ? result.stdout.trim() : void 0;
+  }
+  async fetch(remote, ...refs) {
+    return this.run(["fetch", "--quiet", "--prune", remote, ...refs], { timeout: 12e4 });
+  }
+  async push(branch, options = {}) {
+    const result = await this.run(
+      [
+        "push",
+        "--quiet",
+        ...options.setUpstream ? ["--set-upstream"] : [],
+        ...options.forceWithLease ? ["--force-with-lease"] : [],
+        options.remote ?? "origin",
+        `${branch}:${branch}`
+      ],
+      { timeout: 18e4 }
+    );
+    const stderr = result.stderr;
+    return {
+      ok: result.exitCode === 0,
+      rejected: /rejected|non-fast-forward|fetch first/i.test(stderr),
+      offline: /could not resolve host|unable to access|network is unreachable|timed out|could not read from remote/i.test(
+        stderr
+      ),
+      stderr
+    };
+  }
+  async deleteRemoteBranch(branch, remote = "origin") {
+    const result = await this.run(["push", "--quiet", remote, "--delete", branch], {
+      timeout: 12e4
+    });
+    return result.exitCode === 0;
+  }
+  /** Check a merge away from the preview; never put conflict markers in the builder's files. */
+  async checkMerge(ref) {
+    const dir = await mkdtemp2(join5(tmpdir(), "clodable-combine-"));
+    try {
+      await this.ok(["worktree", "add", "--quiet", "--detach", dir, "HEAD"]);
+      const side = new _Git(dir);
+      const result = await side.run(["merge", "--no-commit", "--no-ff", ref]);
+      if (result.exitCode === 0) return { ok: true, conflicts: [] };
+      const conflicts = await side.conflictedFiles();
+      if (conflicts.length > 0) return { ok: false, conflicts };
+      throw new ClodableError({
+        code: "unknown",
+        message: "Your draft couldn't be compared with the live site.",
+        details: result.stderr || result.stdout
+      });
+    } finally {
+      await this.worktreeRemove(dir);
+      await rm2(dir, { recursive: true, force: true });
+    }
+  }
+  /** Merge `ref` into the current branch. Leaves conflicts in place for someone to resolve. */
+  async merge(ref, message) {
+    const result = await this.run(["merge", "--no-edit", "--no-ff", "-m", message, ref]);
+    if (result.exitCode === 0) return { ok: true, conflicts: [] };
+    const conflicts = await this.conflictedFiles();
+    if (conflicts.length === 0) {
+      throw new ClodableError({
+        code: "unknown",
+        message: "Your draft couldn't be brought up to date.",
+        details: result.stderr || result.stdout
+      });
+    }
+    return { ok: false, conflicts };
+  }
+  async isMerging() {
+    return (await this.run(["rev-parse", "--quiet", "--verify", "MERGE_HEAD"])).exitCode === 0;
+  }
+  async conflictedFiles() {
+    const out = (await this.run(["diff", "--name-only", "--diff-filter=U"])).stdout;
+    return out.split("\n").filter(Boolean);
+  }
+  async abortMerge() {
+    await this.run(["merge", "--abort"]);
+  }
+  /** Commits in `range`, newest first. */
+  /** The files each commit in `range` changed, by sha. */
+  async filesBy(range, options = {}) {
+    const result = await this.run([
+      "log",
+      "--format=%x00%H",
+      "--name-only",
+      ...options.noMerges ? ["--no-merges"] : [],
+      ...options.limit ? [`-n${options.limit}`] : [],
+      range,
+      "--"
+    ]);
+    const files = /* @__PURE__ */ new Map();
+    if (result.exitCode !== 0) return files;
+    for (const block2 of result.stdout.split("\0").filter((b) => b.trim())) {
+      const [sha = "", ...paths] = block2.split("\n");
+      files.set(sha.trim(), paths.map((p) => p.trim()).filter(Boolean));
+    }
+    return files;
+  }
+  async log(range, options = {}) {
+    const format = [
+      "%H",
+      "%s",
+      "%b",
+      "%aI",
+      "%an",
+      `%(trailers:key=${KIND_KEY},valueonly,separator=)`
+    ].join(FIELD).concat(RECORD);
+    const result = await this.run([
+      "log",
+      `--format=${format}`,
+      ...options.noMerges ? ["--no-merges"] : [],
+      ...options.firstParent ? ["--first-parent"] : [],
+      ...options.limit ? [`-n${options.limit}`] : [],
+      range,
+      "--"
+    ]);
+    if (result.exitCode !== 0) return [];
+    return result.stdout.split(RECORD).map((record2) => record2.replace(/^\n/, "")).filter((record2) => record2.trim().length > 0).map((record2) => {
+      const [sha = "", subject = "", body = "", date5 = "", author = "", kind = ""] = record2.split(FIELD);
+      return {
+        sha,
+        subject,
+        body: body.replace(KIND_LINE, "").trim(),
+        date: date5,
+        author,
+        kind: kindOf(kind)
+      };
+    });
+  }
+  async count(range, options = {}) {
+    const result = await this.run([
+      "rev-list",
+      "--count",
+      ...options.noMerges ? ["--no-merges"] : [],
+      range
+    ]);
+    return result.exitCode === 0 ? Number(result.stdout.trim()) || 0 : 0;
+  }
+  async diffNames(range) {
+    const result = await this.run(["diff", "--name-only", range]);
+    return result.exitCode === 0 ? result.stdout.split("\n").filter(Boolean) : [];
+  }
+  async branchExists(name) {
+    return (await this.run(["show-ref", "--verify", "--quiet", `refs/heads/${name}`])).exitCode === 0;
+  }
+  async remoteBranchExists(name, remote = "origin") {
+    return (await this.run(["show-ref", "--verify", "--quiet", `refs/remotes/${remote}/${name}`])).exitCode === 0;
+  }
+  /** Switch branches, carrying uncommitted changes along (git's default behavior). */
+  async switchTo(name, options = {}) {
+    if (options.reset) {
+      return this.ok([
+        "switch",
+        "--quiet",
+        "-C",
+        name,
+        ...options.startPoint ? [options.startPoint] : []
+      ]);
+    }
+    if (options.create) {
+      return this.ok([
+        "switch",
+        "--quiet",
+        "-c",
+        name,
+        ...options.startPoint ? [options.startPoint] : []
+      ]);
+    }
+    return this.ok(["switch", "--quiet", name]);
+  }
+  /**
+   * Make the working tree match `sha` (tracked files only), without moving the branch. The paths in
+   * `keep` (files or folders, from the top) stay as they are.
+   */
+  async restoreTree(sha, keep = []) {
+    await this.ok([
+      "restore",
+      `--source=${sha}`,
+      "--staged",
+      "--worktree",
+      "--",
+      ":/",
+      ...keep.map((path2) => `:(top,exclude)${path2}`)
+    ]);
+  }
+  /** Put these paths (files, from the top) back as they are in `sha`, staged and in the files. */
+  async restorePaths(sha, paths) {
+    if (paths.length === 0) return;
+    await this.ok([
+      "restore",
+      `--source=${sha}`,
+      "--staged",
+      "--worktree",
+      "--",
+      ...paths.map((path2) => `:(top,literal)${path2}`)
+    ]);
+  }
+  async stageAll() {
+    await this.ok(["add", "--all"]);
+  }
+  /** Commits on this computer that no branch of `remote` has yet, newest first. */
+  async unsent(remote = "origin", options = {}) {
+    const result = await this.run([
+      "rev-list",
+      ...options.merges ? ["--merges"] : [],
+      "HEAD",
+      "--not",
+      `--remotes=${remote}`
+    ]);
+    return result.exitCode === 0 ? result.stdout.split("\n").filter(Boolean) : [];
+  }
+  async hasRemoteRefs(remote = "origin") {
+    const result = await this.run(["for-each-ref", "--count=1", `refs/remotes/${remote}/`]);
+    return result.exitCode === 0 && result.stdout.trim().length > 0;
+  }
+  async parents(sha) {
+    const out = await this.ok(["rev-list", "--parents", "-n", "1", sha]);
+    return out.split(" ").slice(1).filter(Boolean);
+  }
+  /** Move the branch back to `ref`, keeping every change staged. Nothing in the files is lost. */
+  async resetSoft(ref) {
+    await this.ok(["reset", "--quiet", "--soft", ref]);
+  }
+  async lsFiles() {
+    const out = await this.ok(["ls-files", "-z"]);
+    return out.split("\0").filter(Boolean);
+  }
+  async worktreeAdd(path2, branch, startPoint) {
+    await this.ok(["worktree", "add", "--quiet", "-B", branch, path2, startPoint]);
+    return new _Git(path2);
+  }
+  async worktreeRemove(path2) {
+    await this.run(["worktree", "remove", "--force", path2]);
+    await this.run(["worktree", "prune"]);
+  }
+  gitDir() {
+    return join5(this.cwd, ".git");
+  }
+  hasGitDir() {
+    return existsSync3(this.gitDir());
+  }
+};
+function cleanSubject(text2) {
+  const firstLine = text2.split("\n").map((l) => l.trim()).find(Boolean) ?? "Update";
+  const singleSpaced = firstLine.replace(/\s+/g, " ").replace(/[.\s]+$/, "");
+  const capitalized = singleSpaced.charAt(0).toUpperCase() + singleSpaced.slice(1);
+  return capitalized.length <= 72 ? capitalized : `${capitalized.slice(0, 71).trimEnd()}\u2026`;
+}
+function parseGitHubRemote(url2) {
+  const match = url2.match(/github\.com[:/]([^/]+)\/([^/]+?)(?:\.git)?\/?$/i);
+  return match ? { owner: match[1], repo: match[2] } : void 0;
+}
+
+// ../core/src/checks/secrets.ts
 var jwtPayload = (token) => {
   const part = token.split(".")[1];
   if (!part) return void 0;
@@ -1073,24 +1537,23 @@ async function scanUnsent(root, remote) {
   return settle(findings, (f) => f.File);
 }
 async function scanVersion(root, ref = "HEAD") {
-  const snapshot = await mkdtemp2(join4(tmpdir(), "clodable-scan-"));
+  const snapshot = await mkdtemp3(join6(tmpdir2(), "clodable-scan-"));
   try {
-    const archive = join4(snapshot, ".clodable-version.tar");
-    const packed = await exec2("git", ["archive", "--format=tar", "-o", archive, ref], {
-      cwd: root,
+    const archive = join6(snapshot, ".clodable-version.tar");
+    const packed = await new Git(root).run(["archive", "--format=tar", "-o", archive, ref], {
       timeout: 6e4
     });
     if (packed.exitCode !== 0) throw new Error(packed.stderr.trim() || "git archive failed");
     const unpacked = await exec2("tar", ["-xf", archive], { cwd: snapshot, timeout: 6e4 });
     if (unpacked.exitCode !== 0) throw new Error(unpacked.stderr.trim() || "tar failed");
-    await rm2(archive, { force: true });
+    await rm3(archive, { force: true });
     const findings = await runGitleaks(snapshot, ["dir", "."]);
     return settle(
       findings,
-      (f) => relative(snapshot, resolve2(snapshot, f.File)).split(sep).join("/")
+      (f) => relative(snapshot, resolve3(snapshot, f.File)).split(sep).join("/")
     );
   } finally {
-    await rm2(snapshot, { recursive: true, force: true });
+    await rm3(snapshot, { recursive: true, force: true });
   }
 }
 var describeFinding = (f) => `${f.kind} in ${f.file}:${f.line} (${f.preview})`;
@@ -1254,9 +1717,9 @@ async function* runChecks(project, config2) {
 }
 
 // ../core/src/config.ts
-import { existsSync as existsSync3 } from "node:fs";
+import { existsSync as existsSync4 } from "node:fs";
 import { readFile as readFile2 } from "node:fs/promises";
-import { join as join5 } from "node:path";
+import { join as join7 } from "node:path";
 
 // ../../node_modules/.pnpm/zod@4.6.5/node_modules/zod/v4/classic/external.js
 var external_exports = {};
@@ -6284,7 +6747,7 @@ var recursive = /* @__PURE__ */ new WeakMap();
 var NONE = 0;
 var ASSUMED = 1;
 var PROVEN = 2;
-function isRecursive(inst, stack, resolve9) {
+function isRecursive(inst, stack, resolve10) {
   const cached3 = recursive.get(inst);
   if (cached3 !== void 0)
     return cached3 ? PROVEN : NONE;
@@ -6294,7 +6757,7 @@ function isRecursive(inst, stack, resolve9) {
   let result = NONE;
   const check2 = (child) => {
     if (result !== PROVEN && child?._zod) {
-      const answer = isRecursive(child, stack, resolve9);
+      const answer = isRecursive(child, stack, resolve10);
       if (answer > result)
         result = answer;
     }
@@ -6305,7 +6768,7 @@ function isRecursive(inst, stack, resolve9) {
       const desc = Object.getOwnPropertyDescriptor(sh, key2);
       if (spread && !desc.enumerable)
         continue;
-      const child = desc.get ? ASSUMED : desc.value?._zod ? isRecursive(desc.value, stack, resolve9) : NONE;
+      const child = desc.get ? ASSUMED : desc.value?._zod ? isRecursive(desc.value, stack, resolve10) : NONE;
       if (child > answer)
         answer = child;
     }
@@ -6369,7 +6832,7 @@ function isRecursive(inst, stack, resolve9) {
       break;
     // `$ZodLazy` caches its inner on the def, so a resolved edge is followed exactly
     case "lazy": {
-      const inner = def._cachedInner ?? (resolve9 ? inst._zod.innerType : void 0);
+      const inner = def._cachedInner ?? (resolve10 ? inst._zod.innerType : void 0);
       merge2(inner ? isRecursive(inner, stack, false) : ASSUMED);
       break;
     }
@@ -21005,11 +21468,11 @@ var LocalStateSchema = external_exports.object({
 var CONFIG_PATH = ".clodable/config.json";
 var STATE_PATH = ".clodable/local/state.json";
 function isSetUp(root) {
-  return existsSync3(join5(root, CONFIG_PATH));
+  return existsSync4(join7(root, CONFIG_PATH));
 }
 async function loadConfig(root) {
-  const path2 = join5(root, CONFIG_PATH);
-  if (!existsSync3(path2)) return ProjectConfigSchema.parse({});
+  const path2 = join7(root, CONFIG_PATH);
+  if (!existsSync4(path2)) return ProjectConfigSchema.parse({});
   let raw;
   try {
     raw = JSON.parse(await readFile2(path2, "utf8"));
@@ -21041,11 +21504,11 @@ function configFile(config2) {
   return { $schema: "https://clodable.dev/schema/config.json", ...config2 };
 }
 function saveConfig(root, config2) {
-  return writeJsonFile(join5(root, CONFIG_PATH), configFile(config2));
+  return writeJsonFile(join7(root, CONFIG_PATH), configFile(config2));
 }
 async function loadState(root) {
-  const path2 = join5(root, STATE_PATH);
-  if (!existsSync3(path2)) return {};
+  const path2 = join7(root, STATE_PATH);
+  if (!existsSync4(path2)) return {};
   try {
     return LocalStateSchema.parse(JSON.parse(await readFile2(path2, "utf8")));
   } catch {
@@ -21053,12 +21516,12 @@ async function loadState(root) {
   }
 }
 function saveState(root, state) {
-  return writeJsonFile(join5(root, STATE_PATH), state);
+  return writeJsonFile(join7(root, STATE_PATH), state);
 }
 
 // ../core/src/database.ts
 import { readFile as readFile5 } from "node:fs/promises";
-import { basename as basename3, relative as relative2, resolve as resolve3 } from "node:path";
+import { basename as basename3, relative as relative2, resolve as resolve4 } from "node:path";
 
 // ../core/src/move/toc.ts
 var TYPES = [
@@ -21493,12 +21956,12 @@ async function setVaultSecret(sql, name, value) {
 import { randomInt } from "node:crypto";
 
 // ../core/src/local-secrets.ts
-import { existsSync as existsSync4 } from "node:fs";
+import { existsSync as existsSync5 } from "node:fs";
 import { readFile as readFile3 } from "node:fs/promises";
-import { join as join6 } from "node:path";
-var file2 = () => join6(configDir(), "secrets.json");
+import { join as join8 } from "node:path";
+var file2 = () => join8(configDir(), "secrets.json");
 async function load() {
-  if (!existsSync4(file2())) return {};
+  if (!existsSync5(file2())) return {};
   try {
     return JSON.parse(await readFile3(file2(), "utf8"));
   } catch {
@@ -21895,15 +22358,15 @@ function costOf(org) {
 import { spawn as spawn2 } from "node:child_process";
 import { createWriteStream } from "node:fs";
 import { writeFile as writeFile4 } from "node:fs/promises";
-import { tmpdir as tmpdir2 } from "node:os";
-import { join as join8 } from "node:path";
+import { tmpdir as tmpdir3 } from "node:os";
+import { join as join10 } from "node:path";
 import { createInterface } from "node:readline";
 
 // ../core/src/move/postgres-tools.ts
 import { createHash as createHash2 } from "node:crypto";
-import { existsSync as existsSync5 } from "node:fs";
-import { chmod as chmod3, mkdir as mkdir3, mkdtemp as mkdtemp3, rename as rename3, rm as rm3, writeFile as writeFile3 } from "node:fs/promises";
-import { dirname as dirname3, join as join7 } from "node:path";
+import { existsSync as existsSync6 } from "node:fs";
+import { chmod as chmod3, mkdir as mkdir3, mkdtemp as mkdtemp4, rename as rename3, rm as rm4, writeFile as writeFile3 } from "node:fs/promises";
+import { dirname as dirname3, join as join9 } from "node:path";
 import { inflateRawSync } from "node:zlib";
 var POSTGRES_BUILD = "18.6-5";
 var ToolUnavailable = class extends Error {
@@ -22065,21 +22528,21 @@ function postgresHome() {
   return ready;
 }
 async function postgresTool(tool2) {
-  return join7(await postgresHome(), "bin", process.platform === "win32" ? `${tool2}.exe` : tool2);
+  return join9(await postgresHome(), "bin", process.platform === "win32" ? `${tool2}.exe` : tool2);
 }
 async function install() {
   const platform = `${process.platform}-${process.arch}`;
-  const home = join7(cacheDir(), "postgres", POSTGRES_BUILD);
-  if (existsSync5(join7(home, "bin", "pg_restore"))) return home;
+  const home = join9(cacheDir(), "postgres", POSTGRES_BUILD);
+  if (existsSync6(join9(home, "bin", "pg_restore"))) return home;
   await mkdir3(dirname3(home), { recursive: true });
-  const work = await mkdtemp3(join7(dirname3(home), ".download-"));
+  const work = await mkdtemp4(join9(dirname3(home), ".download-"));
   try {
     if (process.platform === "darwin") {
       for (let i2 = 0; i2 < MAC_FILES.length; i2 += 4) {
         const batch = MAC_FILES.slice(i2, i2 + 4);
         const files = await Promise.all(batch.map(fetchMacFile));
         for (const [index, data] of files.entries()) {
-          const target = join7(work, batch[index][0]);
+          const target = join9(work, batch[index][0]);
           await mkdir3(dirname3(target), { recursive: true });
           await writeFile3(target, data);
           await chmod3(target, 493);
@@ -22091,31 +22554,31 @@ async function install() {
       if (!response.ok) throw new Error(`the download server answered ${response.status}`);
       const archive = Buffer.from(await response.arrayBuffer());
       if (sha256(archive) !== hash2) throw new Error("the download didn't match its checksum");
-      await writeFile3(join7(work, "postgres.tar.gz"), archive);
+      await writeFile3(join9(work, "postgres.tar.gz"), archive);
       const unpacked = await exec2("tar", ["-xzf", "postgres.tar.gz"], {
         cwd: work,
         timeout: 12e4
       });
       if (unpacked.exitCode !== 0) throw new Error(unpacked.stderr.trim() || "couldn't unpack it");
-      await rename3(join7(work, dir), join7(work, "pgsql"));
-      await rm3(join7(work, "postgres.tar.gz"), { force: true });
-      await rename3(join7(work, "pgsql"), join7(work, "staged"));
-      await rm3(home, { recursive: true, force: true });
-      await rename3(join7(work, "staged"), home);
+      await rename3(join9(work, dir), join9(work, "pgsql"));
+      await rm4(join9(work, "postgres.tar.gz"), { force: true });
+      await rename3(join9(work, "pgsql"), join9(work, "staged"));
+      await rm4(home, { recursive: true, force: true });
+      await rename3(join9(work, "staged"), home);
       return home;
     } else {
       throw new ToolUnavailable(
         `Moving a database needs PostgreSQL's tools, which Clodable can't fetch for ${platform} yet.`
       );
     }
-    await rm3(home, { recursive: true, force: true });
+    await rm4(home, { recursive: true, force: true });
     await rename3(work, home);
     return home;
   } catch (error62) {
     if (error62 instanceof ToolUnavailable) throw error62;
     throw new ToolUnavailable(`Couldn't fetch PostgreSQL's tools: ${messageOf(error62)}`);
   } finally {
-    await rm3(work, { recursive: true, force: true });
+    await rm4(work, { recursive: true, force: true });
   }
 }
 
@@ -22139,8 +22602,8 @@ function pgEnv(target) {
     PGAPPNAME: "clodable",
     PGCONNECT_TIMEOUT: "20",
     // Never read the person's own Postgres settings or saved passwords.
-    PGSERVICEFILE: join8(tmpdir2(), "clodable-no-pg-service"),
-    PGPASSFILE: join8(tmpdir2(), "clodable-no-pgpass")
+    PGSERVICEFILE: join10(tmpdir3(), "clodable-no-pg-service"),
+    PGPASSFILE: join10(tmpdir3(), "clodable-no-pgpass")
   };
 }
 async function tool(name) {
@@ -22216,7 +22679,7 @@ async function listArchive(backup) {
 }
 async function archiveSql(backup, entries, dir, extra = []) {
   if (entries.length === 0) return "";
-  const list = join8(dir, "select.list");
+  const list = join10(dir, "select.list");
   await writeFile4(list, listFile(entries), { mode: 384 });
   const result = await exec2(
     await tool("pg_restore"),
@@ -22234,7 +22697,7 @@ async function archiveSql(backup, entries, dir, extra = []) {
 }
 async function* archiveLines(backup, entries, dir) {
   if (entries.length === 0) return;
-  const list = join8(dir, "data.list");
+  const list = join10(dir, "data.list");
   await writeFile4(list, listFile(entries), { mode: 384 });
   const child = spawn2(
     await tool("pg_restore"),
@@ -22245,7 +22708,7 @@ async function* archiveLines(backup, entries, dir) {
   child.stderr.on("data", (chunk) => {
     if (stderr.length < 4e3) stderr += chunk.toString();
   });
-  const done = new Promise((resolve9) => child.on("close", (code2) => resolve9(code2 ?? 1)));
+  const done = new Promise((resolve10) => child.on("close", (code2) => resolve10(code2 ?? 1)));
   const lines = createInterface({ input: child.stdout, crlfDelay: Number.POSITIVE_INFINITY });
   try {
     for await (const line of lines) yield line;
@@ -22262,12 +22725,12 @@ async function* archiveLines(backup, entries, dir) {
 }
 async function restorePass(target, backup, entries, options) {
   if (entries.length === 0) return { errors: [] };
-  const list = join8(options.dir, `${options.name}.list`);
+  const list = join10(options.dir, `${options.name}.list`);
   await writeFile4(list, listFile(entries), { mode: 384 });
   const pgRestore = await tool("pg_restore");
   const psql = await tool("psql");
   const env = { ...process.env, ...pgEnv(target) };
-  const log2 = createWriteStream(join8(options.dir, `${options.name}.log`), { mode: 384 });
+  const log2 = createWriteStream(join10(options.dir, `${options.name}.log`), { mode: 384 });
   const producer = spawn2(
     pgRestore,
     [
@@ -22315,7 +22778,7 @@ async function restorePass(target, backup, entries, options) {
 `);
     }
   });
-  const exit = (child) => new Promise((resolve9) => child.on("close", (code2) => resolve9(code2 ?? 1)));
+  const exit = (child) => new Promise((resolve10) => child.on("close", (code2) => resolve10(code2 ?? 1)));
   const timer = setTimeout(
     () => {
       producer.kill();
@@ -22349,13 +22812,13 @@ var isExpected = (error62) => /already exists|must be owner of|multiple primary 
 
 // ../core/src/move/state.ts
 import { createHash as createHash3 } from "node:crypto";
-import { existsSync as existsSync6, realpathSync as realpathSync2 } from "node:fs";
-import { chmod as chmod4, mkdir as mkdir4, readFile as readFile4, rm as rm4 } from "node:fs/promises";
-import { basename as basename2, join as join9 } from "node:path";
+import { existsSync as existsSync7, realpathSync as realpathSync2 } from "node:fs";
+import { chmod as chmod4, mkdir as mkdir4, readFile as readFile4, rm as rm5 } from "node:fs/promises";
+import { basename as basename2, join as join11 } from "node:path";
 var MOVE_PATH = ".clodable/local/move.json";
 async function loadMove(root) {
-  const path2 = join9(root, MOVE_PATH);
-  if (!existsSync6(path2)) return { version: 1 };
+  const path2 = join11(root, MOVE_PATH);
+  if (!existsSync7(path2)) return { version: 1 };
   try {
     const parsed = JSON.parse(await readFile4(path2, "utf8"));
     return parsed && parsed.version === 1 ? parsed : { version: 1 };
@@ -22367,7 +22830,7 @@ function withNames(recorded, more) {
   return [.../* @__PURE__ */ new Set([...recorded ?? [], ...more])].sort();
 }
 function saveMove(root, state) {
-  return writeJsonFile(join9(root, MOVE_PATH), state);
+  return writeJsonFile(join11(root, MOVE_PATH), state);
 }
 async function updateMove(root, change2) {
   const state = await loadMove(root);
@@ -22383,14 +22846,14 @@ async function moveDir(root) {
   }
   const id = createHash3("sha256").update(real).digest("hex").slice(0, 10);
   const name = basename2(real).replace(/[^\w.-]/g, "_").slice(0, 40) || "app";
-  const dir = join9(configDir(), "moves", `${name}-${id}`);
+  const dir = join11(configDir(), "moves", `${name}-${id}`);
   await mkdir4(dir, { recursive: true, mode: 448 });
   await chmod4(dir, 448).catch(() => {
   });
   return dir;
 }
 async function forgetMoveFiles(root) {
-  await rm4(await moveDir(root), { recursive: true, force: true });
+  await rm5(await moveDir(root), { recursive: true, force: true });
 }
 
 // ../core/src/move/home.ts
@@ -22635,8 +23098,8 @@ async function runOnDatabase(ws, sql) {
   return { done: true };
 }
 async function applyMigration(ws, file3) {
-  const path2 = resolve3(ws.root, file3 ?? "");
-  const where = relative2(resolve3(ws.root, "supabase", "migrations"), path2);
+  const path2 = resolve4(ws.root, file3 ?? "");
+  const where = relative2(resolve4(ws.root, "supabase", "migrations"), path2);
   const match = basename3(path2).match(/^(\d{8,})_(.+)\.sql$/);
   if (!file3 || where.startsWith("..") || where.includes("/") || !match) {
     throw new ClodableError({
@@ -22697,24 +23160,24 @@ async function untilTheApiSees(api, ref, tables) {
 }
 
 // ../core/src/kit/index.ts
-import { existsSync as existsSync10 } from "node:fs";
+import { existsSync as existsSync11 } from "node:fs";
 import { mkdir as mkdir7, readFile as readFile9, writeFile as writeFile7 } from "node:fs/promises";
-import { dirname as dirname6, join as join14 } from "node:path";
+import { dirname as dirname6, join as join16 } from "node:path";
 
 // ../core/src/move/site.ts
-import { existsSync as existsSync8 } from "node:fs";
+import { existsSync as existsSync9 } from "node:fs";
 import { mkdir as mkdir5, readFile as readFile7, writeFile as writeFile5 } from "node:fs/promises";
-import { dirname as dirname4, join as join12 } from "node:path";
+import { dirname as dirname4, join as join14 } from "node:path";
 
 // ../core/src/settings.ts
 import { createHash as createHash4 } from "node:crypto";
 import { realpathSync as realpathSync3 } from "node:fs";
-import { join as join11 } from "node:path";
+import { join as join13 } from "node:path";
 
 // ../core/src/move/assess.ts
-import { existsSync as existsSync7 } from "node:fs";
+import { existsSync as existsSync8 } from "node:fs";
 import { readdir as readdir2, readFile as readFile6, stat } from "node:fs/promises";
-import { join as join10 } from "node:path";
+import { join as join12 } from "node:path";
 var BUILT_IN_SECRETS = /^(SUPABASE_URL|SUPABASE_ANON_KEY|SUPABASE_SERVICE_ROLE_KEY|SUPABASE_DB_URL|SUPABASE_PUBLISHABLE_KEYS?|SUPABASE_SECRET_KEYS?|SUPABASE_JWKS|LOVABLE_API_KEY)$/;
 var GUIDED_PROVIDERS = /* @__PURE__ */ new Set(["google", "github", "azure", "discord", "slack", "twitter"]);
 var MAX_FILES = 2e3;
@@ -22723,7 +23186,7 @@ async function textFiles(root, dirs) {
   const out = [];
   const walk2 = async (rel) => {
     if (out.length >= MAX_FILES) return;
-    const full = join10(root, rel);
+    const full = join12(root, rel);
     let entries;
     try {
       entries = await readdir2(full, { withFileTypes: true });
@@ -22737,13 +23200,13 @@ async function textFiles(root, dirs) {
       const child = `${rel}/${entry.name}`;
       if (entry.isDirectory()) await walk2(child);
       else if (/\.(ts|tsx|js|jsx|mjs|sql|toml|json)$/.test(entry.name)) {
-        const info = await stat(join10(root, child)).catch(() => void 0);
+        const info = await stat(join12(root, child)).catch(() => void 0);
         if (!info || info.size > MAX_BYTES) continue;
-        out.push({ path: child, text: await readFile6(join10(root, child), "utf8").catch(() => "") });
+        out.push({ path: child, text: await readFile6(join12(root, child), "utf8").catch(() => "") });
       }
     }
   };
-  for (const dir of dirs) if (existsSync7(join10(root, dir))) await walk2(dir);
+  for (const dir of dirs) if (existsSync8(join12(root, dir))) await walk2(dir);
   return out;
 }
 var plural2 = (n4, one, many = `${one}s`) => `${n4} ${n4 === 1 ? one : many}`;
@@ -22753,8 +23216,8 @@ function names(list) {
 }
 async function assessMove(project, config2, facts) {
   const root = project.root;
-  const functionsDir = join10(root, "supabase", "functions");
-  const functions = existsSync7(functionsDir) ? (await readdir2(functionsDir, { withFileTypes: true })).filter((e) => e.isDirectory() && !e.name.startsWith("_") && !e.name.startsWith(".")).map((e) => e.name) : [];
+  const functionsDir = join12(root, "supabase", "functions");
+  const functions = existsSync8(functionsDir) ? (await readdir2(functionsDir, { withFileTypes: true })).filter((e) => e.isDirectory() && !e.name.startsWith("_") && !e.name.startsWith(".")).map((e) => e.name) : [];
   const backendFiles = await textFiles(root, ["supabase/functions"]);
   const migrationFiles = await textFiles(root, ["supabase/migrations"]);
   const appFiles = await textFiles(root, ["src"]);
@@ -23124,7 +23587,7 @@ async function settingsStatus(ws) {
 async function rememberSettings(root, add) {
   const values = { ...await localSettings(root), ...add };
   await storeSecret(storeKey(root), JSON.stringify(values));
-  await writeJsonFile(join11(root, SETTINGS_PATH), {
+  await writeJsonFile(join13(root, SETTINGS_PATH), {
     names: Object.keys(values).sort(),
     at: (/* @__PURE__ */ new Date()).toISOString()
   });
@@ -23144,7 +23607,7 @@ async function setSetting(ws, name, value) {
   const values = await localSettings(ws.root);
   values[name] = clean2;
   await storeSecret(storeKey(ws.root), JSON.stringify(values));
-  await writeJsonFile(join11(ws.root, SETTINGS_PATH), {
+  await writeJsonFile(join13(ws.root, SETTINGS_PATH), {
     names: Object.keys(values).sort(),
     at: (/* @__PURE__ */ new Date()).toISOString()
   });
@@ -23224,7 +23687,7 @@ async function connectNetlify(token) {
 }
 function lockfileOf(root) {
   return ["bun.lock", "package-lock.json", "pnpm-lock.yaml", "yarn.lock", "bun.lockb"].find(
-    (f) => existsSync8(join12(root, f))
+    (f) => existsSync9(join14(root, f))
   );
 }
 function netlifyToml(project, buildScript) {
@@ -23432,16 +23895,16 @@ async function setSiteEnv(netlify, site, root, backend) {
 }
 async function setUpPublish(ws, site, token) {
   const files = [];
-  if (!existsSync8(join12(ws.root, NETLIFY_TOML))) {
+  if (!existsSync9(join14(ws.root, NETLIFY_TOML))) {
     await writeFile5(
-      join12(ws.root, NETLIFY_TOML),
+      join14(ws.root, NETLIFY_TOML),
       netlifyToml(ws.project, ws.config.app.buildScript)
     );
     files.push(NETLIFY_TOML);
   }
   const workflow = netlifyWorkflow(ws.project, ws.config.liveBranch, siteUrl(site));
-  const workflowPath = join12(ws.root, WORKFLOW_PATH);
-  const before = existsSync8(workflowPath) ? await readFile7(workflowPath, "utf8") : "";
+  const workflowPath = join14(ws.root, WORKFLOW_PATH);
+  const before = existsSync9(workflowPath) ? await readFile7(workflowPath, "utf8") : "";
   if (before !== workflow) {
     await mkdir5(dirname4(workflowPath), { recursive: true });
     await writeFile5(workflowPath, workflow);
@@ -23555,13 +24018,13 @@ ${input2.backend === "lovable-cloud" ? LOVABLE_CLOUD : input2.backend === "none"
 
 // ../core/src/kit/runtime.ts
 import { randomUUID } from "node:crypto";
-import { existsSync as existsSync9 } from "node:fs";
-import { mkdir as mkdir6, readFile as readFile8, rename as rename4, rm as rm5, writeFile as writeFile6 } from "node:fs/promises";
-import { dirname as dirname5, join as join13 } from "node:path";
+import { existsSync as existsSync10 } from "node:fs";
+import { mkdir as mkdir6, readFile as readFile8, rename as rename4, rm as rm6, writeFile as writeFile6 } from "node:fs/promises";
+import { dirname as dirname5, join as join15 } from "node:path";
 var LOCAL_CLI = ".clodable/local/clodable.mjs";
 var LOCAL_PREVIEW = ".clodable/local/preview.sh";
 function hasLocalRuntime(root) {
-  return Boolean(process.env.CLODABLE_RUNTIME_SOURCE) || existsSync9(join13(root, LOCAL_CLI));
+  return Boolean(process.env.CLODABLE_RUNTIME_SOURCE) || existsSync10(join15(root, LOCAL_CLI));
 }
 var shellQuote = (value) => `'${value.replaceAll("'", "'\\''")}'`;
 async function replaceIfChanged(path2, content) {
@@ -23574,15 +24037,15 @@ async function replaceIfChanged(path2, content) {
     await writeFile6(temporary, bytes);
     await rename4(temporary, path2);
   } finally {
-    await rm5(temporary, { force: true });
+    await rm6(temporary, { force: true });
   }
 }
 async function installRuntime(root) {
   const source = process.env.CLODABLE_RUNTIME_SOURCE;
   if (!source) return;
-  await replaceIfChanged(join13(root, LOCAL_CLI), await readFile8(source));
+  await replaceIfChanged(join15(root, LOCAL_CLI), await readFile8(source));
   await replaceIfChanged(
-    join13(root, LOCAL_PREVIEW),
+    join15(root, LOCAL_PREVIEW),
     `#!/bin/sh
 exec ${shellQuote(process.execPath)} "$(dirname "$0")/clodable.mjs" dev "$@"
 `
@@ -23608,8 +24071,8 @@ async function keepIgnored(root) {
 var BEGIN = "<!-- clodable:begin";
 var END = "<!-- clodable:end -->";
 async function read(root, path2) {
-  const full = join14(root, path2);
-  return existsSync10(full) ? readFile9(full, "utf8") : void 0;
+  const full = join16(root, path2);
+  return existsSync11(full) ? readFile9(full, "utf8") : void 0;
 }
 function json2(value) {
   return `${JSON.stringify(value, null, 2)}
@@ -23869,7 +24332,7 @@ async function applyKit(root, changes) {
   const written = [];
   for (const change2 of changes) {
     if (change2.action === "unchanged") continue;
-    const full = join14(root, change2.path);
+    const full = join16(root, change2.path);
     await mkdir7(dirname6(full), { recursive: true });
     await writeFile7(full, change2.content);
     written.push(change2);
@@ -24235,393 +24698,11 @@ async function whereTheMoveIs(root) {
   return move?.facts || move?.method || move?.home ? { movingOffLovable: true } : {};
 }
 
-// ../core/src/git.ts
-import { existsSync as existsSync11 } from "node:fs";
-import { mkdtemp as mkdtemp4, rm as rm6 } from "node:fs/promises";
-import { tmpdir as tmpdir3 } from "node:os";
-import { join as join15 } from "node:path";
-var COMMIT_KINDS = ["save", "restore", "sync", "publish", "undo", "setup"];
-var KIND_KEY = "Clodable-Kind";
-var kindTrailer = (kind) => `${KIND_KEY}: ${kind}`;
-var KIND_LINE = new RegExp(`\\n?${KIND_KEY}:.*$`, "m");
-function kindOf(value) {
-  const kind = value.trim();
-  return COMMIT_KINDS.includes(kind) ? kind : void 0;
-}
-var FIELD = "";
-var RECORD = "";
-var Git = class _Git {
-  constructor(cwd2) {
-    this.cwd = cwd2;
-  }
-  cwd;
-  async run(args, options = {}) {
-    return exec2("git", args, {
-      cwd: this.cwd,
-      env: { GIT_TERMINAL_PROMPT: "0", GIT_OPTIONAL_LOCKS: "0", LC_ALL: "C" },
-      ...options.input !== void 0 ? { input: options.input } : {},
-      ...options.timeout !== void 0 ? { timeout: options.timeout } : {}
-    });
-  }
-  /** Run and return trimmed stdout; throw with git's message on failure. */
-  async ok(args, options = {}) {
-    const result = await this.run(args, options);
-    if (result.exitCode !== 0) {
-      throw new ClodableError({
-        code: "unknown",
-        message: "Something unexpected went wrong.",
-        hint: "Try again. If it keeps happening, share the details with your developer.",
-        details: `git ${args.join(" ")}
-${result.stderr || result.stdout}`.trim()
-      });
-    }
-    return result.stdout.trim();
-  }
-  async isRepo() {
-    const result = await this.run(["rev-parse", "--is-inside-work-tree"]);
-    return result.exitCode === 0 && result.stdout.trim() === "true";
-  }
-  async root() {
-    return this.ok(["rev-parse", "--show-toplevel"]);
-  }
-  async currentBranch() {
-    const result = await this.run(["symbolic-ref", "--quiet", "--short", "HEAD"]);
-    return result.exitCode === 0 ? result.stdout.trim() : void 0;
-  }
-  async head() {
-    const result = await this.run(["rev-parse", "--verify", "--quiet", "HEAD"]);
-    return result.exitCode === 0 ? result.stdout.trim() : void 0;
-  }
-  async revParse(ref) {
-    const result = await this.run(["rev-parse", "--verify", "--quiet", `${ref}^{commit}`]);
-    return result.exitCode === 0 ? result.stdout.trim() : void 0;
-  }
-  /** Changed paths in the working tree, including untracked files (respecting .gitignore). */
-  async changedFiles() {
-    const out = await this.ok(["status", "--porcelain=v1", "-z", "--untracked-files=all"]);
-    const entries = out.split("\0").filter(Boolean);
-    const files = [];
-    for (let i2 = 0; i2 < entries.length; i2++) {
-      const entry = entries[i2];
-      const status2 = entry.slice(0, 2);
-      files.push(entry.slice(3));
-      if (status2.startsWith("R") || status2.startsWith("C")) i2++;
-    }
-    return files;
-  }
-  async hasChanges() {
-    return (await this.changedFiles()).length > 0;
-  }
-  async identity() {
-    const name = (await this.run(["config", "user.name"])).stdout.trim();
-    const email3 = (await this.run(["config", "user.email"])).stdout.trim();
-    return name && email3 ? { name, email: email3 } : void 0;
-  }
-  async setLocalIdentity(identity) {
-    await this.ok(["config", "--local", "user.name", identity.name]);
-    await this.ok(["config", "--local", "user.email", identity.email]);
-  }
-  /** Stage everything and commit. Returns the new commit's sha, or undefined if nothing changed. */
-  async commitAll(subject, options) {
-    await this.ok(["add", "--all"]);
-    const staged = await this.run(["diff", "--cached", "--quiet"]);
-    if (staged.exitCode === 0 && !options.allowEmpty) return void 0;
-    const message = [
-      cleanSubject(subject),
-      options.body?.trim() ? `
-${options.body.trim()}` : "",
-      `
-${kindTrailer(options.kind)}`
-    ].join("\n");
-    const identityArgs = options.identity ? ["-c", `user.name=${options.identity.name}`, "-c", `user.email=${options.identity.email}`] : [];
-    const result = await this.run(
-      [
-        ...identityArgs,
-        "commit",
-        "--quiet",
-        "--no-verify",
-        ...options.allowEmpty ? ["--allow-empty"] : [],
-        "-F",
-        "-"
-      ],
-      { input: message }
-    );
-    if (result.exitCode !== 0) {
-      if (/tell me who you are|user\.email|empty ident/i.test(result.stderr)) {
-        throw new ClodableError({
-          code: "git-identity",
-          message: "Saving needs to know who you are.",
-          hint: "Type /clodable to open the Clodable panel and connect your GitHub account there. Your changes stay on this computer meanwhile.",
-          details: result.stderr
-        });
-      }
-      throw new ClodableError({
-        code: "unknown",
-        message: "Your changes couldn't be saved.",
-        details: result.stderr || result.stdout
-      });
-    }
-    return this.head();
-  }
-  async remoteUrl(remote = "origin") {
-    const result = await this.run(["remote", "get-url", remote]);
-    return result.exitCode === 0 ? result.stdout.trim() : void 0;
-  }
-  async fetch(remote, ...refs) {
-    return this.run(["fetch", "--quiet", "--prune", remote, ...refs], { timeout: 12e4 });
-  }
-  async push(branch, options = {}) {
-    const result = await this.run(
-      [
-        "push",
-        "--quiet",
-        ...options.setUpstream ? ["--set-upstream"] : [],
-        ...options.forceWithLease ? ["--force-with-lease"] : [],
-        options.remote ?? "origin",
-        `${branch}:${branch}`
-      ],
-      { timeout: 18e4 }
-    );
-    const stderr = result.stderr;
-    return {
-      ok: result.exitCode === 0,
-      rejected: /rejected|non-fast-forward|fetch first/i.test(stderr),
-      offline: /could not resolve host|unable to access|network is unreachable|timed out|could not read from remote/i.test(
-        stderr
-      ),
-      stderr
-    };
-  }
-  async deleteRemoteBranch(branch, remote = "origin") {
-    const result = await this.run(["push", "--quiet", remote, "--delete", branch], {
-      timeout: 12e4
-    });
-    return result.exitCode === 0;
-  }
-  /** Check a merge away from the preview; never put conflict markers in the builder's files. */
-  async checkMerge(ref) {
-    const dir = await mkdtemp4(join15(tmpdir3(), "clodable-combine-"));
-    try {
-      await this.ok(["worktree", "add", "--quiet", "--detach", dir, "HEAD"]);
-      const side = new _Git(dir);
-      const result = await side.run(["merge", "--no-commit", "--no-ff", ref]);
-      if (result.exitCode === 0) return { ok: true, conflicts: [] };
-      const conflicts = await side.conflictedFiles();
-      if (conflicts.length > 0) return { ok: false, conflicts };
-      throw new ClodableError({
-        code: "unknown",
-        message: "Your draft couldn't be compared with the live site.",
-        details: result.stderr || result.stdout
-      });
-    } finally {
-      await this.worktreeRemove(dir);
-      await rm6(dir, { recursive: true, force: true });
-    }
-  }
-  /** Merge `ref` into the current branch. Leaves conflicts in place for someone to resolve. */
-  async merge(ref, message) {
-    const result = await this.run(["merge", "--no-edit", "--no-ff", "-m", message, ref]);
-    if (result.exitCode === 0) return { ok: true, conflicts: [] };
-    const conflicts = await this.conflictedFiles();
-    if (conflicts.length === 0) {
-      throw new ClodableError({
-        code: "unknown",
-        message: "Your draft couldn't be brought up to date.",
-        details: result.stderr || result.stdout
-      });
-    }
-    return { ok: false, conflicts };
-  }
-  async isMerging() {
-    return (await this.run(["rev-parse", "--quiet", "--verify", "MERGE_HEAD"])).exitCode === 0;
-  }
-  async conflictedFiles() {
-    const out = (await this.run(["diff", "--name-only", "--diff-filter=U"])).stdout;
-    return out.split("\n").filter(Boolean);
-  }
-  async abortMerge() {
-    await this.run(["merge", "--abort"]);
-  }
-  /** Commits in `range`, newest first. */
-  /** The files each commit in `range` changed, by sha. */
-  async filesBy(range, options = {}) {
-    const result = await this.run([
-      "log",
-      "--format=%x00%H",
-      "--name-only",
-      ...options.noMerges ? ["--no-merges"] : [],
-      ...options.limit ? [`-n${options.limit}`] : [],
-      range,
-      "--"
-    ]);
-    const files = /* @__PURE__ */ new Map();
-    if (result.exitCode !== 0) return files;
-    for (const block2 of result.stdout.split("\0").filter((b) => b.trim())) {
-      const [sha = "", ...paths] = block2.split("\n");
-      files.set(sha.trim(), paths.map((p) => p.trim()).filter(Boolean));
-    }
-    return files;
-  }
-  async log(range, options = {}) {
-    const format = [
-      "%H",
-      "%s",
-      "%b",
-      "%aI",
-      "%an",
-      `%(trailers:key=${KIND_KEY},valueonly,separator=)`
-    ].join(FIELD).concat(RECORD);
-    const result = await this.run([
-      "log",
-      `--format=${format}`,
-      ...options.noMerges ? ["--no-merges"] : [],
-      ...options.firstParent ? ["--first-parent"] : [],
-      ...options.limit ? [`-n${options.limit}`] : [],
-      range,
-      "--"
-    ]);
-    if (result.exitCode !== 0) return [];
-    return result.stdout.split(RECORD).map((record2) => record2.replace(/^\n/, "")).filter((record2) => record2.trim().length > 0).map((record2) => {
-      const [sha = "", subject = "", body = "", date5 = "", author = "", kind = ""] = record2.split(FIELD);
-      return {
-        sha,
-        subject,
-        body: body.replace(KIND_LINE, "").trim(),
-        date: date5,
-        author,
-        kind: kindOf(kind)
-      };
-    });
-  }
-  async count(range, options = {}) {
-    const result = await this.run([
-      "rev-list",
-      "--count",
-      ...options.noMerges ? ["--no-merges"] : [],
-      range
-    ]);
-    return result.exitCode === 0 ? Number(result.stdout.trim()) || 0 : 0;
-  }
-  async diffNames(range) {
-    const result = await this.run(["diff", "--name-only", range]);
-    return result.exitCode === 0 ? result.stdout.split("\n").filter(Boolean) : [];
-  }
-  async branchExists(name) {
-    return (await this.run(["show-ref", "--verify", "--quiet", `refs/heads/${name}`])).exitCode === 0;
-  }
-  async remoteBranchExists(name, remote = "origin") {
-    return (await this.run(["show-ref", "--verify", "--quiet", `refs/remotes/${remote}/${name}`])).exitCode === 0;
-  }
-  /** Switch branches, carrying uncommitted changes along (git's default behavior). */
-  async switchTo(name, options = {}) {
-    if (options.reset) {
-      return this.ok([
-        "switch",
-        "--quiet",
-        "-C",
-        name,
-        ...options.startPoint ? [options.startPoint] : []
-      ]);
-    }
-    if (options.create) {
-      return this.ok([
-        "switch",
-        "--quiet",
-        "-c",
-        name,
-        ...options.startPoint ? [options.startPoint] : []
-      ]);
-    }
-    return this.ok(["switch", "--quiet", name]);
-  }
-  /**
-   * Make the working tree match `sha` (tracked files only), without moving the branch. The paths in
-   * `keep` (files or folders, from the top) stay as they are.
-   */
-  async restoreTree(sha, keep = []) {
-    await this.ok([
-      "restore",
-      `--source=${sha}`,
-      "--staged",
-      "--worktree",
-      "--",
-      ":/",
-      ...keep.map((path2) => `:(top,exclude)${path2}`)
-    ]);
-  }
-  /** Put these paths (files, from the top) back as they are in `sha`, staged and in the files. */
-  async restorePaths(sha, paths) {
-    if (paths.length === 0) return;
-    await this.ok([
-      "restore",
-      `--source=${sha}`,
-      "--staged",
-      "--worktree",
-      "--",
-      ...paths.map((path2) => `:(top,literal)${path2}`)
-    ]);
-  }
-  async stageAll() {
-    await this.ok(["add", "--all"]);
-  }
-  /** Commits on this computer that no branch of `remote` has yet, newest first. */
-  async unsent(remote = "origin", options = {}) {
-    const result = await this.run([
-      "rev-list",
-      ...options.merges ? ["--merges"] : [],
-      "HEAD",
-      "--not",
-      `--remotes=${remote}`
-    ]);
-    return result.exitCode === 0 ? result.stdout.split("\n").filter(Boolean) : [];
-  }
-  async hasRemoteRefs(remote = "origin") {
-    const result = await this.run(["for-each-ref", "--count=1", `refs/remotes/${remote}/`]);
-    return result.exitCode === 0 && result.stdout.trim().length > 0;
-  }
-  async parents(sha) {
-    const out = await this.ok(["rev-list", "--parents", "-n", "1", sha]);
-    return out.split(" ").slice(1).filter(Boolean);
-  }
-  /** Move the branch back to `ref`, keeping every change staged. Nothing in the files is lost. */
-  async resetSoft(ref) {
-    await this.ok(["reset", "--quiet", "--soft", ref]);
-  }
-  async lsFiles() {
-    const out = await this.ok(["ls-files", "-z"]);
-    return out.split("\0").filter(Boolean);
-  }
-  async worktreeAdd(path2, branch, startPoint) {
-    await this.ok(["worktree", "add", "--quiet", "-B", branch, path2, startPoint]);
-    return new _Git(path2);
-  }
-  async worktreeRemove(path2) {
-    await this.run(["worktree", "remove", "--force", path2]);
-    await this.run(["worktree", "prune"]);
-  }
-  gitDir() {
-    return join15(this.cwd, ".git");
-  }
-  hasGitDir() {
-    return existsSync11(this.gitDir());
-  }
-};
-function cleanSubject(text2) {
-  const firstLine = text2.split("\n").map((l) => l.trim()).find(Boolean) ?? "Update";
-  const singleSpaced = firstLine.replace(/\s+/g, " ").replace(/[.\s]+$/, "");
-  const capitalized = singleSpaced.charAt(0).toUpperCase() + singleSpaced.slice(1);
-  return capitalized.length <= 72 ? capitalized : `${capitalized.slice(0, 71).trimEnd()}\u2026`;
-}
-function parseGitHubRemote(url2) {
-  const match = url2.match(/github\.com[:/]([^/]+)\/([^/]+?)(?:\.git)?\/?$/i);
-  return match ? { owner: match[1], repo: match[2] } : void 0;
-}
-
 // ../core/src/github/fake.ts
 import { existsSync as existsSync12, readFileSync, writeFileSync } from "node:fs";
 import { mkdir as mkdir8, mkdtemp as mkdtemp5, rm as rm7, writeFile as writeFile8 } from "node:fs/promises";
 import { tmpdir as tmpdir4 } from "node:os";
-import { join as join16 } from "node:path";
+import { join as join17 } from "node:path";
 var FakeGitHub = class _FakeGitHub {
   constructor(bareRepo, user = { login: "ada", name: "Ada", email: "1+ada@users.noreply.github.com" }, info = {
     owner: "crumb",
@@ -24681,15 +24762,15 @@ var FakeGitHub = class _FakeGitHub {
         code: "already-there",
         message: "That app name is already in use."
       });
-    const seed = await mkdtemp5(join16(tmpdir4(), "clodable-new-app-"));
+    const seed = await mkdtemp5(join17(tmpdir4(), "clodable-new-app-"));
     try {
       const git = new Git(seed);
       await git.ok(["init", "--quiet", "--initial-branch=main"]);
       await git.setLocalIdentity({ name: "GitHub", email: "noreply@github.com" });
-      await writeFile8(join16(seed, "README.md"), `# ${name}
+      await writeFile8(join17(seed, "README.md"), `# ${name}
 `);
       await git.commitAll("Initial app", { kind: "setup" });
-      await mkdir8(join16(this.bareRepo, ".."), { recursive: true });
+      await mkdir8(join17(this.bareRepo, ".."), { recursive: true });
       await git.ok(["clone", "--bare", seed, this.bareRepo]);
       Object.assign(this.info, {
         owner: this.user.login,
@@ -24741,7 +24822,7 @@ var FakeGitHub = class _FakeGitHub {
     if (pr?.state !== "open") {
       throw new ClodableError({ code: "not-found", message: "That draft isn't open any more." });
     }
-    const dir = await mkdtemp5(join16(tmpdir4(), "clodable-fake-merge-"));
+    const dir = await mkdtemp5(join17(tmpdir4(), "clodable-fake-merge-"));
     try {
       const git = new Git(dir);
       await git.ok(["clone", "--quiet", this.bareRepo, "."]);
@@ -24795,7 +24876,7 @@ ${input2.body}`]);
 import { createHash as createHash5 } from "node:crypto";
 import { existsSync as existsSync13 } from "node:fs";
 import { chmod as chmod5, mkdir as mkdir9, mkdtemp as mkdtemp6, rename as rename5, rm as rm8, symlink, unlink, writeFile as writeFile9 } from "node:fs/promises";
-import { join as join17 } from "node:path";
+import { join as join18 } from "node:path";
 var GH_VERSION = "2.102.0";
 var RELEASES2 = {
   "darwin-arm64": {
@@ -24825,7 +24906,7 @@ var RELEASES2 = {
 };
 var executable2 = process.platform === "win32" ? "gh.exe" : "gh";
 function toolsBin() {
-  return join17(toolsDir(), "bin");
+  return join18(toolsDir(), "bin");
 }
 var resolved2;
 async function ghBinary() {
@@ -24844,8 +24925,8 @@ async function ghIsOurs() {
 async function ours() {
   const release = RELEASES2[`${process.platform}-${process.arch}`];
   if (!release) throw new Error(`No GitHub CLI build for ${process.platform}-${process.arch}.`);
-  const dir = join17(toolsDir(), "gh", GH_VERSION);
-  const path2 = join17(dir, executable2);
+  const dir = join18(toolsDir(), "gh", GH_VERSION);
+  const path2 = join18(dir, executable2);
   if (!existsSync13(path2)) {
     try {
       await download2(release, dir, path2);
@@ -24865,14 +24946,14 @@ async function download2(release, dir, path2) {
   const digest = createHash5("sha256").update(bytes).digest("hex");
   if (digest !== release.sha256) throw new Error("the download didn't match its checksum");
   await mkdir9(dir, { recursive: true });
-  const work = await mkdtemp6(join17(dir, ".download-"));
+  const work = await mkdtemp6(join18(dir, ".download-"));
   try {
-    await writeFile9(join17(work, name), bytes);
+    await writeFile9(join18(work, name), bytes);
     const inside2 = process.platform === "win32" ? `bin/${executable2}` : `${name.replace(/\.(zip|tar\.gz)$/, "")}/bin/${executable2}`;
     const unpacked = await exec2("tar", ["-xf", name, inside2], { cwd: work, timeout: 6e4 });
     if (unpacked.exitCode !== 0) throw new Error(unpacked.stderr.trim() || "couldn't unpack it");
-    await chmod5(join17(work, inside2), 493);
-    await rename5(join17(work, inside2), path2).catch((error62) => {
+    await chmod5(join18(work, inside2), 493);
+    await rename5(join18(work, inside2), path2).catch((error62) => {
       if (!existsSync13(path2)) throw error62;
     });
   } finally {
@@ -24881,7 +24962,7 @@ async function download2(release, dir, path2) {
 }
 async function linkInBin(path2) {
   if (process.platform === "win32") return;
-  const link2 = join17(toolsBin(), executable2);
+  const link2 = join18(toolsBin(), executable2);
   await mkdir9(toolsBin(), { recursive: true });
   await unlink(link2).catch(() => {
   });
@@ -24956,7 +25037,8 @@ ${result.stdout}`.trim()
   }
   /** Use the connected GitHub account for this app, irrespective of the Mac's SSH identity. */
   async configureCredentials() {
-    const git = (args) => exec2("git", args, { cwd: this.cwd, timeout: 1e4 });
+    const repository = new Git(this.cwd);
+    const git = (args) => repository.run(args, { timeout: 1e4 });
     const key2 = "credential.https://github.com.helper";
     await git(["config", "--local", "--unset-all", key2]);
     for (const value of ["", `!'${await ghBinary()}' auth git-credential`]) {
@@ -24991,9 +25073,10 @@ ${result.stdout}`.trim()
    * `gh auth setup-git` does, for this folder only).
    */
   async clone(repo, target) {
+    const git = new Git(this.cwd);
+    await git.ready();
     const helper = `!'${await ghBinary()}' auth git-credential`;
-    const cloned = await exec2(
-      "git",
+    const cloned = await git.run(
       [
         "-c",
         "credential.helper=",
@@ -25003,7 +25086,7 @@ ${result.stdout}`.trim()
         `https://github.com/${repo}.git`,
         target
       ],
-      { cwd: this.cwd, timeout: 10 * 6e4, env: { GIT_TERMINAL_PROMPT: "0" } }
+      { timeout: 10 * 6e4 }
     );
     if (cloned.exitCode !== 0) {
       throw ghError(cloned, {
@@ -25014,9 +25097,9 @@ ${cloned.stderr}`.trim()
       });
     }
     const key2 = "credential.https://github.com.helper";
+    const clonedGit = new Git(target);
     for (const value of ["", helper]) {
-      await exec2("git", ["config", "--local", "--add", key2, value], {
-        cwd: target,
+      await clonedGit.run(["config", "--local", "--add", key2, value], {
         timeout: 1e4
       });
     }
@@ -25262,7 +25345,7 @@ function toPullRequest(raw) {
 import { randomBytes } from "node:crypto";
 import { existsSync as existsSync14 } from "node:fs";
 import { readdir as readdir3, readFile as readFile10, rename as rename6, rm as rm9 } from "node:fs/promises";
-import { join as join18 } from "node:path";
+import { join as join19 } from "node:path";
 var INBOX_DIR = ".clodable/inbox";
 var Page = external_exports.object({ url: external_exports.string(), path: external_exports.string(), title: external_exports.string().optional() });
 var Source = external_exports.object({
@@ -25303,24 +25386,24 @@ async function writeInbox(root, item) {
   const createdAt = (/* @__PURE__ */ new Date()).toISOString();
   const id = `${item.kind}-${createdAt.replace(/[-:.TZ]/g, "")}-${randomBytes(3).toString("hex")}`;
   const full = { ...item, id, createdAt };
-  await writeJsonFile(join18(root, INBOX_DIR, `${id}.json`), full);
+  await writeJsonFile(join19(root, INBOX_DIR, `${id}.json`), full);
   return full;
 }
 async function waiting(root) {
-  const dir = join18(root, INBOX_DIR);
+  const dir = join19(root, INBOX_DIR);
   if (!existsSync14(dir)) return [];
   const found2 = [];
   for (const name of (await readdir3(dir)).filter((n4) => n4.endsWith(".json")).sort()) {
     let text2;
     try {
-      text2 = await readFile10(join18(dir, name), "utf8");
+      text2 = await readFile10(join19(dir, name), "utf8");
     } catch {
       continue;
     }
     try {
       found2.push({ name, item: JSON.parse(text2) });
     } catch {
-      await rm9(join18(dir, name), { force: true });
+      await rm9(join19(dir, name), { force: true });
     }
   }
   return found2;
@@ -25331,24 +25414,24 @@ async function readInbox(root) {
 var SAFE_ID = /^[\w-]+$/;
 async function ackInbox(root, id) {
   if (!SAFE_ID.test(id)) return;
-  await rm9(join18(root, INBOX_DIR, `${id}.json`), { force: true });
+  await rm9(join19(root, INBOX_DIR, `${id}.json`), { force: true });
 }
 var PRESENCE_DIR = ".clodable/local";
 var LIVE_MS = 2e4;
 var GONE_MS = 24 * 60 * 6e4;
 async function livePresences(root, now) {
   const live = /* @__PURE__ */ new Map();
-  const dir = join18(root, PRESENCE_DIR);
+  const dir = join19(root, PRESENCE_DIR);
   if (!existsSync14(dir)) return live;
   for (const name of await readdir3(dir)) {
     if (!/^session-[\w-]+\.json$/.test(name)) continue;
     let presence;
     try {
-      presence = JSON.parse(await readFile10(join18(dir, name), "utf8"));
+      presence = JSON.parse(await readFile10(join19(dir, name), "utf8"));
     } catch {
       continue;
     }
-    if (now - presence.alive > GONE_MS) await rm9(join18(dir, name), { force: true });
+    if (now - presence.alive > GONE_MS) await rm9(join19(dir, name), { force: true });
     else if (now - presence.alive <= LIVE_MS) live.set(presence.id, presence);
   }
   return live;
@@ -25368,14 +25451,14 @@ async function claimInbox(root, session) {
   if (found2.length === 0) return [];
   const live = await livePresences(root, Date.now());
   const owner = usedLast(live);
-  const dir = join18(root, INBOX_DIR);
+  const dir = join19(root, INBOX_DIR);
   const items = [];
   for (const { name, item } of found2) {
     const mine = item.conversation && live.has(item.conversation) ? item.conversation === session : !owner || owner === session;
     if (!mine) continue;
-    const claimed = join18(dir, `.${name}.${session}.claimed`);
+    const claimed = join19(dir, `.${name}.${session}.claimed`);
     try {
-      await rename6(join18(dir, name), claimed);
+      await rename6(join19(dir, name), claimed);
     } catch {
       continue;
     }
@@ -25388,13 +25471,13 @@ async function claimInbox(root, session) {
 // ../core/src/move/copy.ts
 import { existsSync as existsSync17 } from "node:fs";
 import { mkdtemp as mkdtemp7, readdir as readdir5, readFile as readFile12, rename as rename8, rm as rm12 } from "node:fs/promises";
-import { join as join22 } from "node:path";
+import { join as join23 } from "node:path";
 
 // ../core/src/move/export.ts
 import { createWriteStream as createWriteStream3, existsSync as existsSync15 } from "node:fs";
 import { copyFile, readdir as readdir4, rm as rm11, stat as stat2, writeFile as writeFile10 } from "node:fs/promises";
 import { homedir as homedir2 } from "node:os";
-import { basename as basename4, extname, join as join19 } from "node:path";
+import { basename as basename4, extname, join as join20 } from "node:path";
 
 // ../core/src/move/zip.ts
 import { createReadStream, createWriteStream as createWriteStream2 } from "node:fs";
@@ -25558,14 +25641,14 @@ async function checkExportSource(source, projectUrl2) {
     });
   }
 }
-async function findExport(folder = join19(homedir2(), "Downloads"), projectUrl2) {
+async function findExport(folder = join20(homedir2(), "Downloads"), projectUrl2) {
   if (!existsSync15(folder)) return void 0;
   const month = Date.now() - 31 * 24 * 60 * 6e4;
   const candidates2 = [];
   for (const name of await readdir4(folder).catch(() => [])) {
     const ext = extname(name).toLowerCase();
     if (ext !== ".zip" && !isBackup(name)) continue;
-    const path2 = join19(folder, name);
+    const path2 = join20(folder, name);
     const info = await stat2(path2).catch(() => void 0);
     if (!info?.isFile() || info.mtimeMs < month) continue;
     candidates2.push({ path: path2, at: info.mtimeMs });
@@ -25581,7 +25664,7 @@ async function findExport(folder = join19(homedir2(), "Downloads"), projectUrl2)
   return void 0;
 }
 async function takeBackup(source, dir) {
-  const target = join19(dir, BACKUP);
+  const target = join20(dir, BACKUP);
   await rm11(target, { force: true });
   if (source.toLowerCase().endsWith(".zip")) {
     let entries;
@@ -25616,9 +25699,9 @@ var unreadable = (error62) => new ClodableError({
 });
 async function readExport(source, dir) {
   await takeBackup(source, dir);
-  const backup = join19(dir, BACKUP);
+  const backup = join20(dir, BACKUP);
   const listing = await listArchive(backup);
-  await writeFile10(join19(dir, "toc.list"), listing, { mode: 384 });
+  await writeFile10(join20(dir, "toc.list"), listing, { mode: 384 });
   const toc = parseToc(listing);
   if (toc.entries.length === 0) {
     throw new ClodableError({
@@ -25675,7 +25758,7 @@ async function readExport(source, dir) {
   const wanted = (e) => e.type === "TABLE DATA" && (e.schema !== null && !isManaged(e.schema) && e.schema !== "supabase_migrations" || e.schema === "auth" && ["users", "identities", "sessions"].includes(e.tag) || e.schema === "storage" && (e.tag === "buckets" || e.tag === "objects") || e.schema === "cron" && e.tag === "job" || e.schema === "vault" && e.tag === "secrets");
   await scanRows(backup, toc.entries.filter(wanted), dir, summary, sourceRefs);
   summary.sourceRefs = [...sourceRefs].sort();
-  await writeJsonFile(join19(dir, "export.json"), summary, { private: true });
+  await writeJsonFile(join20(dir, "export.json"), summary, { private: true });
   return { summary, toc };
 }
 var API_ROLES = /* @__PURE__ */ new Set(["anon", "authenticated", "service_role"]);
@@ -25735,7 +25818,7 @@ function copyValue(raw) {
   );
 }
 async function scanRows(backup, entries, dir, summary, sourceRefs) {
-  const files = createWriteStream3(join19(dir, FILES_LIST), { mode: 384 });
+  const files = createWriteStream3(join20(dir, FILES_LIST), { mode: 384 });
   const jobs = [];
   const buckets = /* @__PURE__ */ new Map();
   let table = null;
@@ -25827,11 +25910,11 @@ async function scanRows(backup, entries, dir, summary, sourceRefs) {
   summary.buckets = [...buckets.values()].sort((a2, b) => a2.id.localeCompare(b.id));
   summary.scheduledJobs.sort();
   summary.vaultSecrets.sort();
-  await writeJsonFile(join19(dir, JOBS_FILE), jobs, { private: true });
+  await writeJsonFile(join20(dir, JOBS_FILE), jobs, { private: true });
 }
 
 // ../core/src/move/restore.ts
-import { join as join20 } from "node:path";
+import { join as join21 } from "node:path";
 var managed = [...MANAGED_SCHEMAS].map((s) => `'${s}'`).join(", ");
 async function emptyCopy(sql) {
   await sql.run(`
@@ -25878,7 +25961,7 @@ end $$;`);
 }
 async function* copyExport(target, dir, toc, summary, options = {}) {
   const plan = planRestore(toc, new Set(summary.appTriggers));
-  const backup = join20(dir, BACKUP);
+  const backup = join21(dir, BACKUP);
   const problems = [];
   const keep = (errors) => {
     for (const error62 of errors) {
@@ -26037,7 +26120,7 @@ async function newBackendSignIn(api, ref, site) {
 // ../core/src/move/switch.ts
 import { existsSync as existsSync16 } from "node:fs";
 import { readFile as readFile11, writeFile as writeFile11 } from "node:fs/promises";
-import { join as join21 } from "node:path";
+import { join as join22 } from "node:path";
 function writeGrants(grants) {
   const lines = [];
   for (const [table, roles] of Object.entries(grants)) {
@@ -26195,7 +26278,7 @@ async function giveBackGrants(sql, grants) {
   return lines.length;
 }
 async function recreateJobs(sql, dir, from, to, keys) {
-  const path2 = join21(dir, JOBS_FILE);
+  const path2 = join22(dir, JOBS_FILE);
   if (!existsSync16(path2)) return { created: 0, check: [] };
   const jobs = JSON.parse(await readFile11(path2, "utf8"));
   const site = to.siteUrl ? new URL(to.siteUrl).origin : void 0;
@@ -26289,7 +26372,7 @@ async function* goLive(ws, options = {}) {
   const backend = backendOf(state.home.ref, keys);
   const { SUPABASE_SERVICE_ROLE_KEY: _, ...values } = backendEnv(backend);
   for (const name of [".env", ".env.local", ".env.production"]) {
-    const path2 = join21(ws.root, name);
+    const path2 = join22(ws.root, name);
     if (!existsSync16(path2)) continue;
     const before = await readFile11(path2, "utf8");
     const after = rewriteEnv(before, values);
@@ -26299,7 +26382,7 @@ async function* goLive(ws, options = {}) {
     }
   }
   if (from) {
-    const toml = join21(ws.root, "supabase", "config.toml");
+    const toml = join22(ws.root, "supabase", "config.toml");
     if (existsSync16(toml)) {
       const before = await readFile11(toml, "utf8");
       const after = before.replace(
@@ -26315,7 +26398,7 @@ async function* goLive(ws, options = {}) {
       if (!file3.text.includes(from)) continue;
       const next = repoint(file3.text, from, state.home.ref, { ...keys.legacy, anon: backend.anon });
       if (next.text !== file3.text) {
-        await writeFile11(join21(ws.root, file3.path), next.text);
+        await writeFile11(join22(ws.root, file3.path), next.text);
         files.push(file3.path.replace(/^\//, ""));
       }
     }
@@ -26557,7 +26640,7 @@ async function* importExport(ws, options = {}) {
   const dir = await moveDir(ws.root);
   const before = await loadMove(ws.root);
   const pausedAt = before.switch?.liveAt ? void 0 : before.switch?.frozenAt;
-  const target = await mkdtemp7(join22(dir, "incoming-"));
+  const target = await mkdtemp7(join23(dir, "incoming-"));
   let summary;
   try {
     summary = (await readExport(file3, target)).summary;
@@ -26571,8 +26654,8 @@ async function* importExport(ws, options = {}) {
       }
     }
     for (const name of await readdir5(target)) {
-      await rm12(join22(dir, name), { recursive: true, force: true });
-      await rename8(join22(target, name), join22(dir, name));
+      await rm12(join23(dir, name), { recursive: true, force: true });
+      await rename8(join23(target, name), join23(dir, name));
     }
   } finally {
     await rm12(target, { recursive: true, force: true });
@@ -26595,7 +26678,7 @@ function describeExport(summary) {
   ].join(" \xB7 ");
 }
 async function migrationVersions(root) {
-  const dir = join22(root, "supabase", "migrations");
+  const dir = join23(root, "supabase", "migrations");
   if (!existsSync17(dir)) return [];
   return (await readdir5(dir)).map((name) => name.match(/^(\d{8,})_.*\.sql$/)?.[1]).filter((v) => Boolean(v)).sort();
 }
@@ -26617,7 +26700,7 @@ async function* copyData(ws) {
   }
   const api = await SupabaseApi.required();
   const dir = await moveDir(ws.root);
-  const backup = join22(dir, "export.backup");
+  const backup = join23(dir, "export.backup");
   if (!existsSync17(backup)) {
     throw new ClodableError({
       code: "export-not-found",
@@ -26625,7 +26708,7 @@ async function* copyData(ws) {
       hint: "Read it again: download the export from Lovable, then run that step again."
     });
   }
-  const toc = parseToc(await readFile12(join22(dir, "toc.list"), "utf8"));
+  const toc = parseToc(await readFile12(join23(dir, "toc.list"), "utf8"));
   const summary = state.export.summary;
   yield step("move:data", "running", "Copying your data", "Connecting to your new database");
   const pg = await homeConnection(api, state.home);
@@ -27155,12 +27238,12 @@ async function* setUpEmails(ws, options = {}) {
 import { createHash as createHash6 } from "node:crypto";
 import { existsSync as existsSync18 } from "node:fs";
 import { appendFile, readFile as readFile13 } from "node:fs/promises";
-import { join as join23 } from "node:path";
+import { join as join24 } from "node:path";
 var LEDGER = "files-done.txt";
 var key = (f) => `${f.bucket}/${f.name}#${f.size}`;
 var path = (name) => name.split("/").map(encodeURIComponent).join("/");
 async function readFileList(dir) {
-  const list = join23(dir, FILES_LIST);
+  const list = join24(dir, FILES_LIST);
   if (!existsSync18(list)) return [];
   return (await readFile13(list, "utf8")).split("\n").filter(Boolean).map((line) => JSON.parse(line));
 }
@@ -27198,7 +27281,7 @@ var sha2562 = (data) => createHash6("sha256").update(data).digest("hex");
 async function* copyFiles(target, dir, buckets) {
   const files = await readFileList(dir);
   const isPublic = new Map(buckets.map((b) => [b.id, b.public]));
-  const ledgerPath = join23(dir, LEDGER);
+  const ledgerPath = join24(dir, LEDGER);
   const done = new Set(
     existsSync18(ledgerPath) ? (await readFile13(ledgerPath, "utf8")).split("\n").filter(Boolean) : []
   );
@@ -27241,7 +27324,7 @@ async function* copyFiles(target, dir, buckets) {
     finished = true;
   });
   while (!finished) {
-    await Promise.race([all, new Promise((resolve9) => setTimeout(resolve9, 2e3))]);
+    await Promise.race([all, new Promise((resolve10) => setTimeout(resolve10, 2e3))]);
     if (Date.now() - lastReport >= 2e3 || finished) {
       lastReport = Date.now();
       yield step("move:files", "running", "Copying your files", soFar());
@@ -27375,13 +27458,13 @@ async function repointLinks(sql, from, to) {
 // ../core/src/move/functions.ts
 import { existsSync as existsSync19 } from "node:fs";
 import { readdir as readdir6, readFile as readFile14 } from "node:fs/promises";
-import { dirname as dirname7, join as join24, normalize as normalize2, relative as relative3, sep as sep3 } from "node:path";
+import { dirname as dirname7, join as join25, normalize as normalize2, relative as relative3, sep as sep3 } from "node:path";
 var BUILT_IN = /^SUPABASE_/;
 var LOVABLE_OWN = /^LOVABLE_/;
 var IMPORT = /(?:import|export)\s[^'"`;]*?from\s*["']([^"']+)["']|import\s*\(\s*["']([^"']+)["']\s*\)|import\s+["']([^"']+)["']/g;
 async function jwtSettings(root) {
   const settings2 = /* @__PURE__ */ new Map();
-  const path2 = join24(root, "supabase", "config.toml");
+  const path2 = join25(root, "supabase", "config.toml");
   if (!existsSync19(path2)) return settings2;
   let section = null;
   for (const line of (await readFile14(path2, "utf8")).split("\n")) {
@@ -27400,18 +27483,18 @@ async function jwtSettings(root) {
   return settings2;
 }
 async function localFunctions(root) {
-  const base = join24(root, "supabase", "functions");
+  const base = join25(root, "supabase", "functions");
   if (!existsSync19(base)) return [];
   const settings2 = await jwtSettings(root);
   const out = [];
   for (const entry of await readdir6(base, { withFileTypes: true })) {
     if (!entry.isDirectory() || entry.name.startsWith("_") || entry.name.startsWith(".")) continue;
-    const dir = join24(base, entry.name);
+    const dir = join25(base, entry.name);
     const index = ["index.ts", "index.tsx", "index.js", "index.mjs"].find(
-      (f) => existsSync19(join24(dir, f))
+      (f) => existsSync19(join25(dir, f))
     );
     if (!index) continue;
-    const entrypoint = join24(dir, index);
+    const entrypoint = join25(dir, index);
     const files = /* @__PURE__ */ new Set();
     const walk2 = async (file3) => {
       const key2 = relative3(root, file3).split(sep3).join("/");
@@ -27422,13 +27505,13 @@ async function localFunctions(root) {
       for (const match of text2.matchAll(IMPORT)) {
         const spec = match[1] ?? match[2] ?? match[3];
         if (!spec || !(spec.startsWith("./") || spec.startsWith("../"))) continue;
-        const target = normalize2(join24(dirname7(file3), spec));
+        const target = normalize2(join25(dirname7(file3), spec));
         if (relative3(root, target).startsWith("..")) continue;
         await walk2(target);
       }
     };
     await walk2(entrypoint);
-    const importMap = ["deno.json", "deno.jsonc", "import_map.json"].map((f) => join24(dir, f)).find((f) => existsSync19(f));
+    const importMap = ["deno.json", "deno.jsonc", "import_map.json"].map((f) => join25(dir, f)).find((f) => existsSync19(f));
     if (importMap) files.add(relative3(root, importMap).split(sep3).join("/"));
     out.push({
       name: entry.name,
@@ -27447,7 +27530,7 @@ async function functionSecrets(root, functions) {
     for (const file3 of fn.files) {
       if (seen.has(file3)) continue;
       seen.add(file3);
-      const text2 = await readFile14(join24(root, file3), "utf8").catch(() => "");
+      const text2 = await readFile14(join25(root, file3), "utf8").catch(() => "");
       for (const match of text2.matchAll(/Deno\.env\.get\(\s*["'`]([A-Z][A-Z0-9_]*)["'`]\s*\)/g)) {
         if (!BUILT_IN.test(match[1]) && !LOVABLE_OWN.test(match[1])) names2.add(match[1]);
       }
@@ -27460,7 +27543,7 @@ async function stripeWebhooks(root, functions) {
   for (const fn of functions) {
     for (const file3 of fn.files) {
       if (file3.includes("/_shared/")) continue;
-      const text2 = await readFile14(join24(root, file3), "utf8").catch(() => "");
+      const text2 = await readFile14(join25(root, file3), "utf8").catch(() => "");
       if (/stripe-signature|constructEvent(Async)?\(/i.test(text2)) {
         names2.push(fn.name);
         break;
@@ -27473,7 +27556,7 @@ async function uploadFunction(api, ref, root, fn) {
   const files = await Promise.all(
     fn.files.map(async (path2) => ({
       path: path2,
-      content: new Uint8Array(await readFile14(join24(root, path2)))
+      content: new Uint8Array(await readFile14(join25(root, path2)))
     }))
   );
   await api.deployFunction(
@@ -28442,11 +28525,11 @@ async function moveProgress(ws) {
 
 // ../core/src/new-app.ts
 import { existsSync as existsSync20 } from "node:fs";
-import { appendFile as appendFile2, readFile as readFile15, realpath } from "node:fs/promises";
-import { join as join25 } from "node:path";
+import { appendFile as appendFile2, readFile as readFile15, realpath as realpath2 } from "node:fs/promises";
+import { join as join26 } from "node:path";
 var PENDING = ".clodable/local/new-app.json";
 async function pendingNewApp(root) {
-  const path2 = join25(root, PENDING);
+  const path2 = join26(root, PENDING);
   return existsSync20(path2) ? JSON.parse(await readFile15(path2, "utf8")) : void 0;
 }
 async function* prepareNewApp(root, options, github = new GhCli(root)) {
@@ -28456,6 +28539,8 @@ async function* prepareNewApp(root, options, github = new GhCli(root)) {
       message: "Give your app a short name using letters, numbers or dashes."
     });
   }
+  const git = new Git(root);
+  await git.ready();
   const viewer = await github.viewer();
   if (viewer.login !== options.account) {
     throw new ClodableError({
@@ -28472,7 +28557,6 @@ async function* prepareNewApp(root, options, github = new GhCli(root)) {
       hint: "Ask Claude to prepare this prototype for Clodable, keeping your design and content."
     });
   }
-  const git = new Git(root);
   let pending = await pendingNewApp(root);
   if (pending && (pending.name !== options.name || pending.account !== options.account)) {
     if (pending.destination)
@@ -28482,10 +28566,10 @@ async function* prepareNewApp(root, options, github = new GhCli(root)) {
         hint: `Continue with ${pending.account}/${pending.name}. Your local work is still here.`
       });
     pending = { ...options };
-    await writeJsonFile(join25(root, PENDING), pending);
+    await writeJsonFile(join26(root, PENDING), pending);
   }
   if (await git.isRepo()) {
-    if (!pending || await realpath(await git.root()) !== await realpath(root)) {
+    if (!pending || await realpath2(await git.root()) !== await realpath2(root)) {
       throw new ClodableError({
         code: "already-there",
         message: "This folder already belongs to an app.",
@@ -28494,16 +28578,16 @@ async function* prepareNewApp(root, options, github = new GhCli(root)) {
     }
   } else {
     pending = { ...options };
-    await writeJsonFile(join25(root, PENDING), pending);
+    await writeJsonFile(join26(root, PENDING), pending);
     await git.ok(["init", "--initial-branch=main"]);
   }
   await keepIgnored(root);
-  const ignored = await readFile15(join25(root, ".gitignore"), "utf8");
+  const ignored = await readFile15(join26(root, ".gitignore"), "utf8");
   const missing = ["node_modules/", "dist/", ".env", ".env.*", "!.env.example"].filter(
     (line) => !ignored.split("\n").includes(line)
   );
   if (missing.length)
-    await appendFile2(join25(root, ".gitignore"), `
+    await appendFile2(join26(root, ".gitignore"), `
 # Local app files
 ${missing.join("\n")}
 `);
@@ -28531,7 +28615,7 @@ ${missing.join("\n")}
       `${options.account}/${options.name}`
     );
     pending.destination = await github.createPrivateRepository(options.name);
-    await writeJsonFile(join25(root, PENDING), pending);
+    await writeJsonFile(join26(root, PENDING), pending);
   }
   const { repo, cloneUrl } = pending.destination;
   if (!repo.isPrivate || repo.owner !== options.account || repo.name !== options.name) {
@@ -28562,7 +28646,7 @@ ${missing.join("\n")}
 // ../core/src/online.ts
 import { existsSync as existsSync21 } from "node:fs";
 import { readFile as readFile16, writeFile as writeFile12 } from "node:fs/promises";
-import { join as join26 } from "node:path";
+import { join as join27 } from "node:path";
 async function siteChoices(ws) {
   const netlify = await NetlifyApi.onThisComputer();
   const teams = netlify ? await netlify.accounts() : [];
@@ -28717,7 +28801,7 @@ async function* createBackend(ws, options = {}) {
   yield step("backend", "running", "Creating your backend", "Connecting your app to it");
   const backend = backendOf(ref, await homeKeys(api, ref));
   const files = [];
-  const envPath = join26(ws.root, ENV_FILE);
+  const envPath = join27(ws.root, ENV_FILE);
   const before = existsSync21(envPath) ? await readFile16(envPath, "utf8") : "";
   const after = envWith(before, {
     VITE_SUPABASE_PROJECT_ID: ref,
@@ -28775,12 +28859,12 @@ function pickOrganization(organizations, slug) {
 // ../core/src/publish.ts
 import { mkdtemp as mkdtemp8, rm as rm13 } from "node:fs/promises";
 import { tmpdir as tmpdir5 } from "node:os";
-import { join as join29 } from "node:path";
+import { join as join30 } from "node:path";
 
 // ../core/src/publish-functions.ts
 import { existsSync as existsSync22 } from "node:fs";
 import { readdir as readdir7 } from "node:fs/promises";
-import { join as join27 } from "node:path";
+import { join as join28 } from "node:path";
 async function changedFunctions(ws, sha) {
   const files = await ws.git.diffNames(`${sha}^..${sha}`);
   const names2 = /* @__PURE__ */ new Set();
@@ -28792,7 +28876,7 @@ async function changedFunctions(ws, sha) {
     else names2.add(match[1]);
   }
   if (shared) {
-    const dir = join27(ws.root, "supabase", "functions");
+    const dir = join28(ws.root, "supabase", "functions");
     if (existsSync22(dir)) {
       for (const entry of await readdir7(dir, { withFileTypes: true })) {
         if (entry.isDirectory() && !entry.name.startsWith("_")) names2.add(entry.name);
@@ -28868,20 +28952,20 @@ async function* deployThroughCli(ref, root, names2, outcome) {
 // ../core/src/waits.ts
 import { existsSync as existsSync23 } from "node:fs";
 import { readdir as readdir8, readFile as readFile17 } from "node:fs/promises";
-import { join as join28 } from "node:path";
+import { join as join29 } from "node:path";
 function timing(options) {
   return {
-    sleep: options.sleep ?? ((ms) => new Promise((resolve9) => setTimeout(resolve9, ms))),
+    sleep: options.sleep ?? ((ms) => new Promise((resolve10) => setTimeout(resolve10, ms))),
     now: options.now ?? (() => /* @__PURE__ */ new Date()),
     poll: options.pollIntervalMs ?? 4e3
   };
 }
 async function runsChecksOnPullRequests(root) {
-  const dir = join28(root, ".github", "workflows");
+  const dir = join29(root, ".github", "workflows");
   if (!existsSync23(dir)) return false;
   for (const name of await readdir8(dir)) {
     if (!/\.ya?ml$/.test(name)) continue;
-    const text2 = await readFile17(join28(dir, name), "utf8").catch(() => "");
+    const text2 = await readFile17(join29(dir, name), "utf8").catch(() => "");
     if (/\bpull_request(_target)?\b/.test(text2)) return true;
   }
   return false;
@@ -29338,7 +29422,7 @@ async function* undoPublish(ws, options = {}) {
   const [target] = options.sha ? await ws.git.log(`${options.sha}^!`) : await ws.git.log(ws.liveRef, { firstParent: true, limit: 1 });
   if (!target)
     throw new ClodableError({ code: "not-found", message: "There's no publish to undo yet." });
-  const dir = await mkdtemp8(join29(tmpdir5(), "clodable-undo-"));
+  const dir = await mkdtemp8(join30(tmpdir5(), "clodable-undo-"));
   const branch = `undo/${target.sha.slice(0, 7)}`;
   try {
     const side = await ws.git.worktreeAdd(dir, branch, ws.liveRef);
@@ -30120,7 +30204,7 @@ var CAC = class extends EventTarget {
 var cac = (name = "") => new CAC(name);
 
 // src/context.ts
-import { resolve as resolve4 } from "node:path";
+import { resolve as resolve5 } from "node:path";
 
 // ../../node_modules/.pnpm/@clack+core@1.5.1/node_modules/@clack/core/dist/index.mjs
 import { styleText } from "node:util";
@@ -31277,9 +31361,9 @@ var link = (url2) => color ? import_picocolors.default.underline(url2) : url2;
 
 // src/context.ts
 function createContext(options) {
-  const cwd2 = resolve4(options.cwd ?? process.cwd());
+  const cwd2 = resolve5(options.cwd ?? process.cwd());
   const fake = process.env.CLODABLE_FAKE_GITHUB;
-  const github = fake ? FakeGitHub.persistent(resolve4(fake)) : void 0;
+  const github = fake ? FakeGitHub.persistent(resolve5(fake)) : void 0;
   return {
     cwd: cwd2,
     out: createOutput({ json: Boolean(options.json) }),
@@ -31380,18 +31464,18 @@ async function dbCommand(ctx2, options) {
 
 // src/commands/dev.ts
 import { existsSync as existsSync27 } from "node:fs";
-import { dirname as dirname9, join as join31, resolve as resolve7 } from "node:path";
+import { dirname as dirname9, join as join32, resolve as resolve8 } from "node:path";
 
 // ../preview/src/dev-server.ts
 import { existsSync as existsSync26, readFileSync as readFileSync3, statSync as statSync2 } from "node:fs";
-import { dirname as dirname8, join as join30 } from "node:path";
+import { dirname as dirname8, join as join31 } from "node:path";
 import { pathToFileURL } from "node:url";
 
 // ../preview/src/plugin.ts
 import { randomBytes as randomBytes3 } from "node:crypto";
 import { existsSync as existsSync25, readFileSync as readFileSync2, realpathSync as realpathSync4 } from "node:fs";
 import { readFile as readFile19, writeFile as writeFile13 } from "node:fs/promises";
-import { isAbsolute, relative as relative4, resolve as resolve6, sep as sep4 } from "node:path";
+import { isAbsolute, relative as relative4, resolve as resolve7, sep as sep4 } from "node:path";
 import { stripVTControlCharacters as stripVTControlCharacters2 } from "node:util";
 
 // ../design/src/tokens.ts
@@ -31815,7 +31899,7 @@ function normalizePath(url2, type) {
   }
   url2.path = path2;
 }
-function resolve5(input2, base) {
+function resolve6(input2, base) {
   if (!input2 && !base)
     return "";
   const url2 = parseUrl(input2);
@@ -31878,7 +31962,7 @@ function stripFilename(path2) {
 function resolver(mapUrl, sourceRoot) {
   const from = stripFilename(mapUrl);
   const prefix2 = sourceRoot ? sourceRoot + "/" : "";
-  return (source) => resolve5(prefix2 + (source || ""), from);
+  return (source) => resolve6(prefix2 + (source || ""), from);
 }
 var COLUMN = 0;
 var SOURCES_INDEX = 1;
@@ -31991,8 +32075,8 @@ var TraceMap = class {
     this.sources = sources;
     this.sourcesContent = sourcesContent;
     this.ignoreList = parsed.ignoreList || parsed.x_google_ignoreList || void 0;
-    const resolve9 = resolver(mapUrl, sourceRoot);
-    this.resolvedSources = sources.map(resolve9);
+    const resolve10 = resolver(mapUrl, sourceRoot);
+    this.resolvedSources = sources.map(resolve10);
     const { mappings } = parsed;
     if (typeof mappings === "string") {
       this._encoded = mappings;
@@ -48193,7 +48277,7 @@ function send(res, status2, body, type = "application/json") {
   res.end(type === "application/json" ? JSON.stringify(body) : String(body));
 }
 function inside(root, path2) {
-  const rel = relative4(root, resolve6(root, path2));
+  const rel = relative4(root, resolve7(root, path2));
   return rel && !rel.startsWith("..") && !isAbsolute(rel) ? rel.split(sep4).join("/") : void 0;
 }
 function codeFrame(code2, line, column) {
@@ -48224,7 +48308,7 @@ function describeBuildError(error62, root, at = Date.now()) {
   let frame = e.frame && stripVTControlCharacters2(e.frame);
   if (where && e.loc?.line) {
     try {
-      frame = codeFrame(readFileSync2(resolve6(root, where), "utf8"), e.loc.line, e.loc.column) || frame;
+      frame = codeFrame(readFileSync2(resolve7(root, where), "utf8"), e.loc.line, e.loc.column) || frame;
     } catch {
     }
   }
@@ -48272,7 +48356,7 @@ ${await toolbarSource()}
   async function textEdit(body, probe) {
     const location = parseSourceAttr(String(body.src ?? ""));
     const rel = location && inside(root, location.file);
-    const full = rel && resolve6(root, rel);
+    const full = rel && resolve7(root, rel);
     if (!location || !full || !EDITABLE.test(full) || !tagged.has(full) || !existsSync25(full)) {
       return { ok: false, editable: false, reason: "not-found" };
     }
@@ -48473,7 +48557,7 @@ function backendPlugin(current) {
 function resolveProjectVite(root) {
   let dir = root;
   while (true) {
-    const pkgPath = join30(dir, "node_modules", "vite", "package.json");
+    const pkgPath = join31(dir, "node_modules", "vite", "package.json");
     if (existsSync26(pkgPath)) {
       const pkg = JSON.parse(readFileSync3(pkgPath, "utf8"));
       const dot = pkg.exports?.["."];
@@ -48486,7 +48570,7 @@ function resolveProjectVite(root) {
         return void 0;
       };
       const entry = pick2(dot) ?? pkg.module ?? pkg.main ?? "dist/node/index.js";
-      return join30(dirname8(pkgPath), entry);
+      return join31(dirname8(pkgPath), entry);
     }
     const parent = dirname8(dir);
     if (parent === dir) break;
@@ -48597,17 +48681,17 @@ function markerWatch(path2) {
 // src/commands/dev.ts
 var import_picocolors2 = __toESM(require_picocolors(), 1);
 function findAppRoot(start) {
-  let dir = resolve7(start);
+  let dir = resolve8(start);
   while (true) {
-    if (existsSync27(join31(dir, "package.json"))) return dir;
+    if (existsSync27(join32(dir, "package.json"))) return dir;
     const parent = dirname9(dir);
-    if (parent === dir) return resolve7(start);
+    if (parent === dir) return resolve8(start);
     dir = parent;
   }
 }
 async function devCommand(ctx2, options) {
   const root = findAppRoot(ctx2.cwd);
-  if (!existsSync27(join31(root, "node_modules")) && existsSync27(join31(root, "package.json"))) {
+  if (!existsSync27(join32(root, "node_modules")) && existsSync27(join32(root, "package.json"))) {
     const pm = detectPackageManager(root);
     process.stdout.write(
       `
@@ -48647,10 +48731,10 @@ async function devCommand(ctx2, options) {
           if (fresh) known.set(move.home.ref, fresh);
           return fresh;
         },
-        watch: join31(root, MOVE_PATH)
+        watch: join32(root, MOVE_PATH)
       },
       // The settings the app's server code reads, from Clodable's private store on this computer.
-      settings: { current: () => localSettings(root), watch: join31(root, SETTINGS_PATH) }
+      settings: { current: () => localSettings(root), watch: join32(root, SETTINGS_PATH) }
     });
     process.stdout.write(
       `
@@ -49596,7 +49680,7 @@ async function settingsCommand(ctx2, options) {
 
 // src/commands/setup.ts
 import { existsSync as existsSync28, readdirSync } from "node:fs";
-import { join as join32, resolve as resolve8 } from "node:path";
+import { join as join33, resolve as resolve9 } from "node:path";
 var import_picocolors4 = __toESM(require_picocolors(), 1);
 var MIN_NODE = [20, 19];
 var REQUIRED = ["node", "git", "gh", "github"];
@@ -49607,7 +49691,7 @@ async function doctor(cwd2) {
   const remote = isRepo ? await git.remoteUrl("origin") : void 0;
   const parsed = remote ? parseGitHubRemote(remote) : void 0;
   const fake = process.env.CLODABLE_FAKE_GITHUB;
-  const standIn = Boolean(fake && remote && resolve8(cwd2, remote) === resolve8(fake));
+  const standIn = Boolean(fake && remote && resolve9(cwd2, remote) === resolve9(fake));
   const pending = await pendingNewApp(cwd2);
   if (pending)
     items.push({
@@ -49625,7 +49709,7 @@ async function doctor(cwd2) {
   if (!isRepo) return items;
   return [...items, ...await appChecks(git)];
 }
-async function toolChecks(cwd2) {
+async function toolChecks(cwd2, checkedGit) {
   const items = [];
   const [major = 0, minor = 0] = process.versions.node.split(".").map(Number);
   const nodeOk = major > MIN_NODE[0] || major === MIN_NODE[0] && minor >= MIN_NODE[1];
@@ -49636,13 +49720,15 @@ async function toolChecks(cwd2) {
     detail: `v${process.versions.node}`,
     ...nodeOk ? {} : { fix: "Install Node.js 22 or newer from https://nodejs.org" }
   });
-  const gitOk = await hasCommand("git", cwd2);
+  const git = checkedGit ?? await gitReadiness(cwd2);
   items.push({
     id: "git",
     label: "Git",
-    status: gitOk ? "ok" : "fail",
-    ...gitOk ? {} : {
-      fix: process.platform === "darwin" ? "Run `xcode-select --install`, then try again" : "Install Git from https://git-scm.com/downloads"
+    status: git.ok ? "ok" : "fail",
+    ...git.ok ? {} : {
+      detail: git.error.message,
+      details: git.error.details,
+      fix: git.error.hint
     }
   });
   const scanner = await gitleaksBinary().then(
@@ -49666,6 +49752,7 @@ async function toolChecks(cwd2) {
     id: "gh",
     label: "GitHub CLI",
     status: ready2.installed ? "ok" : "fail",
+    ...ready2.installed ? { executable: await ghBinary() } : {},
     ...ready2.installed ? await ghIsOurs() ? { detail: `${GH_VERSION}, Clodable's own` } : {} : {
       fix: "Check your internet connection: Clodable downloads it. Or install it from https://cli.github.com"
     }
@@ -49694,7 +49781,7 @@ async function appChecks(git) {
     status: project.appType === "unknown" ? "warn" : "ok",
     detail: `${typeLabel}${project.lovable.generated ? ", made with Lovable" : ""}`
   });
-  const installed = existsSync28(join32(root, "node_modules"));
+  const installed = existsSync28(join33(root, "node_modules"));
   items.push({
     id: "deps",
     label: "App dependencies",
@@ -49879,7 +49966,12 @@ function panelStep(ctx2, id, state, title) {
 }
 async function requireTools(ctx2) {
   panelStep(ctx2, "setup:tools", "running", "Checking your tools");
-  const tools = (await toolChecks(ctx2.cwd)).filter((t2) => REQUIRED.includes(t2.id));
+  const git = await gitReadiness(ctx2.cwd);
+  if (!git.ok) {
+    panelStep(ctx2, "setup:tools", "failed", "A few tools are needed first");
+    throw new ClodableError(git.error);
+  }
+  const tools = (await toolChecks(ctx2.cwd, git)).filter((t2) => REQUIRED.includes(t2.id));
   if (!ctx2.out.json) for (const tool2 of tools) doctorLine(ctx2, tool2);
   const blocking = tools.filter((t2) => t2.status === "fail");
   panelStep(
@@ -49915,7 +50007,7 @@ async function pickRepo(ctx2, given, interactive) {
 }
 async function bringIn(ctx2, repo) {
   const empty = readdirSync(ctx2.cwd).filter((n4) => !n4.startsWith(".")).length === 0;
-  const target = empty ? ctx2.cwd : join32(ctx2.cwd, repo.split("/")[1]);
+  const target = empty ? ctx2.cwd : join33(ctx2.cwd, repo.split("/")[1]);
   ctx2.out.event(step("setup:app", "running", `Bringing in ${repo}`));
   try {
     await new GhCli(ctx2.cwd).clone(repo, target);
@@ -49978,7 +50070,7 @@ async function setupCommand(ctx2, options) {
       panelStep(ctx2, "setup:files", "running", "Adding Clodable's files");
       await applyKit(root, changes);
       panelStep(ctx2, "setup:files", "done", "Added Clodable's files");
-      if (!existsSync28(join32(root, "node_modules"))) {
+      if (!existsSync28(join33(root, "node_modules"))) {
         ctx2.out.event(
           step("setup:packages", "running", "Installing your app's packages", "a minute or two")
         );

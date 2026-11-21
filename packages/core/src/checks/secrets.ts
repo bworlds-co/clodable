@@ -2,6 +2,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, relative, resolve, sep } from "node:path";
 import { exec } from "../exec.js";
+import { Git } from "../git.js";
 import { type GitleaksFinding, runGitleaks } from "./gitleaks.js";
 
 /**
@@ -156,8 +157,7 @@ export async function scanVersion(root: string, ref = "HEAD"): Promise<SecretFin
   const snapshot = await mkdtemp(join(tmpdir(), "clodable-scan-"));
   try {
     const archive = join(snapshot, ".clodable-version.tar");
-    const packed = await exec("git", ["archive", "--format=tar", "-o", archive, ref], {
-      cwd: root,
+    const packed = await new Git(root).run(["archive", "--format=tar", "-o", archive, ref], {
       timeout: 60_000,
     });
     if (packed.exitCode !== 0) throw new Error(packed.stderr.trim() || "git archive failed");

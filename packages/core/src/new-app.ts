@@ -37,6 +37,8 @@ export async function* prepareNewApp(
       message: "Give your app a short name using letters, numbers or dashes.",
     });
   }
+  const git = new Git(root);
+  await git.ready();
   const viewer = await github.viewer();
   if (viewer.login !== options.account) {
     throw new ClodableError({
@@ -53,7 +55,6 @@ export async function* prepareNewApp(
       hint: "Ask Claude to prepare this prototype for Clodable, keeping your design and content.",
     });
   }
-  const git = new Git(root);
   let pending = await pendingNewApp(root);
   if (pending && (pending.name !== options.name || pending.account !== options.account)) {
     if (pending.destination)

@@ -10,9 +10,10 @@ import {
   GhCli,
   GITLEAKS_VERSION,
   Git,
+  ghBinary,
   ghIsOurs,
   gitleaksBinary,
-  hasCommand,
+  gitReadiness,
   type KitChange,
   loadConfig,
   loadMove,
@@ -42,7 +43,9 @@ export interface DoctorItem {
   label: string;
   status: "ok" | "warn" | "fail" | "info";
   detail?: string;
+  details?: string;
   fix?: string;
+  executable?: string;
 }
 
 const MIN_NODE = [20, 19] as const;
@@ -83,7 +86,10 @@ export async function doctor(cwd: string): Promise<DoctorItem[]> {
 }
 
 /** Node, Git, the secret-key check, and GitHub. */
-async function toolChecks(cwd: string): Promise<DoctorItem[]> {
+async function toolChecks(
+  cwd: string,
+  checkedGit?: Awaited<ReturnType<typeof gitReadiness>>,
+): Promise<DoctorItem[]> {
   const items: DoctorItem[] = [];
   const [major = 0, minor = 0] = process.versions.node.split(".").map(Number);
   const nodeOk = major > MIN_NODE[0] || (major === MIN_NODE[0] && minor >= MIN_NODE[1]);
@@ -95,18 +101,17 @@ async function toolChecks(cwd: string): Promise<DoctorItem[]> {
     ...(nodeOk ? {} : { fix: "Install Node.js 22 or newer from https://nodejs.org" }),
   });
 
-  const gitOk = await hasCommand("git", cwd);
+  const git = checkedGit ?? (await gitReadiness(cwd));
   items.push({
     id: "git",
     label: "Git",
-    status: gitOk ? "ok" : "fail",
-    ...(gitOk
+    status: git.ok ? "ok" : "fail",
+    ...(git.ok
       ? {}
       : {
-          fix:
-            process.platform === "darwin"
-              ? "Run `xcode-select --install`, then try again"
-              : "Install Git from https://git-scm.com/downloads",
+          detail: git.error.message,
+          details: git.error.details,
+          fix: git.error.hint,
         }),
   });
 
@@ -136,6 +141,7 @@ async function toolChecks(cwd: string): Promise<DoctorItem[]> {
     id: "gh",
     label: "GitHub CLI",
     status: ready.installed ? "ok" : "fail",
+    ...(ready.installed ? { executable: await ghBinary() } : {}),
     ...(ready.installed
       ? (await ghIsOurs())
         ? { detail: `${GH_VERSION}, Clodable's own` }
@@ -437,7 +443,12 @@ function panelStep(ctx: Context, id: StepId, state: StepState, title: string) {
 /** Node, Git and GitHub, shown as they stand; without any of them, setup stops here. */
 async function requireTools(ctx: Context): Promise<void> {
   panelStep(ctx, "setup:tools", "running", "Checking your tools");
-  const tools = (await toolChecks(ctx.cwd)).filter((t) => REQUIRED.includes(t.id));
+  const git = await gitReadiness(ctx.cwd);
+  if (!git.ok) {
+    panelStep(ctx, "setup:tools", "failed", "A few tools are needed first");
+    throw new ClodableError(git.error);
+  }
+  const tools = (await toolChecks(ctx.cwd, git)).filter((t) => REQUIRED.includes(t.id));
   if (!ctx.out.json) for (const tool of tools) doctorLine(ctx, tool);
   const blocking = tools.filter((t) => t.status === "fail");
   panelStep(

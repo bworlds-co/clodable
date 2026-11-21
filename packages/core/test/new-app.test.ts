@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   applyKit,
   FakeGitHub,
@@ -35,10 +35,37 @@ beforeEach(async () => {
   await writeFile(join(root, ".env.local"), "PRIVATE_SETTING=keep-on-this-computer");
   github = new FakeGitHub(join(dir, "new.git"));
 });
-afterEach(() => rm(dir, { recursive: true, force: true }));
+afterEach(async () => {
+  vi.unstubAllEnvs();
+  vi.restoreAllMocks();
+  await rm(dir, { recursive: true, force: true });
+});
 const start = () => runFlow(prepareNewApp(root, { name: "book-swap", account: "ada" }, github));
 
 describe("saving a local idea", () => {
+  it.skipIf(process.platform === "win32")(
+    "resumes the same destination after Git is repaired",
+    async () => {
+      await start();
+      const marker = join(root, ".clodable/local/new-app.json");
+      const pending = await readFile(marker, "utf8");
+      const create = vi.spyOn(github, "createPrivateRepository");
+      const bin = join(dir, "broken-tools");
+      await mkdir(bin);
+      await writeFile(join(bin, "git"), "#!/bin/sh\necho 'broken developer tools' >&2\nexit 1\n", {
+        mode: 0o755,
+      });
+      vi.stubEnv("PATH", `${bin}:${process.env.PATH}`);
+      await expect(start()).rejects.toMatchObject({ code: "tools-unavailable" });
+      expect(await readFile(marker, "utf8")).toBe(pending);
+      expect(create).not.toHaveBeenCalled();
+      vi.unstubAllEnvs();
+      await start();
+      expect(create).not.toHaveBeenCalled();
+      expect(await readFile(marker, "utf8")).toBe(pending);
+    },
+  );
+
   it("keeps prototype files intact, creates one private destination, then saves only to the draft", async () => {
     await start();
     expect(await readFile(join(root, "README.md"), "utf8")).toBe("My original notes");
