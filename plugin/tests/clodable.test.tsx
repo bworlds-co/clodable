@@ -82,6 +82,7 @@ const BAND = {
   component: "AbovePrompt",
   props: {
     hasSurvey: false,
+    isCollapsed: false,
     isWorking: false,
     maxRows: 6,
     bodyColumns: 100,
@@ -757,6 +758,50 @@ describe("secret keys", () => {
 });
 
 describe("a publish that stopped", () => {
+  test("progress has no invented percentage and stops even if the CLI leaves a step running", async ($, on) => {
+    harness(on);
+    on("session.version", () => ({ value: { version: "2.1.326" } }));
+    let finish = () => {};
+    on("process.spawn", async function* () {
+      yield {
+        stream: "stdout",
+        text: `${JSON.stringify({ type: "step", id: "checks", state: "running", title: "Checking everything works" })}\n`,
+      };
+      await new Promise<void>((resolve) => {
+        finish = resolve;
+      });
+      yield {
+        stream: "stdout",
+        text: `${JSON.stringify({ type: "result", ok: false, error: { code: "checks-failed", message: "Your app needs a fix." } })}\n`,
+      };
+      return { value: { code: 1, signal: null } };
+    });
+    await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+    const pane = await $.ui.mount(PANE_PROPS);
+    const band = await $.ui.mount({ ...BAND, surface: "desktop" });
+    await band.press({ key: "publish" });
+    for (
+      let i = 0;
+      i < 30 && !(await pane.find({ type: "Text", text: "Checking everything works" }));
+      i++
+    )
+      await pane.redraw();
+    expect(await pane.find({ type: "Text", text: "In progress" })).toBeDefined();
+    expect(await pane.find({ type: "Text", text: /[0-9]+%/ })).toBeUndefined();
+    finish();
+    for (
+      let i = 0;
+      i < 30 && !(await pane.find({ type: "Text", text: "Your app needs a fix." }));
+      i++
+    )
+      await pane.redraw();
+    expect(await pane.find({ type: "Text", text: "In progress" })).toBeUndefined();
+    expect(await pane.find({ type: "Text", text: /◐/ })).toBeUndefined();
+    expect(await pane.find({ type: "Text", text: /✕ Checking everything works/ })).toBeDefined();
+    await pane.unmount();
+    await band.unmount();
+  });
+
   test("says so in a few words on one line, with the way forward", async ($, on) => {
     harness(on);
     // Publish streams its steps: the CLI's last line is the result.
@@ -3631,6 +3676,220 @@ describe("everywhere else", () => {
     await pane.unmount();
   });
 
+  test("Connect GitHub shows the one-time code in the GitHub CLI's old and new words, and no command", async ($, on) => {
+    harness(on, { code: "not-a-repo", message: "Local folder" }, false, {
+      doctor: out([
+        {
+          id: "github",
+          status: "fail",
+          label: "GitHub account",
+          fix: "Run `gh auth login --web` to connect your account",
+        },
+      ]),
+    });
+    on("fs.list", () => ({
+      value: [{ name: "package.json", kind: "file", size: 100, mtimeMs: 0, isLink: false }],
+    }));
+    let said = "";
+    let signedIn = () => {};
+    on("process.spawn", async function* (_$: unknown, e: { argv: readonly string[] }) {
+      expect(e.argv.slice(0, 3)).toEqual(["gh", "auth", "login"]);
+      yield { stream: "stderr" as const, text: said };
+      await new Promise<void>((done) => {
+        signedIn = done;
+      });
+      return { value: { code: 0, signal: null } };
+    });
+    await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+    const pane = await $.ui.mount(PANE_PROPS as never);
+    for (let i = 0; i < 30 && !(await pane.find({ key: "set-up-saving" })); i++)
+      await pane.redraw();
+    await pane.press({ key: "set-up-saving" });
+    for (let i = 0; i < 30 && !(await pane.find({ key: "connect-github" })); i++)
+      await pane.redraw();
+    // Not connected yet is a step to take, not an error, and never a Terminal command.
+    expect(await pane.find({ type: "Text", text: /gh auth login/ })).toBeUndefined();
+    expect(await pane.find({ type: "Text", text: /✕ GitHub account/ })).toBeUndefined();
+    expect(await pane.find({ type: "Text", text: /your own GitHub account/ })).toBeDefined();
+    for (const [words, code, enter] of [
+      ["! First copy your one-time code: 692F-5730\n", "692F-5730", /Enter the code/],
+      ["! One-time code (C804-E40D) copied to clipboard\n", "C804-E40D", /Paste the code/],
+    ] as const) {
+      said = words;
+      await pane.press({ key: "connect-github" });
+      for (let i = 0; i < 30 && !(await pane.find({ type: "Text", text: code })); i++)
+        await pane.redraw();
+      expect(await pane.find({ type: "Text", text: code })).toBeDefined();
+      expect(await pane.find({ type: "Text", text: enter })).toBeDefined();
+      expect(await pane.find({ type: "Text", text: /updates by itself/ })).toBeDefined();
+      expect(await pane.find({ key: "connect-github" })).toBeUndefined();
+      // GitHub never heard back (the account is still not connected): it says so, with a retry.
+      signedIn();
+      for (let i = 0; i < 30 && !(await pane.find({ key: "connect-github" })); i++)
+        await pane.redraw();
+      expect(await pane.find({ type: "Text", text: /didn't connect/ })).toBeDefined();
+    }
+    await pane.unmount();
+  });
+
+  for (const [surface, version, enhanced] of [
+    ["desktop", "2.1.326", true],
+    ["desktop", "2.1.296", false],
+    ["terminal", "2.1.326", false],
+  ] as const) {
+    test(`saving progress stops on failure and restarts on retry (${surface}, ${version})`, async ($, on) => {
+      harness(on, { code: "not-a-repo", message: "Local folder" }, false, {
+        doctor: out([
+          { id: "github", status: "ok", label: "GitHub account", detail: "@ada" },
+          { id: "repo", status: "fail", label: "Your app on GitHub" },
+        ]),
+      });
+      on("session.version", () => ({ value: { version } }));
+      on("fs.list", () => ({
+        value: [{ name: "package.json", kind: "file", size: 100, mtimeMs: 0, isLink: false }],
+      }));
+      let finish = () => {};
+      on("process.spawn", async function* () {
+        yield {
+          stream: "stdout",
+          text: `${JSON.stringify({ type: "step", id: "tools", state: "done", title: "Your tools are ready" })}\n`,
+        };
+        yield {
+          stream: "stdout",
+          text: `${JSON.stringify({ type: "step", id: "app", state: "running", title: "Checking your local app" })}\n`,
+        };
+        await new Promise<void>((resolve) => {
+          finish = resolve;
+        });
+        yield {
+          stream: "stdout",
+          text: `${JSON.stringify({ type: "result", ok: false, error: { code: "unknown", message: "Saving stopped." } })}\n`,
+        };
+        return { value: { code: 1, signal: null } };
+      });
+      await $.session.start({ surface, isInteractive: true, cwd: CWD });
+      const pane = await $.ui.mount({ ...PANE_PROPS, surface });
+      for (let i = 0; i < 30 && !(await pane.find({ key: "set-up-saving" })); i++)
+        await pane.redraw();
+      await pane.press({ key: "set-up-saving" });
+      for (let i = 0; i < 30 && !(await pane.find({ key: "new-app-name" })); i++)
+        await pane.redraw();
+      for (let attempt = 0; attempt < 2; attempt++) {
+        await $.ui.input({ plugin: "clodable", key: "new-app-name", kind: "submit", text: "tiny" });
+        for (
+          let i = 0;
+          i < 30 && !(await pane.find({ type: "Text", text: /Checking your local app/ }));
+          i++
+        )
+          await pane.redraw();
+        expect(await pane.find({ type: "Text", text: /Your tools are ready/ })).toBeDefined();
+        expect(await pane.find({ type: "Text", text: /Saving stopped/ })).toBeUndefined();
+        if (enhanced) {
+          expect(await pane.find({ type: "Text", text: "In progress" })).toBeDefined();
+          expect(await pane.find({ type: "Text", text: /◐/ })).toBeUndefined();
+          expect(await pane.find({ type: "Text", text: /[0-9]+%/ })).toBeUndefined();
+        } else {
+          expect(
+            await pane.find({ type: "Text", text: /◐ Checking your local app/ }),
+          ).toBeDefined();
+          expect(await pane.find({ type: "Text", text: "In progress" })).toBeUndefined();
+          const tree = JSON.stringify(await pane.drawn());
+          // This newer test renderer normalizes legacy bold into weight itself.
+          expect(tree).not.toMatch(/"(?:size|mono|tabular)"\s*:/);
+          expect(tree).not.toMatch(
+            /"(?:rowGap|columnGap|padding|paddingX|paddingY)"\s*:\s*"(?:xs|sm|md|lg|xl)"/,
+          );
+        }
+        finish();
+        for (let i = 0; i < 30 && !(await pane.find({ key: "setup-help" })); i++)
+          await pane.redraw();
+        expect(await pane.find({ type: "Text", text: "In progress" })).toBeUndefined();
+        expect(await pane.find({ type: "Text", text: /◐/ })).toBeUndefined();
+        expect(await pane.find({ type: "Text", text: /✕ Checking your local app/ })).toBeDefined();
+      }
+      await pane.unmount();
+    });
+  }
+
+  test("a setup that stops gives Claude what Clodable reported, not a request to prepare the app", async ($, on) => {
+    harness(on, { code: "not-a-repo", message: "Local folder" }, false, {
+      doctor: out([
+        { id: "github", status: "ok", label: "GitHub account", detail: "@ada" },
+        { id: "repo", status: "fail", label: "Your app on GitHub" },
+      ]),
+    });
+    on("fs.list", () => ({
+      value: [{ name: "package.json", kind: "file", size: 100, mtimeMs: 0, isLink: false }],
+    }));
+    on("process.spawn", async function* () {
+      for (const event of [
+        { type: "step", id: "setup:tools", state: "done", title: "Your tools are ready" },
+        {
+          type: "step",
+          id: "setup:app",
+          state: "running",
+          title: "Creating your private app on GitHub",
+        },
+        {
+          type: "result",
+          ok: false,
+          error: {
+            code: "unknown",
+            message: "Something unexpected went wrong.",
+            hint: "Try again. If it keeps happening, share the details with your developer.",
+            details: "git fetch origin main\nfatal: couldn't find remote ref main",
+          },
+        },
+      ]) {
+        yield { stream: "stdout" as const, text: `${JSON.stringify(event)}\n` };
+      }
+      return { value: { code: 2, signal: null } };
+    });
+    const submitted: string[] = [];
+    const session = mock.session(on);
+    on("prompt.submit", (_$: unknown, e: { text: string }) => {
+      submitted.push(e.text);
+      return { text: e.text };
+    });
+    await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+    const pane = await $.ui.mount(PANE_PROPS as never);
+    for (let i = 0; i < 30 && !(await pane.find({ key: "set-up-saving" })); i++)
+      await pane.redraw();
+    await pane.press({ key: "set-up-saving" });
+    for (let i = 0; i < 30 && !(await pane.find({ type: "Text", text: /Save to @ada/ })); i++)
+      await pane.redraw();
+    await $.ui.input({ plugin: "clodable", key: "new-app-name", kind: "submit", text: "tiny" });
+    for (let i = 0; i < 30 && !(await pane.find({ key: "setup-help" })); i++) await pane.redraw();
+    // The builder reads the plain words; the git output stays out of the panel.
+    expect(
+      await pane.find({ type: "Text", text: /Something unexpected went wrong/ }),
+    ).toBeDefined();
+    expect(await pane.find({ type: "Text", text: /remote ref/ })).toBeUndefined();
+    expect(await pane.find({ type: "Text", text: /✓ Your tools are ready/ })).toBeDefined();
+    expect(
+      await pane.find({ type: "Text", text: /✕ Creating your private app on GitHub/ }),
+    ).toBeDefined();
+    expect(
+      await pane.find({ type: "Text", text: /◐|Creating your private app on GitHub…/ }),
+    ).toBeUndefined();
+    expect(await pane.find({ type: "Text", text: /your developer/ })).toBeUndefined();
+    expect(
+      await pane.find({
+        type: "Text",
+        text: /Ask Claude for help to find out what stopped saving/,
+      }),
+    ).toBeDefined();
+    expect(await pane.find({ key: "new-app-name" })).toBeDefined();
+    await pane.press({ key: "setup-help" });
+    for (let i = 0; i < 30 && submitted.length === 0; i++) await Promise.resolve();
+    await pane.unmount();
+    expect(submitted[0]).toMatch(/Set up saving didn't finish/);
+    await $.turn.start({ text: submitted[0]!, turnId: "setup-help" } as never);
+    const details = readBy(session).join("\n");
+    expect(details).toContain("fatal: couldn't find remote ref main");
+    expect(details).toContain("never run setup yourself");
+  });
+
   const quiet = async ($: any) => {
     for (let i = 0; i < 30; i++) await Promise.resolve();
     const band = await $.ui.mount({ ...BAND, surface: "desktop" });
@@ -3700,10 +3959,10 @@ describe("everywhere else", () => {
           text: "https://github.com/acme/website",
         });
       else await pane.press({ key: control });
-      // While the packages install, the panel says so, under what's done, and the button waits.
+      // While packages install, the panel names the work and keeps completed steps; the button waits.
       let running: any;
       for (let i = 0; i < 30 && !running; i++) {
-        running = await pane.find({ type: "Text", text: /Installing your app's packages…/ });
+        running = await pane.find({ type: "Text", text: /Installing your app's packages/ });
         if (!running) await pane.redraw();
       }
       expect(running).toBeDefined();
@@ -3713,6 +3972,7 @@ describe("everywhere else", () => {
       if (importing) expect(await pane.find({ key: "list-repos" })).toBeUndefined();
       installed();
       for (let i = 0; i < 30 && !toasts.some((t) => t.includes("ready")); i++) await pane.redraw();
+      expect(await pane.find({ type: "Text", text: "In progress" })).toBeUndefined();
       await pane.unmount();
       expect(ran[0]).toEqual([
         "setup",
