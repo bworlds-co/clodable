@@ -10,7 +10,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [0.4.0] - 2026-11-21
 
-French controls that follow Claude’s language, usable-Git checks before saving, tool preparation that retries, and clearer GitHub connection recovery. [Release notes](docs/releases/0.4.0.md).
+French controls that follow Claude’s language, usable-Git checks before saving, tool preparation that retries, and clearer GitHub connection recovery. [Release notes](docs/releases/0.4.0.md). ([#119](https://github.com/bworlds-co/clodable/pull/119))
 
 ## [0.3.1] - 2026-11-21
 
