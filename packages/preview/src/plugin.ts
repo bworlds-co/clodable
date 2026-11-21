@@ -6,6 +6,7 @@ import { isAbsolute, relative, resolve, sep } from "node:path";
 import { stripVTControlCharacters } from "node:util";
 import { toolbarPage, toolbarRequest, writeInbox } from "@clodable/core";
 import { cssVariables } from "@clodable/design";
+import { resolveLocale } from "@clodable/i18n";
 import { originalPositionFor, TraceMap } from "@jridgewell/trace-mapping";
 import type { Plugin, ViteDevServer } from "vite";
 import { DEVICES, type Device, framePage } from "./frame.js";
@@ -225,6 +226,18 @@ export function clodablePreview(options: PreviewOptions = {}): Plugin {
     return { error };
   }
 
+  async function conversationLocale(id: string) {
+    try {
+      const marker: unknown = JSON.parse(
+        await readFile(resolve(root, ".clodable", "local", `session-${id}.json`), "utf8"),
+      );
+      if (!marker || typeof marker !== "object" || !("locale" in marker)) return null;
+      return resolveLocale(marker.locale);
+    } catch {
+      return null;
+    }
+  }
+
   async function handle(req: IncomingMessage, res: ServerResponse, next: (e?: unknown) => void) {
     const url = new URL(req.url ?? "/", "http://localhost");
     const path = url.pathname;
@@ -253,6 +266,13 @@ export function clodablePreview(options: PreviewOptions = {}): Plugin {
       return send(res, 400, { error: "bad-request" });
     }
     switch (path) {
+      case ROUTES.locale: {
+        if (!body || typeof body !== "object" || Array.isArray(body))
+          return send(res, 400, { error: "bad-request" });
+        const id = conversationOf(body).conversation;
+        if (!id) return send(res, 400, { error: "bad-request" });
+        return send(res, 200, { locale: await conversationLocale(id) });
+      }
       case ROUTES.probe:
       case ROUTES.text:
         return send(res, 200, await textEdit(body, path === ROUTES.probe));

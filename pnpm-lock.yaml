@@ -81,6 +81,9 @@ importers:
       '@clodable/design':
         specifier: workspace:*
         version: link:../design
+      '@clodable/i18n':
+        specifier: workspace:*
+        version: link:../i18n
       '@jridgewell/trace-mapping':
         specifier: ^0.3.31
         version: 0.3.31

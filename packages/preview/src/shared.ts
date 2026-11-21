@@ -30,6 +30,7 @@ export const PREFIX = "/__clodable/";
 export const ROUTES = {
   toolbar: `${PREFIX}toolbar.js`,
   health: `${PREFIX}health`,
+  locale: `${PREFIX}locale`,
   frame: `${PREFIX}frame`,
   probe: `${PREFIX}text/probe`,
   text: `${PREFIX}text`,
