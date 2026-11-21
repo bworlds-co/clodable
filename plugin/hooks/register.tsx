@@ -42,6 +42,7 @@ import {
   type Version,
 } from "./cli.ts";
 import { safeToolDetails } from "./diagnostics.ts";
+import { githubSignInOutput } from "./github.ts";
 import {
   commandInApp,
   dbCommandIn,
@@ -188,8 +189,9 @@ let setupProblem: { message: string; help: boolean; reported?: string } | null =
 /** Connecting GitHub: asking it for a code, the code to enter on GitHub, or it didn't finish. */
 let gitHubSignIn:
   | { step: "asking" }
+  | { step: "checking" }
   | { step: "code"; code: string; copied: boolean }
-  | { step: "failed" }
+  | { step: "failed"; message: string; details: string; verifyOnly?: boolean }
   | null = null;
 let installingGit = false;
 let gitInstallMessage: string | null = null;
@@ -3318,7 +3320,7 @@ function setupPane(
             ) : null}
           </Box>
         ))}
-      {github && github.status !== "ok" ? connectGitHubSteps($, ui) : null}
+      {gitHubSignIn || (github && github.status !== "ok") ? connectGitHubSteps($, ui) : null}
       {section(ui, "2 · Your app")}
       {setupChoice === "saving" && tools.length === 0 ? (
         <Text {...supportingStyle(ui)} dimColor>
@@ -6279,33 +6281,75 @@ async function installGit($: EngineInterface) {
  * GitHub's own sign-in for the GitHub CLI: a one-time code the builder enters on github.com, then
  * the CLI holds the account. It ends when they approve, or when the code runs out (15 minutes).
  */
-async function connectGitHub($: EngineInterface) {
-  gitHubSignIn = { step: "asking" };
+async function connectGitHub($: EngineInterface, startAgain = false) {
+  if (gitHubSignIn && gitHubSignIn.step !== "failed") return;
+  const verifyOnly = !startAgain && gitHubSignIn?.step === "failed" && gitHubSignIn.verifyOnly;
+  gitHubSignIn = { step: verifyOnly ? "checking" : "asking" };
   $.ui.invalidate("ui.render");
   await toolsFirst($);
+  const output = githubSignInOutput();
+  let exit: { code: number | null; signal: string | null } | undefined;
+  let failure: unknown;
   try {
-    for await (const chunk of $.process.spawn({
-      argv: ["gh", "auth", "login", "--web", "--git-protocol", "https", "--hostname", "github.com"],
-      input: "\n",
-    })) {
-      // Its words change between releases ("First copy your one-time code: ABCD-1234", "One-time
-      // code (ABCD-1234) copied to clipboard"); the code's shape doesn't.
-      const code = chunk.text.match(/\b([A-Z0-9]{4}-[A-Z0-9]{4})\b/);
-      if (code && gitHubSignIn?.step !== "code") {
-        gitHubSignIn = {
-          step: "code",
-          code: code[1]!,
-          copied: /copied to clipboard/i.test(chunk.text),
-        };
-        $.ui.invalidate("ui.render");
+    if (toolsProblem)
+      throw new Error("Local tool preparation failed before GitHub sign-in could start.");
+    if (!verifyOnly) {
+      const executable = (await read($, checks)).find((c) => c.id === "gh")?.executable ?? "gh";
+      const login = $.process.spawn({
+        argv: [
+          executable,
+          "auth",
+          "login",
+          "--web",
+          "--git-protocol",
+          "https",
+          "--hostname",
+          "github.com",
+        ],
+        input: "\n",
+      });
+      try {
+        // Pull explicitly: a for-await loop discards the final process exit result.
+        while (true) {
+          const next = await login.next();
+          if (next.done) {
+            exit = next.value;
+            break;
+          }
+          const code = output.push(next.value.stream, next.value.text);
+          if (code) {
+            gitHubSignIn = { step: "code", ...code };
+            $.ui.invalidate("ui.render");
+          }
+        }
+      } finally {
+        await login.return(exit ?? { code: null, signal: null });
       }
     }
   } catch (error) {
-    note($, `github sign-in: ${String(error)}`.slice(0, 400));
+    failure = error;
   }
-  await refreshChecks($);
-  const connected = (await read($, checks)).some((c) => c.id === "github" && c.status === "ok");
-  gitHubSignIn = connected ? null : { step: "failed" };
+  gitHubSignIn = { step: "checking" };
+  $.ui.invalidate("ui.render");
+  const verified = await refreshChecks($);
+  const connected =
+    verified?.ok &&
+    Array.isArray(verified.data) &&
+    verified.data.some((c: ClodableCheck) => c.id === "github" && c.status === "ok");
+  if (connected) gitHubSignIn = null;
+  else {
+    const problem = output.failure(exit, failure);
+    const needsVerification = !failure && (exit?.code === 0 || verifyOnly);
+    gitHubSignIn = {
+      step: "failed",
+      message: needsVerification
+        ? "GitHub sign-in finished, but Clodable couldn't confirm your account. Check the connection again."
+        : problem.message,
+      details: `${problem.details}\nAccount verification: ${verified?.ok ? "no connected account reported" : "check could not finish"}.`,
+      ...(needsVerification ? { verifyOnly: true } : {}),
+    };
+    note($, `github sign-in: ${gitHubSignIn.details}`);
+  }
   $.ui.invalidate("ui.render");
   await refreshStatus($);
 }
@@ -6314,6 +6358,12 @@ async function connectGitHub($: EngineInterface) {
 function connectGitHubSteps($: EngineInterface, ui: PaneUi) {
   const { Box, Text, Button, Link } = ui;
   const s = gitHubSignIn;
+  if (s?.step === "checking")
+    return (
+      <Text {...supportingStyle(ui)} dimColor>
+        Checking the GitHub connection…
+      </Text>
+    );
   if (s?.step === "asking")
     return (
       <Text {...supportingStyle(ui)} dimColor>
@@ -6350,7 +6400,7 @@ function connectGitHubSteps($: EngineInterface, ui: PaneUi) {
   return (
     <Box flexDirection="column" rowGap={ui.styled ? "sm" : 1}>
       {s?.step === "failed" ? (
-        <Text color="error">GitHub didn't connect. The code may have run out: try again.</Text>
+        <Text color="error">{s.message}</Text>
       ) : (
         <Text {...supportingStyle(ui)} dimColor>
           Clodable keeps your app in your own GitHub account, private. Connect it once.
@@ -6358,8 +6408,38 @@ function connectGitHubSteps($: EngineInterface, ui: PaneUi) {
       )}
       <Box flexDirection="row">
         <Button key="connect-github" variant="primary" onPress={() => background(connectGitHub($))}>
-          {s?.step === "failed" ? "Try again" : "Connect GitHub"}
+          {s?.step === "failed"
+            ? s.verifyOnly
+              ? "Check connection"
+              : "Try again"
+            : "Connect GitHub"}
         </Button>
+        {s?.step === "failed" && s.verifyOnly ? (
+          <Button
+            key="github-connect-again"
+            plain
+            onPress={() => background(connectGitHub($, true))}
+          >
+            Connect again
+          </Button>
+        ) : null}
+        {s?.step === "failed" ? (
+          <Button
+            key="github-help"
+            plain
+            onPress={() =>
+              background(
+                askClaude(
+                  $,
+                  "Clodable couldn't connect to GitHub. Find out why and help me fix the connection.",
+                  `Diagnose this connection failure using the sanitized report below. Fix safe local tool or network problems. Do not read credentials, sign in, sign out, change accounts, create or delete anything on GitHub, or run setup. Leave account approval to me. Ask me to retry in the Clodable panel after repair.\n\n${s.details}`,
+                ),
+              )
+            }
+          >
+            Ask Claude for help
+          </Button>
+        ) : null}
       </Box>
     </Box>
   );

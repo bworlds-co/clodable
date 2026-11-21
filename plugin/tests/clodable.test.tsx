@@ -3729,7 +3729,7 @@ describe("everywhere else", () => {
       await new Promise<void>((done) => {
         signedIn = done;
       });
-      return { value: { code: 0, signal: null } };
+      return { value: { code: 1, signal: null } };
     });
     await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
     const pane = await $.ui.mount(PANE_PROPS as never);
@@ -3760,6 +3760,48 @@ describe("everywhere else", () => {
         await pane.redraw();
       expect(await pane.find({ type: "Text", text: /didn't connect/ })).toBeDefined();
     }
+    await pane.unmount();
+  });
+
+  test("a completed GitHub login retries account verification without signing in again", async ($, on) => {
+    let connected = false;
+    let logins = 0;
+    harness(on, { code: "tools-unavailable", message: "Git needs repair." }, false, {
+      doctor: () =>
+        out([
+          { id: "gh", label: "GitHub CLI", status: "ok", executable: "/owned tools/gh" },
+          {
+            id: "github",
+            label: "GitHub account",
+            status: connected ? "ok" : "fail",
+            detail: connected ? "@ada" : "",
+          },
+        ]),
+    });
+    on("process.spawn", async function* (_$: unknown, e: { argv: readonly string[] }) {
+      logins++;
+      expect(e.argv[0]).toBe("/owned tools/gh");
+      yield { stream: "stderr" as const, text: "First copy your one-time code: ABCD-" };
+      yield { stream: "stderr" as const, text: "1234\n" };
+      return { value: { code: 0, signal: null } };
+    });
+    await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+    await $.command.run({ command: "clodable", args: "" } as never);
+    const pane = await $.ui.mount(PANE_PROPS);
+    for (let i = 0; i < 60 && !(await pane.find({ key: "connect-github" })); i++)
+      await pane.redraw();
+    await pane.press({ key: "connect-github" });
+    for (let i = 0; i < 60 && !(await pane.find({ key: "github-help" })); i++) await pane.redraw();
+    expect(await pane.find({ key: "connect-github", text: "Check connection" })).toBeDefined();
+    expect(await shows(pane, /couldn't confirm your account/)).toBeDefined();
+    expect(await shows(pane, /expired|run out/)).toBeUndefined();
+    connected = true;
+    await pane.press({ key: "connect-github" });
+    for (let i = 0; i < 60 && (await pane.find({ key: "connect-github" })); i++)
+      await pane.redraw();
+    expect(logins).toBe(1);
+    expect(await pane.find({ key: "connect-github" })).toBeUndefined();
+    expect(await shows(pane, /@ada/)).toBeDefined();
     await pane.unmount();
   });
 
