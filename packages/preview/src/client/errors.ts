@@ -1,6 +1,8 @@
+import type { PreviewMessage } from "@clodable/i18n/preview";
 import { buildError, type PageError, ROUTES } from "../shared.js";
 import { api } from "./api.js";
 import { h, icon } from "./dom.js";
+import { onLocaleChange, t } from "./i18n.js";
 
 /**
  * Catch what breaks a page (runtime errors, rejected promises, Vite's build overlay) and offer one
@@ -121,36 +123,59 @@ function pageLooksBlank(): boolean {
 const fileName = (path: string) => path.split("/").pop() ?? path;
 const strong = (text: string) => h("strong", {}, text);
 
-/** The error in the builder's words: what's wrong, and where. The raw message waits behind "Show details". */
+function sentence(
+  source: PreviewMessage,
+  values: Record<string, Node | string> = {},
+): Array<Node | string> {
+  return t(source)
+    .split(/(\{\w+\})/g)
+    .filter(Boolean)
+    .map((part) => values[part.slice(1, -1)] ?? part);
+}
+
+/** Names and source positions stay verbatim while the explanation follows Claude's language. */
 function explain(error: PageError): Array<Node | string> {
   const at = error.source && fileName(error.source.file);
   const missing = error.message.match(/Failed to resolve import "([^"]+)" from "([^"]+)"/);
   if (missing) {
     const wanted = missing[1]!;
-    const from = missing[2]!;
-    // "@/components/Reviews" is a file in the app; "framer-motion" is a package nobody installed.
+    const from = strong(fileName(missing[2]!));
     if (/^(\.|\/|@\/|~\/)/.test(wanted)) {
       const file = wanted.replace(/^(@|~)\//, "").replace(/^(\.\.?\/)+/, "");
-      return [strong(fileName(from)), " refers to ", strong(file), ", a file that doesn’t exist."];
+      return sentence("{from} refers to {file}, a file that doesn’t exist.", {
+        from,
+        file: strong(file),
+      });
     }
-    return [strong(fileName(from)), " uses ", strong(wanted), ", a package that isn’t installed."];
+    return sentence("{from} uses {package}, a package that isn’t installed.", {
+      from,
+      package: strong(wanted),
+    });
   }
   const unknown = error.message.match(
     /^(?:\w*Error: )?([\w$]+) is not defined$|Can't find variable: ([\w$]+)/,
   );
   if (unknown) {
-    const name = (unknown[1] ?? unknown[2])!;
-    return [at ? strong(at) : "This page", " refers to ", strong(name), ", which doesn’t exist."];
+    return sentence("{page} refers to {name}, which doesn’t exist.", {
+      page: at ? strong(at) : t("This page"),
+      name: strong((unknown[1] ?? unknown[2])!),
+    });
   }
-  if (ASK_SERVER.test(error.message)) return ["Part of the app’s code didn’t load."];
+  if (ASK_SERVER.test(error.message)) return [t("Part of the app’s code didn’t load.")];
   if (error.kind === "build") {
     return at
-      ? [strong(at), ` has a mistake on line ${error.source!.line}.`]
-      : ["A mistake in the code stops it from loading."];
+      ? sentence("{file} has a mistake on line {line}.", {
+          file: strong(at),
+          line: String(error.source!.line),
+        })
+      : [t("A mistake in the code stops it from loading.")];
   }
   return at
-    ? ["The problem starts in ", strong(at), `, line ${error.source!.line}.`]
-    : ["Something in the code went wrong."];
+    ? sentence("The problem starts in {file}, line {line}.", {
+        file: strong(at),
+        line: String(error.source!.line),
+      })
+    : [t("Something in the code went wrong.")];
 }
 
 /** For developers: where, the raw message, then the code frame or the stack (without the noise). */
@@ -207,9 +232,9 @@ function fromOverlay(): PageError | undefined {
 
 /** The card's title: what happened, or that Claude is on it. */
 function titleOf(error: PageError, working: boolean, screen: boolean): string {
-  if (working) return "Claude is fixing it…";
-  if (error.kind === "build") return "Your app can’t load";
-  return screen ? "This page can’t load" : "Something broke on this page";
+  if (working) return t("Claude is fixing it…");
+  if (error.kind === "build") return t("Your app can’t load");
+  return screen ? t("This page can’t load") : t("Something broke on this page");
 }
 
 export class ErrorWatcher {
@@ -227,6 +252,9 @@ export class ErrorWatcher {
 
   start() {
     sink = (error) => this.capture(error);
+    onLocaleChange(() => {
+      if (this.card?.isConnected) this.render();
+    });
     const pending = early.splice(0);
     for (const error of pending) this.capture(error);
     // A blank page that said nothing: its code may have failed before the toolbar was listening.
@@ -312,7 +340,7 @@ export class ErrorWatcher {
     // On a full screen, closing belongs to the corner; on a note, next to its title.
     const close = h(
       "button",
-      { class: "close", "aria-label": "Dismiss", onclick: () => this.dismiss() },
+      { class: "close", "aria-label": t("Dismiss"), onclick: () => this.dismiss() },
       icon("close", 16),
     );
     const card = h(
@@ -336,14 +364,14 @@ export class ErrorWatcher {
         h(
           "p",
           { class: "why", id: "cl-err-why" },
-          ...(working ? ["The preview updates by itself when it’s fixed."] : explain(error)),
+          ...(working ? [t("The preview updates by itself when it’s fixed.")] : explain(error)),
         ),
         working
           ? null
           : h(
               "div",
               { class: "actions" },
-              h("button", { class: "btn primary", onclick: () => this.fix() }, "Try to fix"),
+              h("button", { class: "btn primary", onclick: () => this.fix() }, t("Try to fix")),
               more,
             ),
         working ? null : details,
@@ -357,7 +385,7 @@ export class ErrorWatcher {
     if (hadFocus) (card.querySelector<HTMLElement>(".btn.primary") ?? close).focus();
   }
 
-  /** "Show details" and what it shows, for developers: where, the raw message, the code frame. */
+  /** t("Show details") and what it shows, for developers: where, the raw message, the code frame. */
   private detailsToggle(error: PageError) {
     const { where, frame } = technical(error);
     const details = h(
@@ -367,7 +395,7 @@ export class ErrorWatcher {
       h("p", { class: "raw" }, error.message),
       frame ? h("pre", { class: "frame" }, frame) : null,
     );
-    const label = h("span", {}, this.detailsOpen ? "Hide details" : "Show details");
+    const label = h("span", {}, this.detailsOpen ? t("Hide details") : t("Show details"));
     const more = h(
       "button",
       {
@@ -377,7 +405,7 @@ export class ErrorWatcher {
         onclick: () => {
           this.detailsOpen = !this.detailsOpen;
           details.hidden = !this.detailsOpen;
-          label.textContent = this.detailsOpen ? "Hide details" : "Show details";
+          label.textContent = this.detailsOpen ? t("Hide details") : t("Show details");
           more.setAttribute("aria-expanded", String(this.detailsOpen));
         },
       },
@@ -396,7 +424,7 @@ export class ErrorWatcher {
       await api.fix(error, [...recentConsole]);
     } catch {
       setFixing(false);
-      this.toast("Couldn't reach Claude. Is Clodable running?", "warn");
+      this.toast(t("Couldn't reach Claude. Is Clodable running?"), "warn");
       this.render(false);
     }
   }

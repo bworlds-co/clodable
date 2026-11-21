@@ -1,5 +1,6 @@
 import type { ClodableEvent, ErrorInfo, LogEvent, StepEvent } from "@clodable/core";
 import pc from "picocolors";
+import { tr } from "./i18n.js";
 
 /**
  * Terminal output in Clodable's voice. Two modes:
@@ -133,7 +134,7 @@ export function createOutput(options: { json: boolean; stream?: NodeJS.WriteStre
         if (error.details && process.env.CLODABLE_VERBOSE)
           out.write(`\n${ash(indent(error.details, 4))}\n`);
         else if (error.details)
-          out.write(`\n    ${ash("Run again with CLODABLE_VERBOSE=1 for the details.")}\n`);
+          out.write(`\n    ${ash(tr("Run again with CLODABLE_VERBOSE=1 for the details."))}\n`);
         out.write("\n");
       }
     },

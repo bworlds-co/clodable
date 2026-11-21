@@ -10,6 +10,7 @@ import { ClodableError } from "./errors.js";
 import { Git } from "./git.js";
 import { GhCli } from "./github/gh.js";
 import type { GitHubAdapter } from "./github/types.js";
+import { tr } from "./i18n.js";
 import { detectProject, type ProjectInfo } from "./project.js";
 
 export interface WorkspaceOptions {
@@ -40,16 +41,18 @@ export class Workspace {
     if (!(await probe.isRepo())) {
       throw new ClodableError({
         code: "not-a-repo",
-        message: "This folder isn't connected to GitHub yet.",
-        hint: "Type /clodable to open the Clodable panel and set this folder up there.",
+        message: tr("This folder isn't connected to GitHub yet."),
+        hint: tr("Type /clodable to open the Clodable panel and set this folder up there."),
       });
     }
     const root = await probe.root();
     if (options.requireSetup !== false && !isSetUp(root)) {
       throw new ClodableError({
         code: "not-set-up",
-        message: "Clodable isn't set up in this project.",
-        hint: "Type /clodable to open the Clodable panel and set it up here. Until then, Clodable leaves this project alone.",
+        message: tr("Clodable isn't set up in this project."),
+        hint: tr(
+          "Type /clodable to open the Clodable panel and set it up here. Until then, Clodable leaves this project alone.",
+        ),
       });
     }
     const git = new Git(root);

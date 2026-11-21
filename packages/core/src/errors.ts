@@ -1,3 +1,4 @@
+import { tr } from "./i18n.js";
 /**
  * Every error Clodable shows a builder has a stable code, a plain-language message, and a way
  * forward. Developers get the raw details separately.
@@ -80,8 +81,8 @@ export function toErrorInfo(error: unknown): ErrorInfo {
   if (error instanceof ClodableError) return error.toJSON();
   return {
     code: "unknown",
-    message: "Something unexpected went wrong.",
-    hint: "Try again. If it keeps happening, share the details with your developer.",
+    message: tr("Something unexpected went wrong."),
+    hint: tr("Try again. If it keeps happening, share the details with your developer."),
     details: messageOf(error),
   };
 }

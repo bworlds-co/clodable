@@ -3,6 +3,7 @@ import { readdir, readFile } from "node:fs/promises";
 import { dirname, join, normalize, relative, sep } from "node:path";
 import { ClodableError } from "../errors.js";
 import { type Flow, step } from "../events.js";
+import { tr } from "../i18n.js";
 import type { SupabaseApi } from "./supabase-api.js";
 
 /**
@@ -170,7 +171,7 @@ export async function* deployFunctions(
   if (functions.length === 0) {
     throw new ClodableError({
       code: "move-not-ready",
-      message: "This app has no backend functions to move.",
+      message: tr("This app has no backend functions to move."),
     });
   }
   const deployed: string[] = [];
@@ -180,8 +181,8 @@ export async function* deployFunctions(
     yield step(
       "move:functions",
       "running",
-      "Moving your backend functions",
-      `${index + 1} of ${functions.length}: ${fn.name}`,
+      tr("Moving your backend functions"),
+      tr("{0} of {1}: {2}", { "0": index + 1, "1": functions.length, "2": fn.name }),
     );
     try {
       await uploadFunction(api, ref, root, fn);
@@ -205,8 +206,12 @@ export async function* deployFunctions(
   yield step(
     "move:functions",
     failed.length > 0 ? "failed" : "done",
-    failed.length > 0 ? "Some backend functions didn't move" : "Moved your backend functions",
-    failed.length > 0 ? problems.join(" · ").slice(0, 500) : `${deployed.length} running`,
+    failed.length > 0
+      ? tr("Some backend functions didn't move")
+      : tr("Moved your backend functions"),
+    failed.length > 0
+      ? problems.join(" · ").slice(0, 500)
+      : tr("{0} running", { "0": deployed.length }),
   );
   return { deployed, failed, missingSecrets };
 }

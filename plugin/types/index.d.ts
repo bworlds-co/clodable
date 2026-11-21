@@ -49,7 +49,7 @@ export interface ClodableStatus {
 /** Why the bar shows "set up" instead of the draft. */
 export interface ClodableNotReady {
   ready: false;
-  reason: "not-a-repo" | "no-kit" | "no-github" | "unknown";
+  reason: "not-a-repo" | "no-kit" | "no-github" | "tools" | "unknown";
   message: string;
   fix?: string;
 }
@@ -94,6 +94,10 @@ export interface ClodableCheck {
   status: "ok" | "warn" | "fail" | "info";
   detail?: string;
   fix?: string;
+  /** Resolved tool used by the CLI; never shown as builder-facing copy. */
+  executable?: string;
+  /** Diagnostic output for a failed check, passed to local repair help. */
+  details?: string;
 }
 
 /**

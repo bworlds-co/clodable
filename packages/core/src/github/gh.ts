@@ -1,5 +1,7 @@
 import { ClodableError, type ErrorInfo } from "../errors.js";
 import { type ExecResult, exec } from "../exec.js";
+import { Git } from "../git.js";
+import { tr } from "../i18n.js";
 import { ghBinary } from "./gh-binary.js";
 import type {
   BuildProgress,
@@ -32,7 +34,7 @@ export class GhCli implements GitHubAdapter {
     if (result.exitCode !== 0) {
       throw ghError(result, {
         code: "unknown",
-        message: "GitHub didn't accept a request.",
+        message: tr("GitHub didn't accept a request."),
         details: `gh ${args.join(" ")}\n${result.stderr}\n${result.stdout}`.trim(),
       });
     }
@@ -60,8 +62,10 @@ export class GhCli implements GitHubAdapter {
     if (result.exitCode !== 0) {
       throw ghError(result, {
         code: "not-found",
-        message: "Couldn't create your private app on GitHub.",
-        hint: "That name may already be in use, or your account may not allow new apps. Your local work is still here. Check GitHub before trying again.",
+        message: tr("Couldn't create your private app on GitHub."),
+        hint: tr(
+          "That name may already be in use, or your account may not allow new apps. Your local work is still here. Check GitHub before trying again.",
+        ),
         details: result.stderr,
       });
     }
@@ -87,7 +91,8 @@ export class GhCli implements GitHubAdapter {
 
   /** Use the connected GitHub account for this app, irrespective of the Mac's SSH identity. */
   async configureCredentials(): Promise<void> {
-    const git = (args: string[]) => exec("git", args, { cwd: this.cwd, timeout: 10_000 });
+    const repository = new Git(this.cwd);
+    const git = (args: string[]) => repository.run(args, { timeout: 10_000 });
     const key = "credential.https://github.com.helper";
     await git(["config", "--local", "--unset-all", key]);
     for (const value of ["", `!'${await ghBinary()}' auth git-credential`]) {
@@ -95,8 +100,8 @@ export class GhCli implements GitHubAdapter {
       if (result.exitCode !== 0)
         throw new ClodableError({
           code: "gh-auth",
-          message: "Couldn't connect this app to your GitHub account.",
-          hint: "Try Set up saving again.",
+          message: tr("Couldn't connect this app to your GitHub account."),
+          hint: tr("Try Set up saving again."),
           details: result.stderr,
         });
     }
@@ -124,9 +129,10 @@ export class GhCli implements GitHubAdapter {
    * `gh auth setup-git` does, for this folder only).
    */
   async clone(repo: string, target: string): Promise<void> {
+    const git = new Git(this.cwd);
+    await git.ready();
     const helper = `!'${await ghBinary()}' auth git-credential`;
-    const cloned = await exec(
-      "git",
+    const cloned = await git.run(
       [
         "-c",
         "credential.helper=",
@@ -136,19 +142,19 @@ export class GhCli implements GitHubAdapter {
         `https://github.com/${repo}.git`,
         target,
       ],
-      { cwd: this.cwd, timeout: 10 * 60_000, env: { GIT_TERMINAL_PROMPT: "0" } },
+      { timeout: 10 * 60_000 },
     );
     if (cloned.exitCode !== 0) {
       throw ghError(cloned, {
         code: "unknown",
-        message: "GitHub didn't accept a request.",
+        message: tr("GitHub didn't accept a request."),
         details: `git clone https://github.com/${repo}.git\n${cloned.stderr}`.trim(),
       });
     }
     const key = "credential.https://github.com.helper";
+    const clonedGit = new Git(target);
     for (const value of ["", helper]) {
-      await exec("git", ["config", "--local", "--add", key, value], {
-        cwd: target,
+      await clonedGit.run(["config", "--local", "--add", key, value], {
         timeout: 10_000,
       });
     }
@@ -216,7 +222,7 @@ export class GhCli implements GitHubAdapter {
     if (!created) {
       throw new ClodableError({
         code: "unknown",
-        message: "The draft's page on GitHub couldn't be created.",
+        message: tr("The draft's page on GitHub couldn't be created."),
       });
     }
     return created;
@@ -236,7 +242,7 @@ export class GhCli implements GitHubAdapter {
       if (/no checks reported/i.test(result.stderr)) return { state: "none" };
       const failure = ghError(result, {
         code: "unknown",
-        message: "Couldn't read the checks on GitHub.",
+        message: tr("Couldn't read the checks on GitHub."),
         details: result.stderr.trim(),
       });
       // Signed out or offline exits 1 too: that isn't "no checks".
@@ -281,8 +287,10 @@ export class GhCli implements GitHubAdapter {
     if (!merged.mergeCommit?.oid) {
       throw new ClodableError({
         code: "merge-blocked",
-        message: "GitHub didn't publish your draft.",
-        hint: "Your repository may require something before publishing. Open the draft on GitHub to see why.",
+        message: tr("GitHub didn't publish your draft."),
+        hint: tr(
+          "Your repository may require something before publishing. Open the draft on GitHub to see why.",
+        ),
       });
     }
     return { sha: merged.mergeCommit.oid };
@@ -297,8 +305,10 @@ export class GhCli implements GitHubAdapter {
     if (result.exitCode !== 0) {
       throw ghError(result, {
         code: "unknown",
-        message: `GitHub didn't accept the ${name} secret your site needs to publish.`,
-        hint: "Check you can change this repository's settings on GitHub, then try again.",
+        message: tr("GitHub didn't accept the {0} secret your site needs to publish.", {
+          "0": name,
+        }),
+        hint: tr("Check you can change this repository's settings on GitHub, then try again."),
         details: result.stderr.trim().slice(0, 500),
       });
     }
@@ -427,16 +437,16 @@ function ghError(result: ExecResult, otherwise: ErrorInfo): ClodableError {
   if (/auth login|not logged|authentication/i.test(text)) {
     return new ClodableError({
       code: "gh-auth",
-      message: "Clodable isn't connected to your GitHub account.",
-      hint: "Type /clodable to open the Clodable panel and connect it there.",
+      message: tr("Clodable isn't connected to your GitHub account."),
+      hint: tr("Type /clodable to open the Clodable panel and connect it there."),
       details: text,
     });
   }
   if (OFFLINE.test(text)) {
     return new ClodableError({
       code: "offline",
-      message: "GitHub can't be reached right now.",
-      hint: "Check your internet connection and try again.",
+      message: tr("GitHub can't be reached right now."),
+      hint: tr("Check your internet connection and try again."),
       details: text,
     });
   }

@@ -4,6 +4,7 @@ import { api, config } from "./api.js";
 import { describeForClaude, kindOf, labelOf, SUGGESTIONS, snippet, sourceOf } from "./describe.js";
 import { h, icon } from "./dom.js";
 import { ErrorWatcher } from "./errors.js";
+import { locale, onLocaleChange, t, watchLocale } from "./i18n.js";
 import { anchor, Highlight, Toasts } from "./overlay.js";
 import { styles } from "./styles.js";
 
@@ -21,7 +22,7 @@ const MESSAGES = {
     "This text is filled in automatically, from your data or a list in your code, so it can't be typed over here.",
   notFound: "The page changed while you were editing. Try once more.",
   ambiguous: "That exact text appears twice here, so Claude should change it.",
-};
+} as const;
 
 interface Editing {
   el: HTMLElement;
@@ -91,6 +92,11 @@ export class Toolbar {
     }).observe(document.body, { childList: true });
 
     this.render();
+    onLocaleChange(() => {
+      if (!this.host.isConnected) return;
+      this.render();
+    });
+    watchLocale();
     if (this.surface !== "outer") {
       new ErrorWatcher(this.layer, this.errorSlot, (text, tone) =>
         this.toasts.show(text, tone ? { tone } : {}),
@@ -105,6 +111,8 @@ export class Toolbar {
 
   /** Redraw, keeping keyboard focus on the control pressed, or on the one that took its place. */
   private render() {
+    this.host.lang = locale();
+    if (this.surface === "outer") this.localizeFrame();
     const focused = (this.shadow.activeElement as HTMLElement | null)?.dataset.key;
     this.draw();
     if (!focused) return;
@@ -127,6 +135,25 @@ export class Toolbar {
     );
   }
 
+  private localizeFrame() {
+    const screen = document.querySelector<HTMLIFrameElement>("iframe.screen");
+    const device = document.querySelector<HTMLElement>(".device");
+    if (!screen || !device) return;
+    const dimensions = SCREENS[this.device === "tablet" ? "tablet" : "phone"];
+    const landscape = new URLSearchParams(location.search).get("landscape") === "1";
+    const width = landscape ? dimensions.height : dimensions.width;
+    const height = landscape ? dimensions.width : dimensions.height;
+    const label = this.device === "tablet" ? t("Tablet") : t("Phone");
+    const deviceName = locale() === "fr" ? label.toLowerCase() : label;
+    document.documentElement.lang = locale();
+    document.title = t("{device} preview", { device: deviceName });
+    device.setAttribute(
+      "aria-label",
+      t("{device} preview, {width} by {height}", { device: deviceName, width, height }),
+    );
+    screen.title = t("Your app at {width} pixels wide", { width });
+  }
+
   /** Around the device frame: the size switch, the screen's size, and Rotate. */
   private drawDeviceBar() {
     this.dockSlot.replaceChildren();
@@ -135,16 +162,16 @@ export class Toolbar {
     const size = params.get("landscape") === "1" ? `${height} × ${width}` : `${width} × ${height}`;
     const dock = h(
       "div",
-      { class: "dock", role: "toolbar", "aria-label": "Device preview" },
+      { class: "dock", role: "toolbar", "aria-label": t("Device preview") },
       this.deviceSwitch(),
-      h("span", { class: "size", "aria-label": `Screen size ${size}` }, size),
+      h("span", { class: "size", "aria-label": t("Screen size {size}", { size }) }, size),
       h("span", { class: "sep", "aria-hidden": "true" }),
       h(
         "button",
         {
           class: "icon-btn",
-          "aria-label": "Rotate",
-          title: "Rotate",
+          "aria-label": t("Rotate"),
+          title: t("Rotate"),
           onclick: () => this.rotate(),
         },
         icon("refresh"),
@@ -170,13 +197,13 @@ export class Toolbar {
         {
           class: "pebble labelled",
           "data-key": "pebble",
-          "aria-label": "Show Clodable tools",
-          ...(onCopy ? { "aria-description": "This preview uses a copy of your data." } : {}),
-          title: "Show Clodable tools (⌥⇧H)",
+          "aria-label": t("Show Clodable tools"),
+          ...(onCopy ? { "aria-description": t("This preview uses a copy of your data.") } : {}),
+          title: t("Show Clodable tools (⌥⇧H)"),
           onclick: () => this.setMinimized(false),
         },
         this.mark(24),
-        h("span", {}, onCopy ? "Copy · Tools" : "Tools"),
+        h("span", {}, onCopy ? t("Copy · Tools") : t("Tools")),
       ),
     );
   }
@@ -201,7 +228,7 @@ export class Toolbar {
       {
         class: "brand",
         "data-key": "menu",
-        "aria-label": "Clodable menu",
+        "aria-label": t("Clodable menu"),
         "aria-haspopup": "menu",
         "aria-expanded": "false",
         onclick: (e: Event) => this.toggleMenu(e.currentTarget as HTMLElement),
@@ -212,7 +239,7 @@ export class Toolbar {
     const onCopy = config()?.backend === "copy";
     const dock = h(
       "div",
-      { class: "dock", role: "toolbar", "aria-label": "Clodable preview tools" },
+      { class: "dock", role: "toolbar", "aria-label": t("Clodable preview tools") },
       brand,
       ...(onCopy
         ? [
@@ -220,16 +247,17 @@ export class Toolbar {
               "span",
               {
                 class: "backend",
-                title:
+                title: t(
                   "This preview uses your new backend, a copy of your data. Your live app is untouched.",
+                ),
               },
-              "Copy",
+              t("Copy"),
             ),
           ]
         : []),
       h("span", { class: "sep", "aria-hidden": "true" }),
-      tool("edit", "text", "Edit text", "⌥⇧E"),
-      tool("ask", "select", "Point & ask", "⌥⇧A"),
+      tool("edit", "text", t("Edit text"), "⌥⇧E"),
+      tool("ask", "select", t("Point & ask"), "⌥⇧A"),
       ...(this.surface === "app"
         ? [h("span", { class: "sep", "aria-hidden": "true" }), this.deviceSwitch()]
         : []),
@@ -239,8 +267,8 @@ export class Toolbar {
         {
           class: "icon-btn",
           "data-key": "hide",
-          "aria-label": "Hide Clodable tools",
-          title: "Hide (⌥⇧H)",
+          "aria-label": t("Hide Clodable tools"),
+          title: t("Hide (⌥⇧H)"),
           onclick: () => this.setMinimized(true),
         },
         icon("minimize"),
@@ -259,14 +287,14 @@ export class Toolbar {
 
   private deviceSwitch() {
     const devices: Array<[Device, IconName, string]> = [
-      ["desktop", "desktop", "Full width"],
-      ["tablet", "tablet", "Tablet"],
-      ["phone", "phone", "Phone"],
+      ["desktop", "desktop", t("Full width")],
+      ["tablet", "tablet", t("Tablet")],
+      ["phone", "phone", t("Phone")],
     ];
     const index = devices.findIndex(([d]) => d === this.device);
     return h(
       "div",
-      { class: "devices", role: "radiogroup", "aria-label": "Preview size" },
+      { class: "devices", role: "radiogroup", "aria-label": t("Preview size") },
       h("span", {
         class: "thumb",
         "aria-hidden": "true",
@@ -296,15 +324,15 @@ export class Toolbar {
     }
     const text =
       this.mode === "edit"
-        ? "Click any text to change it"
-        : "Click anything to ask Claude about it";
+        ? t("Click any text to change it")
+        : t("Click anything to ask Claude about it");
     this.hintSlot.replaceChildren(
       h(
         "div",
         { class: `hint ${this.mode === "ask" ? "ask" : ""}`, role: "status" },
         h("span", { class: "dot" }),
         text,
-        h("kbd", {}, "Esc"),
+        h("kbd", {}, t("Esc")),
       ),
     );
   }
@@ -432,7 +460,7 @@ export class Toolbar {
       const hit = textAt(x, y, this.host);
       const source = hit && sourceOf(hit.el);
       if (hit && source) {
-        this.hover.show(hit.el, "edit-hover", { icon: "text", strong: "Edit text" });
+        this.hover.show(hit.el, "edit-hover", { icon: "text", strong: t("Edit text") });
         document.documentElement.style.cursor = "text";
       } else {
         this.hover.hide();
@@ -497,7 +525,9 @@ export class Toolbar {
     try {
       probe = await api.probe(source.src, before);
     } catch {
-      this.toasts.show("Couldn't reach Clodable. Is the preview still running?", { tone: "warn" });
+      this.toasts.show(t("Couldn't reach Clodable. Is the preview still running?"), {
+        tone: "warn",
+      });
       return;
     }
     if (!probe.editable) {
@@ -508,13 +538,13 @@ export class Toolbar {
     const { editable, restore } = makeEditable(hit.el, hit.node);
     const bar = h(
       "div",
-      { class: "pop editbar", role: "group", "aria-label": "Editing text" },
-      h("span", { class: "note" }, "Editing text"),
-      h("button", { class: "btn ghost", onclick: () => this.finishEdit(false) }, "Cancel"),
+      { class: "pop editbar", role: "group", "aria-label": t("Editing text") },
+      h("span", { class: "note" }, t("Editing text")),
+      h("button", { class: "btn ghost", onclick: () => this.finishEdit(false) }, t("Cancel")),
       h(
         "button",
         { class: "btn primary", onclick: () => this.finishEdit(true) },
-        "Save",
+        t("Save"),
         h("span", { class: "kbd" }, "⏎"),
       ),
     );
@@ -579,7 +609,7 @@ export class Toolbar {
           class: "spinner",
           style: "display:inline-block;vertical-align:-3px;margin-right:8px",
         }),
-        "Saving…",
+        t("Saving…"),
       ),
     );
     try {
@@ -589,24 +619,24 @@ export class Toolbar {
         // Keep the new words on screen: the app reloads them from the source in a moment.
         editing.node.textContent = keepEdges(editing.before, after);
         this.active.fadeOut(editing.el, "saved");
-        this.toasts.show("Text updated · saved to your draft");
+        this.toasts.show(t("Text updated · saved to your draft"));
       } else {
         editing.node.textContent = editing.before;
         this.active.hide();
         const { reason } = result;
         this.toasts.show(
           reason === "dynamic"
-            ? MESSAGES.dynamic
+            ? t(MESSAGES.dynamic)
             : reason === "ambiguous"
-              ? MESSAGES.ambiguous
-              : MESSAGES.notFound,
+              ? t(MESSAGES.ambiguous)
+              : t(MESSAGES.notFound),
           { tone: "warn", ms: 4200 },
         );
       }
     } catch {
       editing.restore();
       editing.node.textContent = editing.before;
-      this.toasts.show("Couldn't save that change. Try again.", { tone: "warn" });
+      this.toasts.show(t("Couldn't save that change. Try again."), { tone: "warn" });
     }
     this.endEdit(false);
   }
@@ -619,24 +649,24 @@ export class Toolbar {
 
   private showLocked(el: Element, text: string, reason: string) {
     this.closePopover();
-    this.hover.show(el, "locked", { icon: "info", strong: "Not editable here" });
+    this.hover.show(el, "locked", { icon: "info", strong: t("Not editable here") });
     const ask = h(
       "button",
       {
         class: "btn primary",
-        onclick: () => this.openComposerFor(el, `Change “${short(text)}” to `),
+        onclick: () => this.openComposerFor(el, t("Change “{text}” to ", { text: short(text) })),
       },
-      "Ask Claude",
+      t("Ask Claude"),
     );
     const panel = h(
       "div",
-      { class: "pop notice", role: "dialog", "aria-label": "This text can't be edited here" },
-      h("h3", {}, "Claude can change this one for you"),
-      h("p", {}, reason === "ambiguous" ? MESSAGES.ambiguous : MESSAGES.dynamic),
+      { class: "pop notice", role: "dialog", "aria-label": t("This text can't be edited here") },
+      h("h3", {}, t("Claude can change this one for you")),
+      h("p", {}, reason === "ambiguous" ? t(MESSAGES.ambiguous) : t(MESSAGES.dynamic)),
       h(
         "div",
         { class: "actions" },
-        h("button", { class: "btn ghost", onclick: () => this.closePopover() }, "Close"),
+        h("button", { class: "btn ghost", onclick: () => this.closePopover() }, t("Close")),
         ask,
       ),
     );
@@ -658,11 +688,15 @@ export class Toolbar {
     const kind = kindOf(el);
     const textarea = h("textarea", {
       rows: "3",
-      placeholder: "What should change? For example: make it bigger and bolder",
-      "aria-label": "What should change?",
+      placeholder: t("What should change? For example: make it bigger and bolder"),
+      "aria-label": t("What should change?"),
     });
     textarea.value = prefill;
-    const send = h("button", { class: "btn primary", onclick: () => submit() }, "Send to Claude");
+    const send = h(
+      "button",
+      { class: "btn primary", onclick: () => submit() },
+      t("Send to Claude"),
+    );
     const submit = async () => {
       const request = textarea.value.trim();
       if (!request) {
@@ -675,10 +709,10 @@ export class Toolbar {
         await api.ask(request, describeForClaude(el), location);
         this.closePopover();
         this.setMode("idle");
-        this.toasts.show("Sent to Claude");
+        this.toasts.show(t("Sent to Claude"));
       } catch {
         send.removeAttribute("disabled");
-        this.toasts.show("Couldn't reach Claude. Is Clodable running?", { tone: "warn" });
+        this.toasts.show(t("Couldn't reach Claude. Is Clodable running?"), { tone: "warn" });
       }
     };
     textarea.addEventListener("keydown", (e) => {
@@ -693,7 +727,7 @@ export class Toolbar {
       {
         class: "pop composer",
         role: "dialog",
-        "aria-label": `Ask Claude about this ${labelOf(el).toLowerCase()}`,
+        "aria-label": t("Ask Claude about this {element}", { element: labelOf(el).toLowerCase() }),
       },
       h(
         "div",
@@ -705,25 +739,26 @@ export class Toolbar {
       h(
         "div",
         { class: "suggestions" },
-        ...SUGGESTIONS[kind].map((s) =>
-          h(
+        ...SUGGESTIONS[kind].map((source) => {
+          const suggestion = t(source);
+          return h(
             "button",
             {
               class: "suggestion",
               onclick: () => {
-                textarea.value = s;
+                textarea.value = suggestion;
                 textarea.focus();
               },
             },
-            s,
-          ),
-        ),
+            suggestion,
+          );
+        }),
       ),
       h(
         "div",
         { class: "actions" },
-        h("span", { class: "left" }, "⏎ to send"),
-        h("button", { class: "btn ghost", onclick: () => this.closePopover() }, "Cancel"),
+        h("span", { class: "left" }, t("⏎ to send")),
+        h("button", { class: "btn ghost", onclick: () => this.closePopover() }, t("Cancel")),
         send,
       ),
     );
@@ -789,17 +824,17 @@ export class Toolbar {
           "div",
           {},
           h("b", {}, "Clodable"),
-          h("span", {}, "Only you see these tools. Visitors never do."),
+          h("span", {}, t("Only you see these tools. Visitors never do.")),
         ),
       ),
       h("hr"),
-      item("text", "Edit text", "⌥⇧E", () => this.setMode("edit")),
-      item("select", "Point & ask Claude", "⌥⇧A", () => this.setMode("ask")),
+      item("text", t("Edit text"), "⌥⇧E", () => this.setMode("edit")),
+      item("select", t("Point & ask Claude"), "⌥⇧A", () => this.setMode("ask")),
       ...(this.surface === "app"
-        ? [item("phone", "Phone preview", "", () => this.setDevice("phone"))]
+        ? [item("phone", t("Phone preview"), "", () => this.setDevice("phone"))]
         : []),
       h("hr"),
-      item("minimize", "Hide these tools", "⌥⇧H", () => this.setMinimized(true)),
+      item("minimize", t("Hide these tools"), "⌥⇧H", () => this.setMinimized(true)),
     );
     arrowKeys(menu, this.shadow, "ArrowUp", "ArrowDown");
     this.popover = menu;

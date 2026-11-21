@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { ClodableError } from "../errors.js";
+import { tr } from "../i18n.js";
 import type { Workspace } from "../workspace.js";
 import { loadMove, type MoveState, updateMove } from "./state.js";
 
@@ -48,8 +49,9 @@ export function rehearsalSummary(state: MoveState) {
           ? ("current-copy" as const)
           : ("earlier-copy" as const),
     })),
-    limit:
+    limit: tr(
       "These are dated observations, not a fresh check or proof every feature works. Missing evidence means unknown, not never tested. Earlier-copy observations need checking again after a new copy.",
+    ),
   };
 }
 
@@ -69,8 +71,10 @@ export async function recordRehearsal(ws: Pick<Workspace, "root">, json: string)
   if (!parsed.success)
     throw new ClodableError({
       code: "invalid-config",
-      message: "The rehearsal notes don't have the expected shape.",
-      hint: "Include the copy identity from move rehearsal and dated feature observations, with their result, method and evidence. Never include keys or people's data.",
+      message: tr("The rehearsal notes don't have the expected shape."),
+      hint: tr(
+        "Include the copy identity from move rehearsal and dated feature observations, with their result, method and evidence. Never include keys or people's data.",
+      ),
     });
   const input = parsed.data;
   const now = new Date().toISOString();
@@ -79,8 +83,10 @@ export async function recordRehearsal(ws: Pick<Workspace, "root">, json: string)
     if (!copy || copy.ref !== input.copy.ref || copy.dataAt !== input.copy.dataAt) {
       throw new ClodableError({
         code: "move-not-ready",
-        message: "These notes don't match the current copy.",
-        hint: "Read the current rehearsal record and check which copy was actually tested. Don't relabel old checks as new ones.",
+        message: tr("These notes don't match the current copy."),
+        hint: tr(
+          "Read the current rehearsal record and check which copy was actually tested. Don't relabel old checks as new ones.",
+        ),
       });
     }
     if (
@@ -92,8 +98,8 @@ export async function recordRehearsal(ws: Pick<Workspace, "root">, json: string)
     ) {
       throw new ClodableError({
         code: "invalid-config",
-        message: "A check's date is outside this copy's lifetime.",
-        hint: "Use the date the check actually happened, after this copy was made.",
+        message: tr("A check's date is outside this copy's lifetime."),
+        hint: tr("Use the date the check actually happened, after this copy was made."),
       });
     }
     const entries = [...(s.rehearsal ?? [])];

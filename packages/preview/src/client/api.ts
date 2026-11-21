@@ -61,6 +61,7 @@ export type EditResult =
   | { ok: false; reason: TextEditFailure | "empty" };
 
 export const api = {
+  locale: (id: string) => post<{ locale: unknown }>(ROUTES.locale, { conversation: id }),
   probe: (src: string, text: string) => post<Probe>(ROUTES.probe, { src, text }),
   edit: (src: string, before: string, after: string) =>
     post<EditResult>(ROUTES.text, { src, before, after, page: page(), ...conversation() }),

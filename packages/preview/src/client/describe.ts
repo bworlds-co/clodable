@@ -1,5 +1,7 @@
+import type { PreviewMessage } from "@clodable/i18n/preview";
 /** Builder-friendly names for page elements: "Heading", "Button", "Image", never "div". */
 import { SOURCE_ATTR } from "../shared.js";
+import { t } from "./i18n.js";
 
 /** The nearest element the JSX tagger marked, and where in the code it comes from. */
 export function sourceOf(el: Element | null): { el: Element; src: string } | undefined {
@@ -48,7 +50,7 @@ export function kindOf(el: Element): Kind {
   return el.children.length > 2 ? "section" : "element";
 }
 
-const LABELS: Record<Kind, string> = {
+const LABELS: Record<Kind, PreviewMessage> = {
   heading: "Heading",
   text: "Text",
   button: "Button",
@@ -63,13 +65,17 @@ const LABELS: Record<Kind, string> = {
   element: "Element",
 };
 
-export function labelOf(element: Element): string {
+function labelSource(element: Element): PreviewMessage {
   const kind = kindOf(element);
   if (kind === "nav") {
     const tag = element.tagName.toLowerCase();
     return tag === "header" ? "Header" : tag === "footer" ? "Footer" : "Navigation";
   }
   return LABELS[kind];
+}
+
+export function labelOf(element: Element): string {
+  return t(labelSource(element));
 }
 
 export function snippet(element: Element, max = 42): string {
@@ -84,10 +90,10 @@ export function describeForClaude(element: Element): string {
   const tag = element.tagName.toLowerCase();
   const cls = (element.getAttribute("class") ?? "").split(/\s+/).slice(0, 8).join(" ");
   const text = snippet(element, 80);
-  return `${labelOf(element)} <${tag}${cls ? ` class="${cls}"` : ""}>${text ? ` “${text}”` : ""}`;
+  return `${labelSource(element)} <${tag}${cls ? ` class="${cls}"` : ""}>${text ? ` “${text}”` : ""}`;
 }
 
-export const SUGGESTIONS: Record<Kind, string[]> = {
+export const SUGGESTIONS: Record<Kind, PreviewMessage[]> = {
   heading: ["Rewrite it", "Make it bigger", "Change the font"],
   text: ["Rewrite it", "Make it shorter", "Change the color"],
   button: ["Change the label", "Make it stand out", "Change what it does"],

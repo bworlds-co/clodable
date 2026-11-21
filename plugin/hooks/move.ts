@@ -1,3 +1,4 @@
+import { t } from "./i18n.ts";
 // The move off Lovable as the panel shows it: the plain facts and words its steps share. No $ here.
 
 /** The AI providers an app's AI features can move to, and where each one's keys are made. */
@@ -83,27 +84,31 @@ export function stagesOf<Step extends { id: string }>(
   const kinds = [
     {
       id: "backend",
-      title: "Get ready: your new backend",
-      about:
+      title: t("Get ready: your new backend"),
+      about: t(
         "A working copy of your data, people and backend, on your own Supabase. Your live app stays on Lovable.",
+      ),
       steps: ["connect", "create", "export", "copy", "files", "functions", "try"],
     },
     {
       id: "website",
       title: steps.some((x) => x.id === "services")
-        ? "Get ready: your website, emails and services"
-        : "Get ready: your website and emails",
-      about:
+        ? t("Get ready: your website, emails and services")
+        : t("Get ready: your website and emails"),
+      about: t(
         "Your site on your own Netlify, using the working copy. Your live app stays on Lovable.",
+      ),
       steps: ["netlify", "site", "emails", "services", "google"],
     },
     {
       id: "golive",
-      title: "Go live",
+      title: t("Go live"),
       about:
         method === "quick"
-          ? "Your app moves over in one go, with your data as of your export."
-          : "Your live app moves over. It pauses for a few minutes, so nothing people write is lost.",
+          ? t("Your app moves over in one go, with your data as of your export.")
+          : t(
+              "Your live app moves over. It pauses for a few minutes, so nothing people write is lost.",
+            ),
       steps: ["freeze", "final-export", "final-copy", "golive", "domain", "lovable"],
     },
   ];

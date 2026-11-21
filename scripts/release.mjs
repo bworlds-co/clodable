@@ -12,7 +12,9 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 const root = resolve(import.meta.dirname, "..");
-const packages = ["cli", "core", "design", "preview"].map((p) => `packages/${p}/package.json`);
+const packages = ["cli", "core", "design", "i18n", "preview"].map(
+  (p) => `packages/${p}/package.json`,
+);
 const current = JSON.parse(readFileSync(resolve(root, packages[0]), "utf8")).version;
 const [major, minor, patch] = current.split(".").map(Number);
 const asked = process.argv[2];

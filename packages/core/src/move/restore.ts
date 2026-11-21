@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import { messageOf } from "../errors.js";
 import { type Flow, step } from "../events.js";
+import { tr } from "../i18n.js";
 import { BACKUP, type ExportSummary } from "./export.js";
 import {
   alignSequences,
@@ -122,11 +123,16 @@ export async function* copyExport(
   };
 
   if (options.again) {
-    yield step("move:data", "running", "Copying your data", "Clearing the earlier copy");
+    yield step("move:data", "running", tr("Copying your data"), tr("Clearing the earlier copy"));
     await emptyCopy(target.sql);
   }
 
-  yield step("move:data", "running", "Copying your data", "Turning on your database's extensions");
+  yield step(
+    "move:data",
+    "running",
+    tr("Copying your data"),
+    tr("Turning on your database's extensions"),
+  );
   keep(
     (await restorePass(target.pg, backup, plan.extensions, { dir, name: "1-extensions" })).errors,
   );
@@ -151,7 +157,7 @@ export async function* copyExport(
     }
   }
 
-  yield step("move:data", "running", "Copying your data", "Bringing your people over");
+  yield step("move:data", "running", tr("Copying your data"), tr("Bringing your people over"));
   keep(
     (
       await restorePass(target.pg, backup, plan.managedData, {
@@ -162,22 +168,22 @@ export async function* copyExport(
     ).errors,
   );
 
-  yield step("move:data", "running", "Copying your data", "Copying your tables");
+  yield step("move:data", "running", tr("Copying your data"), tr("Copying your tables"));
   keep(
     (await restorePass(target.pg, backup, plan.app, { dir, name: "3-tables", privileges: true }))
       .errors,
   );
 
-  yield step("move:data", "running", "Copying your data", "Putting the access rules back");
+  yield step("move:data", "running", tr("Copying your data"), tr("Putting the access rules back"));
   keep((await restorePass(target.pg, backup, plan.managedExtras, { dir, name: "4-rules" })).errors);
   yield step(
     "move:data",
     problems.length > 0 ? "warning" : "done",
-    "Copied your data",
-    problems.length > 0 ? `${problems.length} parts didn't copy cleanly` : undefined,
+    tr("Copied your data"),
+    problems.length > 0 ? tr("{0} parts didn't copy cleanly", { "0": problems.length }) : undefined,
   );
 
-  yield step("move:fixes", "running", "Getting the copy ready");
+  yield step("move:fixes", "running", tr("Getting the copy ready"));
   const fixes: string[] = [];
   const attempt = async (what: string, work: () => Promise<string | undefined>) => {
     try {
@@ -240,7 +246,7 @@ export async function* copyExport(
   yield step(
     "move:fixes",
     "done",
-    "Got the copy ready",
+    tr("Got the copy ready"),
     fixes.length > 0 ? fixes.join(" · ") : undefined,
   );
   return { problems, fixes };

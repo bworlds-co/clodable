@@ -14,6 +14,7 @@ import {
   safeCommand,
 } from "../hooks/guards.ts";
 import { connectorSetting, sizeOf, stagesOf, typedDomain } from "../hooks/move.ts";
+import { labelScript } from "../hooks/preview.ts";
 import { nodeFrom, nodeOk, pathWith, pluginDataFolder, toolsFolder } from "../hooks/tools.ts";
 import { FIX_TEXT, hostOf, pageName, pointedAt, saveMessage, versionName } from "../hooks/words.ts";
 
@@ -99,6 +100,17 @@ const out = (data: unknown, ok = true) => ({
   isStderrTruncated: false,
 });
 
+const READY_CHECKS = [
+  { id: "node", label: "Node.js", status: "ok" },
+  { id: "git", label: "Git", status: "ok" },
+  { id: "gh", label: "GitHub CLI", status: "ok" },
+  { id: "github", label: "GitHub account", status: "ok", detail: "@ada" },
+];
+
+async function shows(pane: any, text: string | RegExp) {
+  return pane.find({ type: "Text", text });
+}
+
 const HISTORY = {
   draft: [
     { sha: "b2", subject: "Added the menu", date: "2026-10-10T10:00:00Z", kind: "save" },
@@ -180,28 +192,48 @@ function harness(
   (calls as unknown as { timeouts: typeof timeouts }).timeouts = timeouts;
   on(
     "process.run",
-    (
+    async (
       _$: unknown,
       e: {
         argv: string[];
         init?: { stdin?: string; timeoutMs?: number; env?: Record<string, string>; cwd?: string };
       },
     ) => {
-      const early = first?.(e.argv, e.init);
+      const early = await first?.(e.argv, e.init);
       if (early) return { value: early };
+      // Most tests start with a working runtime; missing/broken Node is modeled explicitly below.
+      if (e.argv[1] === "-e" && e.argv[2]?.includes("process.versions.node"))
+        return { value: { ...out({}), stdout: JSON.stringify(["22.11.0", "node"]) } };
+      if (e.argv[0] === "uname") return { value: { ...out({}), stdout: "" } };
       calls.push(e.argv.slice(2));
       stdins.push(e.init?.stdin);
       timeouts.push(e.init?.timeoutMs);
       const answer = Object.keys(answers).find((command) => e.argv.includes(command));
       if (answer) {
         const value = answers[answer]!;
-        return { value: typeof value === "function" ? value(e.argv.slice(2)) : value };
+        const response = typeof value === "function" ? value(e.argv.slice(2)) : value;
+        // A doctor's fixture describes the checks it changes; other prerequisites are working.
+        // Tests for malformed/incomplete reports override process.run directly.
+        if (answer === "doctor") {
+          const report = JSON.parse(response.stdout);
+          if (report.ok && Array.isArray(report.data) && report.data.length) {
+            return {
+              value: out([
+                ...READY_CHECKS.filter(
+                  (c) => !report.data.some((v: { id: string }) => v.id === c.id),
+                ),
+                ...report.data,
+              ]),
+            };
+          }
+        }
+        return { value: response };
       }
       if (e.argv.includes("status")) return { value: out(status, ok) };
       if (e.argv.includes("save"))
         return { value: out({ saved: true, sha: "c4", pushed: true, unpublished: 3 }) };
       if (e.argv.includes("history")) return { value: out(HISTORY) };
-      if (e.argv.includes("doctor")) return { value: out([]) };
+      if (e.argv.includes("doctor")) return { value: out(READY_CHECKS) };
       return { value: out({}) };
     },
   );
@@ -439,6 +471,174 @@ describe("what the CLI prints", () => {
   });
 });
 
+describe("Claude's language setting", () => {
+  for (const [language, locale, label] of [
+    ["French", "fr", "Publier"],
+    ["fr-CA", "fr", "Publier"],
+    ["de", "en", "Publish"],
+    [undefined, "en", "Publish"],
+  ] as const) {
+    test(`${String(language)} selects the same catalog for the panel and CLI`, async ($, on) => {
+      const environments: Array<string | undefined> = [];
+      harness(on, STATUS, true, {}, (_argv, init) => {
+        environments.push(init?.env?.CLODABLE_LANGUAGE);
+      });
+      on("settings.read", () => ({ value: language === undefined ? {} : { language } }));
+      await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+      expect(await bandText($, "desktop", new RegExp(`^${label}$`))).toBe(label);
+      expect(environments.some((value) => value === locale)).toBe(true);
+      expect(
+        environments.filter((value) => value !== undefined).every((value) => value === locale),
+      ).toBe(true);
+    });
+  }
+
+  test("refreshes loaded migration wording without changing the selected account or region", async ($, on) => {
+    let language = "en";
+    const commands: string[] = [];
+    const state = {
+      ...STATUS,
+      project: { ...STATUS.project, backend: "lovable-cloud", hosting: "lovable" },
+      movingOffLovable: true,
+    };
+    harness(on, state, true, {}, (argv, init) => {
+      if (!argv.includes("move")) return;
+      const action = argv[argv.indexOf("move") + 1];
+      commands.push(action!);
+      const french = init?.env?.CLODABLE_LANGUAGE === "fr";
+      if (action === "check")
+        return out({
+          checked: true,
+          level: "simple",
+          items: [],
+          notes: [],
+        });
+      if (action === "choices")
+        return out({
+          organizations: [
+            {
+              slug: "free",
+              name: "Personal",
+              plan: "free",
+              freeLeft: 1,
+              cost: french ? "Gratuit" : "Free",
+            },
+            {
+              slug: "studio",
+              name: "Studio",
+              plan: "pro",
+              cost: french ? "Environ 10 $ par mois" : "About $10 a month",
+            },
+          ],
+          freeProjects: [],
+          region: { code: "eu", name: "Paris" },
+          regions: [
+            { code: "eu", name: "Paris" },
+            { code: "us", name: "Virginia" },
+          ],
+        });
+      return out({
+        steps: [
+          {
+            id: "create",
+            state: "next",
+            title: french ? "Créer votre nouveau backend" : "Create your new backend",
+          },
+        ],
+        method: "careful",
+        preview: "live",
+        vaultKey: false,
+        functions: 0,
+      });
+    });
+    on("settings.read", () => ({ value: { language } }));
+    on("prompt.submit", (_$: unknown, e: { text: string }) => ({ text: e.text }));
+    await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+    const pane = await $.ui.mount(PANE_PROPS);
+    for (let i = 0; i < 40 && !(await pane.find({ key: "move-org" })); i++) await pane.redraw();
+    await pane.select({ key: "move-org", value: "studio" });
+    await pane.select({ key: "move-region", value: "us" });
+    expect(await pane.find({ type: "Text", text: "About $10 a month" })).toBeDefined();
+    language = "fr";
+    await $.prompt.submit({ text: "Continue", origin: { kind: "sdk" }, wait: false });
+    await pane.redraw();
+    expect(await pane.find({ type: "Text", text: /Créer votre nouveau backend/ })).toBeDefined();
+    expect(await pane.find({ type: "Text", text: "Environ 10 $ par mois" })).toBeDefined();
+    expect(await pane.find({ key: "move-org" })).toMatchObject({ props: { value: "studio" } });
+    expect(await pane.find({ key: "move-region" })).toMatchObject({ props: { value: "us" } });
+    expect(commands.every((command) => ["check", "choices", "status"].includes(command))).toBe(
+      true,
+    );
+    await pane.unmount();
+  });
+
+  test("a language change replaces an unfinished tool check instead of leaving setup pending", async ($, on) => {
+    let language = "en";
+    const finish: Array<(value: ReturnType<typeof out>) => void> = [];
+    harness(
+      on,
+      { code: "tools-unavailable", message: "Tools need checking." },
+      false,
+      {},
+      async (argv) => {
+        if (!argv.includes("doctor")) return undefined;
+        return new Promise<ReturnType<typeof out>>((done) => finish.push(done));
+      },
+    );
+    on("settings.read", () => ({ value: { language } }));
+    on("prompt.submit", (_$: unknown, e: { text: string }) => ({ text: e.text }));
+    await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+    await $.command.run({ command: "clodable", args: "" } as never);
+    const pane = await $.ui.mount(PANE_PROPS);
+    for (let i = 0; i < 60 && finish.length < 1; i++) await pane.redraw();
+    expect(finish.length).toBe(1);
+    language = "fr";
+    const submitted = $.prompt.submit({ text: "Continue", origin: { kind: "sdk" }, wait: false });
+    for (let i = 0; i < 60 && finish.length < 2; i++) await pane.redraw();
+    expect(finish.length).toBe(2);
+    finish[1]!(out(READY_CHECKS));
+    await submitted;
+    finish[0]!(out({ code: "offline", message: "Old English failure" }, false));
+    for (let i = 0; i < 10; i++) await pane.redraw();
+    expect(await shows(pane, /@ada/)).toBeDefined();
+    expect(await shows(pane, /Old English failure|Checking…|Vérification…/)).toBeUndefined();
+    await pane.unmount();
+  });
+
+  test("rereads the preference for a retained conversation and keeps the app content", async ($, on) => {
+    harness(on);
+    let language = "français";
+    const contexts: string[][] = [];
+    const requests: string[] = [];
+    on("settings.read", () => ({ value: { language } }));
+    on("prompt.submit", (_$: unknown, e: { text: string; context?: readonly string[] }) => {
+      requests.push(e.text);
+      contexts.push([...(e.context ?? [])]);
+      return { text: e.text, context: e.context };
+    });
+    await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+    const request = "Keep the heading Build something great";
+    await $.prompt.submit({
+      text: request,
+      context: ["Existing context"],
+      origin: { kind: "sdk" },
+      wait: false,
+    });
+    expect(contexts.at(-1)?.join(" ")).toContain("Rétablir cette version");
+    expect(contexts.at(-1)?.join(" ")).toContain("GitHub, Supabase, API and URL");
+    expect(requests.at(-1)).toBe(request);
+    language = "English";
+    await $.prompt.submit({
+      text: request,
+      context: ["Existing context"],
+      origin: { kind: "sdk" },
+      wait: false,
+    });
+    expect(contexts.at(-1)).toEqual(["Existing context"]);
+    expect(await bandText($, "desktop", /^Publish$/)).toBe("Publish");
+  });
+});
+
 describe("the Publish bar", () => {
   test("keeps a separate composer entry when Desktop removes its prompt band", async ($, on) => {
     const calls = harness(on);
@@ -583,7 +783,7 @@ describe("permissions", () => {
       "allow",
     );
     // Labelling this conversation's preview pane is allowed, but only that exact script.
-    const label = `/* Clodable: label this preview */ location.protocol.startsWith("http") ? (sessionStorage.setItem("clodable:conversation", "s1abc"), "labelled") : "not ready"`;
+    const label = labelScript("s1abc", "fr");
     const js = (text: string) =>
       check("mcp__Claude_Browser__javascript_tool", {
         action: "javascript_exec",
@@ -591,6 +791,8 @@ describe("permissions", () => {
         text,
       });
     expect((await js(label)).decision).toBe("allow");
+    expect((await js(labelScript("s1abc", "en"))).decision).toBe("allow");
+    expect((await js(label.replace('"fr"', '"de"'))).decision).toBe("ask");
     expect((await js(`${label}; fetch("https://evil.example")`)).decision).toBe("ask");
     expect((await js("document.cookie")).decision).toBe("ask");
     expect(
@@ -3025,6 +3227,7 @@ describe("questions about live data", () => {
     expect(await ask("I'll add a 'phone' column to the customers table. OK?", "Database")).toBe(
       true,
     );
+    expect(await ask("Ajouter une colonne téléphone à la table clients ?", "Données")).toBe(true);
     expect(await ask("Which color do you prefer for the header?", "Design")).toBe(false);
   });
 });
@@ -3489,6 +3692,8 @@ describe("a conversation Desktop started ahead of time", () => {
 describe("the preview, when Claude starts it", () => {
   test("the bar's Preview asks for the address Claude's preview_start returned, and its pane gets this conversation's name", async ($, on) => {
     harness(on);
+    let language = "en";
+    on("settings.read", () => ({ value: { language } }));
     const asked: Array<{ tool: string; args: any }> = [];
     on("mcp.call", (_$: unknown, e: { tool: string; args: any }) => {
       asked.push(e);
@@ -3541,6 +3746,16 @@ describe("the preview, when Claude starts it", () => {
     );
     await $.tool.call({ tool: "mcp__Claude_Browser__preview_start", name: "app" } as never);
     expect(asked.filter((a) => a.tool === "javascript_tool")).toHaveLength(1);
+    for (const nextLanguage of ["fr", "en"]) {
+      language = nextLanguage;
+      await $.prompt.submit({ text: "Continue", origin: { kind: "sdk" }, wait: false });
+      await $.tool.call({ tool: "mcp__Claude_Browser__preview_start", name: "app" } as never);
+    }
+    expect(
+      asked
+        .filter((a) => a.tool === "javascript_tool")
+        .map((a) => String(a.args.text).match(/"clodable:locale", "(en|fr)"/)?.[1]),
+    ).toEqual(["en", "fr", "en"]);
   });
 });
 
@@ -3698,7 +3913,7 @@ describe("everywhere else", () => {
       await new Promise<void>((done) => {
         signedIn = done;
       });
-      return { value: { code: 0, signal: null } };
+      return { value: { code: 1, signal: null } };
     });
     await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
     const pane = await $.ui.mount(PANE_PROPS as never);
@@ -3731,6 +3946,55 @@ describe("everywhere else", () => {
     }
     await pane.unmount();
   });
+
+  for (const [language, button, message] of [
+    ["en", "Check connection", "couldn't confirm your account"],
+    ["fr", "Vérifier la connexion", "n’a pas pu confirmer votre compte"],
+  ] as const) {
+    test(`${language}: a completed GitHub login retries account verification without signing in again`, async ($, on) => {
+      on("settings.read", () => ({ value: { language } }));
+      let connected = false;
+      let logins = 0;
+      harness(on, { code: "tools-unavailable", message: "Git needs repair." }, false, {
+        doctor: () =>
+          out([
+            { id: "gh", label: "GitHub CLI", status: "ok", executable: "/owned tools/gh" },
+            {
+              id: "github",
+              label: "GitHub account",
+              status: connected ? "ok" : "fail",
+              detail: connected ? "@ada" : "",
+            },
+          ]),
+      });
+      on("process.spawn", async function* (_$: unknown, e: { argv: readonly string[] }) {
+        logins++;
+        expect(e.argv[0]).toBe("/owned tools/gh");
+        yield { stream: "stderr" as const, text: "First copy your one-time code: ABCD-" };
+        yield { stream: "stderr" as const, text: "1234\n" };
+        return { value: { code: 0, signal: null } };
+      });
+      await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+      await $.command.run({ command: "clodable", args: "" } as never);
+      const pane = await $.ui.mount(PANE_PROPS);
+      for (let i = 0; i < 60 && !(await pane.find({ key: "connect-github" })); i++)
+        await pane.redraw();
+      await pane.press({ key: "connect-github" });
+      for (let i = 0; i < 60 && !(await pane.find({ key: "github-help" })); i++)
+        await pane.redraw();
+      expect(await pane.find({ key: "connect-github", text: button })).toBeDefined();
+      expect(await shows(pane, new RegExp(message))).toBeDefined();
+      expect(await shows(pane, /expired|run out/)).toBeUndefined();
+      connected = true;
+      await pane.press({ key: "connect-github" });
+      for (let i = 0; i < 60 && (await pane.find({ key: "connect-github" })); i++)
+        await pane.redraw();
+      expect(logins).toBe(1);
+      expect(await pane.find({ key: "connect-github" })).toBeUndefined();
+      expect(await shows(pane, /@ada/)).toBeDefined();
+      await pane.unmount();
+    });
+  }
 
   for (const [surface, version, enhanced] of [
     ["desktop", "2.1.326", true],
@@ -4633,6 +4897,7 @@ describe("the tools Clodable needs", () => {
     expect(seen.cliEnv).toEqual({
       CLODABLE_TOOLS_DIR: TOOLS,
       CLODABLE_RUNTIME_SOURCE: `${PLUGIN_ROOT}/cli/clodable.mjs`,
+      CLODABLE_LANGUAGE: "en",
     });
     expect(env.CLODABLE_TOOLS_DIR).toBe(TOOLS);
   });
@@ -4785,6 +5050,168 @@ describe("the tools Clodable needs", () => {
     expect(nodeFrom('["22.11.0","/opt/homebrew/bin/node"]')).toBe("/opt/homebrew/bin/node");
     expect(nodeFrom('["18.20.4","/usr/local/bin/node"]')).toBeUndefined();
     expect(nodeFrom("22.11.0")).toBeUndefined();
+  });
+
+  test("a failed Node download retries once in the same session before running the CLI", async ($, on) => {
+    const { seen, first } = computer(on, undefined);
+    let downloads = 0;
+    const calls = harness(
+      on,
+      { code: "not-a-repo", message: "Local app" },
+      false,
+      {},
+      (argv, init) => {
+        if (argv[0] === "/bin/sh" && ++downloads === 1)
+          return { ...ran("", 1), stderr: "curl: Could not resolve host: nodejs.org" };
+        return first(argv, init);
+      },
+    );
+    await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+    await $.command.run({ command: "clodable", args: "" } as never);
+    const pane = await $.ui.mount(PANE_PROPS);
+    for (let i = 0; i < 60 && !(await pane.find({ key: "check-again" })); i++) await pane.redraw();
+    expect(downloads).toBe(1);
+    expect(seen.cliAt).toBe(-1);
+    expect(await pane.find({ key: "tools-help" })).toBeDefined();
+    await pane.press({ key: "check-again" });
+    for (let i = 0; i < 60 && seen.cliAt < 0; i++) await pane.redraw();
+    expect(downloads).toBe(2);
+    expect(seen.cliAt).toBeGreaterThanOrEqual(0);
+    expect(calls.some((c) => c[0] === "setup")).toBe(false);
+    await pane.unmount();
+  });
+
+  test("unusable Git blocks setup without treating the folder as an existing app", async ($, on) => {
+    const calls = harness(
+      on,
+      { code: "tools-unavailable", message: "Saving needs Git to work on this computer." },
+      false,
+      {
+        doctor: out([
+          {
+            id: "git",
+            label: "Git",
+            status: "fail",
+            detail: "Saving needs Git to work on this computer.",
+            fix: "Run xcode-select --install",
+            details: "Git readiness: apple-tools-unavailable",
+          },
+          { id: "github", label: "GitHub account", status: "ok", detail: "@ada" },
+        ]),
+      },
+    );
+    await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+    await $.command.run({ command: "clodable", args: "" } as never);
+    const pane = await $.ui.mount(PANE_PROPS);
+    for (let i = 0; i < 60 && !(await pane.find({ key: "install-git" })); i++) await pane.redraw();
+    expect(await pane.find({ key: "install-git" })).toBeDefined();
+    expect(await pane.find({ key: "git-help" })).toBeDefined();
+    expect(await shows(pane, /keep shaping your app/)).toBeDefined();
+    expect(await pane.find({ key: "new-app-name" })).toBeUndefined();
+    expect(calls.some((c) => c[0] === "setup" || c[0] === "save")).toBe(false);
+    await pane.unmount();
+  });
+
+  test("an installer refusal never claims that Apple's window opened", async ($, on) => {
+    harness(
+      on,
+      { code: "tools-unavailable", message: "Git needs repair." },
+      false,
+      {
+        doctor: out([
+          { id: "git", label: "Git", status: "fail", fix: "Run xcode-select --install" },
+        ]),
+      },
+      (argv) =>
+        argv[0] === "xcode-select"
+          ? { ...ran("", 1), stderr: "install request failed" }
+          : undefined,
+    );
+    await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+    await $.command.run({ command: "clodable", args: "" } as never);
+    const pane = await $.ui.mount(PANE_PROPS);
+    for (let i = 0; i < 60 && !(await pane.find({ key: "install-git" })); i++) await pane.redraw();
+    await pane.press({ key: "install-git" });
+    for (let i = 0; i < 60 && !(await shows(pane, /couldn't open the installer/)); i++)
+      await pane.redraw();
+    expect(await shows(pane, /couldn't open the installer/)).toBeDefined();
+    expect(await shows(pane, /Follow Apple's window/)).toBeUndefined();
+    await pane.unmount();
+  });
+
+  test("a later failed check removes old green checks and setup controls", async ($, on) => {
+    let failed = false;
+    harness(on, { code: "no-kit", message: "Not ready" }, false, {
+      doctor: () =>
+        failed
+          ? out({ code: "offline", message: "The tools could not be checked." }, false)
+          : out([
+              { id: "git", label: "Git", status: "ok" },
+              { id: "github", label: "GitHub account", status: "ok", detail: "@ada" },
+            ]),
+    });
+    await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+    await $.command.run({ command: "clodable", args: "" } as never);
+    const pane = await $.ui.mount(PANE_PROPS);
+    for (let i = 0; i < 60 && !(await shows(pane, /✓ Git/)); i++) await pane.redraw();
+    expect(await shows(pane, /✓ Git/)).toBeDefined();
+    failed = true;
+    await $.command.run({ command: "clodable", args: "" } as never);
+    for (let i = 0; i < 60 && !(await pane.find({ key: "check-again" })); i++) await pane.redraw();
+    expect(await shows(pane, /✓ Git/)).toBeUndefined();
+    expect(await shows(pane, /The tools could not be checked/)).toBeDefined();
+    expect(await pane.find({ key: "new-app-name" })).toBeUndefined();
+    await pane.unmount();
+  });
+
+  test("an incomplete report cannot enable saving and offers a real retry", async ($, on) => {
+    harness(
+      on,
+      { code: "tools-unavailable", message: "Tools need checking." },
+      false,
+      {},
+      (argv) =>
+        argv.includes("doctor")
+          ? out([{ id: "github", label: "GitHub account", status: "ok", detail: "@ada" }])
+          : undefined,
+    );
+    await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+    await $.command.run({ command: "clodable", args: "" } as never);
+    const pane = await $.ui.mount(PANE_PROPS);
+    for (let i = 0; i < 60 && !(await pane.find({ key: "check-again" })); i++) await pane.redraw();
+    expect(await shows(pane, /couldn't finish checking/)).toBeDefined();
+    expect(await pane.find({ key: "new-app-name" })).toBeUndefined();
+    expect(await pane.find({ key: "repo-name" })).toBeUndefined();
+    await pane.unmount();
+  });
+
+  test("a slow older check cannot replace a newer failure with green results", async ($, on) => {
+    const finish: Array<(value: ReturnType<typeof out>) => void> = [];
+    harness(
+      on,
+      { code: "tools-unavailable", message: "Tools need checking." },
+      false,
+      {},
+      async (argv) => {
+        if (!argv.includes("doctor")) return undefined;
+        return new Promise<ReturnType<typeof out>>((done) => finish.push(done));
+      },
+    );
+    await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+    await $.command.run({ command: "clodable", args: "" } as never);
+    const pane = await $.ui.mount(PANE_PROPS);
+    for (let i = 0; i < 60 && finish.length < 1; i++) await pane.redraw();
+    await $.command.run({ command: "clodable", args: "" } as never);
+    for (let i = 0; i < 60 && finish.length < 2; i++) await pane.redraw();
+    expect(finish.length).toBe(2);
+    finish[1]!(out({ code: "offline", message: "The latest check failed." }, false));
+    for (let i = 0; i < 60 && !(await pane.find({ key: "check-again" })); i++) await pane.redraw();
+    finish[0]!(out(READY_CHECKS));
+    for (let i = 0; i < 10; i++) await pane.redraw();
+    expect(await shows(pane, "The latest check failed.")).toBeDefined();
+    expect(await shows(pane, /✓ Git/)).toBeUndefined();
+    expect(await pane.find({ key: "new-app-name" })).toBeUndefined();
+    await pane.unmount();
   });
 
   test("the tools live in the plugin's data folder, which Claude Code removes with the plugin", () => {

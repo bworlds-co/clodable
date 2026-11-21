@@ -1,5 +1,6 @@
 import { ClodableError } from "../errors.js";
 import { type Flow, step } from "../events.js";
+import { tr } from "../i18n.js";
 import { storeSecret } from "../local-secrets.js";
 import type { Workspace } from "../workspace.js";
 import { isDomainName } from "./domain.js";
@@ -19,8 +20,8 @@ export async function connectResend(key: string): Promise<{ domains: string[] }>
   if (!/^re_[A-Za-z0-9_]{10,}$/.test(trimmed)) {
     throw new ClodableError({
       code: "resend-auth",
-      message: "That doesn't look like a Resend key.",
-      hint: "It starts with re_. In Resend: API Keys → Create API Key, with Full access.",
+      message: tr("That doesn't look like a Resend key."),
+      hint: tr("It starts with re_. In Resend: API Keys → Create API Key, with Full access."),
     });
   }
   const api = new ResendApi(trimmed);
@@ -67,7 +68,7 @@ export async function* setUpEmails(
   if (!state.home) {
     throw new ClodableError({
       code: "move-not-ready",
-      message: "Create your new backend first: emails are sent from it.",
+      message: tr("Create your new backend first: emails are sent from it."),
     });
   }
   const domain = (options.domain ?? state.emails?.domain ?? "").trim().toLowerCase();
@@ -75,13 +76,18 @@ export async function* setUpEmails(
     throw new ClodableError({
       code: "move-not-ready",
       message: domain
-        ? `“${domain}” isn't a domain name.`
-        : "Which domain should your emails come from?",
-      hint: "A domain you own, like example.com: emails will come from no-reply@ that domain.",
+        ? tr("“{0}” isn't a domain name.", { "0": domain })
+        : tr("Which domain should your emails come from?"),
+      hint: tr("A domain you own, like example.com: emails will come from no-reply@ that domain."),
     });
   }
   const resend = await ResendApi.required();
-  yield step("move:emails", "running", "Setting up your emails", `From ${domain}`);
+  yield step(
+    "move:emails",
+    "running",
+    tr("Setting up your emails"),
+    tr("From {0}", { "0": domain }),
+  );
   let found = (await resend.domains()).find((d) => d.name === domain);
   if (!found) found = await resend.createDomain(domain, regionFor(state.home.region));
   let current = await resend.domain(found.id);
@@ -114,15 +120,22 @@ export async function* setUpEmails(
     yield step(
       "move:emails",
       "warning",
-      "Your domain needs its email records",
-      `Add the ${records.length} records at your domain's provider, then check again`,
+      tr("Your domain needs its email records"),
+      tr("Add the {0} records at your domain's provider, then check again", {
+        "0": records.length,
+      }),
     );
     return { domain, sender, status: current.status, records, connected: false };
   }
 
   const latest = await loadMove(ws.root);
   if (!latest.emails?.connectedAt) {
-    yield step("move:emails", "running", "Setting up your emails", "Connecting Resend to Supabase");
+    yield step(
+      "move:emails",
+      "running",
+      tr("Setting up your emails"),
+      tr("Connecting Resend to Supabase"),
+    );
     const sending = await resend.createSendingKey(`Clodable · ${ws.project.name}`, found.id);
     const supabase = await SupabaseApi.required();
     await supabase.updateAuthConfig(state.home.ref, {
@@ -141,6 +154,11 @@ export async function* setUpEmails(
       if (s.switch?.noEmailsAt) delete s.switch.noEmailsAt;
     });
   }
-  yield step("move:emails", "done", "Your emails are ready", `From ${sender}, through Resend`);
+  yield step(
+    "move:emails",
+    "done",
+    tr("Your emails are ready"),
+    tr("From {0}, through Resend", { "0": sender }),
+  );
   return { domain, sender, status: current.status, records, connected: true };
 }

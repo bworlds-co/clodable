@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { type ProjectConfig, saveConfig } from "../config.js";
 import { ClodableError, messageOf } from "../errors.js";
 import { type Flow, step } from "../events.js";
+import { tr } from "../i18n.js";
 import { applyKit, planKit } from "../kit/index.js";
 import { detectProject } from "../project.js";
 import type { Workspace } from "../workspace.js";
@@ -184,22 +185,24 @@ export async function setMoveMethod(
   if (method !== "careful" && method !== "quick") {
     throw new ClodableError({
       code: "invalid-config",
-      message: "Careful or quick?",
-      hint: "clodable move method careful (a pause at the end, nothing lost) or quick (in one go).",
+      message: tr("Careful or quick?"),
+      hint: tr(
+        "clodable move method careful (a pause at the end, nothing lost) or quick (in one go).",
+      ),
     });
   }
   const state = await loadMove(ws.root);
   if (state.switch?.liveAt) {
     throw new ClodableError({
       code: "move-not-ready",
-      message: "Your app is live on its new home already.",
+      message: tr("Your app is live on its new home already."),
     });
   }
   if (method === "quick" && state.switch?.frozenAt) {
     throw new ClodableError({
       code: "move-not-ready",
-      message: "Your live app is paused already: finish the careful way.",
-      hint: "Or undo the pause in Lovable first, with the line the panel shows.",
+      message: tr("Your live app is paused already: finish the careful way."),
+      hint: tr("Or undo the pause in Lovable first, with the line the panel shows."),
     });
   }
   await updateMove(ws.root, (s) => {
@@ -227,8 +230,8 @@ export async function markFrozen(ws: Workspace): Promise<{ frozenAt: string }> {
   if (!state.site || !state.data?.ok) {
     throw new ClodableError({
       code: "move-not-ready",
-      message: "Get the copy and your site on Netlify ready first.",
-      hint: "The pause should be as short as possible: everything else is done before it.",
+      message: tr("Get the copy and your site on Netlify ready first."),
+      hint: tr("The pause should be as short as possible: everything else is done before it."),
     });
   }
   if (state.switch?.frozenAt) return { frozenAt: state.switch.frozenAt };
@@ -332,29 +335,29 @@ export async function* goLive(
   if (!state.home || !state.site) {
     throw new ClodableError({
       code: "move-not-ready",
-      message: "Prepare your website first.",
-      hint: "Going live points your app and its sign-in at it.",
+      message: tr("Prepare your website first."),
+      hint: tr("Going live points your app and its sign-in at it."),
     });
   }
   if (quick && !state.data?.ok) {
     throw new ClodableError({
       code: "move-not-ready",
-      message: "Some things on your new backend need a look first.",
-      hint: "Ask Claude to run clodable move diagnose.",
+      message: tr("Some things on your new backend need a look first."),
+      hint: tr("Ask Claude to run clodable move diagnose."),
     });
   }
   if (!quick && !frozenAt) {
     throw new ClodableError({
       code: "move-not-ready",
-      message: "Pause changes on your live app first.",
-      hint: "Going live comes after the pause and the final copy.",
+      message: tr("Pause changes on your live app first."),
+      hint: tr("Going live comes after the pause and the final copy."),
     });
   }
   if (!quick && (!state.data?.ok || state.data.at < frozenAt!)) {
     throw new ClodableError({
       code: "move-not-ready",
-      message: "Copy your data in for good first: export again from Lovable, then copy it.",
-      hint: "That copy is what keeps everything written before the pause.",
+      message: tr("Copy your data in for good first: export again from Lovable, then copy it."),
+      hint: tr("That copy is what keeps everything written before the pause."),
     });
   }
   const supabase = await SupabaseApi.required();
@@ -365,14 +368,24 @@ export async function* goLive(
   // Without emails, confirming is impossible: people would wait for a message that never comes.
   const confirmEmail = emails ? (options.confirmEmail ?? true) : false;
 
-  yield step("move:golive", "running", "Switching to your new backend", "Sign-in for real people");
+  yield step(
+    "move:golive",
+    "running",
+    tr("Switching to your new backend"),
+    tr("Sign-in for real people"),
+  );
   const signUp = options.signUp ?? true;
   await liveSignIn(supabase, state.home.ref, url, confirmEmail, signUp);
 
   // The careful way started them with the final copy; the quick way has had no final copy.
   let jobs: GoLiveOutcome["jobs"];
   if (quick && state.source) {
-    yield step("move:golive", "running", "Switching to your new backend", "Your scheduled jobs");
+    yield step(
+      "move:golive",
+      "running",
+      tr("Switching to your new backend"),
+      tr("Your scheduled jobs"),
+    );
     jobs = await recreateJobs(
       homeSql(supabase, state.home.ref),
       await moveDir(ws.root),
@@ -386,7 +399,7 @@ export async function* goLive(
     }));
   }
 
-  yield step("move:golive", "running", "Switching to your new backend", "Your app's files");
+  yield step("move:golive", "running", tr("Switching to your new backend"), tr("Your app's files"));
   const files: string[] = [];
   const from = state.source?.ref;
   const backend = backendOf(state.home.ref, keys);
@@ -426,7 +439,12 @@ export async function* goLive(
     }
   }
 
-  yield step("move:golive", "running", "Switching to your new backend", "Clodable's settings");
+  yield step(
+    "move:golive",
+    "running",
+    tr("Switching to your new backend"),
+    tr("Clodable's settings"),
+  );
   const config: ProjectConfig = {
     ...ws.config,
     backend: "supabase",
@@ -440,7 +458,12 @@ export async function* goLive(
     s.preview = "live";
     s.switch = { ...s.switch, liveAt: new Date().toISOString() };
   });
-  yield step("move:golive", "done", "Ready to go live", `Publish to put it live at ${url}`);
+  yield step(
+    "move:golive",
+    "done",
+    tr("Ready to go live"),
+    tr("Publish to put it live at {0}", { "0": url }),
+  );
   return { url, files, confirmEmail, signUp, ...(jobs ? { jobs } : {}) };
 }
 
@@ -455,7 +478,7 @@ export async function markFinished(
   if (!state.switch?.liveAt) {
     throw new ClodableError({
       code: "move-not-ready",
-      message: "Go live first: Lovable Cloud stays until your app works on its new home.",
+      message: tr("Go live first: Lovable Cloud stays until your app works on its new home."),
     });
   }
   const finishedAt = new Date().toISOString();

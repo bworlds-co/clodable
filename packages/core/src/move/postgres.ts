@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { createInterface } from "node:readline";
 import { ClodableError } from "../errors.js";
 import { exec } from "../exec.js";
+import { tr } from "../i18n.js";
 import { postgresTool, ToolUnavailable } from "./postgres-tools.js";
 import type { SupabaseApi } from "./supabase-api.js";
 import { listFile, type TocEntry } from "./toc.js";
@@ -68,8 +69,8 @@ async function tool(name: "pg_restore" | "psql"): Promise<string> {
       message:
         error instanceof ToolUnavailable
           ? error.message
-          : "Couldn't get PostgreSQL's tools, which copying your data needs.",
-      hint: "Check your internet connection, then try again.",
+          : tr("Couldn't get PostgreSQL's tools, which copying your data needs."),
+      hint: tr("Check your internet connection, then try again."),
     });
   }
 }
@@ -121,8 +122,8 @@ export async function waitForConnection(
   }
   throw new ClodableError({
     code: "copy-failed",
-    message: "Couldn't connect to your new database.",
-    hint: "It can take a few minutes after it's created. Try again shortly.",
+    message: tr("Couldn't connect to your new database."),
+    hint: tr("It can take a few minutes after it's created. Try again shortly."),
     details: last.slice(0, 500),
   });
 }
@@ -136,8 +137,10 @@ export async function listArchive(backup: string): Promise<string> {
   if (result.exitCode !== 0) {
     throw new ClodableError({
       code: "export-unreadable",
-      message: "That file isn't a database export Clodable can read.",
-      hint: "Download the export again (from Lovable's email, or More → Cloud → Storage), then try again.",
+      message: tr("That file isn't a database export Clodable can read."),
+      hint: tr(
+        "Download the export again (from Lovable's email, or More → Cloud → Storage), then try again.",
+      ),
       details: result.stderr.trim().slice(0, 500),
     });
   }
@@ -162,7 +165,7 @@ export async function archiveSql(
   if (result.exitCode !== 0) {
     throw new ClodableError({
       code: "export-unreadable",
-      message: "Couldn't read part of your export.",
+      message: tr("Couldn't read part of your export."),
       details: result.stderr.trim().slice(0, 500),
     });
   }
@@ -197,7 +200,7 @@ export async function* archiveLines(
   if ((await done) !== 0) {
     throw new ClodableError({
       code: "export-unreadable",
-      message: "Couldn't read your export's data.",
+      message: tr("Couldn't read your export's data."),
       details: stderr.trim().slice(0, 500),
     });
   }
@@ -299,7 +302,7 @@ export async function restorePass(
   if (produced !== 0) {
     throw new ClodableError({
       code: "export-unreadable",
-      message: "Couldn't read your export while copying it.",
+      message: tr("Couldn't read your export while copying it."),
       details: producerError.trim().slice(0, 500),
     });
   }
@@ -307,8 +310,8 @@ export async function restorePass(
   if (consumed !== 0) {
     throw new ClodableError({
       code: "copy-failed",
-      message: "The connection to your new database dropped during the copy.",
-      hint: "Try again: the copy starts over cleanly on a fresh database.",
+      message: tr("The connection to your new database dropped during the copy."),
+      hint: tr("Try again: the copy starts over cleanly on a fresh database."),
       details: errors.slice(-3).join("\n").slice(0, 500),
     });
   }

@@ -123,14 +123,14 @@ button:focus-visible, [tabindex]:focus-visible, textarea:focus-visible {
 .hint {
   pointer-events: auto;
   display: inline-flex; align-items: center; gap: 8px;
-  height: 30px; padding: 0 12px 0 10px;
+  min-height: 30px; max-width: calc(100vw - 24px); padding: 5px 12px 5px 10px;
   background: var(--cl-ink); color: var(--cl-paper);
   border-radius: var(--cl-radius-pill);
   font-size: 12px; font-weight: 500;
   box-shadow: var(--cl-shadow-md);
   animation: rise var(--cl-base) var(--cl-ease-out) both;
 }
-.hint .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--cl-clay); box-shadow: 0 0 0 0 var(--cl-clay); animation: pulse 1.8s var(--cl-ease-out) infinite; }
+.hint .dot { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--cl-clay); box-shadow: 0 0 0 0 var(--cl-clay); animation: pulse 1.8s var(--cl-ease-out) infinite; }
 .hint.ask .dot { background: var(--cl-cobalt); }
 .hint kbd { font: 500 11px/16px var(--cl-font-ui); padding: 0 5px; border-radius: 4px; background: color-mix(in oklab, var(--cl-paper) 16%, transparent); }
 @keyframes pulse { 0% { box-shadow: 0 0 0 0 color-mix(in oklab, var(--cl-clay) 60%, transparent); } 70% { box-shadow: 0 0 0 7px transparent; } 100% { box-shadow: 0 0 0 0 transparent; } }
@@ -138,7 +138,7 @@ button:focus-visible, [tabindex]:focus-visible, textarea:focus-visible {
 /* ── Menu ─────────────────────────────────────────────────────────── */
 .menu {
   pointer-events: auto;
-  position: fixed; min-width: 248px; padding: 6px;
+  position: fixed; min-width: 248px; max-width: calc(100vw - 24px); padding: 6px;
   background: var(--cl-paper); border: 1px solid var(--cl-slip); border-radius: var(--cl-radius-lg);
   box-shadow: var(--cl-shadow-lg);
   animation: pop var(--cl-base) var(--cl-ease-out) both;
@@ -185,6 +185,7 @@ button:focus-visible, [tabindex]:focus-visible, textarea:focus-visible {
 
 /* ── Popovers: edit bar, composer, notices ────────────────────────── */
 .pop {
+  max-width: calc(100vw - 24px);
   pointer-events: auto;
   position: fixed;
   background: var(--cl-paper); color: var(--cl-ink);
@@ -192,7 +193,7 @@ button:focus-visible, [tabindex]:focus-visible, textarea:focus-visible {
   box-shadow: var(--cl-shadow-lg);
   animation: pop var(--cl-base) var(--cl-ease-out) both;
 }
-.editbar { display: flex; align-items: center; gap: 6px; padding: 5px; border-radius: var(--cl-radius-pill); }
+.editbar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 5px; border-radius: var(--cl-radius-pill); }
 .editbar .note { color: var(--cl-ash); font-size: 12px; padding: 0 6px 0 8px; white-space: nowrap; }
 .btn {
   height: 30px; padding: 0 12px; border-radius: var(--cl-radius-pill);
@@ -225,12 +226,12 @@ button:focus-visible, [tabindex]:focus-visible, textarea:focus-visible {
 .composer textarea:focus { outline: none; border-color: var(--cl-cobalt); box-shadow: 0 0 0 3px color-mix(in oklab, var(--cl-cobalt) 20%, transparent); }
 .suggestions { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 2px; }
 .suggestion {
-  height: 26px; padding: 0 10px; border-radius: var(--cl-radius-pill);
+  min-height: 26px; padding: 4px 10px; border-radius: var(--cl-radius-pill);
   border: 1px solid var(--cl-slip); color: var(--cl-ink); font-size: 12px;
   transition: background var(--cl-fast), border-color var(--cl-fast);
 }
 .suggestion:hover { background: var(--cl-bisque); border-color: var(--cl-slip-strong); }
-.actions { display: flex; justify-content: flex-end; align-items: center; gap: 6px; margin-top: 12px; }
+.actions { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 6px; margin-top: 12px; }
 .actions .left { margin-right: auto; color: var(--cl-ash); font-size: 11.5px; }
 
 .notice { width: 300px; padding: 14px; }
@@ -300,7 +301,7 @@ button:focus-visible, [tabindex]:focus-visible, textarea:focus-visible {
 .toast {
   pointer-events: auto;
   display: inline-flex; align-items: center; gap: 8px;
-  height: 34px; padding: 0 14px 0 10px;
+  min-height: 34px; max-width: calc(100vw - 24px); padding: 6px 14px 6px 10px;
   background: var(--cl-ink); color: var(--cl-paper);
   border-radius: var(--cl-radius-pill);
   font-size: 12.5px; font-weight: 500;

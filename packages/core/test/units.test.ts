@@ -917,6 +917,7 @@ describe("GitHub through gh", () => {
     // Setup clones with git over HTTPS (signed in through gh): git's own words, per mode.
     const git = [
       "#!/bin/sh",
+      'if [ "$1" = --version ]; then echo "git version 2.50.0"; exit 0; fi',
       'case "$FAKE_GH" in',
       `  missing) printf "remote: Repository not found.\nfatal: repository 'https://github.com/ada/network-app.git/' not found\n" >&2; exit 128 ;;`,
       `  no-host) echo "fatal: unable to access 'https://github.com/ada/network-app.git/': Could not resolve host: github.com" >&2; exit 128 ;;`,

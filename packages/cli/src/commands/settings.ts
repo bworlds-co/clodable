@@ -1,5 +1,6 @@
 import { setSetting, settingsStatus } from "@clodable/core";
 import { type Context, run, secretInput } from "../context.js";
+import { tr } from "../i18n.js";
 import { ash, celadon, clay } from "../ui.js";
 
 /**
@@ -16,10 +17,13 @@ export async function settingsCommand(ctx: Context, options: { name?: string }) 
         return setSetting(
           ws,
           name,
-          await secretInput(ctx, `The value of ${name}`, { exact: true }),
+          await secretInput(ctx, tr("The value of {0}", { "0": name }), { exact: true }),
         );
       },
-      () => ctx.out.line(`${celadon("✓")} Saved ${name}. The preview restarts with it.`),
+      () =>
+        ctx.out.line(
+          tr("{0} Saved {1}. The preview restarts with it.", { "0": celadon("✓"), "1": name }),
+        ),
     );
   }
   return run(
@@ -30,11 +34,11 @@ export async function settingsCommand(ctx: Context, options: { name?: string }) 
         const here = status.local.includes(name);
         const site = status.site?.includes(name);
         ctx.out.line(
-          `${here ? celadon("✓") : clay("●")} ${name}${ash(`  ${here ? "on this computer" : "not on this computer"}${status.site ? (site ? " · on your site" : " · not on your site") : ""}`)}`,
+          `${here ? celadon("✓") : clay("●")} ${name}${ash(`  ${here ? tr("on this computer") : tr("not on this computer")}${status.site ? (site ? tr(" · on your site") : tr(" · not on your site")) : ""}`)}`,
         );
       }
       for (const name of status.lovable)
-        ctx.out.line(`${ash("·")} ${name} ${ash("(Lovable's own)")}`);
+        ctx.out.line(`${ash("·")} ${name} ${ash(tr("(Lovable's own)"))}`);
     },
   );
 }

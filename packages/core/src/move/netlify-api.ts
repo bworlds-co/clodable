@@ -1,4 +1,5 @@
 import { ClodableError } from "../errors.js";
+import { tr } from "../i18n.js";
 import { readSecret } from "../local-secrets.js";
 import { type ApiService, callApi } from "./http.js";
 
@@ -46,14 +47,17 @@ export class NetlifyApi {
         status === 401
           ? new ClodableError({
               code: "netlify-auth",
-              message: "Netlify didn't accept your access token.",
-              hint: "It may have expired or been deleted. Create a new one and connect again.",
+              message: tr("Netlify didn't accept your access token."),
+              hint: tr("It may have expired or been deleted. Create a new one and connect again."),
               details,
             })
           : new ClodableError({
               code: "netlify-failed",
-              message: status === 422 ? "Netlify refused that." : "Netlify refused the request.",
-              hint: "Try again in a minute. If it keeps happening, share the details with your developer.",
+              message:
+                status === 422 ? tr("Netlify refused that.") : tr("Netlify refused the request."),
+              hint: tr(
+                "Try again in a minute. If it keeps happening, share the details with your developer.",
+              ),
               details,
             }),
     };
@@ -69,8 +73,8 @@ export class NetlifyApi {
     if (!api) {
       throw new ClodableError({
         code: "netlify-auth",
-        message: "Netlify isn't connected on this computer yet.",
-        hint: "Connect your Netlify account in the Clodable panel first.",
+        message: tr("Netlify isn't connected on this computer yet."),
+        hint: tr("Connect your Netlify account in the Clodable panel first."),
       });
     }
     return api;

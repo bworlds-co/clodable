@@ -1,5 +1,5 @@
 import { existsSync, readdirSync } from "node:fs";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -119,5 +119,75 @@ describe("Clodable's endpoints", () => {
 
   it("leave the app's own pages to the app, wherever they're asked from", async () => {
     await expect(call("192.168.1.40", "GET", "/")).rejects.toThrow("passed on to the app");
+  });
+  it("shares only the authenticated conversation's catalog language", async () => {
+    const token = tokenIn((await call("127.0.0.1", "GET", "/__clodable/toolbar.js")).body);
+    const folder = join(root, ".clodable", "local");
+    await mkdir(folder, { recursive: true });
+    await writeFile(
+      join(folder, "session-french-chat.json"),
+      JSON.stringify({ id: "french-chat", locale: "fr", active: 123 }),
+    );
+    await writeFile(join(folder, "session-english-chat.json"), JSON.stringify({ locale: "en" }));
+    expect(
+      (
+        await call("127.0.0.1", "POST", "/__clodable/locale", {
+          body: { conversation: "french-chat" },
+        })
+      ).status,
+    ).toBe(403);
+    expect(
+      (
+        await call("192.168.1.40", "POST", "/__clodable/locale", {
+          token,
+          body: { conversation: "french-chat" },
+        })
+      ).status,
+    ).toBe(403);
+    for (const [conversation, locale] of [
+      ["french-chat", "fr"],
+      ["english-chat", "en"],
+    ]) {
+      const response = await call("127.0.0.1", "POST", "/__clodable/locale", {
+        token,
+        body: { conversation },
+      });
+      expect(response.status).toBe(200);
+      expect(JSON.parse(response.body)).toEqual({ locale });
+    }
+  });
+
+  it("rejects path traversal and tolerates missing or older conversation markers", async () => {
+    const token = tokenIn((await call("127.0.0.1", "GET", "/__clodable/toolbar.js")).body);
+    for (const body of [null, [], "french-chat", 42, true]) {
+      expect((await call("127.0.0.1", "POST", "/__clodable/locale", { token, body })).status).toBe(
+        400,
+      );
+    }
+    for (const conversation of ["../other", "a/b", "a\\b", "a".repeat(65), "", undefined]) {
+      expect(
+        (await call("127.0.0.1", "POST", "/__clodable/locale", { token, body: { conversation } }))
+          .status,
+      ).toBe(400);
+    }
+    const folder = join(root, ".clodable", "local");
+    await mkdir(folder, { recursive: true });
+    for (const [name, content] of [
+      ["older", '{"id":"older"}'],
+      ["partial", '{"locale":'],
+      ["unsupported", '{"locale":"de"}'],
+    ]) {
+      await writeFile(join(folder, `session-${name}.json`), content!);
+    }
+    for (const conversation of ["missing", "older", "partial", "unsupported"]) {
+      const response = await call("127.0.0.1", "POST", "/__clodable/locale", {
+        token,
+        body: { conversation },
+      });
+      expect(response.status).toBe(200);
+      expect(JSON.parse(response.body)).toEqual({
+        locale: conversation === "unsupported" ? "en" : null,
+      });
+    }
   });
 });

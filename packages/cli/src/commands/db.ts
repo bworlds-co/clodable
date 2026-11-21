@@ -6,6 +6,7 @@ import {
   runOnDatabase,
 } from "@clodable/core";
 import { type Context, readStdin, run } from "../context.js";
+import { tr } from "../i18n.js";
 import { ash, celadon } from "../ui.js";
 
 /** SQL from the argument, or piped in (long statements, quotes that a shell would mangle). */
@@ -26,7 +27,9 @@ export async function dbCommand(ctx: Context, options: { action?: string; arg?: 
         async () => queryDatabase(await ctx.workspace(), await sqlInput(options.arg)),
         (data) => {
           for (const row of data.rows) ctx.out.line(JSON.stringify(row));
-          ctx.out.line(ash(`${data.rows.length}${data.truncated ? "+" : ""} rows`));
+          ctx.out.line(
+            ash(tr("{0}{1} rows", { "0": data.rows.length, "1": data.truncated ? "+" : "" })),
+          );
         },
       );
     case "check":
@@ -35,7 +38,7 @@ export async function dbCommand(ctx: Context, options: { action?: string; arg?: 
         async () => checkDatabase(await ctx.workspace()),
         (data) => {
           if (data.findings.length === 0)
-            ctx.out.line(`${celadon("✓")} Supabase sees nothing to fix.`);
+            ctx.out.line(tr("{0} Supabase sees nothing to fix.", { "0": celadon("✓") }));
           for (const f of data.findings) {
             ctx.out.line(
               `${f.level === "error" ? "✕" : "!"} ${f.title}${f.detail ? ash(` · ${f.detail}`) : ""}`,
@@ -47,7 +50,7 @@ export async function dbCommand(ctx: Context, options: { action?: string; arg?: 
       return run(
         ctx,
         async () => runOnDatabase(await ctx.workspace(), await sqlInput(options.arg)),
-        () => ctx.out.line(`${celadon("✓")} Done.`),
+        () => ctx.out.line(tr("{0} Done.", { "0": celadon("✓") })),
       );
     case "apply":
       return run(
@@ -56,16 +59,18 @@ export async function dbCommand(ctx: Context, options: { action?: string; arg?: 
         (data) =>
           ctx.out.line(
             data.applied
-              ? `${celadon("✓")} Applied ${data.name.replace(/_/g, " ")}.`
-              : ash(`Already applied: ${data.name.replace(/_/g, " ")}.`),
+              ? tr("{0} Applied {1}.", { "0": celadon("✓"), "1": data.name.replace(/_/g, " ") })
+              : ash(tr("Already applied: {0}.", { "0": data.name.replace(/_/g, " ") })),
           ),
       );
     default:
       return run(ctx, async () => {
         throw new ClodableError({
           code: "invalid-config",
-          message: `There's no “${options.action ?? ""}” for the database.`,
-          hint: 'clodable db query "select …", clodable db run "update …", or clodable db apply supabase/migrations/<file>.sql',
+          message: tr("There's no “{0}” for the database.", { "0": options.action ?? "" }),
+          hint: tr(
+            'clodable db query "select …", clodable db run "update …", or clodable db apply supabase/migrations/<file>.sql',
+          ),
         });
       });
   }

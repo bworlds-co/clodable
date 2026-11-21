@@ -69,6 +69,7 @@ export {
   type Identity,
   parseGitHubRemote,
 } from "./git.js";
+export { gitReadiness } from "./git-readiness.js";
 export { FakeGitHub } from "./github/fake.js";
 export { GhCli } from "./github/gh.js";
 export { GH_VERSION, ghBinary, ghIsOurs, toolsBin } from "./github/gh-binary.js";

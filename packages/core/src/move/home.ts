@@ -1,6 +1,7 @@
 import { randomInt } from "node:crypto";
 import { ClodableError } from "../errors.js";
 import { type Flow, step } from "../events.js";
+import { tr } from "../i18n.js";
 import { readSecret, storeSecret } from "../local-secrets.js";
 import type { Workspace } from "../workspace.js";
 import { organizationChoices } from "./account.js";
@@ -29,20 +30,22 @@ export async function* createHome(
   const state = await loadMove(ws.root);
   const api = await SupabaseApi.required();
   if (state.home) {
-    yield step("move:create", "running", "Checking your new backend");
+    yield step("move:create", "running", tr("Checking your new backend"));
     const project = await api.project(state.home.ref);
     if (project.status === "INACTIVE" || project.status === "GOING_DOWN") {
       throw new ClodableError({
         code: "move-not-ready",
-        message: "Your new backend is paused.",
-        hint: "Restore it on its page in Supabase, then try this step again. Your live app hasn't changed.",
+        message: tr("Your new backend is paused."),
+        hint: tr(
+          "Restore it on its page in Supabase, then try this step again. Your live app hasn't changed.",
+        ),
       });
     }
     await waitUntilUp(api, state.home.ref);
-    yield step("move:create", "done", "Your new backend is ready", state.home.name);
+    yield step("move:create", "done", tr("Your new backend is ready"), state.home.name);
     return state.home;
   }
-  yield step("move:create", "running", "Creating your new backend");
+  yield step("move:create", "running", tr("Creating your new backend"));
   const organizations = await organizationChoices(api);
   const org =
     organizations.find((o) => o.slug === options.org) ??
@@ -50,8 +53,8 @@ export async function* createHome(
   if (!org) {
     throw new ClodableError({
       code: "move-not-ready",
-      message: "Which Supabase organization should it go in?",
-      hint: `Pick one: ${organizations.map((o) => o.name).join(", ")}.`,
+      message: tr("Which Supabase organization should it go in?"),
+      hint: tr("Pick one: {0}.", { "0": organizations.map((o) => o.name).join(", ") }),
     });
   }
   const region =
@@ -59,8 +62,8 @@ export async function* createHome(
   if (!region) {
     throw new ClodableError({
       code: "move-not-ready",
-      message: "Which part of the world should your backend run in?",
-      hint: "Pick the region closest to your users.",
+      message: tr("Which part of the world should your backend run in?"),
+      hint: tr("Pick the region closest to your users."),
     });
   }
   const password = newPassword();
@@ -86,11 +89,11 @@ export async function* createHome(
   yield step(
     "move:create",
     "running",
-    "Creating your new backend",
-    "Starting it up: about 2 minutes",
+    tr("Creating your new backend"),
+    tr("Starting it up: about 2 minutes"),
   );
   await waitUntilUp(api, created.ref);
-  yield step("move:create", "done", "Your new backend is ready", home.name);
+  yield step("move:create", "done", tr("Your new backend is ready"), home.name);
   return home;
 }
 
@@ -102,8 +105,8 @@ export async function waitUntilUp(api: SupabaseApi, ref: string): Promise<void> 
     if (project?.status === "INIT_FAILED") {
       throw new ClodableError({
         code: "supabase-failed",
-        message: "Supabase couldn't start your new backend.",
-        hint: "Delete it in Supabase, then create it again from Clodable.",
+        message: tr("Supabase couldn't start your new backend."),
+        hint: tr("Delete it in Supabase, then create it again from Clodable."),
       });
     }
     if (project?.status === "ACTIVE_HEALTHY") {
@@ -113,8 +116,8 @@ export async function waitUntilUp(api: SupabaseApi, ref: string): Promise<void> 
     if (Date.now() - started > 15 * 60_000)
       throw new ClodableError({
         code: "supabase-failed",
-        message: "Your new backend is taking unusually long to start.",
-        hint: "Check it in Supabase, then try this step again: Clodable picks up where it was.",
+        message: tr("Your new backend is taking unusually long to start."),
+        hint: tr("Check it in Supabase, then try this step again: Clodable picks up where it was."),
       });
     await new Promise((done) => setTimeout(done, 5000));
   }
@@ -160,8 +163,8 @@ export async function homeConnection(
     if (!home.createdByClodable) {
       throw new ClodableError({
         code: "move-not-ready",
-        message: "Clodable doesn't have this backend's database password.",
-        hint: "Run the move from the computer that created it.",
+        message: tr("Clodable doesn't have this backend's database password."),
+        hint: tr("Run the move from the computer that created it."),
       });
     }
     // Clodable made this project: a new password changes nothing for anyone else.
@@ -173,8 +176,8 @@ export async function homeConnection(
   if (!pooler) {
     throw new ClodableError({
       code: "supabase-failed",
-      message: "Supabase didn't say how to connect to your new database.",
-      hint: "Try again in a minute.",
+      message: tr("Supabase didn't say how to connect to your new database."),
+      hint: tr("Try again in a minute."),
     });
   }
   return {

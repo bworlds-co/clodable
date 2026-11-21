@@ -3,6 +3,7 @@ import { copyFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, extname, join } from "node:path";
 import { ClodableError, messageOf } from "../errors.js";
+import { tr } from "../i18n.js";
 import { writeJsonFile } from "../places.js";
 import { archiveLines, archiveSql, listArchive } from "./postgres.js";
 import {
@@ -79,9 +80,11 @@ async function exportNames(source: string): Promise<string[]> {
     throw new ClodableError({
       code: "export-unreadable",
       message: backups.length
-        ? "That zip holds more than one database export."
-        : "That zip doesn't hold a database export.",
-      hint: "Choose the single .backup or .dump file for this app, or download its export again from Lovable.",
+        ? tr("That zip holds more than one database export.")
+        : tr("That zip doesn't hold a database export."),
+      hint: tr(
+        "Choose the single .backup or .dump file for this app, or download its export again from Lovable.",
+      ),
     });
   }
   return [basename(source), basename(backups[0]!.name)];
@@ -94,8 +97,10 @@ export async function checkExportSource(source: string, projectUrl?: string): Pr
   if (expected && names.some((name) => projectId(name) && projectId(name) !== expected)) {
     throw new ClodableError({
       code: "export-unreadable",
-      message: "That export is labelled for a different Lovable app.",
-      hint: "Download this app's export, or tell Claude where you saved the correct file. Your saved copy hasn't changed.",
+      message: tr("That export is labelled for a different Lovable app."),
+      hint: tr(
+        "Download this app's export, or tell Claude where you saved the correct file. Your saved copy hasn't changed.",
+      ),
     });
   }
 }
@@ -143,9 +148,11 @@ async function takeBackup(source: string, dir: string): Promise<void> {
       throw new ClodableError({
         code: "export-unreadable",
         message: backups.length
-          ? "That zip holds more than one database export."
-          : "That zip doesn't hold a database export.",
-        hint: "Choose the single .backup or .dump file for this app, or download its export again from Lovable.",
+          ? tr("That zip holds more than one database export.")
+          : tr("That zip doesn't hold a database export."),
+        hint: tr(
+          "Choose the single .backup or .dump file for this app, or download its export again from Lovable.",
+        ),
       });
     }
     const entry = backups[0]!;
@@ -162,8 +169,10 @@ async function takeBackup(source: string, dir: string): Promise<void> {
 const unreadable = (error: unknown) =>
   new ClodableError({
     code: "export-unreadable",
-    message: "Couldn't open that export.",
-    hint: "Download it again (from Lovable's email, or More → Cloud → Storage), then try again.",
+    message: tr("Couldn't open that export."),
+    hint: tr(
+      "Download it again (from Lovable's email, or More → Cloud → Storage), then try again.",
+    ),
     details: messageOf(error),
   });
 
@@ -180,8 +189,8 @@ export async function readExport(
   if (toc.entries.length === 0) {
     throw new ClodableError({
       code: "export-unreadable",
-      message: "That export is empty.",
-      hint: "Export your data again in Lovable, then download the new zip.",
+      message: tr("That export is empty."),
+      hint: tr("Export your data again in Lovable, then download the new zip."),
     });
   }
 

@@ -1,6 +1,6 @@
 {
   "name": "@clodable/preview",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "description": "Clodable's dev-only preview toolbar for Vite apps: inline text edits, device sizes, and Try to fix.",
   "license": "MIT",
   "type": "module",
@@ -31,7 +31,8 @@
     "@clodable/core": "workspace:*",
     "@clodable/design": "workspace:*",
     "@jridgewell/trace-mapping": "^0.3.31",
-    "magic-string": "^1.4.3"
+    "magic-string": "^1.4.3",
+    "@clodable/i18n": "workspace:*"
   },
   "devDependencies": {
     "happy-dom": "^20.14.6",
