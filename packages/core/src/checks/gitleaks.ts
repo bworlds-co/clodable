@@ -188,7 +188,11 @@ function configFor(root: string): string {
 }
 
 /** Run gitleaks with Clodable's config and return what it found. Never prints a secret. */
-export async function runGitleaks(cwd: string, args: string[]): Promise<GitleaksFinding[]> {
+export async function runGitleaks(
+  cwd: string,
+  args: string[],
+  options: { indexFile?: string } = {},
+): Promise<GitleaksFinding[]> {
   const binary = await gitleaksBinary();
   const config = configFor(cwd);
   const configPath = join(
@@ -218,7 +222,11 @@ export async function runGitleaks(cwd: string, args: string[]): Promise<Gitleaks
       "--max-target-megabytes",
       "2",
     ],
-    { cwd, timeout: 120_000 },
+    {
+      cwd,
+      timeout: 120_000,
+      ...(options.indexFile ? { env: { GIT_INDEX_FILE: options.indexFile } } : {}),
+    },
   );
   if (result.exitCode !== 0) {
     throw new ScannerUnavailable(

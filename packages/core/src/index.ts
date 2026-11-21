@@ -273,5 +273,6 @@ export {
   setSetting,
   settingsStatus,
 } from "./settings.js";
+export { withSetupLock } from "./setup-lock.js";
 export { formatRelative } from "./time.js";
 export { draftBranchFor, Workspace, type WorkspaceOptions } from "./workspace.js";

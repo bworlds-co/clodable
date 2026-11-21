@@ -46,7 +46,10 @@ export class Git {
   private readiness: Promise<string> | undefined;
   private environment: string | undefined;
 
-  constructor(readonly cwd: string) {}
+  constructor(
+    readonly cwd: string,
+    private readonly options: { indexFile?: string } = {},
+  ) {}
 
   /** Shared by this operation's commands; a failed check can be retried after repair. */
   ready(): Promise<string> {
@@ -71,7 +74,12 @@ export class Git {
   ): Promise<ExecResult> {
     return exec(await this.ready(), args, {
       cwd: this.cwd,
-      env: { GIT_TERMINAL_PROMPT: "0", GIT_OPTIONAL_LOCKS: "0", LC_ALL: "C" },
+      env: {
+        GIT_TERMINAL_PROMPT: "0",
+        GIT_OPTIONAL_LOCKS: "0",
+        LC_ALL: "C",
+        ...(this.options.indexFile ? { GIT_INDEX_FILE: this.options.indexFile } : {}),
+      },
       ...(options.input !== undefined ? { input: options.input } : {}),
       ...(options.timeout !== undefined ? { timeout: options.timeout } : {}),
     });
@@ -210,6 +218,7 @@ export class Git {
       [
         "push",
         "--quiet",
+        "--no-follow-tags",
         ...(options.setUpstream ? ["--set-upstream"] : []),
         ...(options.forceWithLease ? ["--force-with-lease"] : []),
         options.remote ?? "origin",
