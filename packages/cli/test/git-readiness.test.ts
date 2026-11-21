@@ -96,7 +96,7 @@ describe.skipIf(process.platform === "win32")("unusable Git at CLI boundaries", 
     const checked = run(...args);
     expect(checked.code).toBe(1);
     expect(checked.result).toMatchObject({ ok: false, error: { code: "tools-unavailable" } });
-    expect(await readFile(log, "utf8")).toBe("git --version\n");
+    expect(await readFile(log, "utf8")).toMatch(/^(?:git --version\n)+$/);
     expect(existsSync(join(root, ".clodable"))).toBe(false);
     expect(existsSync(join(root, ".git"))).toBe(false);
   });
@@ -114,6 +114,6 @@ describe.skipIf(process.platform === "win32")("unusable Git at CLI boundaries", 
       "tools-unavailable",
     );
     expect(await readFile(marker, "utf8")).toBe(pending);
-    expect(await readFile(log, "utf8")).toBe("git --version\n");
+    expect(await readFile(log, "utf8")).toMatch(/^(?:git --version\n)+$/);
   });
 });

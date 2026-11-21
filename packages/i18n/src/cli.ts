@@ -1,4 +1,18 @@
 export const cli = {
+  "Inspect this folder without connecting accounts or downloading tools":
+    "Examiner ce dossier sans connecter de comptes ni télécharger d’outils",
+  "That preparation step isn't available.": "Cette étape de préparation n’est pas disponible.",
+  "Your original app is backed up on this computer.":
+    "Une copie de votre application d’origine est conservée sur cet ordinateur.",
+  "Keep a verified local copy before preparing your app":
+    "Conserver une copie locale vérifiée avant de préparer votre application",
+  "Keep the local versions approved in Set up saving":
+    "Conserver les versions locales approuvées dans Configurer l’enregistrement",
+  "Local app": "Application locale",
+  "That app's folder already exists on this computer.":
+    "Le dossier de cette application existe déjà sur cet ordinateur.",
+  "Open that folder in Claude, or choose an empty folder for the import.":
+    "Ouvrez ce dossier dans Claude, ou choisissez un dossier vide pour l’importation.",
   "Nothing was given.": "Aucune valeur n’a été fournie.",
   "Pipe the value in (never as an argument), or run this in a terminal to type it.":
     "Transmettez la valeur sur l’entrée standard, jamais comme argument, ou lancez la commande dans un terminal pour la saisir.",
@@ -318,6 +332,7 @@ export const cli = {
   "ask Claude to install them": "demandez à Claude de les installer",
   "Saving it to your draft on GitHub": "Enregistrement dans votre brouillon sur GitHub",
   "Set up Clodable": "Configurer Clodable",
+  "First saved version": "Première version enregistrée",
   "Nothing new to save": "Rien de nouveau à enregistrer",
   "Saved to your draft on GitHub": "Enregistré dans votre brouillon sur GitHub",
   "Saved on this computer": "Enregistré sur cet ordinateur",

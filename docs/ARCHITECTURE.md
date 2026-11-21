@@ -36,6 +36,26 @@ The guiding rule is **judgment in Claude, mechanics in the CLI** ([DECISIONS](DE
 | `plugin/` | Claude Code plugin | The mod (a thin UI), skills, and the manifest. It ships a bundled copy of the CLI in `plugin/cli/` | CLI bundle |
 | `examples/` | none | Faithful Lovable-generated apps (classic Vite SPA and TanStack Start), used for development and tests | none |
 
+## Conversation workflows
+
+| Skill | Responsibility |
+|---|---|
+| `clodable-guide` | Everyday building and editing, saving and publishing controls, and choosing the appropriate workflow. |
+| `clodable-prepare` | Adapting an existing unsupported application: inspect, preserve the original, agree on necessary rewrites, adapt and verify. |
+| `clodable-move` | Moving an application off Lovable's services into the builder's own accounts, including the working copy and live switch. |
+
+Architecture compatibility and service ownership are separate decisions. A supported
+Lovable app keeps its architecture when its services move. Preparation does not
+create services or configure saving. Claude chooses implementation details and
+explains migration choices through their effects on the builder's pages, features
+and data, without asking them to choose a framework.
+
+The preparation button supplies the requested action and names the exact skill to
+load. The first prompt in an unsupported local app also supplies a conditional
+skill handoff, so natural preparation requests take the same route while ordinary
+edits retain their scope. The skill owns the procedure. The CLI owns inspection,
+verified backups, saving state and enforcement.
+
 ## Language
 
 Clodable follows Claude Code's effective `language` setting. The mod reads it through `$.settings.read({ key: "language" })`; French names and regional codes select `fr`, and unset or unsupported languages select `en`. There is no Clodable language preference. The language of the Builder's app is independent.

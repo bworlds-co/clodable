@@ -98,6 +98,15 @@ export interface ClodableCheck {
   executable?: string;
   /** Diagnostic output for a failed check, passed to local repair help. */
   details?: string;
+  /** A pending first save is only bound to its name after reserving a destination or history. */
+  newApp?: { name: string; account: string; locked: boolean };
+  /** Facts about this exact folder, independent of account/tool readiness. */
+  localApp?: {
+    contents: "empty" | "supported" | "unsupported";
+    repository: "none" | "unborn" | "history" | "remote" | "nested" | "protected" | "unavailable";
+    appType?: "vite-spa" | "tanstack-start" | "unknown";
+    head?: string;
+  };
 }
 
 /**

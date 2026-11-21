@@ -106,6 +106,7 @@ export {
   planKit,
   previewCommand,
 } from "./kit/index.js";
+export { inspectLocalApp, type LocalApp, localAppForSaving } from "./local-app.js";
 export { forgetSecret, readSecret, storeSecret } from "./local-secrets.js";
 export {
   connectSupabase,
@@ -247,6 +248,7 @@ export {
   type SiteOnlineOutcome,
   siteChoices,
 } from "./online.js";
+export { backupOriginal, type PreparationBackup } from "./preparation-backup.js";
 export {
   type AppType,
   detectPackageManager,
@@ -272,5 +274,6 @@ export {
   setSetting,
   settingsStatus,
 } from "./settings.js";
+export { withSetupLock } from "./setup-lock.js";
 export { formatRelative } from "./time.js";
 export { draftBranchFor, Workspace, type WorkspaceOptions } from "./workspace.js";

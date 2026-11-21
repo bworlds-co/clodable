@@ -144,8 +144,11 @@ function settle(findings: GitleaksFinding[], fileOf: (f: GitleaksFinding) => str
 }
 
 /** What's about to be saved: the staged changes, only the lines they add. */
-export async function scanStaged(root: string): Promise<SecretFinding[]> {
-  const findings = await runGitleaks(root, ["git", "--pre-commit", "--staged", "."]);
+export async function scanStaged(
+  root: string,
+  options: { indexFile?: string } = {},
+): Promise<SecretFinding[]> {
+  const findings = await runGitleaks(root, ["git", "--pre-commit", "--staged", "."], options);
   return settle(findings, (f) => f.File);
 }
 
@@ -156,6 +159,12 @@ export async function scanUnsent(root: string, remote: string): Promise<SecretFi
     `--log-opts=HEAD --not --remotes=${remote}`,
     ".",
   ]);
+  return settle(findings, (f) => f.File);
+}
+
+/** The complete ancestry explicitly approved for a new private app, including deleted secrets. */
+export async function scanHistory(root: string, head: string): Promise<SecretFinding[]> {
+  const findings = await runGitleaks(root, ["git", `--log-opts=--full-history -m ${head}`, "."]);
   return settle(findings, (f) => f.File);
 }
 
