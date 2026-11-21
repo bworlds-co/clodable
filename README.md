@@ -44,6 +44,8 @@ The first run may ask to install Apple's developer tools, which takes a few minu
 
 Then start from an idea, or bring an app you already have.
 
+Clodable follows Claude Code's response language and supports French and English. If no language is set, or another language is selected, its controls use English. This does not translate the app you are building.
+
 ### Start from an idea
 
 1. **Describe your app** in the message box, in your own words. For example: “Make a simple app for sharing books with my neighbours. Start with sample books.”
