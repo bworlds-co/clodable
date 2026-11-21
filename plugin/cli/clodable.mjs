@@ -51829,7 +51829,7 @@ async function inboxCommand(ctx2, options) {
 }
 
 // src/index.ts
-var version2 = true ? "0.3.1" : "0.1.0-dev";
+var version2 = true ? "0.4.0" : "0.1.0-dev";
 var cli2 = cac("clodable");
 cli2.option("--json", tr2("Print one JSON event per line (for programs)"));
 cli2.option("--cwd <dir>", tr2("Run in another folder"));
