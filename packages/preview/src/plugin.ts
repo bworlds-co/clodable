@@ -11,6 +11,7 @@ import { originalPositionFor, TraceMap } from "@jridgewell/trace-mapping";
 import type { Plugin, ViteDevServer } from "vite";
 import { DEVICES, type Device, framePage } from "./frame.js";
 import { htmlInjectionMiddleware, injectToolbar } from "./inject.js";
+import { privateRequest } from "./private-files.js";
 import { buildError, CONFIG_NAME, PREFIX, parseSourceAttr, ROUTES } from "./shared.js";
 import { tagJsx } from "./tagger.js";
 import { editText, probeText } from "./text-edit.js";
@@ -132,6 +133,8 @@ export function clodablePreview(options: PreviewOptions = {}): Plugin {
   const token = randomBytes(16).toString("hex");
   const tagged = new Set<string>();
   let root = options.root ?? process.cwd();
+  let publicDir = resolve(root, "public");
+  let base = "/";
   let server: ViteDevServer | undefined;
   let lastBuildError: BuildError | undefined;
 
@@ -239,6 +242,8 @@ export function clodablePreview(options: PreviewOptions = {}): Plugin {
   }
 
   async function handle(req: IncomingMessage, res: ServerResponse, next: (e?: unknown) => void) {
+    if (privateRequest(req.url ?? "/", [root, publicDir], base))
+      return send(res, 403, { error: "forbidden" });
     const url = new URL(req.url ?? "/", "http://localhost");
     const path = url.pathname;
     if (!path.startsWith(PREFIX)) return next();
@@ -297,6 +302,8 @@ export function clodablePreview(options: PreviewOptions = {}): Plugin {
     enforce: "pre",
     configResolved(config) {
       root = options.root ?? config.root;
+      publicDir = config.publicDir;
+      base = config.base;
     },
     configureServer(viteServer) {
       server = viteServer;
