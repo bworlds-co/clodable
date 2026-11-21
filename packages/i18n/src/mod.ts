@@ -1,4 +1,39 @@
 export const french = {
+  Back: "Retour",
+  Name: "Nom",
+  Continue: "Continuer",
+  "Claude can help prepare it when you're ready to save.":
+    "Claude pourra vous aider à la préparer lorsque vous voudrez l’enregistrer.",
+  Import: "Importer",
+  "Change name": "Modifier le nom",
+  "Clodable copies your app from GitHub here, using a new folder if this folder already contains files. Nothing goes live.":
+    "Clodable copie ici votre application depuis GitHub, dans un nouveau dossier si celui-ci contient déjà des fichiers. Rien n’est mis en ligne.",
+  "Keep this app's existing setup": "Conserver la configuration de cette application",
+  "This folder belongs to another project or already has a saving connection. Claude can help you choose the right folder without changing it.":
+    "Ce dossier appartient à un autre projet ou dispose déjà d’une connexion d’enregistrement. Claude peut vous aider à choisir le bon dossier sans le modifier.",
+  "Help me open the right folder for this app, keeping its files and saving connection.":
+    "Aide-moi à ouvrir le bon dossier pour cette application, en conservant ses fichiers et sa connexion d’enregistrement.",
+  "Prepare your app for saving": "Préparer l’enregistrement de votre application",
+  "Claude can check what your app needs and keep a verified copy before making changes.":
+    "Claude peut examiner les besoins de votre application et conserver une copie vérifiée avant toute modification.",
+  "Your design, content and interactions stay the starting point. If a rewrite is needed, Claude will ask you first.":
+    "Votre design, votre contenu et vos interactions restent le point de départ. Si une réécriture est nécessaire, Claude vous demandera d’abord votre accord.",
+  "Prepare my app for saving, keeping its design, content and interactions.":
+    "Prépare mon application pour l’enregistrement, en conservant son design, son contenu et ses interactions.",
+  "Claude is working on your app…": "Claude travaille sur votre application…",
+  "Prepare my app for saving": "Préparer mon application pour l’enregistrement",
+  "Saving becomes available when Clodable recognizes your app. Nothing goes online during preparation.":
+    "L’enregistrement devient disponible lorsque Clodable reconnaît votre application. Rien n’est mis en ligne pendant la préparation.",
+  "Clodable couldn't check this folder yet. Check again before setting up saving.":
+    "Clodable n’a pas encore pu vérifier ce dossier. Vérifiez à nouveau avant de configurer l’enregistrement.",
+  "This app already has saved versions on this computer. Clodable will keep the versions leading to this one and your current files in the new private app.":
+    "Cette application possède déjà des versions enregistrées sur cet ordinateur. Clodable conservera les versions qui ont mené à celle-ci et vos fichiers actuels dans la nouvelle application privée.",
+  "Resume saving {0} in the same account.":
+    "Reprendre l’enregistrement de {0} dans le même compte.",
+  "Resume saving": "Reprendre l’enregistrement",
+  "Reconnect the original account to continue saving this app.":
+    "Reconnectez le compte d’origine pour continuer l’enregistrement de cette application.",
+  "Create private app and keep versions": "Créer l’application privée et conserver les versions",
   "Clodable couldn't get its tools ready on this computer.":
     "Clodable n’a pas pu préparer ses outils sur cet ordinateur.",
   "Check your connection, then press Check again. Your files are still here.":

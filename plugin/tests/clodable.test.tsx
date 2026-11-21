@@ -107,8 +107,27 @@ const READY_CHECKS = [
   { id: "github", label: "GitHub account", status: "ok", detail: "@ada" },
 ];
 
+type LocalAppFixture = {
+  contents: "empty" | "supported" | "unsupported";
+  repository: "none" | "unborn" | "history" | "remote" | "nested" | "protected" | "unavailable";
+  appType?: "vite-spa" | "tanstack-start";
+  head?: string;
+};
+
+const localAppCheck = (localApp: LocalAppFixture) => ({
+  id: "local-app",
+  label: "Your local app",
+  status: "ok",
+  localApp,
+});
+
 async function shows(pane: any, text: string | RegExp) {
   return pane.find({ type: "Text", text });
+}
+
+async function waitForControl(pane: any, key: string) {
+  for (let i = 0; i < 60 && !(await pane.find({ key })); i++) await pane.redraw();
+  return pane.find({ key });
 }
 
 const HISTORY = {
@@ -161,6 +180,7 @@ function harness(
   > = {},
   /** Answers a command before anything else does (the computer's own tools), or passes it on. */
   first?: (argv: string[], init?: { env?: Record<string, string>; cwd?: string }) => unknown,
+  folder: () => string = () => CWD,
 ) {
   const calls: string[][] = [];
   /** What each CLI call got on stdin, in call order (keys and tokens travel only this way). */
@@ -169,6 +189,7 @@ function harness(
   const clock = mock.clock(on);
   (calls as unknown as { clock: typeof clock }).clock = clock;
   on("session.start", () => ({ cwd: CWD }));
+  on("session.cwd", () => ({ value: folder() }));
   // Claude Code's own drawing: a plain Box, or the engine reference where a site requires one.
   on("ui.render", (_$: unknown, e: { component: string }) =>
     e.component === "AskUserQuestion"
@@ -208,6 +229,32 @@ function harness(
       calls.push(e.argv.slice(2));
       stdins.push(e.init?.stdin);
       timeouts.push(e.init?.timeoutMs);
+      // Older setup fixtures assume a supported app; empty-folder tests use the default
+      // report. Content-changing and issue #121 cases supply explicit inspector facts.
+      const doctorChecks = (checks: Array<{ id: string; status?: string }>, customized = false) => {
+        if (checks.some((check) => check.id === "local-app")) return checks;
+        const existing = (status as { code?: string })?.code === "not-set-up";
+        const local = (status as { code?: string })?.code === "not-a-repo";
+        const noRemote = checks.some((check) => check.id === "repo" && check.status === "fail");
+        const supported = existing || (local && customized);
+        return [
+          ...checks,
+          ...(existing && !checks.some((check) => check.id === "repo")
+            ? [{ id: "repo", label: "Your app on GitHub", status: "ok", detail: "ada/existing" }]
+            : []),
+          localAppCheck({
+            contents: supported ? "supported" : local ? "empty" : "unsupported",
+            repository: existing
+              ? noRemote
+                ? "history"
+                : "remote"
+              : local
+                ? "none"
+                : "unavailable",
+            ...(supported ? { appType: "vite-spa" as const } : {}),
+          }),
+        ];
+      };
       const answer = Object.keys(answers).find((command) => e.argv.includes(command));
       if (answer) {
         const value = answers[answer]!;
@@ -218,12 +265,17 @@ function harness(
           const report = JSON.parse(response.stdout);
           if (report.ok && Array.isArray(report.data) && report.data.length) {
             return {
-              value: out([
-                ...READY_CHECKS.filter(
-                  (c) => !report.data.some((v: { id: string }) => v.id === c.id),
+              value: out(
+                doctorChecks(
+                  [
+                    ...READY_CHECKS.filter(
+                      (c) => !report.data.some((v: { id: string }) => v.id === c.id),
+                    ),
+                    ...report.data,
+                  ],
+                  true,
                 ),
-                ...report.data,
-              ]),
+              ),
             };
           }
         }
@@ -233,7 +285,7 @@ function harness(
       if (e.argv.includes("save"))
         return { value: out({ saved: true, sha: "c4", pushed: true, unpublished: 3 }) };
       if (e.argv.includes("history")) return { value: out(HISTORY) };
-      if (e.argv.includes("doctor")) return { value: out(READY_CHECKS) };
+      if (e.argv.includes("doctor")) return { value: out(doctorChecks(READY_CHECKS)) };
       return { value: out({}) };
     },
   );
@@ -905,7 +957,8 @@ describe("auto-save", () => {
       isAborted: false,
       usage: null,
     } as never);
-    for (let i = 0; i < 30 && !calls.some((c) => c[0] === "save"); i++) await Promise.resolve();
+    const clock = (calls as unknown as { clock: { settle(): Promise<void> } }).clock;
+    for (let i = 0; i < 30 && !calls.some((c) => c[0] === "save"); i++) await clock.settle();
     const save = calls.find((c) => c[0] === "save");
     expect(save).toEqual(["save", "-m", "Make the header blue", "--json"]);
   });
@@ -3654,15 +3707,21 @@ describe("a conversation Desktop started ahead of time", () => {
     // the conversation opens: session.start saw the spare, which is gone once used.
     const SPARE = "/Users/ada/.claude/spares/spare-ZbIpL3";
     let folder = SPARE;
-    on("session.cwd", () => ({ value: folder }));
     const ranIn: string[] = [];
-    const calls = harness(on, STATUS, true, {}, (argv, init) => {
-      if (!argv[1]?.endsWith("/cli/clodable.mjs")) return undefined;
-      ranIn.push(init?.cwd ?? "");
-      return init?.cwd === SPARE
-        ? out({ code: "not-a-repo", message: "No app here." }, false)
-        : undefined;
-    });
+    const calls = harness(
+      on,
+      STATUS,
+      true,
+      {},
+      (argv, init) => {
+        if (!argv[1]?.endsWith("/cli/clodable.mjs")) return undefined;
+        ranIn.push(init?.cwd ?? "");
+        return init?.cwd === SPARE
+          ? out({ code: "not-a-repo", message: "No app here." }, false)
+          : undefined;
+      },
+      () => folder,
+    );
     const clock = (
       calls as unknown as { clock: { advance(ms: number): Promise<void>; settle(): Promise<void> } }
     ).clock;
@@ -3680,12 +3739,14 @@ describe("a conversation Desktop started ahead of time", () => {
     expect(await spare.find({ key: "publish" })).toBeUndefined();
     await spare.unmount();
 
+    // The local folder may also receive its initial inspector check before Desktop moves it.
+    const beforeMove = ranIn.length;
     folder = CWD;
     await clock.advance(1600);
     expect(await bandText($, "desktop", /not live yet/)).toBe("2 changes not live yet");
     // Every command since runs in the project, never in the spare folder that's gone.
-    expect(ranIn.slice(1).length).toBeGreaterThan(0);
-    expect(ranIn.slice(1).every((where) => where === CWD)).toBe(true);
+    expect(ranIn.slice(beforeMove).length).toBeGreaterThan(0);
+    expect(ranIn.slice(beforeMove).every((where) => where === CWD)).toBe(true);
   });
 });
 
@@ -3761,8 +3822,11 @@ describe("the preview, when Claude starts it", () => {
 
 describe("everywhere else", () => {
   test("the first plain idea gets builder guidance without opening a panel or submitting another prompt", async ($, on) => {
-    const calls = harness(on, { code: "not-a-repo", message: "Local folder" }, false);
     let hasFiles = false;
+    const calls = harness(on, { code: "not-a-repo", message: "Local folder" }, false, {
+      doctor: () =>
+        out([localAppCheck({ contents: hasFiles ? "supported" : "empty", repository: "none" })]),
+    });
     on("fs.exists", (_$: unknown, e: { path: string }) => ({
       value: hasFiles && /(?:^|\/)package\.json$/.test(e.path),
     }));
@@ -3871,6 +3935,25 @@ describe("everywhere else", () => {
       kind: "submit",
       text: "books-nearby",
     });
+    expect(await waitForControl(pane, "create-private-app")).toMatchObject({
+      text: "Create private app",
+    });
+    expect(ran).toHaveLength(0);
+    expect(await pane.find({ key: "new-app-name" })).toBeUndefined();
+    expect(await shows(pane, /books-nearby/)).toBeDefined();
+    await pane.press({ key: "change-app-name" });
+    expect(await waitForControl(pane, "new-app-name")).toMatchObject({
+      props: { value: "books-nearby", submitLabel: "Continue" },
+    });
+    expect(ran).toHaveLength(0);
+    await $.ui.input({
+      plugin: "clodable",
+      key: "new-app-name",
+      kind: "submit",
+      text: "books-nearby",
+    });
+    await waitForControl(pane, "create-private-app");
+    await pane.press({ key: "create-private-app" });
     for (let i = 0; i < 30 && !ran.length; i++) await pane.redraw();
     expect(ran[0]).toEqual([
       "setup",
@@ -4039,7 +4122,15 @@ describe("everywhere else", () => {
       for (let i = 0; i < 30 && !(await pane.find({ key: "new-app-name" })); i++)
         await pane.redraw();
       for (let attempt = 0; attempt < 2; attempt++) {
-        await $.ui.input({ plugin: "clodable", key: "new-app-name", kind: "submit", text: "tiny" });
+        if (await pane.find({ key: "new-app-name" }))
+          await $.ui.input({
+            plugin: "clodable",
+            key: "new-app-name",
+            kind: "submit",
+            text: "tiny",
+          });
+        expect(await waitForControl(pane, "create-private-app")).toBeDefined();
+        await pane.press({ key: "create-private-app" });
         for (
           let i = 0;
           i < 30 && !(await pane.find({ type: "Text", text: /Checking your local app/ }));
@@ -4123,6 +4214,8 @@ describe("everywhere else", () => {
     for (let i = 0; i < 30 && !(await pane.find({ type: "Text", text: /Save to @ada/ })); i++)
       await pane.redraw();
     await $.ui.input({ plugin: "clodable", key: "new-app-name", kind: "submit", text: "tiny" });
+    expect(await waitForControl(pane, "create-private-app")).toBeDefined();
+    await pane.press({ key: "create-private-app" });
     for (let i = 0; i < 30 && !(await pane.find({ key: "setup-help" })); i++) await pane.redraw();
     // The builder reads the plain words; the git output stays out of the panel.
     expect(
@@ -4143,7 +4236,7 @@ describe("everywhere else", () => {
         text: /Ask Claude for help to find out what stopped saving/,
       }),
     ).toBeDefined();
-    expect(await pane.find({ key: "new-app-name" })).toBeDefined();
+    expect(await pane.find({ key: "create-private-app" })).toBeDefined();
     await pane.press({ key: "setup-help" });
     for (let i = 0; i < 30 && submitted.length === 0; i++) await Promise.resolve();
     await pane.unmount();
@@ -4371,6 +4464,11 @@ describe("everywhere else", () => {
         on,
         { code: "not-a-repo", message: "This folder isn't connected to GitHub yet." },
         false,
+        {
+          doctor: out([
+            localAppCheck({ contents: hasLocalPage ? "unsupported" : "empty", repository: "none" }),
+          ]),
+        },
       );
       on("fs.list", () => ({
         value: hasLocalPage
@@ -4381,8 +4479,13 @@ describe("everywhere else", () => {
       await $.command.run({ command: "clodable", args: "" } as never);
       const pane = await $.ui.mount(PANE_PROPS as never);
       if (!hasLocalPage) {
+        await waitForControl(pane, "choose-import");
         expect(await pane.find({ key: "start-idea" })).toBeUndefined();
         await pane.press({ key: "choose-import" });
+      } else {
+        expect(await waitForControl(pane, "prepare-app")).toBeDefined();
+        await pane.press({ key: "keep-local" });
+        expect(await waitForControl(pane, "set-up-saving")).toBeDefined();
       }
       expect(Boolean(await pane.find({ key: "repo-name" }))).toBe(!hasLocalPage);
       expect(Boolean(await pane.find({ key: "list-repos" }))).toBe(!hasLocalPage);
@@ -4395,7 +4498,7 @@ describe("everywhere else", () => {
         expect(
           await pane.find({
             type: "Text",
-            text: "Choose your GitHub account next. Nothing goes live until you publish.",
+            text: "Claude can help prepare it when you're ready to save.",
           }),
         ).toBeDefined();
       }
@@ -4403,13 +4506,19 @@ describe("everywhere else", () => {
     });
   }
 
-  test("an open import panel updates after Claude makes a local prototype", async ($, on) => {
+  test("an open import panel yields to local files but remembers import if the folder becomes empty", async ($, on) => {
+    let madePage = false;
     const calls = harness(
       on,
       { code: "not-a-repo", message: "This folder isn't connected to GitHub yet." },
       false,
+      {
+        doctor: () =>
+          out([
+            localAppCheck({ contents: madePage ? "unsupported" : "empty", repository: "none" }),
+          ]),
+      },
     );
-    let madePage = false;
     on("fs.list", () => ({
       value: madePage
         ? [{ name: "index.html", kind: "file", size: 100, mtimeMs: 0, isLink: false }]
@@ -4434,11 +4543,715 @@ describe("everywhere else", () => {
     for (let i = 0; i < 30 && (await pane.find({ key: "repo-name" })); i++) await pane.redraw();
     expect(await pane.find({ key: "repo-name" })).toBeUndefined();
     expect(await pane.find({ key: "list-repos" })).toBeUndefined();
-    expect(
-      await pane.find({ type: "Text", text: "Keep shaping your local app with Claude." }),
-    ).toBeDefined();
-    expect(await pane.find({ type: "Text", text: /Clodable isn't saving them yet/ })).toBeDefined();
+    expect(await waitForControl(pane, "prepare-app")).toBeDefined();
+    await $.turn.start({ text: "Undo that page", turnId: "empty-again" } as never);
+    madePage = false;
+    await $.turn.complete({ turnId: "empty-again", answer: "Undone", isAborted: false } as never);
+    expect(await waitForControl(pane, "repo-name")).toBeDefined();
     expect(calls.some((c) => c[0] === "save")).toBe(false);
+    await pane.unmount();
+  });
+});
+
+describe("local app preparation and saving", () => {
+  for (const local of [
+    { contents: "unsupported", repository: "none" },
+    { contents: "supported", repository: "unborn", appType: "vite-spa" },
+    { contents: "empty", repository: "none" },
+    { contents: "unsupported", repository: "nested" },
+  ] satisfies LocalAppFixture[]) {
+    test(`${local.contents}/${local.repository}: conversational preparation routing uses the inspected folder`, async ($, on) => {
+      const calls = harness(on, { code: "not-a-repo", message: "Local folder" }, false, {
+        doctor: out([localAppCheck(local)]),
+      });
+      let context: string[] = [];
+      on("prompt.submit", (_$: unknown, e: { text: string; context?: readonly string[] }) => {
+        context = [...(e.context ?? [])];
+        return { text: e.text, context: e.context };
+      });
+      await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+      await $.prompt.submit({
+        text: "Make this app compatible with Clodable",
+        context: ["Keep the existing server behavior"],
+        origin: { kind: "sdk" },
+        wait: false,
+      });
+      expect(context).toContain("Keep the existing server behavior");
+      expect(context.some((text) => text.includes('skill: "clodable:clodable-prepare"'))).toBe(
+        local.contents === "unsupported" && local.repository === "none",
+      );
+      expect(calls.some((call) => ["setup", "save", "prepare", "move"].includes(call[0]!))).toBe(
+        false,
+      );
+    });
+  }
+
+  test("the first message uses local facts while the full account check is still pending", async ($, on) => {
+    let finish: ((value: ReturnType<typeof out>) => void) | undefined;
+    let localChecks = 0;
+    const local = localAppCheck({ contents: "empty", repository: "unborn" });
+    const calls = harness(
+      on,
+      { code: "not-set-up", message: "Local folder" },
+      false,
+      {},
+      async (argv) => {
+        if (!argv.includes("doctor")) return undefined;
+        if (argv.includes("--local")) {
+          localChecks++;
+          return out([local]);
+        }
+        return new Promise<ReturnType<typeof out>>((done) => {
+          finish = done;
+        });
+      },
+    );
+    const clock = (calls as unknown as { clock: { settle(): Promise<void> } }).clock;
+    const session = mock.session(on);
+    on("prompt.submit", (_$: unknown, e: { text: string }) => ({ text: e.text }));
+    await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+    await $.command.run({ command: "clodable", args: "" } as never);
+    for (let i = 0; i < 60 && !finish; i++) await clock.settle();
+    expect(finish).toBeDefined();
+    let submitted = false;
+    const prompt = $.prompt
+      .submit({ text: "Make a book swap", origin: { kind: "sdk" }, wait: false })
+      .then(() => {
+        submitted = true;
+      });
+    let started = false;
+    const turn = $.turn
+      .start({ text: "Make a book swap", turnId: "no-account-wait" } as never)
+      .then(() => {
+        started = true;
+      });
+    for (let i = 0; i < 60 && (!submitted || !started); i++) await clock.settle();
+    const finishedWithoutAccount = submitted && started;
+    const localGuidance = readBy(session).join("\n");
+    // Release the held check even if a regression made either hook wait for it.
+    finish!(out([...READY_CHECKS, local]));
+    await Promise.all([prompt, turn]);
+    expect(localChecks).toBe(1);
+    expect(finishedWithoutAccount).toBe(true);
+    expect(localGuidance).toContain("The builder's message in the conversation");
+  });
+
+  test("a late local-only result cannot replace newer full-check folder facts", async ($, on) => {
+    let finish: ((value: ReturnType<typeof out>) => void) | undefined;
+    const calls = harness(
+      on,
+      { code: "not-set-up", message: "Local folder" },
+      false,
+      {},
+      async (argv) => {
+        if (!argv.includes("doctor")) return undefined;
+        if (argv.includes("--local"))
+          return new Promise<ReturnType<typeof out>>((done) => {
+            finish = done;
+          });
+        return out([
+          ...READY_CHECKS,
+          localAppCheck({ contents: "unsupported", repository: "unborn" }),
+        ]);
+      },
+    );
+    const clock = (calls as unknown as { clock: { settle(): Promise<void> } }).clock;
+    await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+    for (let i = 0; i < 60 && !finish; i++) await clock.settle();
+    expect(finish).toBeDefined();
+    await $.command.run({ command: "clodable", args: "" } as never);
+    const pane = await $.ui.mount(PANE_PROPS);
+    expect(await waitForControl(pane, "prepare-app")).toBeDefined();
+    finish!(out([localAppCheck({ contents: "empty", repository: "unborn" })]));
+    for (let i = 0; i < 10; i++) await clock.settle();
+    expect(await bandText($, "desktop", /Only on this computer/)).toBe("Only on this computer");
+    expect(await pane.find({ key: "prepare-app" })).toBeDefined();
+    expect(await pane.find({ key: "choose-import" })).toBeUndefined();
+    await pane.unmount();
+  });
+
+  test("a late status folder scan cannot replace authoritative app facts in the toolbar", async ($, on) => {
+    let holdNextScan = false;
+    let release: (() => void) | undefined;
+    const calls = harness(on, { code: "not-a-repo", message: "Local app" }, false, {
+      doctor: out([
+        localAppCheck({ contents: "supported", repository: "none", appType: "vite-spa" }),
+      ]),
+    });
+    on("fs.list", async () => {
+      if (holdNextScan) {
+        holdNextScan = false;
+        await new Promise<void>((done) => {
+          release = done;
+        });
+      }
+      return { value: [] };
+    });
+    await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+    await $.tool.call({ tool: "mcp__clodable__open_panel", view: "saving" } as never);
+    const pane = await $.ui.mount(PANE_PROPS);
+    expect(await waitForControl(pane, "new-app-name")).toBeDefined();
+    const before = calls.filter((call) => call[0] === "doctor" && !call.includes("--local")).length;
+    holdNextScan = true;
+    await $.command.run({ command: "clodable", args: "" } as never);
+    for (
+      let i = 0;
+      i < 60 &&
+      (!release ||
+        calls.filter((call) => call[0] === "doctor" && !call.includes("--local")).length ===
+          before);
+      i++
+    )
+      await pane.redraw();
+    expect(await waitForControl(pane, "new-app-name")).toBeDefined();
+    // A known folder may skip the fallback scan entirely; otherwise let its old result arrive.
+    release?.();
+    for (let i = 0; i < 15; i++) await pane.redraw();
+    expect(await bandText($, "desktop", /Only on this computer/)).toBe("Only on this computer");
+    expect(await pane.find({ key: "new-app-name" })).toBeDefined();
+    await pane.unmount();
+  });
+
+  test("the first message in an empty initialized folder waits for its local guidance", async ($, on) => {
+    let finish: ((value: ReturnType<typeof out>) => void) | undefined;
+    const calls = harness(
+      on,
+      { code: "not-set-up", message: "Local folder" },
+      false,
+      {},
+      async (argv) => {
+        if (argv.includes("doctor"))
+          return new Promise<ReturnType<typeof out>>((done) => {
+            finish = done;
+          });
+        return undefined;
+      },
+    );
+    const session = mock.session(on);
+    const clock = (calls as unknown as { clock: { settle(): Promise<void> } }).clock;
+    await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+    const started = $.turn.start({ text: "Make a book swap", turnId: "first-unborn" } as never);
+    for (let i = 0; i < 60 && !finish; i++) await clock.settle();
+    expect(finish).toBeDefined();
+    finish!(out([...READY_CHECKS, localAppCheck({ contents: "empty", repository: "unborn" })]));
+    await started;
+    expect(readBy(session).join("\n")).toContain("The builder's message in the conversation");
+  });
+
+  for (const language of ["en", "fr"] as const) {
+    test(`${language}: an empty initialized folder invites an idea and can return from import`, async ($, on) => {
+      const calls = harness(on, { code: "not-set-up", message: "Local folder" }, false, {
+        doctor: out([localAppCheck({ contents: "empty", repository: "unborn" })]),
+      });
+      on("settings.read", () => ({ value: { language } }));
+      on("fs.list", () => ({
+        value: [{ name: ".git", kind: "dir", size: 0, mtimeMs: 0, isLink: false }],
+      }));
+      const session = mock.session(on);
+      await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+      const pane = await $.ui.mount(PANE_PROPS);
+      expect(await waitForControl(pane, "choose-import")).toBeDefined();
+      expect(
+        await shows(pane, language === "fr" ? /Décrivez votre idée/ : /Describe your idea/),
+      ).toBeDefined();
+      expect(await pane.find({ key: "prepare-app" })).toBeUndefined();
+      expect(await pane.find({ key: "set-up-here" })).toBeUndefined();
+      expect(await pane.find({ key: "connect-github" })).toBeUndefined();
+      expect(await bandText($, "desktop", language === "fr" ? /Décrivez/ : /Describe/)).toMatch(
+        language === "fr" ? /Décrivez/ : /Describe/,
+      );
+      await pane.press({ key: "choose-import" });
+      expect(await waitForControl(pane, "repo-name")).toMatchObject({
+        props: { label: "GitHub", submitLabel: language === "fr" ? "Importer" : "Import" },
+      });
+      expect(await shows(pane, language === "fr" ? /nouveau dossier/ : /new folder/)).toBeDefined();
+      await pane.press({ key: "back-to-local" });
+      expect(await waitForControl(pane, "choose-import")).toBeDefined();
+      await $.turn.start({ text: "Make a book swap", turnId: "unborn-idea" } as never);
+      expect(readBy(session).join("\n")).toContain("The builder's message in the conversation");
+      expect(calls.some((call) => ["setup", "save"].includes(call[0]!))).toBe(false);
+      await pane.unmount();
+    });
+
+    test(`${language}: unsupported files offer preparation before account consent and keep local is reversible`, async ($, on) => {
+      const calls = harness(on, { code: "not-a-repo", message: "Local folder" }, false, {
+        doctor: out([
+          { id: "github", label: "GitHub account", status: "fail" },
+          localAppCheck({ contents: "unsupported", repository: "none" }),
+        ]),
+      });
+      on("settings.read", () => ({ value: { language } }));
+      // Hidden content must not make the panel override the inspector with "empty".
+      on("fs.list", () => ({
+        value: [{ name: ".important-notes", kind: "file", size: 100, mtimeMs: 0, isLink: false }],
+      }));
+      const session = mock.session(on);
+      const prompts: string[] = [];
+      on("prompt.submit", (_$: unknown, e: { text: string }) => {
+        prompts.push(e.text);
+        return { text: e.text };
+      });
+      await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+      const pane = await $.ui.mount(PANE_PROPS);
+      const preparation = await waitForControl(pane, "prepare-app");
+      expect(preparation).toBeDefined();
+      expect(preparation?.text).toMatch(language === "fr" ? /Préparer/ : /Prepare/);
+      expect(await pane.find({ key: "new-app-name" })).toBeUndefined();
+      expect(await pane.find({ key: "connect-github" })).toBeUndefined();
+      expect(await pane.find({ key: "choose-import" })).toBeUndefined();
+      await pane.press({ key: "keep-local" });
+      expect(await waitForControl(pane, "set-up-saving")).toBeDefined();
+      expect(await pane.find({ key: "prepare-app" })).toBeUndefined();
+      await pane.press({ key: "set-up-saving" });
+      expect(await waitForControl(pane, "prepare-app")).toBeDefined();
+      await pane.press({ key: "prepare-app" });
+      for (let i = 0; i < 30 && !prompts.length; i++) await pane.redraw();
+      expect(prompts).toHaveLength(1);
+      await $.turn.start({ text: prompts[0]!, turnId: "prepare-unknown" } as never);
+      const details = readBy(session).join("\n");
+      expect(details).toContain('Skill tool with skill: "clodable:clodable-prepare"');
+      expect(details).toContain("The builder selected preparation for this existing local app");
+      expect(calls.some((call) => ["setup", "save"].includes(call[0]!))).toBe(false);
+      await pane.unmount();
+    });
+  }
+
+  for (const isAborted of [false, true]) {
+    test(`a ${isAborted ? "stopped" : "completed"} local reply rechecks an unconfigured folder before offering creation`, async ($, on) => {
+      let contents: LocalAppFixture["contents"] = "unsupported";
+      const calls = harness(on, { code: "not-set-up", message: "Local folder" }, false, {
+        doctor: () => out([localAppCheck({ contents, repository: "unborn", appType: "vite-spa" })]),
+      });
+      await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+      await $.tool.call({ tool: "mcp__clodable__open_panel", view: "saving" } as never);
+      const pane = await $.ui.mount(PANE_PROPS);
+      expect(await waitForControl(pane, "prepare-app")).toBeDefined();
+      expect(await pane.find({ key: "new-app-name" })).toBeUndefined();
+      const before = calls.filter((call) => call[0] === "doctor").length;
+      await $.turn.start({ text: "Prepare this app", turnId: "prepared" } as never);
+      contents = "supported";
+      await $.turn.complete({ turnId: "prepared", answer: "Prepared", isAborted } as never);
+      expect(await waitForControl(pane, "new-app-name")).toBeDefined();
+      expect(calls.filter((call) => call[0] === "doctor").length).toBeGreaterThan(before);
+      expect(await pane.find({ key: "prepare-app" })).toBeUndefined();
+      expect(calls.some((call) => ["setup", "save"].includes(call[0]!))).toBe(false);
+      await pane.unmount();
+    });
+  }
+
+  test("a preparation reply that still fails support stays in preparation", async ($, on) => {
+    const calls = harness(on, { code: "not-a-repo", message: "Local folder" }, false, {
+      doctor: out([localAppCheck({ contents: "unsupported", repository: "none" })]),
+    });
+    on("fs.exists", (_$: unknown, e: { path: string }) => ({
+      value: e.path.endsWith("package.json"),
+    }));
+    on("fs.list", () => ({
+      value: [{ name: "package.json", kind: "file", size: 100, mtimeMs: 0, isLink: false }],
+    }));
+    await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+    await $.tool.call({ tool: "mcp__clodable__open_panel", view: "saving" } as never);
+    const pane = await $.ui.mount(PANE_PROPS);
+    expect(await waitForControl(pane, "prepare-app")).toBeDefined();
+    const before = calls.filter((call) => call[0] === "doctor").length;
+    await $.turn.start({ text: "Prepare the app", turnId: "not-ready" } as never);
+    await $.turn.complete({ turnId: "not-ready", answer: "Done", isAborted: false } as never);
+    for (let i = 0; i < 60 && calls.filter((call) => call[0] === "doctor").length === before; i++)
+      await pane.redraw();
+    expect(await waitForControl(pane, "prepare-app")).toBeDefined();
+    expect(await pane.find({ key: "new-app-name" })).toBeUndefined();
+    expect(calls.filter((call) => call[0] === "doctor").length).toBeGreaterThan(before);
+    await pane.unmount();
+  });
+
+  test("the saving choice and typed name survive a reply and a support round trip", async ($, on) => {
+    let contents: LocalAppFixture["contents"] = "supported";
+    harness(on, { code: "not-a-repo", message: "Local folder" }, false, {
+      doctor: () => out([localAppCheck({ contents, repository: "none", appType: "vite-spa" })]),
+    });
+    await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+    await $.tool.call({ tool: "mcp__clodable__open_panel", view: "saving" } as never);
+    const pane = await $.ui.mount(PANE_PROPS);
+    expect(await waitForControl(pane, "new-app-name")).toBeDefined();
+    await $.ui.input({
+      plugin: "clodable",
+      key: "new-app-name",
+      kind: "change",
+      text: "book-garden",
+    });
+    for (const [turnId, nextContents, control] of [
+      ["needs-preparation", "unsupported", "prepare-app"],
+      ["ready-again", "supported", "new-app-name"],
+    ] as const) {
+      await $.turn.start({ text: "Continue shaping the app", turnId } as never);
+      contents = nextContents;
+      await $.turn.complete({ turnId, answer: "Done", isAborted: false } as never);
+      expect(await waitForControl(pane, control)).toBeDefined();
+    }
+    expect(await pane.find({ key: "new-app-name" })).toMatchObject({
+      props: { value: "book-garden" },
+    });
+    await pane.unmount();
+  });
+
+  for (const language of ["en", "fr"] as const) {
+    test(`${language}: keeping local history requires its explicit consent and the inspected revision`, async ($, on) => {
+      const head = "a".repeat(40);
+      harness(on, { code: "not-set-up", message: "Local app" }, false, {
+        doctor: out([
+          localAppCheck({
+            contents: "supported",
+            repository: "history",
+            appType: "vite-spa",
+            head,
+          }),
+        ]),
+      });
+      on("settings.read", () => ({ value: { language } }));
+      const spawned: string[][] = [];
+      on("process.spawn", async function* (_$: unknown, e: { argv: readonly string[] }) {
+        spawned.push(e.argv.slice(2));
+        yield {
+          stream: "stdout" as const,
+          text: out({ code: "offline", message: "Try again." }, false).stdout,
+        };
+        return { value: { code: 1, signal: null } };
+      });
+      await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+      await $.tool.call({ tool: "mcp__clodable__open_panel", view: "saving" } as never);
+      const pane = await $.ui.mount(PANE_PROPS);
+      expect(await waitForControl(pane, "new-app-name")).toMatchObject({
+        props: {
+          label: language === "fr" ? "Nom" : "Name",
+          submitLabel: language === "fr" ? "Continuer" : "Continue",
+        },
+      });
+      expect(spawned).toEqual([]);
+      await $.ui.input({
+        plugin: "clodable",
+        key: "new-app-name",
+        kind: "submit",
+        text: "old-bookshop",
+      });
+      expect(await waitForControl(pane, "create-private-app")).toMatchObject({
+        text:
+          language === "fr"
+            ? "Créer l’application privée et conserver les versions"
+            : "Create private app and keep versions",
+      });
+      expect(spawned).toEqual([]);
+      await pane.press({ key: "create-private-app" });
+      for (let i = 0; i < 60 && !spawned.length; i++) await pane.redraw();
+      expect(spawned[0]).toEqual([
+        "setup",
+        "--new",
+        "old-bookshop",
+        "--account",
+        "ada",
+        "--adopt-history",
+        head,
+        "--yes",
+        "--json",
+      ]);
+      await pane.unmount();
+    });
+  }
+
+  for (const repository of ["remote", "nested", "protected", "unavailable"] as const) {
+    test(`${repository} ownership cannot turn into private-app creation`, async ($, on) => {
+      const calls = harness(on, { code: "not-set-up", message: "Existing folder" }, false, {
+        doctor: out([
+          {
+            id: "repo",
+            label: "Your app on GitHub",
+            status: repository === "remote" ? "ok" : "fail",
+            detail: "ada/existing",
+          },
+          localAppCheck({ contents: "supported", repository, appType: "vite-spa" }),
+        ]),
+      });
+      await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+      await $.tool.call({ tool: "mcp__clodable__open_panel", view: "saving" } as never);
+      const pane = await $.ui.mount(PANE_PROPS);
+      for (let i = 0; i < 30; i++) await pane.redraw();
+      expect(await pane.find({ key: "new-app-name" })).toBeUndefined();
+      expect(await pane.find({ key: "repo-name" })).toBeUndefined();
+      expect(Boolean(await pane.find({ key: "set-up-here" }))).toBe(repository === "remote");
+      expect(calls.some((call) => ["setup", "save"].includes(call[0]!))).toBe(false);
+      await pane.unmount();
+    });
+  }
+
+  for (const repository of ["remote", "history"] as const) {
+    test(`pending creation with ${repository} reloads its approved destination`, async ($, on) => {
+      const head = "b".repeat(40);
+      harness(on, { code: "not-set-up", message: "Saving was interrupted" }, false, {
+        doctor: out([
+          {
+            id: "repo",
+            label: "Your app on GitHub",
+            status: repository === "remote" ? "ok" : "fail",
+            detail: "ada/book-garden",
+          },
+          {
+            id: "new-app",
+            label: "New app",
+            status: "warn",
+            detail: "ada/book-garden",
+            newApp: { name: "book-garden", account: "ada", locked: true },
+          },
+          localAppCheck({ contents: "supported", repository, appType: "vite-spa", head }),
+        ]),
+      });
+      const spawned: string[][] = [];
+      on("process.spawn", async function* (_$: unknown, e: { argv: readonly string[] }) {
+        spawned.push(e.argv.slice(2));
+        yield {
+          stream: "stdout" as const,
+          text: out({ code: "offline", message: "Try again." }, false).stdout,
+        };
+        return { value: { code: 1, signal: null } };
+      });
+      await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+      await $.tool.call({ tool: "mcp__clodable__open_panel", view: "saving" } as never);
+      const pane = await $.ui.mount(PANE_PROPS);
+      expect(await waitForControl(pane, "resume-saving")).toBeDefined();
+      expect(await shows(pane, /book-garden/)).toBeDefined();
+      expect(await pane.find({ key: "new-app-name" })).toBeUndefined();
+      expect(await pane.find({ key: "set-up-here" })).toBeUndefined();
+      expect(spawned).toEqual([]);
+      await pane.press({ key: "resume-saving" });
+      for (let i = 0; i < 60 && !spawned.length; i++) await pane.redraw();
+      expect(spawned[0]).toEqual([
+        "setup",
+        "--new",
+        "book-garden",
+        "--account",
+        "ada",
+        ...(repository === "history" ? ["--adopt-history", head] : []),
+        "--yes",
+        "--json",
+      ]);
+      await pane.unmount();
+    });
+  }
+
+  test("working tools without folder facts cannot enable saving", async ($, on) => {
+    const calls = harness(on, { code: "not-a-repo", message: "Local folder" }, false, {}, (argv) =>
+      argv.includes("doctor") ? out(READY_CHECKS) : undefined,
+    );
+    on("fs.list", () => ({
+      value: [{ name: "package.json", kind: "file", size: 100, mtimeMs: 0, isLink: false }],
+    }));
+    await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+    await $.tool.call({ tool: "mcp__clodable__open_panel", view: "saving" } as never);
+    const pane = await $.ui.mount(PANE_PROPS);
+    expect(await waitForControl(pane, "check-again")).toBeDefined();
+    expect(await pane.find({ key: "new-app-name" })).toBeUndefined();
+    expect(await pane.find({ key: "set-up-here" })).toBeUndefined();
+    expect(calls.some((call) => ["setup", "save"].includes(call[0]!))).toBe(false);
+    await pane.unmount();
+  });
+
+  test("an older supported check cannot undo a newer preparation result", async ($, on) => {
+    let holdChecks = false;
+    const finish: Array<(value: ReturnType<typeof out>) => void> = [];
+    harness(
+      on,
+      { code: "not-a-repo", message: "Local folder" },
+      false,
+      {
+        doctor: out([
+          localAppCheck({ contents: "supported", repository: "none", appType: "vite-spa" }),
+        ]),
+      },
+      async (argv) => {
+        if (holdChecks && argv.includes("doctor"))
+          return new Promise<ReturnType<typeof out>>((done) => finish.push(done));
+        return undefined;
+      },
+    );
+    await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+    await $.tool.call({ tool: "mcp__clodable__open_panel", view: "saving" } as never);
+    const pane = await $.ui.mount(PANE_PROPS);
+    expect(await waitForControl(pane, "new-app-name")).toBeDefined();
+    holdChecks = true;
+    await $.command.run({ command: "clodable", args: "" } as never);
+    for (let i = 0; i < 60 && finish.length < 1; i++) await pane.redraw();
+    expect(await pane.find({ key: "new-app-name" })).toBeUndefined();
+    await $.command.run({ command: "clodable", args: "" } as never);
+    for (let i = 0; i < 60 && finish.length < 2; i++) await pane.redraw();
+    expect(finish).toHaveLength(2);
+    finish[1]!(
+      out([...READY_CHECKS, localAppCheck({ contents: "unsupported", repository: "none" })]),
+    );
+    expect(await waitForControl(pane, "prepare-app")).toBeDefined();
+    finish[0]!(
+      out([
+        ...READY_CHECKS,
+        localAppCheck({ contents: "supported", repository: "none", appType: "vite-spa" }),
+      ]),
+    );
+    for (let i = 0; i < 15; i++) await pane.redraw();
+    expect(await pane.find({ key: "prepare-app" })).toBeDefined();
+    expect(await pane.find({ key: "new-app-name" })).toBeUndefined();
+    await pane.unmount();
+  });
+
+  test("pending saving cannot move to a newly connected account", async ($, on) => {
+    harness(on, { code: "not-set-up", message: "Saving was interrupted" }, false, {
+      doctor: out([
+        { id: "github", label: "GitHub account", status: "ok", detail: "@other" },
+        { id: "new-app", label: "New app", status: "warn", detail: "ada/book-garden" },
+        localAppCheck({ contents: "supported", repository: "remote", appType: "vite-spa" }),
+      ]),
+    });
+    const spawned: string[][] = [];
+    on("process.spawn", async function* (_$: unknown, e: { argv: readonly string[] }) {
+      spawned.push(e.argv.slice(2));
+      yield { stream: "stdout" as const, text: out({}).stdout };
+      return { value: { code: 0, signal: null } };
+    });
+    await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+    await $.tool.call({ tool: "mcp__clodable__open_panel", view: "saving" } as never);
+    const pane = await $.ui.mount(PANE_PROPS);
+    expect(await waitForControl(pane, "resume-saving")).toBeDefined();
+    expect(await pane.find({ key: "new-app-name" })).toBeUndefined();
+    await pane.press({ key: "resume-saving" });
+    for (let i = 0; i < 15; i++) await pane.redraw();
+    expect(spawned).toEqual([]);
+    await pane.unmount();
+  });
+
+  for (const repository of ["unborn", "history"] as const) {
+    test(`a pending ${repository} attempt before creation can change its name and connected account`, async ($, on) => {
+      let account = "ada";
+      const head = "d".repeat(40);
+      harness(on, { code: "not-set-up", message: "Saving was interrupted" }, false, {
+        doctor: () =>
+          out([
+            { id: "github", label: "GitHub account", status: "ok", detail: `@${account}` },
+            {
+              id: "new-app",
+              label: "New app",
+              status: "info",
+              detail: "ada/first-name",
+              newApp: { name: "first-name", account: "ada", locked: false },
+            },
+            localAppCheck({
+              contents: "supported",
+              repository,
+              appType: "vite-spa",
+              ...(repository === "history" ? { head } : {}),
+            }),
+          ]),
+      });
+      const spawned: string[][] = [];
+      on("process.spawn", async function* (_$: unknown, e: { argv: readonly string[] }) {
+        spawned.push(e.argv.slice(2));
+        yield {
+          stream: "stdout" as const,
+          text: out({ code: "offline", message: "Try again." }, false).stdout,
+        };
+        return { value: { code: 1, signal: null } };
+      });
+      await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+      await $.tool.call({ tool: "mcp__clodable__open_panel", view: "saving" } as never);
+      const pane = await $.ui.mount(PANE_PROPS);
+      expect(await waitForControl(pane, "new-app-name")).toBeDefined();
+      expect(await pane.find({ key: "resume-saving" })).toBeUndefined();
+      await $.ui.input({
+        plugin: "clodable",
+        key: "new-app-name",
+        kind: "change",
+        text: "new-bookshop",
+      });
+      account = "grace";
+      await $.command.run({ command: "clodable", args: "" } as never);
+      for (let i = 0; i < 60 && !(await shows(pane, /Save to @grace/)); i++) await pane.redraw();
+      expect(await shows(pane, /Save to @grace/)).toBeDefined();
+      expect(await shows(pane, /Save to @ada/)).toBeUndefined();
+      expect(await waitForControl(pane, "new-app-name")).toMatchObject({
+        props: { value: "new-bookshop" },
+      });
+      await $.ui.input({
+        plugin: "clodable",
+        key: "new-app-name",
+        kind: "submit",
+        text: "new-bookshop",
+      });
+      expect(await waitForControl(pane, "create-private-app")).toMatchObject({
+        text:
+          repository === "history" ? "Create private app and keep versions" : "Create private app",
+      });
+      expect(spawned).toEqual([]);
+      await pane.press({ key: "create-private-app" });
+      for (let i = 0; i < 60 && !spawned.length; i++) await pane.redraw();
+      expect(spawned[0]).toEqual([
+        "setup",
+        "--new",
+        "new-bookshop",
+        "--account",
+        "grace",
+        ...(repository === "history" ? ["--adopt-history", head] : []),
+        "--yes",
+        "--json",
+      ]);
+      await pane.unmount();
+    });
+  }
+
+  test("a consent form drawn in another folder cannot create an app after Desktop moves", async ($, on) => {
+    let folder = CWD;
+    harness(
+      on,
+      { code: "not-a-repo", message: "Local app" },
+      false,
+      {
+        doctor: out([
+          localAppCheck({ contents: "supported", repository: "none", appType: "vite-spa" }),
+        ]),
+      },
+      undefined,
+      () => folder,
+    );
+    const spawned: string[][] = [];
+    on("process.spawn", async function* (_$: unknown, e: { argv: readonly string[] }) {
+      spawned.push(e.argv.slice(2));
+      yield { stream: "stdout" as const, text: out({}).stdout };
+      return { value: { code: 0, signal: null } };
+    });
+    await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+    await $.tool.call({ tool: "mcp__clodable__open_panel", view: "saving" } as never);
+    const pane = await $.ui.mount(PANE_PROPS);
+    expect(await waitForControl(pane, "new-app-name")).toBeDefined();
+    await $.ui.input({
+      plugin: "clodable",
+      key: "new-app-name",
+      kind: "submit",
+      text: "old-choice",
+    });
+    expect(await waitForControl(pane, "create-private-app")).toBeDefined();
+    folder = "/work/different-app";
+    await pane.press({ key: "create-private-app" });
+    for (let i = 0; i < 30; i++) await pane.redraw();
+    expect(spawned).toEqual([]);
+    await pane.unmount();
+  });
+
+  test("an empty worktree with saved history does not offer import over those versions", async ($, on) => {
+    harness(on, { code: "not-set-up", message: "Local folder" }, false, {
+      doctor: out([
+        localAppCheck({ contents: "empty", repository: "history", head: "c".repeat(40) }),
+      ]),
+    });
+    await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+    await $.command.run({ command: "clodable", args: "" } as never);
+    const pane = await $.ui.mount(PANE_PROPS);
+    for (let i = 0; i < 30; i++) await pane.redraw();
+    expect(await pane.find({ key: "choose-import" })).toBeUndefined();
+    expect(await pane.find({ key: "repo-name" })).toBeUndefined();
+    expect(await pane.find({ key: "new-app-name" })).toBeUndefined();
     await pane.unmount();
   });
 });
