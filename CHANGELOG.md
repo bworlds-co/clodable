@@ -8,6 +8,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.4.3] - 2026-11-21
+
+Use the Mac’s primary language when Claude’s response language is unset, with French and English catalogs and no separate preference. [Release notes](docs/releases/0.4.3.md). ([#122](https://github.com/bworlds-co/clodable/pull/122))
+
 ## [0.4.2] - 2026-11-21
 
 Preserve existing app journeys during preparation and service moves, with clear wording and before-and-after checks. [Release notes](docs/releases/0.4.2.md). ([#125](https://github.com/bworlds-co/clodable/pull/125))
@@ -48,7 +52,8 @@ One way to move off Lovable for everyone, and the clod logo. [Release notes](doc
 
 The first tagged release. [Release notes](docs/releases/0.1.1.md).
 
-[Unreleased]: https://github.com/bworlds-co/clodable/compare/clodable--v0.4.2...HEAD
+[Unreleased]: https://github.com/bworlds-co/clodable/compare/clodable--v0.4.3...HEAD
+[0.4.3]: https://github.com/bworlds-co/clodable/compare/clodable--v0.4.2...clodable--v0.4.3
 [0.4.2]: https://github.com/bworlds-co/clodable/compare/clodable--v0.4.1...clodable--v0.4.2
 [0.4.1]: https://github.com/bworlds-co/clodable/compare/clodable--v0.4.0...clodable--v0.4.1
 [0.4.0]: https://github.com/bworlds-co/clodable/compare/clodable--v0.3.1...clodable--v0.4.0
