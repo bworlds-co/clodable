@@ -106,6 +106,7 @@ export {
   planKit,
   previewCommand,
 } from "./kit/index.js";
+export { inspectLocalApp, type LocalApp, localAppForSaving } from "./local-app.js";
 export { forgetSecret, readSecret, storeSecret } from "./local-secrets.js";
 export {
   connectSupabase,
