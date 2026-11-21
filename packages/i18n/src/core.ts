@@ -1,6 +1,10 @@
 export const core = {
   "Checking your existing versions before saving":
     "Vérification des versions existantes avant l’enregistrement",
+  "Couldn't preserve your app before preparing it.":
+    "Impossible de préserver votre application avant de la préparer.",
+  "Your app has not been converted. Fix the local backup problem, then try again.":
+    "Votre application n’a pas été convertie. Résolvez le problème de copie locale, puis réessayez.",
   "Saving setup is already running for this folder.":
     "La configuration de l’enregistrement est déjà en cours pour ce dossier.",
   "Wait for it to finish, then try again.": "Attendez qu’elle se termine, puis réessayez.",

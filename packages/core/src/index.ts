@@ -248,6 +248,7 @@ export {
   type SiteOnlineOutcome,
   siteChoices,
 } from "./online.js";
+export { backupOriginal, type PreparationBackup } from "./preparation-backup.js";
 export {
   type AppType,
   detectPackageManager,
