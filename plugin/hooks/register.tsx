@@ -5,11 +5,13 @@
 // vendor-neutral `clodable` CLI, bundled next to this plugin in cli/clodable.mjs, which prints
 // NDJSON events. Any other front end can drive the same commands.
 import type {
+  BoxProps,
   Elements,
   EngineInterface,
   Register,
   RenderChildren,
   RenderElement,
+  TextProps,
 } from "claude-code";
 import { atom, read, update } from "claude-code";
 import type {
@@ -113,6 +115,8 @@ const PANE = "clodable";
 const PANE_VIEWS = ["app", "history", "settings", "site", "backend", "move", "saving"] as const;
 type PaneView = (typeof PANE_VIEWS)[number];
 let paneView: PaneView | null = null;
+/** Older engines reject named spacing and typography props, rather than ignoring them. */
+let styledPanels = false;
 let showAssessment = false;
 let showMoveProgress = false;
 let inspectingApp = false;
@@ -1701,6 +1705,17 @@ function handleRequest($: EngineInterface, item: ClodableRequest) {
 export const register: Register = (on) => {
   on("session.start", async ($, e, next) => {
     cwd = e.cwd || (await $.session.cwd());
+    const version = await $.session.version().catch(() => null);
+    const parts = version?.version
+      .match(/^(\d+)\.(\d+)\.(\d+)/)
+      ?.slice(1)
+      .map(Number);
+    styledPanels = Boolean(
+      parts &&
+        (parts[0]! > 2 ||
+          (parts[0] === 2 && (parts[1]! > 1 || (parts[1] === 1 && parts[2]! >= 299)))),
+    );
+
     // A conversation the person just opened is the one in front of them.
     lastActive = Date.now();
     await lookAtFolder($);
@@ -2240,6 +2255,7 @@ export const register: Register = (on) => {
     if (e.requestId !== PANE) return next(e);
     const table = $.ui.resolve(e);
     const ui: PaneUi = {
+      styled: e.surface === "desktop" && styledPanels,
       Box: table.Box,
       Text: table.Text,
       Button: heldButton(table.Button),
@@ -2260,7 +2276,7 @@ export const register: Register = (on) => {
         ) : (
           <Text color="claude">●</Text>
         )}
-        <Text bold>{s?.ready ? s.project : "Clodable"}</Text>
+        <Text {...headingStyle(ui, "title")}>{s?.ready ? s.project : "Clodable"}</Text>
       </Box>
     );
 
@@ -2309,7 +2325,7 @@ export const register: Register = (on) => {
     if (view === "history") {
       if (versions === null) background(refreshVersions($));
       return (
-        <Box flexDirection="column" rowGap={2} paddingX={2} paddingY={1}>
+        <Box flexDirection="column" {...panelSpacing(ui)}>
           {heading}
           {confirming?.kind === "undo" ||
           a.kind === "publishing" ||
@@ -2328,7 +2344,7 @@ export const register: Register = (on) => {
     }
     if (view === "settings") {
       return (
-        <Box flexDirection="column" rowGap={2} paddingX={2} paddingY={1}>
+        <Box flexDirection="column" {...panelSpacing(ui)}>
           {heading}
           {url ? siteLink(ui, url) : null}
           {setupFacts($, ui, s)}
@@ -2362,7 +2378,7 @@ export const register: Register = (on) => {
     if (view === "site" || view === "backend") {
       const unknown = s[view === "site" ? "hosting" : "backend"] === "unknown";
       return (
-        <Box flexDirection="column" rowGap={2} paddingX={2} paddingY={1}>
+        <Box flexDirection="column" {...panelSpacing(ui)}>
           {heading}
           {provisioning ? <Text bold>{provisioning.title}</Text> : null}
           {provisionProblem?.kind === view ? (
@@ -2429,7 +2445,7 @@ export const register: Register = (on) => {
         (name) => !(appSettingsStatus?.local ?? []).includes(name),
       ) ?? [];
     return (
-      <Box flexDirection="column" rowGap={2} paddingX={2} paddingY={1}>
+      <Box flexDirection="column" {...panelSpacing(ui)}>
         <Box flexDirection="column" rowGap={1} alignItems="flex-start">
           {heading}
           {url ? siteLink(ui, url) : null}
@@ -2876,12 +2892,30 @@ function barSides(
  * Code, with Input and Select where the surface has them.
  */
 type PaneUi = Pick<Elements["terminal"], "Box" | "Text" | "Button" | "Link" | "Code"> &
-  Partial<Pick<Elements["terminal"], "Input" | "Select">>;
+  Partial<Pick<Elements["terminal"], "Input" | "Select">> & {
+    styled: boolean;
+  };
+
+function headingStyle(ui: PaneUi, size: "heading" | "title" = "heading"): TextProps {
+  return ui.styled ? { size, weight: "semibold" } : { bold: true };
+}
+
+function supportingStyle(ui: PaneUi): TextProps {
+  return ui.styled ? { size: "footnote" } : {};
+}
+
+function panelSpacing(ui: PaneUi, setup = false): BoxProps {
+  return ui.styled
+    ? { rowGap: "lg", padding: "md" }
+    : setup
+      ? { rowGap: 1, paddingX: 1 }
+      : { rowGap: 2, paddingX: 2, paddingY: 1 };
+}
 
 /** A section's title in the panel. */
 function section(ui: PaneUi, title: string) {
   const { Text } = ui;
-  return <Text bold>{title}</Text>;
+  return <Text {...headingStyle(ui)}>{title}</Text>;
 }
 
 /** The app's state in one card: what's true now, and the next thing to do. */
@@ -2896,11 +2930,11 @@ function card(
   return (
     <Box
       flexDirection="column"
-      rowGap={1}
+      rowGap={ui.styled ? "md" : 1}
       borderStyle="round"
       borderColor="promptBorder"
-      paddingX={2}
-      paddingY={1}
+      paddingX={ui.styled ? "md" : 2}
+      paddingY={ui.styled ? "md" : 1}
     >
       <Box flexDirection="column" rowGap={1}>
         {title}
@@ -3019,9 +3053,11 @@ function setupPane(
   const { Box, Text, Button, Select, Input } = ui;
   if (!s) {
     return (
-      <Box flexDirection="column" rowGap={1} paddingX={1}>
+      <Box flexDirection="column" {...panelSpacing(ui, true)}>
         {header}
-        <Text dimColor>Checking your app…</Text>
+        <Text {...supportingStyle(ui)} dimColor>
+          Checking your app…
+        </Text>
       </Box>
     );
   }
@@ -3034,11 +3070,13 @@ function setupPane(
   const pendingName = doctor.find((c) => c.id === "new-app")?.detail?.split("/")[1];
   if (localPrototype && setupChoice !== "saving") {
     return (
-      <Box flexDirection="column" rowGap={1} paddingX={1}>
+      <Box flexDirection="column" {...panelSpacing(ui, true)}>
         {header}
-        <Text bold>Your local app</Text>
+        <Text {...headingStyle(ui)}>Your local app</Text>
         <Text>Keep shaping your local app with Claude.</Text>
-        <Text dimColor>Your files are on this computer. Clodable isn't saving them yet.</Text>
+        <Text {...supportingStyle(ui)} dimColor>
+          Your files are on this computer. Clodable isn't saving them yet.
+        </Text>
         <Button
           key="set-up-saving"
           variant="primary"
@@ -3060,17 +3098,21 @@ function setupPane(
         >
           Set up saving
         </Button>
-        <Text dimColor>Choose your GitHub account next. Nothing goes live until you publish.</Text>
+        <Text {...supportingStyle(ui)} dimColor>
+          Choose your GitHub account next. Nothing goes live until you publish.
+        </Text>
       </Box>
     );
   }
   if (s?.reason === "not-a-repo" && emptyFolder && setupChoice !== "import") {
     return (
-      <Box flexDirection="column" rowGap={1} paddingX={1}>
+      <Box flexDirection="column" {...panelSpacing(ui, true)}>
         {header}
-        <Text bold>What would you like to make?</Text>
+        <Text {...headingStyle(ui)}>What would you like to make?</Text>
         <Text>Describe your idea to Claude in the conversation.</Text>
-        <Text dimColor>Try a first version on this computer. Set up saving when you're ready.</Text>
+        <Text {...supportingStyle(ui)} dimColor>
+          Try a first version on this computer. Set up saving when you're ready.
+        </Text>
         <Button
           key="choose-import"
           variant="secondary"
@@ -3087,7 +3129,7 @@ function setupPane(
     );
   }
   return (
-    <Box flexDirection="column" rowGap={1} paddingX={1}>
+    <Box flexDirection="column" {...panelSpacing(ui, true)}>
       {header}
       <Text>
         {setupChoice === "saving"
@@ -3098,7 +3140,9 @@ function setupPane(
       </Text>
       {section(ui, setupChoice === "saving" ? "1 · Your account" : "1 · Tools")}
       {fetchingNode ? (
-        <Text dimColor>Getting Node.js ready for your app: about a minute, once.</Text>
+        <Text {...supportingStyle(ui)} dimColor>
+          Getting Node.js ready for your app: about a minute, once.
+        </Text>
       ) : tools.length === 0 && (checksFailed || s?.reason === "unknown") ? (
         <Box flexDirection="column" rowGap={1}>
           <Text color="error">
@@ -3109,7 +3153,9 @@ function setupPane(
           </Button>
         </Box>
       ) : tools.length === 0 ? (
-        <Text dimColor>Checking…</Text>
+        <Text {...supportingStyle(ui)} dimColor>
+          Checking…
+        </Text>
       ) : null}
       {tools
         .filter((c) => setupChoice !== "saving" || c.id === "github" || c.status !== "ok")
@@ -3135,16 +3181,21 @@ function setupPane(
                 </Button>
               </Box>
             ) : c.status !== "ok" && c.fix ? (
-              <Text dimColor> {c.fix}</Text>
+              <Text {...supportingStyle(ui)} dimColor>
+                {" "}
+                {c.fix}
+              </Text>
             ) : null}
           </Box>
         ))}
       {github && github.status !== "ok" ? connectGitHubSteps($, ui) : null}
       {section(ui, "2 · Your app")}
       {setupChoice === "saving" && tools.length === 0 ? (
-        <Text dimColor>Checking your GitHub account before creating anything…</Text>
+        <Text {...supportingStyle(ui)} dimColor>
+          Checking your GitHub account before creating anything…
+        </Text>
       ) : blocking.length > 0 ? (
-        <Text dimColor>
+        <Text {...supportingStyle(ui)} dimColor>
           {setupChoice === "saving"
             ? "Once your GitHub account is connected, you name your app here."
             : "Once the tools above are ready, pick your app here."}
@@ -3152,7 +3203,7 @@ function setupPane(
       ) : setupChoice === "saving" && localPrototype ? (
         <Box flexDirection="column" rowGap={1}>
           <Text>Save to {github?.detail ?? "your GitHub account"} · Private</Text>
-          <Text dimColor>
+          <Text {...supportingStyle(ui)} dimColor>
             Clodable creates a private app in this account and saves your files there. Only you and
             people you give access can see the code. This doesn't put your site online.
           </Text>
@@ -3208,7 +3259,7 @@ function setupPane(
       ) : s?.reason === "not-a-repo" && !emptyFolder ? (
         <Box flexDirection="column" rowGap={1}>
           <Text>Your files are on this computer. Clodable isn't saving them yet.</Text>
-          <Text dimColor>
+          <Text {...supportingStyle(ui)} dimColor>
             Clodable currently needs an app on GitHub to save and publish. You can keep shaping this
             local version with Claude. To bring in an app from GitHub, open an empty folder and type
             /clodable there.
@@ -3256,9 +3307,11 @@ function setupPane(
           )}
         </Box>
       ) : (
-        <Text dimColor>Open Clodable in Claude Desktop or the terminal to pick your app.</Text>
+        <Text {...supportingStyle(ui)} dimColor>
+          Open Clodable in Claude Desktop or the terminal to pick your app.
+        </Text>
       )}
-      <Text dimColor>
+      <Text {...supportingStyle(ui)} dimColor>
         {setupChoice === "saving"
           ? "Publishing stays a separate choice. You can set up hosting after saving."
           : s?.reason === "no-kit"
@@ -3298,7 +3351,7 @@ function stateCard(
   if (confirming?.kind === "undo" && a.kind !== "publishing" && a.kind !== "undoing") {
     return card(
       ui,
-      <Text bold>Undo “{confirming.title}”?</Text>,
+      <Text {...headingStyle(ui)}>Undo “{confirming.title}”?</Text>,
       <Text dimColor>{UNDO_MEANS}</Text>,
       undoAnswers($, ui),
     );
@@ -3306,7 +3359,7 @@ function stateCard(
   if (a.kind === "publishing" || a.kind === "undoing") {
     return card(
       ui,
-      <Text bold>{a.kind === "publishing" ? "Publishing…" : "Undoing…"}</Text>,
+      <Text {...headingStyle(ui)}>{a.kind === "publishing" ? "Publishing…" : "Undoing…"}</Text>,
       <Text dimColor>
         {s.site?.statusKnown === false
           ? "Checking your app before putting these changes online."
@@ -3321,7 +3374,7 @@ function stateCard(
   if (s.pendingPublish && (a.kind !== "failed" || a.error?.code === "deploy-failed")) {
     return card(
       ui,
-      <Text bold>
+      <Text {...headingStyle(ui)}>
         {s.pendingPublish.state === "failed"
           ? "Your latest publish didn't go live"
           : "Your latest publish isn't confirmed live"}
@@ -3349,7 +3402,7 @@ function stateCard(
     const error = a.error;
     return card(
       ui,
-      <Text color="error" bold>
+      <Text {...headingStyle(ui)} color="error">
         {stoppedTitle(error.code)}
       </Text>,
       <Text>{error.message}</Text>,
@@ -3380,7 +3433,7 @@ function stateCard(
   if (justDone(a, now) && a.noHost) {
     return card(
       ui,
-      <Text bold>Published on GitHub</Text>,
+      <Text {...headingStyle(ui)}>Published on GitHub</Text>,
       <Text dimColor>
         Clodable didn't see a host put it on the web. If your site didn't change, Clodable can put
         it online on your own Netlify.
@@ -3398,7 +3451,7 @@ function stateCard(
   if (justDone(a, now)) {
     return card(
       ui,
-      <Text color="success" bold>
+      <Text {...headingStyle(ui)} color="success">
         {doneTitle(a.kind, Boolean(a.onLovable))}
       </Text>,
       a.onLovable ? (
@@ -3434,7 +3487,7 @@ function stateCard(
   if (s.unpublished.length > 0) {
     return card(
       ui,
-      <Text bold>{plural(s.unpublished.length, "change")} not live yet</Text>,
+      <Text {...headingStyle(ui)}>{plural(s.unpublished.length, "change")} not live yet</Text>,
       <Text dimColor>
         {s.lastPublish
           ? `Visitors still see the version you published ${ago(s.lastPublish.at, now)}.`
@@ -3453,7 +3506,7 @@ function stateCard(
   if (s.lastPublish?.noHost && !s.site && s.hosting !== "none") {
     return card(
       ui,
-      <Text bold>Published on GitHub</Text>,
+      <Text {...headingStyle(ui)}>Published on GitHub</Text>,
       <Text dimColor>
         {`Published ${ago(s.lastPublish.at, now)}, but Clodable didn't see a host put it on the web. If your site didn't change, Clodable can put it online.`}
       </Text>,
@@ -3466,7 +3519,7 @@ function stateCard(
   }
   return card(
     ui,
-    <Text bold>
+    <Text {...headingStyle(ui)}>
       {s.hosting === "lovable"
         ? "Everything is published"
         : siteIsLive(s)
@@ -6071,12 +6124,24 @@ async function connectGitHub($: EngineInterface) {
 function connectGitHubSteps($: EngineInterface, ui: PaneUi) {
   const { Box, Text, Button, Link } = ui;
   const s = gitHubSignIn;
-  if (s?.step === "asking") return <Text dimColor>Asking GitHub for a code…</Text>;
+  if (s?.step === "asking")
+    return (
+      <Text {...supportingStyle(ui)} dimColor>
+        Asking GitHub for a code…
+      </Text>
+    );
   if (s?.step === "code")
     return (
-      <Box flexDirection="column" rowGap={1}>
+      <Box flexDirection="column" rowGap={ui.styled ? "sm" : 1}>
         <Text>
-          Your code: <Text bold>{s.code}</Text>
+          Your code:{" "}
+          <Text
+            {...(ui.styled
+              ? { size: "heading", weight: "semibold", mono: true, tabular: true }
+              : { bold: true })}
+          >
+            {s.code}
+          </Text>
           {s.copied ? " · copied" : ""}
         </Text>
         {numbered(ui, [
@@ -6093,11 +6158,11 @@ function connectGitHubSteps($: EngineInterface, ui: PaneUi) {
       </Box>
     );
   return (
-    <Box flexDirection="column" rowGap={1}>
+    <Box flexDirection="column" rowGap={ui.styled ? "sm" : 1}>
       {s?.step === "failed" ? (
         <Text color="error">GitHub didn't connect. The code may have run out: try again.</Text>
       ) : (
-        <Text dimColor>
+        <Text {...supportingStyle(ui)} dimColor>
           Clodable keeps your app in your own GitHub account, private. Connect it once.
         </Text>
       )}
