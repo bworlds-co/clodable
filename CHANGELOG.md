@@ -8,6 +8,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-11-21
+
+Prepare existing local apps before saving, preserve verified originals, keep approved local versions, and explain migration choices in plain language. [Release notes](docs/releases/0.4.1.md). ([#121](https://github.com/bworlds-co/clodable/issues/121))
+
 ## [0.4.0] - 2026-11-21
 
 French controls that follow Claude’s language, usable-Git checks before saving, tool preparation that retries, and clearer GitHub connection recovery. [Release notes](docs/releases/0.4.0.md). ([#119](https://github.com/bworlds-co/clodable/pull/119))
@@ -40,7 +44,8 @@ One way to move off Lovable for everyone, and the clod logo. [Release notes](doc
 
 The first tagged release. [Release notes](docs/releases/0.1.1.md).
 
-[Unreleased]: https://github.com/bworlds-co/clodable/compare/clodable--v0.4.0...HEAD
+[Unreleased]: https://github.com/bworlds-co/clodable/compare/clodable--v0.4.1...HEAD
+[0.4.1]: https://github.com/bworlds-co/clodable/compare/clodable--v0.4.0...clodable--v0.4.1
 [0.4.0]: https://github.com/bworlds-co/clodable/compare/clodable--v0.3.1...clodable--v0.4.0
 [0.3.1]: https://github.com/bworlds-co/clodable/compare/clodable--v0.3.0...clodable--v0.3.1
 [0.3.0]: https://github.com/bworlds-co/clodable/compare/clodable--v0.2.2...clodable--v0.3.0

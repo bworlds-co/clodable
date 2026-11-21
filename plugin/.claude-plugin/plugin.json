@@ -1,6 +1,6 @@
 {
   "name": "clodable",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "The AI app builder you own. Saves every change to your draft on GitHub, publishes in one click, keeps your live data safe.",
   "author": {
     "name": "The Clodable authors",
