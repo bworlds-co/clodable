@@ -38,7 +38,9 @@ The guiding rule is **judgment in Claude, mechanics in the CLI** ([DECISIONS](DE
 
 ## Language
 
-Clodable follows Claude Code's effective `language` setting. The mod reads it through `$.settings.read({ key: "language" })`; French names and regional codes select `fr`, and unset or unsupported languages select `en`. There is no Clodable language preference. The language of the Builder's app is independent.
+Clodable follows Claude Code's effective `language` setting, read through `$.settings.read({ key: "language" })`. When it is missing or blank, Clodable uses the Mac's primary language. French names and regional codes select `fr`; unsupported languages select `en`, including an explicit Claude setting on a French Mac. There is no Clodable language preference, and Clodable does not write Claude's response-language setting. The language of the Builder's app is independent.
+
+The system fallback runs only in local macOS sessions. It reads the first [AppleLanguages](https://developer.apple.com/library/archive/documentation/Cocoa/Conceptual/UserDefaults/AboutPreferenceDomains/AboutPreferenceDomains.html) entry with `/usr/bin/defaults read -g AppleLanguages`, with a two-second timeout. This avoids relying on a Dock-launched app's `LANG` or Node locale. Without a Claude setting, non-Mac and hosted sessions, unavailable preferences, and failed reads use English. Each language refresh rereads the preference; a pending system read cannot replace a newer selection.
 
 `packages/i18n` owns the English source messages, French catalogs, placeholder formatting, and language resolution. Catalogs are split by surface so the preview only bundles its own copy. `pnpm sync:i18n` copies the mod's catalog and runtime into `plugin/i18n`, because installed plugins cannot import repository packages. Build and plugin checks refresh that copy.
 
