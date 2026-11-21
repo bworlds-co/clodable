@@ -56,6 +56,14 @@ skill handoff, so natural preparation requests take the same route while ordinar
 edits retain their scope. The skill owns the procedure. The CLI owns inspection,
 verified backups, saving state and enforcement.
 
+Preparation compares the original application’s observed journeys with the adapted
+preview, including validation, persistence and navigation. A build and support
+check cannot establish preservation. The skill keeps failed or blocked comparisons
+explicit and does not declare preparation complete until the agreed checks pass.
+An already supported app still needs those checks when an adaptation is resumed.
+For service moves, journey results use the existing dated rehearsal record; an
+optional skipped service is an explicitly accepted capability loss, not a passed check.
+
 ## Language
 
 Clodable follows Claude Code's effective `language` setting. The mod reads it through `$.settings.read({ key: "language" })`; French names and regional codes select `fr`, and unset or unsupported languages select `en`. There is no Clodable language preference. The language of the Builder's app is independent.

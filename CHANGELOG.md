@@ -8,6 +8,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-11-21
+
+Preserve existing app journeys during preparation and service moves, with clear wording and before-and-after checks. [Release notes](docs/releases/0.4.2.md). ([#125](https://github.com/bworlds-co/clodable/pull/125))
+
 ## [0.4.1] - 2026-11-21
 
 Prepare existing local apps before saving, preserve verified originals, keep approved local versions, and explain migration choices in plain language. [Release notes](docs/releases/0.4.1.md). ([#124](https://github.com/bworlds-co/clodable/pull/124))
@@ -44,7 +48,8 @@ One way to move off Lovable for everyone, and the clod logo. [Release notes](doc
 
 The first tagged release. [Release notes](docs/releases/0.1.1.md).
 
-[Unreleased]: https://github.com/bworlds-co/clodable/compare/clodable--v0.4.1...HEAD
+[Unreleased]: https://github.com/bworlds-co/clodable/compare/clodable--v0.4.2...HEAD
+[0.4.2]: https://github.com/bworlds-co/clodable/compare/clodable--v0.4.1...clodable--v0.4.2
 [0.4.1]: https://github.com/bworlds-co/clodable/compare/clodable--v0.4.0...clodable--v0.4.1
 [0.4.0]: https://github.com/bworlds-co/clodable/compare/clodable--v0.3.1...clodable--v0.4.0
 [0.3.1]: https://github.com/bworlds-co/clodable/compare/clodable--v0.3.0...clodable--v0.3.1

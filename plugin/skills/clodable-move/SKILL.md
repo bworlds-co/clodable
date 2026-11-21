@@ -12,6 +12,12 @@ The builder may press a step in the Clodable panel or ask naturally in the conve
 
 Their live app keeps running on Lovable until the switch: everything before it builds a **working copy** on their own Supabase. The switch (below) moves the live app over.
 
+## Preserve the existing application
+
+Explain the move as preserving the app's appearance, features and data while changing the services behind it. Moving consent does not authorize removing features. Before any optional skip, name the affected user journey and the capability that will stop; only the builder's explicit choice accepts that loss. Do not present a skipped service as a successful migration check.
+
+When checking the working copy, identify existing journeys from the app's code, recorded facts and available original evidence. Compare the same actions and expected results on the copy: navigation, sign-in, forms and validation, persistence after reload, uploads, messages and other used services. Exercise writes only on isolated test data in the copy; never send real messages, charge payments or change live data just to test. Record passed, failed or blocked results with the rehearsal commands below. Keep inferred expectations separate from observed behavior. Missing original evidence or unavailable services remain explicit limits. Fix regressions and replay affected journeys. Before recommending the switch, state any failures, blocked checks or explicitly accepted feature loss; a successful transfer or a choice to move in one go does not prove that existing journeys still work.
+
 ## Running a step
 
 - Run the exact command Clodable gives you for the step with Bash. It's Clodable's own command line, `node "…/cli/clodable.mjs" move <step>`. Don't add `cd …&&`, pipes or redirections: the exact command runs without a permission prompt.
@@ -183,22 +189,7 @@ When their message says "I've finished in Lovable", the move is over and they ch
 
 Never run `move paused` or `move finished` yourself: they record what the builder did in Lovable, and they press them in the panel. Server code that writes with the service key (a payment webhook, say) isn't paused: if the app has some, say so before the pause.
 
-## Known issues
-
-| What they see | Why | Way forward |
-|---|---|---|
-| Pages empty on the copy; the API says "Could not find the table … in the schema cache" | The copy runs with database hooks off, so the API's list of tables wasn't refreshed | `move diagnose --fix` |
-| Sign-up says "Check your email", then nothing works | New Supabase projects want email confirmation, and their links go to `localhost:3000` | `move diagnose --fix` (lets the preview sign people in) |
-| "2 free projects running, the most it allows" | Supabase counts free projects per person, across all their organizations | Pause one in Supabase (Project settings → Pause project), or pick an organization on a paid plan (about $10 a month) |
-| Lovable says the database is too large to export | Lovable refused this export; the actual size and cause have not been checked | The builder resolves the export with Lovable before copying can continue |
-| The export has 0 people | This export contains no people; that alone does not explain why | Compare its date and the expected sign-ins with the builder before accepting it or requesting another export |
-| `role "sandbox_exec" does not exist` among the copy's notes | A role of Lovable's own | Harmless |
-| Private files waiting | Reading them needs Lovable Cloud's service key | The panel explains how to get it and takes it |
-| A feature is empty on the copy (a greeting, AI summaries) | Its server code reads `process.env.X`: those values live in the host's settings, not in Supabase | They paste each value in the panel once the site is on Netlify |
-| "That export was made before the pause" | The zip in Downloads is the old one, or the pause SQL didn't run | Check the pause ran in Lovable (its SQL editor says so), export again, download the new zip |
-| Domain stays "waiting for its records" | DNS not there yet, or entered differently | Compare each record at their provider with the panel's; give it an hour |
-| AI features | They call Lovable's AI (`ai.gateway.lovable.dev`, `LOVABLE_API_KEY`) | The services step: their own provider's key, then you point the code at it |
-| Sign-ups fail during the pause with "This app is moving to a new home" | The pause's guard, on purpose | It goes with the final copy (never copied); undo it in Lovable only if they're not switching after all |
+For a concrete copy or service failure, read [copy troubleshooting](references/copy-troubleshooting.md) for the matching symptom and recovery.
 
 ## Not automated yet
 
