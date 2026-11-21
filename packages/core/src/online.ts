@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { type ProjectConfig, saveConfig } from "./config.js";
 import { ClodableError } from "./errors.js";
 import { type Flow, step } from "./events.js";
+import { tr } from "./i18n.js";
 import { applyKit, planKit } from "./kit/index.js";
 import { readSecret, storeSecret } from "./local-secrets.js";
 import { costOf, type HomeChoices, homeChoices, type OrganizationChoice } from "./move/account.js";
@@ -94,7 +95,7 @@ export async function reconnectSite(ws: Workspace): Promise<{ reconnected: true;
   if (!known) {
     throw new ClodableError({
       code: "not-set-up",
-      message: "This app has no Netlify site to reconnect.",
+      message: tr("This app has no Netlify site to reconnect."),
     });
   }
   const api = await NetlifyApi.required();
@@ -103,7 +104,7 @@ export async function reconnectSite(ws: Workspace): Promise<{ reconnected: true;
   if (site.id !== known.siteId || site.account_slug !== known.account) {
     throw new ClodableError({
       code: "netlify-auth",
-      message: "This connection doesn't match your app's hosting account.",
+      message: tr("This connection doesn't match your app's hosting account."),
     });
   }
   await ws.github.setSecret("NETLIFY_AUTH_TOKEN", (await readSecret(NETLIFY_TOKEN))!);
@@ -124,14 +125,14 @@ export async function* putSiteOnline(
   if (move.site || move.home) {
     throw new ClodableError({
       code: "already-there",
-      message: "Your move off Lovable puts your site on Netlify.",
-      hint: "Go on with the move: its website step does this, pointed at your new backend.",
+      message: tr("Your move off Lovable puts your site on Netlify."),
+      hint: tr("Go on with the move: its website step does this, pointed at your new backend."),
     });
   }
   const netlify = await NetlifyApi.required();
   const token = (await readSecret(NETLIFY_TOKEN))!;
 
-  yield step("site", "running", "Setting up hosting", "Creating your site on Netlify");
+  yield step("site", "running", tr("Setting up hosting"), tr("Creating your site on Netlify"));
   const known = ws.config.netlify ? await netlify.site(ws.config.netlify.siteId) : undefined;
   const site = known ?? (await createNetlifySite(netlify, ws.project.name, options.team));
   const url = siteUrl(site);
@@ -147,7 +148,7 @@ export async function* putSiteOnline(
     netlify: { siteId: site.id, ...online },
   });
 
-  yield step("site", "running", "Setting up hosting", "Giving it your app's settings");
+  yield step("site", "running", tr("Setting up hosting"), tr("Giving it your app's settings"));
   const backend = await ownBackend(ws.config);
   const carried = await setSiteEnv(netlify, site, ws.root, backend?.keys);
   if (carried.length > 0) {
@@ -159,7 +160,7 @@ export async function* putSiteOnline(
   // Sign-in links in emails come back to the site.
   if (backend) await liveSignIn(backend.api, backend.keys.ref, url);
 
-  yield step("site", "running", "Setting up hosting", "Setting up Publish");
+  yield step("site", "running", tr("Setting up hosting"), tr("Setting up Publish"));
   const files = await setUpPublish(ws, site, token);
   const config: ProjectConfig = {
     ...ws.config,
@@ -170,7 +171,12 @@ export async function* putSiteOnline(
   await saveConfig(ws.root, config);
   await applyKit(ws.root, await planKit(await detectProject(ws.root), config));
   const settings = await siteSettingsOf(netlify, site.account_slug, site.id, ws.root);
-  yield step("site", "done", "Your site is ready", `Publish to put it online at ${url}`);
+  yield step(
+    "site",
+    "done",
+    tr("Your site is ready"),
+    tr("Publish to put it online at {0}", { "0": url }),
+  );
   return { site: online, files, settings };
 }
 
@@ -214,19 +220,21 @@ export async function* createBackend(
   if (ws.config.backend === "lovable-cloud") {
     throw new ClodableError({
       code: "already-there",
-      message: "Your app's data is on Lovable Cloud.",
-      hint: "Moving off Lovable gives your app its own Supabase, with your data and your people.",
+      message: tr("Your app's data is on Lovable Cloud."),
+      hint: tr(
+        "Moving off Lovable gives your app its own Supabase, with your data and your people.",
+      ),
     });
   }
   if (ws.config.backend === "supabase" && ws.config.supabase.projectRef) {
     throw new ClodableError({
       code: "already-there",
-      message: "Your app already has its own backend on Supabase.",
+      message: tr("Your app already has its own backend on Supabase."),
     });
   }
   const api = await SupabaseApi.required();
 
-  yield step("backend", "running", "Creating your backend");
+  yield step("backend", "running", tr("Creating your backend"));
   // An earlier run made the project, then stopped: carry on with it.
   const earlier = ws.config.supabase.projectRef;
   const started = earlier ? await api.project(earlier) : undefined;
@@ -239,8 +247,11 @@ export async function* createBackend(
     if (org.plan === "free" && org.freeLeft === 0) {
       throw new ClodableError({
         code: "supabase-limit",
-        message: "Your Supabase account already runs its 2 free projects.",
-        hint: `Pause one in Supabase (${freeProjects.map((p) => p.name).join(", ")}), or pick an organization on a paid plan, then try again.`,
+        message: tr("Your Supabase account already runs its 2 free projects."),
+        hint: tr(
+          "Pause one in Supabase ({0}), or pick an organization on a paid plan, then try again.",
+          { "0": freeProjects.map((p) => p.name).join(", ") },
+        ),
       });
     }
     const region =
@@ -248,8 +259,8 @@ export async function* createBackend(
     if (!region) {
       throw new ClodableError({
         code: "needs-choice",
-        message: "Which part of the world should your backend run in?",
-        hint: "Pick the region closest to the people who use your app.",
+        message: tr("Which part of the world should your backend run in?"),
+        hint: tr("Pick the region closest to the people who use your app."),
       });
     }
     const password = newPassword();
@@ -267,11 +278,16 @@ export async function* createBackend(
       supabase: { ...ws.config.supabase, projectRef: ref },
     });
   }
-  yield step("backend", "running", "Creating your backend", "Starting it up: about 2 minutes");
+  yield step(
+    "backend",
+    "running",
+    tr("Creating your backend"),
+    tr("Starting it up: about 2 minutes"),
+  );
   await waitUntilUp(api, ref);
   const project = await api.project(ref);
 
-  yield step("backend", "running", "Creating your backend", "Connecting your app to it");
+  yield step("backend", "running", tr("Creating your backend"), tr("Connecting your app to it"));
   const backend = backendOf(ref, await homeKeys(api, ref));
   const files: string[] = [];
   // The public address and key: Lovable's templates read them from .env, which goes to GitHub.
@@ -310,7 +326,7 @@ export async function* createBackend(
   };
   await saveConfig(ws.root, config);
   await applyKit(ws.root, await planKit(await detectProject(ws.root), config));
-  yield step("backend", "done", "Your backend is ready", project.name);
+  yield step("backend", "done", tr("Your backend is ready"), project.name);
   return {
     ref,
     name: project.name,
@@ -328,8 +344,10 @@ function pickOrganization(organizations: OrganizationChoice[], slug: string | un
   if (!org) {
     throw new ClodableError({
       code: "needs-choice",
-      message: "Which Supabase organization should your backend go in?",
-      hint: `Pick one: ${organizations.map((o) => `${o.name} (${costOf(o)})`).join(", ")}.`,
+      message: tr("Which Supabase organization should your backend go in?"),
+      hint: tr("Pick one: {0}.", {
+        "0": organizations.map((o) => `${o.name} (${costOf(o)})`).join(", "),
+      }),
     });
   }
   return org;

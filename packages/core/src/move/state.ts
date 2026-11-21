@@ -5,6 +5,7 @@ import { basename, join } from "node:path";
 import { configDir, writeJsonFile } from "../places.js";
 import type { ExportSummary } from "./export.js";
 import type { RecordedFacts } from "./facts.js";
+import type { CheckMessage } from "./messages.js";
 import type { RehearsalObservation } from "./rehearsal.js";
 
 /**
@@ -150,7 +151,9 @@ export interface MoveCheck {
   ok: boolean;
   /** In the builder's words: "57 people can sign in". */
   label: string;
+  labelMessage?: CheckMessage;
   detail?: string;
+  detailMessage?: CheckMessage;
 }
 
 export async function loadMove(root: string): Promise<MoveState> {

@@ -1,6 +1,7 @@
 import { promises as dns } from "node:dns";
 import { saveConfig } from "../config.js";
 import { ClodableError } from "../errors.js";
+import { tr } from "../i18n.js";
 import type { Workspace } from "../workspace.js";
 import { NetlifyApi } from "./netlify-api.js";
 import { liveSignIn } from "./sign-in.js";
@@ -66,16 +67,16 @@ export async function setDomain(ws: Workspace, input?: string): Promise<DomainOu
   if (!state.site || !state.switch?.liveAt) {
     throw new ClodableError({
       code: "move-not-ready",
-      message: "Go live on your new site first.",
-      hint: "Your domain moves once the app works at its Netlify address.",
+      message: tr("Go live on your new site first."),
+      hint: tr("Your domain moves once the app works at its Netlify address."),
     });
   }
   const name = clean(input ?? state.domain?.name ?? "");
   if (!isDomainName(name) || name.endsWith(".lovable.app") || name.endsWith(".netlify.app")) {
     throw new ClodableError({
       code: "invalid-config",
-      message: name ? `“${name}” isn't a domain of your own.` : "Which domain?",
-      hint: "The one your app uses, like yourapp.com or app.yourapp.com.",
+      message: name ? tr("“{0}” isn't a domain of your own.", { "0": name }) : tr("Which domain?"),
+      hint: tr("The one your app uses, like yourapp.com or app.yourapp.com."),
     });
   }
   const siteHost = new URL(state.site.url).host;

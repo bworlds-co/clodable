@@ -2,6 +2,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, relative, resolve, sep } from "node:path";
 import { exec } from "../exec.js";
+import { tr } from "../i18n.js";
 import { type GitleaksFinding, runGitleaks } from "./gitleaks.js";
 
 /**
@@ -13,7 +14,7 @@ import { type GitleaksFinding, runGitleaks } from "./gitleaks.js";
 export interface SecretFinding {
   file: string;
   line: number;
-  /** What it looks like, in words: "Stripe live secret key". */
+  /** What it looks like, in words: tr("Stripe live secret key"). */
   kind: string;
   /** The gitleaks rule that found it. */
   rule: string;
@@ -53,7 +54,7 @@ const NOTE_ONLY = new Set([
   "gitlab-feature-flag-client-token",
 ]);
 
-const NAMES: Record<string, string> = {
+const NAMES: Record<string, Parameters<typeof tr>[0]> = {
   "aws-access-token": "AWS access key",
   "gcp-api-key": "Google API key",
   "generic-api-key": "Something that looks like a key",
@@ -66,11 +67,12 @@ const NAMES: Record<string, string> = {
 };
 
 const named = (rule: string) =>
-  NAMES[rule] ??
-  rule
-    .replace(/-/g, " ")
-    .replace(/\b(api|aws|gcp|jwt|pat|id|url|ci)\b/g, (w) => w.toUpperCase())
-    .replace(/^./, (c) => c.toUpperCase());
+  NAMES[rule]
+    ? tr(NAMES[rule])
+    : rule
+        .replace(/-/g, " ")
+        .replace(/\b(api|aws|gcp|jwt|pat|id|url|ci)\b/g, (w) => w.toUpperCase())
+        .replace(/^./, (c) => c.toUpperCase());
 
 /** Clodable's rules that find gitleaks' patterns anywhere, read as the rule they mirror. */
 const MIRRORS: Record<string, string> = {
@@ -93,21 +95,26 @@ export function classify(finding: GitleaksFinding): SecretFinding | undefined {
   // Supabase's public keys ship in every Lovable app on purpose. The service_role key must not.
   if (/^sb_publishable_/.test(secret)) return undefined;
   if (found.RuleID === "supabase-secret-key" || /^sb_secret_/.test(secret)) {
-    return { ...base, rule: "supabase-secret-key", kind: "Supabase secret key", severity: "block" };
+    return {
+      ...base,
+      rule: "supabase-secret-key",
+      kind: tr("Supabase secret key"),
+      severity: "block",
+    };
   }
   if (found.RuleID === "jwt") {
     const payload = jwtPayload(secret);
     if (payload?.role === "service_role" || payload?.role === "supabase_admin") {
-      return { ...base, kind: "Supabase service_role key", severity: "block" };
+      return { ...base, kind: tr("Supabase service_role key"), severity: "block" };
     }
     if (payload?.iss === "supabase" || payload?.role === "anon") return undefined;
-    return { ...base, kind: "Access token", severity: "warn" };
+    return { ...base, kind: tr("Access token"), severity: "warn" };
   }
   if (found.RuleID === "stripe-access-token") {
     const test = /^[sr]k_test_/.test(secret);
     return {
       ...base,
-      kind: test ? "Stripe test key" : "Stripe live secret key",
+      kind: test ? tr("Stripe test key") : tr("Stripe live secret key"),
       severity: test ? "warn" : "block",
     };
   }

@@ -3,10 +3,12 @@ import { mkdtemp, readdir, readFile, rename, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { ClodableError, messageOf } from "../errors.js";
 import { type Flow, step } from "../events.js";
+import { tr } from "../i18n.js";
 import type { Workspace } from "../workspace.js";
 import { checkExportSource, type ExportSummary, findExport, readExport } from "./export.js";
 import type { NewKeys } from "./fixes.js";
 import { homeConnection, homeKeys, homeSql, localTarget } from "./home.js";
+import { checkLabel, presentMoveCheck } from "./messages.js";
 import { type Sql, waitForConnection } from "./postgres.js";
 import { copyExport } from "./restore.js";
 import { prepareCopySignIn } from "./sign-in.js";
@@ -26,13 +28,15 @@ export async function* importExport(
   ws: Workspace,
   options: { file?: string } = {},
 ): Flow<ExportSummary> {
-  yield step("move:export", "running", "Reading your export");
+  yield step("move:export", "running", tr("Reading your export"));
   const file = options.file ?? (await findExport(undefined, ws.project.lovable.projectUrl));
   if (!file) {
     throw new ClodableError({
       code: "export-not-found",
-      message: "Clodable couldn't match an export in Downloads to this app.",
-      hint: "Download this app's export from Lovable, or tell Claude the name and location of its .zip, .backup or .dump file. Clodable won't guess between apps.",
+      message: tr("Clodable couldn't match an export in Downloads to this app."),
+      hint: tr(
+        "Download this app's export from Lovable, or tell Claude the name and location of its .zip, .backup or .dump file. Clodable won't guess between apps.",
+      ),
     });
   }
   await checkExportSource(file, ws.project.lovable.projectUrl);
@@ -48,8 +52,12 @@ export async function* importExport(
       if (madeAfterPause(summary, before.switch?.grants, pausedAt) === false) {
         throw new ClodableError({
           code: "move-not-ready",
-          message: "That export was made before the pause: it would miss what people wrote since.",
-          hint: "Check the pause is in place in Lovable, export again, download the new zip, then read it.",
+          message: tr(
+            "That export was made before the pause: it would miss what people wrote since.",
+          ),
+          hint: tr(
+            "Check the pause is in place in Lovable, export again, download the new zip, then read it.",
+          ),
         });
       }
     }
@@ -65,7 +73,7 @@ export async function* importExport(
     s.export = { file: summary.file, importedAt: new Date().toISOString(), summary };
     if (sourceRef) s.source = { ref: sourceRef };
   });
-  yield step("move:export", "done", "Read your export", describeExport(summary));
+  yield step("move:export", "done", tr("Read your export"), describeExport(summary));
   return summary;
 }
 
@@ -93,15 +101,15 @@ export async function* copyData(ws: Workspace): Flow<{ ok: boolean; checks: Move
   if (!state.home) {
     throw new ClodableError({
       code: "move-not-ready",
-      message: "Create your new backend first.",
-      hint: "It's the step before this one.",
+      message: tr("Create your new backend first."),
+      hint: tr("It's the step before this one."),
     });
   }
   if (!state.export) {
     throw new ClodableError({
       code: "move-not-ready",
-      message: "Export your data from Lovable first.",
-      hint: "It's the step before this one.",
+      message: tr("Export your data from Lovable first."),
+      hint: tr("It's the step before this one."),
     });
   }
   const api = await SupabaseApi.required();
@@ -110,14 +118,19 @@ export async function* copyData(ws: Workspace): Flow<{ ok: boolean; checks: Move
   if (!existsSync(backup)) {
     throw new ClodableError({
       code: "export-not-found",
-      message: "The export Clodable read is gone from this computer.",
-      hint: "Read it again: download the export from Lovable, then run that step again.",
+      message: tr("The export Clodable read is gone from this computer."),
+      hint: tr("Read it again: download the export from Lovable, then run that step again."),
     });
   }
   const toc = parseToc(await readFile(join(dir, "toc.list"), "utf8"));
   const summary = state.export.summary;
 
-  yield step("move:data", "running", "Copying your data", "Connecting to your new database");
+  yield step(
+    "move:data",
+    "running",
+    tr("Copying your data"),
+    tr("Connecting to your new database"),
+  );
   const pg = await homeConnection(api, state.home);
   await waitForConnection(pg);
   const sql = homeSql(api, state.home.ref);
@@ -179,7 +192,7 @@ export async function* copyData(ws: Workspace): Flow<{ ok: boolean; checks: Move
     );
   }
 
-  yield step("move:checks", "running", "Checking everything is there");
+  yield step("move:checks", "running", tr("Checking everything is there"));
   // The final export carries the pause: what the app could do is what it could before it.
   const before =
     switching && state.switch?.grants ? { ...summary, grants: state.switch.grants } : summary;
@@ -195,13 +208,13 @@ export async function* copyData(ws: Workspace): Flow<{ ok: boolean; checks: Move
   yield step(
     "move:checks",
     ok ? "done" : "warning",
-    ok ? "Everything is there" : "Some things need a look",
+    ok ? tr("Everything is there") : tr("Some things need a look"),
     checks
       .filter((c) => !c.ok)
-      .map((c) => c.label)
+      .map((c) => presentMoveCheck(c).label)
       .join(" · ") || undefined,
   );
-  return { ok, checks };
+  return { ok, checks: checks.map(presentMoveCheck) };
 }
 
 /**
@@ -235,7 +248,7 @@ export async function apiSeesTables(
     .filter((t) => t.startsWith("public."))
     .map((t) => t.slice("public.".length))
     .slice(0, 5);
-  if (tables.length === 0) return { id: "api", ok: true, label: "Your app's API is ready" };
+  if (tables.length === 0) return { id: "api", ok: true, ...checkLabel("Your app's API is ready") };
   const { secret } = await homeKeys(api, ref);
   let missing: string[] = [];
   for (let attempt = 0; attempt < 6; attempt++) {
@@ -254,10 +267,9 @@ export async function apiSeesTables(
   return {
     id: "api",
     ok: missing.length === 0,
-    label:
-      missing.length === 0
-        ? "Your app's API sees every table"
-        : "Your app's API doesn't see some tables yet",
+    ...(missing.length === 0
+      ? checkLabel("Your app's API sees every table")
+      : checkLabel("Your app's API doesn't see some tables yet")),
     ...(missing.length > 0 ? { detail: missing.join(", ") } : {}),
   };
 }
@@ -268,12 +280,12 @@ export async function* checkCopy(ws: Workspace): Flow<{ ok: boolean; checks: Mov
   if (!state.home || !state.export) {
     throw new ClodableError({
       code: "move-not-ready",
-      message: "There's no copy to check yet.",
-      hint: "Copy your data first.",
+      message: tr("There's no copy to check yet."),
+      hint: tr("Copy your data first."),
     });
   }
   const api = await SupabaseApi.required();
-  yield step("move:checks", "running", "Checking everything is there");
+  yield step("move:checks", "running", tr("Checking everything is there"));
   const sql = homeSql(api, state.home.ref);
   const checks = await copyChecks(api, sql, state.home.ref, state.export.summary, {
     ...(state.source ? { sourceRef: state.source.ref } : {}),
@@ -287,7 +299,7 @@ export async function* checkCopy(ws: Workspace): Flow<{ ok: boolean; checks: Mov
   yield step(
     "move:checks",
     ok ? "done" : "warning",
-    ok ? "Everything is there" : "Some things need a look",
+    ok ? tr("Everything is there") : tr("Some things need a look"),
   );
-  return { ok, checks };
+  return { ok, checks: checks.map(presentMoveCheck) };
 }

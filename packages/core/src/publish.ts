@@ -7,6 +7,7 @@ import { BEFORE_RESTORE, ensurePullRequest, sameAsLive, save } from "./draft.js"
 import { ClodableError } from "./errors.js";
 import { type Flow, step } from "./events.js";
 import { type Commit, kindTrailer } from "./git.js";
+import { tr } from "./i18n.js";
 import { clodableFile, keepIgnored } from "./kit/index.js";
 import { loadMove, updateMove } from "./move/state.js";
 import { deployChangedFunctions, type FunctionsOutcome } from "./publish-functions.js";
@@ -103,7 +104,7 @@ export async function* publish(ws: Workspace, options: PublishOptions = {}): Flo
   }
 
   // 1. Save anything not saved yet.
-  yield step("save", "running", "Saving your latest changes");
+  yield step("save", "running", tr("Saving your latest changes"));
   let saved: Awaited<ReturnType<typeof save>>;
   try {
     saved = await save(ws, { message: options.message ?? LAST_TOUCHES });
@@ -114,59 +115,60 @@ export async function* publish(ws: Workspace, options: PublishOptions = {}): Flo
     throw error;
   }
   if (saved.unscanned) {
-    yield step("save", "failed", "Couldn't check your changes for secret keys");
+    yield step("save", "failed", tr("Couldn't check your changes for secret keys"));
     throw new ClodableError({
       code: "checks-failed",
-      message: "Couldn't check your changes for secret keys, so nothing was sent.",
-      hint: "Check your internet connection and try again. Nothing went live.",
+      message: tr("Couldn't check your changes for secret keys, so nothing was sent."),
+      hint: tr("Check your internet connection and try again. Nothing went live."),
       details: saved.unscanned,
     });
   }
   if (saved.offline || !saved.pushed) {
-    yield step("save", "failed", "Couldn't reach GitHub");
+    yield step("save", "failed", tr("Couldn't reach GitHub"));
     throw new ClodableError({
       code: "offline",
-      message:
+      message: tr(
         "Your changes are saved on this computer, but GitHub can't be reached to publish them.",
-      hint: "Check your internet connection and try again.",
+      ),
+      hint: tr("Check your internet connection and try again."),
     });
   }
   const branch = saved.branch;
   if (branch === ws.liveBranch) {
     throw new ClodableError({
       code: "on-live-branch",
-      message: "You're working directly on the live version.",
-      hint: "Ask Claude to move your work onto your draft, then publish again.",
+      message: tr("You're working directly on the live version."),
+      hint: tr("Ask Claude to move your work onto your draft, then publish again."),
     });
   }
   yield step(
     "save",
     "done",
-    saved.saved ? "Saved your latest changes" : "Everything was already saved",
+    saved.saved ? tr("Saved your latest changes") : tr("Everything was already saved"),
   );
 
   // 2. Catch up with the live site, so nobody's published work is undone.
-  yield step("sync", "running", "Catching up with your live site");
+  yield step("sync", "running", tr("Catching up with your live site"));
   await ws.git.fetch(ws.remote, ws.liveBranch);
   const behind = await ws.git.count(`HEAD..${ws.liveRef}`, { noMerges: true });
   if (behind > 0) {
     const compared = await ws.git.checkMerge(ws.liveRef);
     if (!compared.ok) {
-      yield step("sync", "failed", "Your draft and the live site changed the same thing");
+      yield step("sync", "failed", tr("Your draft and the live site changed the same thing"));
       throw new ClodableError({
         code: "conflict",
-        message: "Your draft and the live site both changed the same thing.",
-        hint: "Ask Claude to review both versions with you. Your preview is unchanged.",
+        message: tr("Your draft and the live site both changed the same thing."),
+        hint: tr("Ask Claude to review both versions with you. Your preview is unchanged."),
         files: compared.conflicts,
       });
     }
     const merged = await ws.git.merge(ws.liveRef, "Caught up with the live site");
     if (!merged.ok) {
-      yield step("sync", "failed", "Your draft and the live site changed the same thing");
+      yield step("sync", "failed", tr("Your draft and the live site changed the same thing"));
       throw new ClodableError({
         code: "conflict",
-        message: "Your draft and the live site both changed the same thing.",
-        hint: "Ask Claude to combine them. It knows what to do. Then publish again.",
+        message: tr("Your draft and the live site both changed the same thing."),
+        hint: tr("Ask Claude to combine them. It knows what to do. Then publish again."),
         files: merged.conflicts,
       });
     }
@@ -174,18 +176,18 @@ export async function* publish(ws: Workspace, options: PublishOptions = {}): Flo
     if (!pushed.ok) {
       throw new ClodableError({
         code: "push-rejected",
-        message: "GitHub didn't accept the update.",
+        message: tr("GitHub didn't accept the update."),
         details: pushed.stderr,
       });
     }
     yield step(
       "sync",
       "done",
-      "Up to date with your live site",
-      `${behind} live update${behind > 1 ? "s" : ""} brought in`,
+      tr("Up to date with your live site"),
+      tr("{0} live update{1} brought in", { "0": behind, "1": behind > 1 ? "s" : "" }),
     );
   } else {
-    yield step("sync", "done", "Already up to date with your live site");
+    yield step("sync", "done", tr("Already up to date with your live site"));
   }
 
   const saves = await ws.git.log(`${ws.liveRef}..HEAD`, { noMerges: true, limit: 200 });
@@ -214,16 +216,18 @@ export async function* publish(ws: Workspace, options: PublishOptions = {}): Flo
     }
     throw new ClodableError({
       code: "nothing-to-publish",
-      message: "There's no new app change to publish.",
-      hint: "This does not confirm which version visitors see. Ask Claude to check the hosting status if your site looks out of date.",
+      message: tr("There's no new app change to publish."),
+      hint: tr(
+        "This does not confirm which version visitors see. Ask Claude to check the hosting status if your site looks out of date.",
+      ),
     });
   }
 
   // 3. Local checks.
   if (options.skipChecks) {
-    yield step("checks", "skipped", "Checks skipped");
+    yield step("checks", "skipped", tr("Checks skipped"));
   } else {
-    yield step("checks", "running", "Checking everything works");
+    yield step("checks", "running", tr("Checking everything works"));
     const results = yield* runChecks(ws.project, ws.config);
     const failed = results.filter((r) => r.status === "failed");
     for (const warning of results.filter((r) => r.status === "warning"))
@@ -233,34 +237,39 @@ export async function* publish(ws: Workspace, options: PublishOptions = {}): Flo
       yield step(
         "checks",
         "failed",
-        failed.length === 1 ? "Checks found a problem" : `Checks found ${failed.length} problems`,
+        failed.length === 1
+          ? tr("Checks found a problem")
+          : tr("Checks found {0} problems", { "0": failed.length }),
       );
-      throw checksFailed(failed, "Nothing went live. Ask Claude to fix it, then publish again.");
+      throw checksFailed(
+        failed,
+        tr("Nothing went live. Ask Claude to fix it, then publish again."),
+      );
     }
     yield step(
       "checks",
       warnings.length > 0 ? "warning" : "done",
-      warnings.length > 0 ? "Checks passed, with a note" : "Everything checks out",
+      warnings.length > 0 ? tr("Checks passed, with a note") : tr("Everything checks out"),
     );
   }
 
   // 4. The draft's pull request carries the publish title.
-  yield step("pull-request", "running", "Preparing your draft on GitHub");
+  yield step("pull-request", "running", tr("Preparing your draft on GitHub"));
   const pr = await ensurePullRequest(ws, branch);
   if (!pr)
     throw new ClodableError({
       code: "nothing-to-publish",
-      message: "There's nothing new to publish.",
+      message: tr("There's nothing new to publish."),
     });
   const title = publishTitle(saves);
   await ws.github.updatePullRequest(pr.number, { title });
-  yield step("pull-request", "done", "Draft ready on GitHub");
+  yield step("pull-request", "done", tr("Draft ready on GitHub"));
 
   // 5. The repository's own CI, if it has any.
   yield* waitForCiIfAny(ws, pr.number, wait);
 
   // 6. Merge: this is the moment it's published.
-  yield step("merge", "running", "Publishing");
+  yield step("merge", "running", tr("Publishing"));
   const body = [
     ...saves
       .slice()
@@ -280,7 +289,7 @@ export async function* publish(ws: Workspace, options: PublishOptions = {}): Flo
     state: "pending",
   };
   await ws.updateState({ pendingPublish: pending });
-  yield step("merge", "done", "Ready for your host");
+  yield step("merge", "done", tr("Ready for your host"));
   return yield* finishPublish(ws, pending, branch, wait, warnings);
 }
 
@@ -296,7 +305,7 @@ async function* retryPublish(
   if (latest?.state !== "success") {
     const ownedSite = ws.config.netlify ?? (await loadMove(ws.root)).site;
     if (ownedSite && ws.github.retryDeployment) {
-      yield step("deploy", "running", "Retrying the same version");
+      yield step("deploy", "running", tr("Retrying the same version"));
       const retry = await ws.github.retryDeployment(pending.sha);
       if (retry === "started") {
         pending = {
@@ -308,8 +317,10 @@ async function* retryPublish(
       } else if (!retry && (latest?.state === "failure" || latest?.state === "error" || !latest)) {
         throw new ClodableError({
           code: "deploy-failed",
-          message: "This version couldn't be retried automatically.",
-          hint: "Ask Claude to check the hosting report. Keep the app unchanged; don't make an edit to trigger publishing.",
+          message: tr("This version couldn't be retried automatically."),
+          hint: tr(
+            "Ask Claude to check the hosting report. Keep the app unchanged; don't make an edit to trigger publishing.",
+          ),
         });
       }
     }
@@ -343,7 +354,7 @@ async function* finishPublish(
   const functions = yield* deployChangedFunctions(ws, sha);
 
   // 9. A fresh draft, so the next change starts from what's live.
-  yield step("fresh-draft", "running", "Starting a fresh draft");
+  yield step("fresh-draft", "running", tr("Starting a fresh draft"));
   await ws.git.fetch(ws.remote, ws.liveBranch);
   await ws.git.switchTo(branch, { reset: true, startPoint: ws.liveRef });
   await ws.git.deleteRemoteBranch(branch, ws.remote);
@@ -366,7 +377,7 @@ async function* finishPublish(
         ? undefined
         : { ...pending, state: deployed.site?.state === "failed" ? "failed" : "pending" },
   });
-  yield step("fresh-draft", "done", "Fresh draft ready");
+  yield step("fresh-draft", "done", tr("Fresh draft ready"));
   // The site on Netlify, before the switch (beside Lovable's hosting) or after it (the live one).
   if (
     deployed.site?.state === "live" ||
@@ -418,13 +429,13 @@ export async function* undoPublish(
   options: Omit<PublishOptions, "message" | "skipChecks"> & { sha?: string } = {},
 ): Flow<UndoResult> {
   const wait = timing(options);
-  yield step("revert", "running", "Undoing your last publish");
+  yield step("revert", "running", tr("Undoing your last publish"));
   await ws.git.fetch(ws.remote, ws.liveBranch);
   const [target] = options.sha
     ? await ws.git.log(`${options.sha}^!`)
     : await ws.git.log(ws.liveRef, { firstParent: true, limit: 1 });
   if (!target)
-    throw new ClodableError({ code: "not-found", message: "There's no publish to undo yet." });
+    throw new ClodableError({ code: "not-found", message: tr("There's no publish to undo yet.") });
 
   const dir = await mkdtemp(join(tmpdir(), "clodable-undo-"));
   const branch = `undo/${target.sha.slice(0, 7)}`;
@@ -433,12 +444,13 @@ export async function* undoPublish(
     const reverted = await side.run(["revert", "--no-edit", "--no-commit", target.sha]);
     if (reverted.exitCode !== 0) {
       await side.run(["revert", "--abort"]);
-      yield step("revert", "failed", "This publish can't be undone automatically");
+      yield step("revert", "failed", tr("This publish can't be undone automatically"));
       throw new ClodableError({
         code: "conflict",
-        message:
+        message: tr(
           "Newer changes on your live site touch the same lines, so this can't be undone automatically.",
-        hint: "Ask Claude to undo it by hand. It can see exactly what changed.",
+        ),
+        hint: tr("Ask Claude to undo it by hand. It can see exactly what changed."),
       });
     }
     // Clodable's own files stay as they're live, as with Restore: undoing a publish mustn't take
@@ -458,7 +470,7 @@ export async function* undoPublish(
     if (!pushed.ok) {
       throw new ClodableError({
         code: pushed.offline ? "offline" : "push-rejected",
-        message: "GitHub didn't accept the undo.",
+        message: tr("GitHub didn't accept the undo."),
         details: pushed.stderr,
       });
     }
@@ -468,15 +480,15 @@ export async function* undoPublish(
       title: undoTitle,
       body: `Undoes the publish “${target.subject}”, requested with Clodable.`,
     });
-    yield step("revert", "done", "Prepared the undo");
+    yield step("revert", "done", tr("Prepared the undo"));
 
     yield* waitForCiIfAny(ws, created.number, wait);
-    yield step("merge", "running", "Putting the previous version back");
+    yield step("merge", "running", tr("Putting the previous version back"));
     const { sha } = await ws.github.merge(created.number, {
       subject: undoTitle,
       body: `Reverts ${target.sha}.\n\n${kindTrailer("undo")}`,
     });
-    yield step("merge", "done", "Previous version restored");
+    yield step("merge", "done", tr("Previous version restored"));
     const deployed = yield* waitForDeploy(ws, sha, wait);
     await ws.git.deleteRemoteBranch(branch, ws.remote);
 

@@ -1,4 +1,5 @@
 import { ClodableError } from "../errors.js";
+import { tr } from "../i18n.js";
 import { setSetting } from "../settings.js";
 import type { Workspace } from "../workspace.js";
 import { textFiles } from "./assess.js";
@@ -54,16 +55,22 @@ export async function setGoogleSignIn(
   if (!/^[\w-]+\.apps\.googleusercontent\.com$/.test(id)) {
     throw new ClodableError({
       code: "invalid-config",
-      message: "That doesn't look like a Google client ID.",
-      hint: "It ends with .apps.googleusercontent.com.",
+      message: tr("That doesn't look like a Google client ID."),
+      hint: tr("It ends with .apps.googleusercontent.com."),
     });
   }
   if (secret.trim().length < 10) {
-    throw new ClodableError({ code: "invalid-config", message: "That client secret is empty." });
+    throw new ClodableError({
+      code: "invalid-config",
+      message: tr("That client secret is empty."),
+    });
   }
   const state = await loadMove(ws.root);
   if (!state.home) {
-    throw new ClodableError({ code: "move-not-ready", message: "Create your new backend first." });
+    throw new ClodableError({
+      code: "move-not-ready",
+      message: tr("Create your new backend first."),
+    });
   }
   const api = await SupabaseApi.required();
   await api.updateAuthConfig(state.home.ref, {

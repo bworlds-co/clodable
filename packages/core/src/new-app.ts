@@ -7,6 +7,7 @@ import { type Flow, step } from "./events.js";
 import { Git } from "./git.js";
 import { GhCli } from "./github/gh.js";
 import type { GitHubAdapter, RepoInfo } from "./github/types.js";
+import { tr } from "./i18n.js";
 import { keepIgnored } from "./kit/index.js";
 import { writeJsonFile } from "./places.js";
 import { detectProject } from "./project.js";
@@ -34,23 +35,25 @@ export async function* prepareNewApp(
   if (!/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,99}$/.test(options.name) || /\.git$/i.test(options.name)) {
     throw new ClodableError({
       code: "invalid-config",
-      message: "Give your app a short name using letters, numbers or dashes.",
+      message: tr("Give your app a short name using letters, numbers or dashes."),
     });
   }
   const viewer = await github.viewer();
   if (viewer.login !== options.account) {
     throw new ClodableError({
       code: "gh-auth",
-      message: "The connected GitHub account has changed.",
-      hint: "Open Set up saving again and check the account before continuing.",
+      message: tr("The connected GitHub account has changed."),
+      hint: tr("Open Set up saving again and check the account before continuing."),
     });
   }
   const project = await detectProject(root);
   if (project.appType === "unknown") {
     throw new ClodableError({
       code: "invalid-config",
-      message: "Your local app needs a little preparation before saving.",
-      hint: "Ask Claude to prepare this prototype for Clodable, keeping your design and content.",
+      message: tr("Your local app needs a little preparation before saving."),
+      hint: tr(
+        "Ask Claude to prepare this prototype for Clodable, keeping your design and content.",
+      ),
     });
   }
   const git = new Git(root);
@@ -59,8 +62,11 @@ export async function* prepareNewApp(
     if (pending.destination)
       throw new ClodableError({
         code: "invalid-config",
-        message: "Saving was already started for a different app name or account.",
-        hint: `Continue with ${pending.account}/${pending.name}. Your local work is still here.`,
+        message: tr("Saving was already started for a different app name or account."),
+        hint: tr("Continue with {0}/{1}. Your local work is still here.", {
+          "0": pending.account,
+          "1": pending.name,
+        }),
       });
     pending = { ...options };
     await writeJsonFile(join(root, PENDING), pending);
@@ -69,8 +75,8 @@ export async function* prepareNewApp(
     if (!pending || (await realpath(await git.root())) !== (await realpath(root))) {
       throw new ClodableError({
         code: "already-there",
-        message: "This folder already belongs to an app.",
-        hint: "Open Clodable to set up that app. Start a new idea in an empty folder.",
+        message: tr("This folder already belongs to an app."),
+        hint: tr("Open Clodable to set up that app. Start a new idea in an empty folder."),
       });
     }
   } else {
@@ -86,14 +92,16 @@ export async function* prepareNewApp(
   );
   if (missing.length)
     await appendFile(join(root, ".gitignore"), `\n# Local app files\n${missing.join("\n")}\n`);
-  yield step("setup:app", "running", "Checking your local app before saving");
+  yield step("setup:app", "running", tr("Checking your local app before saving"));
   await git.stageAll();
   const secrets = (await scanStaged(root)).filter((f) => f.severity === "block");
   if (secrets.length) {
     throw new ClodableError({
       code: "secret-found",
-      message: "A secret key needs to stay out of your app's code.",
-      hint: "Ask Claude to move it out, then try Set up saving again. Nothing was sent to GitHub.",
+      message: tr("A secret key needs to stay out of your app's code."),
+      hint: tr(
+        "Ask Claude to move it out, then try Set up saving again. Nothing was sent to GitHub.",
+      ),
       files: secrets.map((f) => f.file),
     });
   }
@@ -101,12 +109,12 @@ export async function* prepareNewApp(
     if (!github.createPrivateRepository)
       throw new ClodableError({
         code: "unknown",
-        message: "This GitHub connection can't create a new app.",
+        message: tr("This GitHub connection can't create a new app."),
       });
     yield step(
       "setup:app",
       "running",
-      "Creating your private app on GitHub",
+      tr("Creating your private app on GitHub"),
       `${options.account}/${options.name}`,
     );
     pending!.destination = await github.createPrivateRepository(options.name);
@@ -116,16 +124,16 @@ export async function* prepareNewApp(
   if (!repo.isPrivate || repo.owner !== options.account || repo.name !== options.name) {
     throw new ClodableError({
       code: "gh-auth",
-      message: "GitHub returned a different app than the one you approved.",
-      hint: "Nothing was sent. Check your GitHub account before continuing.",
+      message: tr("GitHub returned a different app than the one you approved."),
+      hint: tr("Nothing was sent. Check your GitHub account before continuing."),
     });
   }
   const remote = await git.remoteUrl("origin");
   if (remote && remote !== cloneUrl)
     throw new ClodableError({
       code: "already-there",
-      message: "This folder is connected to a different app.",
-      hint: "Your files are unchanged. Ask Claude to check the connection before saving.",
+      message: tr("This folder is connected to a different app."),
+      hint: tr("Your files are unchanged. Ask Claude to check the connection before saving."),
     });
   if (!remote) await git.ok(["remote", "add", "origin", cloneUrl]);
   if (github instanceof GhCli) await github.configureCredentials();
@@ -135,6 +143,6 @@ export async function* prepareNewApp(
     // Set the starting point without checking out or overwriting any prototype files.
     await git.ok(["reset", "--mixed", `origin/${repo.defaultBranch}`]);
   }
-  yield step("setup:app", "done", "Your private app is ready for its first save");
+  yield step("setup:app", "done", tr("Your private app is ready for its first save"));
   return { root, liveBranch: repo.defaultBranch };
 }

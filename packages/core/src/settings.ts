@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { realpathSync } from "node:fs";
 import { join } from "node:path";
 import { ClodableError } from "./errors.js";
+import { tr } from "./i18n.js";
 import { readSecret, storeSecret } from "./local-secrets.js";
 import { textFiles } from "./move/assess.js";
 import { NetlifyApi } from "./move/netlify-api.js";
@@ -159,13 +160,13 @@ export async function setSetting(
   if (!name || !/^[A-Z][A-Z0-9_]*$/.test(name)) {
     throw new ClodableError({
       code: "invalid-config",
-      message: name ? `“${name}” isn't a setting name.` : "Which setting?",
-      hint: "Use capitals, digits and underscores, like GREETING.",
+      message: name ? tr("“{0}” isn't a setting name.", { "0": name }) : tr("Which setting?"),
+      hint: tr("Use capitals, digits and underscores, like GREETING."),
     });
   }
   const clean = value.replace(/\r?\n$/, "");
   if (!clean.trim()) {
-    throw new ClodableError({ code: "invalid-config", message: "That setting is empty." });
+    throw new ClodableError({ code: "invalid-config", message: tr("That setting is empty.") });
   }
   const values = await localSettings(ws.root);
   values[name] = clean;

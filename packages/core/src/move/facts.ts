@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { ClodableError } from "../errors.js";
+import { tr } from "../i18n.js";
 import { CODE_DIRS, LOVABLE_AI } from "../project.js";
 import { appSettings } from "../settings.js";
 import type { Workspace } from "../workspace.js";
@@ -144,20 +145,22 @@ export async function recordFacts(ws: Workspace, json: string): Promise<Recorded
   } catch {
     throw new ClodableError({
       code: "invalid-config",
-      message: "The facts aren't JSON.",
-      hint: "Pipe one JSON object to `move facts --set`, shaped as the move skill shows.",
+      message: tr("The facts aren't JSON."),
+      hint: tr("Pipe one JSON object to `move facts --set`, shaped as the move skill shows."),
     });
   }
   const parsed = AppFactsSchema.safeParse(raw);
   if (!parsed.success) {
     throw new ClodableError({
       code: "invalid-config",
-      message: "The facts don't have the expected shape.",
+      message: tr("The facts don't have the expected shape."),
       details: parsed.error.issues
         .slice(0, 5)
         .map((i) => `${i.path.join(".") || "(top)"}: ${i.message}`)
         .join("; "),
-      hint: "Fields: ai, signIn {email, google, apple, other}, appEmails, connectors, payments, scheduledJobs, uploads, notes.",
+      hint: tr(
+        "Fields: ai, signIn {email, google, apple, other}, appEmails, connectors, payments, scheduledJobs, uploads, notes.",
+      ),
     });
   }
   const facts: RecordedFacts = { ...parsed.data, at: new Date().toISOString() };
@@ -170,15 +173,17 @@ export async function recordFacts(ws: Workspace, json: string): Promise<Recorded
 /** The facts in a few words, for the step's one line: "AI · Google sign-in · payments". */
 export function factsSummary(facts: AppFacts): string {
   const parts = [
-    ...(facts.ai.length > 0 ? ["AI"] : []),
-    ...(facts.signIn.google ? ["Google sign-in"] : []),
-    ...(facts.signIn.apple ? ["Apple sign-in"] : []),
-    ...facts.signIn.other.map((p) => `${p} sign-in`),
-    ...(facts.appEmails.length > 0 ? ["its own emails"] : []),
+    ...(facts.ai.length > 0 ? [tr("AI")] : []),
+    ...(facts.signIn.google ? [tr("Google sign-in")] : []),
+    ...(facts.signIn.apple ? [tr("Apple sign-in")] : []),
+    ...facts.signIn.other.map((p) => tr("{provider} sign-in", { provider: p })),
+    ...(facts.appEmails.length > 0 ? [tr("its own emails")] : []),
     ...[...new Set(facts.connectors.map((c) => c.service))],
-    ...[...new Set(facts.payments.map((p) => p.provider))].map((p) => `payments (${p})`),
-    ...(facts.scheduledJobs.length > 0 ? ["scheduled jobs"] : []),
-    ...(facts.uploads.length > 0 ? ["uploads"] : []),
+    ...[...new Set(facts.payments.map((p) => p.provider))].map((p) =>
+      tr("payments ({provider})", { provider: p }),
+    ),
+    ...(facts.scheduledJobs.length > 0 ? [tr("scheduled jobs")] : []),
+    ...(facts.uploads.length > 0 ? [tr("uploads")] : []),
   ];
-  return parts.length > 0 ? parts.join(" · ") : "Nothing beyond its data and its site";
+  return parts.length > 0 ? parts.join(" · ") : tr("Nothing beyond its data and its site");
 }

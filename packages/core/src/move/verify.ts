@@ -1,9 +1,9 @@
 import type { ExportSummary } from "./export.js";
 import { functionsNaming, literal, SEQUENCES_BEHIND, tableName, triggersNaming } from "./fixes.js";
+import { checkDetail, checkLabel, countMessage } from "./messages.js";
 import type { Sql } from "./postgres.js";
 import type { MoveCheck } from "./state.js";
 import { isManaged } from "./toc.js";
-import { count } from "./words.js";
 
 /**
  * Is everything there? The copy is compared with the export, never with itself: rows per table,
@@ -69,10 +69,12 @@ async function tablesCheck(
   return {
     id: "tables",
     ok: wrong === 0,
-    label:
-      wrong === 0
-        ? `All ${count(tables.length, "table")} and their ${count(rows, "row")} are there`
-        : `${count(wrong, "table")} didn't copy fully`,
+    ...(wrong === 0
+      ? checkLabel("All {0} and their {1} are there", {
+          "0": countMessage(tables.length, "table"),
+          "1": countMessage(rows, "row"),
+        })
+      : checkLabel("{0} didn't copy fully", { "0": countMessage(wrong, "table") })),
     ...(wrong > 0
       ? {
           detail: [
@@ -104,12 +106,17 @@ async function peopleCheck(
   return {
     id: "people",
     ok,
-    label: ok
-      ? `${count(total, "person", "people")} can sign in as before`
-      : `${count(total, "person", "people")} of ${summary.people.total.toLocaleString("en-US")} came over`,
+    ...(ok
+      ? checkLabel("{0} can sign in as before", { "0": countMessage(total, "person", "people") })
+      : checkLabel("{0} of {1} came over", {
+          "0": countMessage(total, "person", "people"),
+          "1": summary.people.total,
+        })),
     ...(summary.people.withoutPassword > 0
       ? {
-          detail: `${count(summary.people.withoutPassword, "person", "people")} sign in without a password (Google and the like, or invited).`,
+          ...checkDetail("{0} sign in without a password (Google and the like, or invited).", {
+            "0": countMessage(summary.people.withoutPassword, "person", "people"),
+          }),
         }
       : {}),
   };
@@ -155,19 +162,17 @@ async function structureChecks(sql: Sql, summary: ExportSummary): Promise<MoveCh
     {
       id: "rules",
       ok: missingRules.length === 0,
-      label:
-        missingRules.length === 0
-          ? "Every access rule is in place"
-          : "Some access rules are missing",
+      ...(missingRules.length === 0
+        ? checkLabel("Every access rule is in place")
+        : checkLabel("Some access rules are missing")),
       ...(missingRules.length > 0 ? { detail: missingRules.join("; ") } : {}),
     },
     {
       id: "links",
       ok: missingLinks.length === 0,
-      label:
-        missingLinks.length === 0
-          ? "Links between tables and automatic actions are in place"
-          : "Some links or automatic actions are missing",
+      ...(missingLinks.length === 0
+        ? checkLabel("Links between tables and automatic actions are in place")
+        : checkLabel("Some links or automatic actions are missing")),
       ...(missingLinks.length > 0 ? { detail: missingLinks.join("; ") } : {}),
     },
   ];
@@ -209,10 +214,9 @@ async function accessCheck(sql: Sql, summary: ExportSummary): Promise<MoveCheck 
   return {
     id: "access",
     ok: missing.length === 0,
-    label:
-      missing.length === 0
-        ? "Your app can reach its tables as before"
-        : "Your app can't reach some of its tables",
+    ...(missing.length === 0
+      ? checkLabel("Your app can reach its tables as before")
+      : checkLabel("Your app can't reach some of its tables")),
     ...(missing.length > 0 ? { detail: missing.slice(0, 6).join("; ") } : {}),
   };
 }
@@ -223,7 +227,9 @@ async function countersCheck(sql: Sql): Promise<MoveCheck> {
   return {
     id: "counters",
     ok: behind.length === 0,
-    label: behind.length === 0 ? "New rows will save cleanly" : "Some counters are behind",
+    ...(behind.length === 0
+      ? checkLabel("New rows will save cleanly")
+      : checkLabel("Some counters are behind")),
     ...(behind.length > 0 ? { detail: behind.map((r) => r.seq).join(", ") } : {}),
   };
 }
@@ -237,10 +243,11 @@ async function oldBackendCheck(sql: Sql, sourceRef: string): Promise<MoveCheck> 
   return {
     id: "old-backend",
     ok: naming.length === 0,
-    label:
-      naming.length === 0
-        ? "The checked database functions and webhooks no longer name the old backend"
-        : `${count(naming.length, "database function or webhook")} still call Lovable Cloud`,
+    ...(naming.length === 0
+      ? checkLabel("The checked database functions and webhooks no longer name the old backend")
+      : checkLabel("{0} still call Lovable Cloud", {
+          "0": countMessage(naming.length, "database function or webhook"),
+        })),
     ...(naming.length > 0 ? { detail: naming.join(", ") } : {}),
   };
 }
@@ -255,7 +262,9 @@ async function extensionsCheck(sql: Sql, summary: ExportSummary): Promise<MoveCh
   return {
     id: "extensions",
     ok: missing.length === 0,
-    label: missing.length === 0 ? "Database extensions are on" : "Some database extensions are off",
+    ...(missing.length === 0
+      ? checkLabel("Database extensions are on")
+      : checkLabel("Some database extensions are off")),
     ...(missing.length > 0 ? { detail: missing.join(", ") } : {}),
   };
 }
@@ -284,14 +293,15 @@ async function filesCheck(
   return {
     id: "files",
     ok: problems.length === 0,
-    label:
-      problems.length > 0
-        ? files
-          ? "Some files are missing"
-          : "Some file folders are missing"
-        : files
-          ? `All ${count(total, "file")} are there`
-          : `${count(summary.buckets.length, "file folder")} ready for your files`,
+    ...(problems.length > 0
+      ? files
+        ? checkLabel("Some files are missing")
+        : checkLabel("Some file folders are missing")
+      : files
+        ? checkLabel("All {0} are there", { "0": countMessage(total, "file") })
+        : checkLabel("{0} ready for your files", {
+            "0": countMessage(summary.buckets.length, "file folder"),
+          })),
     ...(problems.length > 0 ? { detail: problems.join("; ") } : {}),
   };
 }

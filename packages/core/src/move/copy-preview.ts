@@ -1,4 +1,5 @@
 import { ClodableError } from "../errors.js";
+import { tr } from "../i18n.js";
 import type { Workspace } from "../workspace.js";
 import { backendOf, type PreviewBackend } from "./backend.js";
 import { homeKeys } from "./home.js";
@@ -14,7 +15,7 @@ export async function setPreview(ws: Workspace, target: "live" | "copy"): Promis
   if (target === "copy" && !state.data) {
     throw new ClodableError({
       code: "move-not-ready",
-      message: "Copy your data first: the preview would show an empty app.",
+      message: tr("Copy your data first: the preview would show an empty app."),
     });
   }
   // Once live, the app's own settings use the new backend: there's nothing left to choose.

@@ -1,7 +1,9 @@
 import { ClodableError } from "../errors.js";
+import { tr } from "../i18n.js";
 import type { Workspace } from "../workspace.js";
 import { apiSeesTables } from "./copy.js";
 import { homeSql, localTarget } from "./home.js";
+import { presentMoveCheck } from "./messages.js";
 import { backToPreview, backToSite, liveSignIn, prepareCopySignIn } from "./sign-in.js";
 import { loadMove, type MoveCheck } from "./state.js";
 import { SupabaseApi } from "./supabase-api.js";
@@ -41,8 +43,8 @@ export async function diagnoseCopy(
   if (!state.home) {
     throw new ClodableError({
       code: "move-not-ready",
-      message: "There's no new backend to look at yet.",
-      hint: "Create it first: it's an early step of the move.",
+      message: tr("There's no new backend to look at yet."),
+      hint: tr("Create it first: it's an early step of the move."),
     });
   }
   const api = await SupabaseApi.required();
@@ -57,17 +59,17 @@ export async function diagnoseCopy(
     id: "running",
     ok: running,
     label: running
-      ? "Your new backend is running"
+      ? tr("Your new backend is running")
       : project.status === "INACTIVE" || project.status === "GOING_DOWN"
-        ? "Your new backend is paused"
-        : "Your new backend isn't ready yet",
+        ? tr("Your new backend is paused")
+        : tr("Your new backend isn't ready yet"),
     ...(running
       ? {}
       : {
           fix:
             project.status === "INACTIVE" || project.status === "GOING_DOWN"
-              ? "Restore it on its page in Supabase, then look again."
-              : "Check its status in Supabase, then look again in a minute.",
+              ? tr("Restore it on its page in Supabase, then look again.")
+              : tr("Check its status in Supabase, then look again in a minute."),
         }),
   });
   if (!running) return { findings };
@@ -78,15 +80,17 @@ export async function diagnoseCopy(
       refresh: Boolean(options.fix),
     });
     findings.push({
-      ...check,
+      ...presentMoveCheck(check),
       ...verdict(check.ok, Boolean(options.fix), {
-        fix: "Run `clodable move diagnose --fix`: it asks the API to refresh its list of tables.",
+        fix: tr(
+          "Run `clodable move diagnose --fix`: it asks the API to refresh its list of tables.",
+        ),
       }),
     });
   }
 
   const auth = await api.authConfig(ref);
-  const goesTo = String(auth.site_url ?? "Supabase's default");
+  const goesTo = String(auth.site_url ?? tr("Supabase's default"));
   const site = state.switch?.liveAt ? state.site?.url : undefined;
   if (site) {
     // Live: sign-in links go to the site. Whether people confirm their email was the builder's
@@ -98,9 +102,12 @@ export async function diagnoseCopy(
       id: "sign-in",
       ok,
       label: ok
-        ? "Sign-in links come back to your site"
-        : "Sign-in links don't come back to your site",
-      ...verdict(ok, !comesBack, { detail: `they go to ${goesTo}`, fix: LOOK_AGAIN }),
+        ? tr("Sign-in links come back to your site")
+        : tr("Sign-in links don't come back to your site"),
+      ...verdict(ok, !comesBack, {
+        detail: tr("they go to {0}", { "0": goesTo }),
+        fix: tr(LOOK_AGAIN),
+      }),
     });
   } else {
     const comesBack = backToPreview(auth);
@@ -112,18 +119,18 @@ export async function diagnoseCopy(
       id: "sign-in",
       ok,
       label: ok
-        ? "The preview can sign people in on the copy"
-        : "Sign-ins on the copy don't come back to the preview",
+        ? tr("The preview can sign people in on the copy")
+        : tr("Sign-ins on the copy don't come back to the preview"),
       ...verdict(ok, fixedNow, {
         detail: [
-          comesBack ? "" : `sign-in links go to ${goesTo}`,
+          comesBack ? "" : tr("sign-in links go to {url}", { url: goesTo }),
           noEmailWait
             ? ""
-            : "new people must confirm by email, which Supabase's test mailer rarely sends",
+            : tr("new people must confirm by email, which Supabase's test mailer rarely sends"),
         ]
           .filter(Boolean)
           .join("; "),
-        fix: LOOK_AGAIN,
+        fix: tr(LOOK_AGAIN),
       }),
     });
   }
@@ -138,8 +145,11 @@ export async function diagnoseCopy(
   findings.push({
     id: "people",
     ok: true,
-    label: `${count(Number(people?.people ?? 0), "person", "people")} on the copy`,
-    detail: `last sign-up ${people?.last_signup?.slice(0, 19) ?? "never"}, last sign-in ${people?.last_sign_in?.slice(0, 19) ?? "never"} (UTC)`,
+    label: tr("{0} on the copy", { "0": count(Number(people?.people ?? 0), "person", "people") }),
+    detail: tr("last sign-up {0}, last sign-in {1} (UTC)", {
+      "0": people?.last_signup?.slice(0, 19) ?? tr("never"),
+      "1": people?.last_sign_in?.slice(0, 19) ?? tr("never"),
+    }),
   });
 
   if (state.export) {
@@ -150,12 +160,12 @@ export async function diagnoseCopy(
     });
     const failing = checks.filter((c) => !c.ok);
     if (failing.length === 0) {
-      findings.push({ id: "data", ok: true, label: "Your data's checks pass" });
+      findings.push({ id: "data", ok: true, label: tr("Your data's checks pass") });
     } else {
       findings.push(
         ...failing.map((c) => ({
-          ...c,
-          fix: "Copying again from a fresh export usually puts it right.",
+          ...presentMoveCheck(c),
+          fix: tr("Copying again from a fresh export usually puts it right."),
         })),
       );
     }
@@ -164,7 +174,9 @@ export async function diagnoseCopy(
     findings.push({
       id: "copy-notes",
       ok: true,
-      label: `The copy noted ${count(state.data.problems.length, "message")} from Postgres`,
+      label: tr("The copy noted {0} from Postgres", {
+        "0": count(state.data.problems.length, "message"),
+      }),
       detail: state.data.problems.slice(0, 5).join("; "),
     });
   }
@@ -173,8 +185,8 @@ export async function diagnoseCopy(
     ok: true,
     label:
       state.preview === "copy"
-        ? "The preview uses the copy"
-        : "The preview uses your live data (on Lovable Cloud)",
+        ? tr("The preview uses the copy")
+        : tr("The preview uses your live data (on Lovable Cloud)"),
   });
   return { findings };
 }

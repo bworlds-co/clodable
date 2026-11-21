@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ClodableError } from "./errors.js";
 import { type ExecResult, exec } from "./exec.js";
+import { tr } from "./i18n.js";
 
 const COMMIT_KINDS = ["save", "restore", "sync", "publish", "undo", "setup"] as const;
 
@@ -61,8 +62,8 @@ export class Git {
     if (result.exitCode !== 0) {
       throw new ClodableError({
         code: "unknown",
-        message: "Something unexpected went wrong.",
-        hint: "Try again. If it keeps happening, share the details with your developer.",
+        message: tr("Something unexpected went wrong."),
+        hint: tr("Try again. If it keeps happening, share the details with your developer."),
         details: `git ${args.join(" ")}\n${result.stderr || result.stdout}`.trim(),
       });
     }
@@ -155,14 +156,16 @@ export class Git {
       if (/tell me who you are|user\.email|empty ident/i.test(result.stderr)) {
         throw new ClodableError({
           code: "git-identity",
-          message: "Saving needs to know who you are.",
-          hint: "Type /clodable to open the Clodable panel and connect your GitHub account there. Your changes stay on this computer meanwhile.",
+          message: tr("Saving needs to know who you are."),
+          hint: tr(
+            "Type /clodable to open the Clodable panel and connect your GitHub account there. Your changes stay on this computer meanwhile.",
+          ),
           details: result.stderr,
         });
       }
       throw new ClodableError({
         code: "unknown",
-        message: "Your changes couldn't be saved.",
+        message: tr("Your changes couldn't be saved."),
         details: result.stderr || result.stdout,
       });
     }
@@ -224,7 +227,7 @@ export class Git {
       if (conflicts.length > 0) return { ok: false, conflicts };
       throw new ClodableError({
         code: "unknown",
-        message: "Your draft couldn't be compared with the live site.",
+        message: tr("Your draft couldn't be compared with the live site."),
         details: result.stderr || result.stdout,
       });
     } finally {
@@ -241,7 +244,7 @@ export class Git {
     if (conflicts.length === 0) {
       throw new ClodableError({
         code: "unknown",
-        message: "Your draft couldn't be brought up to date.",
+        message: tr("Your draft couldn't be brought up to date."),
         details: result.stderr || result.stdout,
       });
     }

@@ -1,4 +1,5 @@
 import { ClodableError, messageOf } from "../errors.js";
+import { tr } from "../i18n.js";
 import { forgetSecret, readSecret } from "../local-secrets.js";
 
 /**
@@ -161,8 +162,8 @@ export class SupabaseApi {
     if (!api) {
       throw new ClodableError({
         code: "supabase-auth",
-        message: "Supabase isn't connected on this computer yet.",
-        hint: "Connect your Supabase account first: it's the first step of the move.",
+        message: tr("Supabase isn't connected on this computer yet."),
+        hint: tr("Connect your Supabase account first: it's the first step of the move."),
       });
     }
     return api;
@@ -195,8 +196,8 @@ export class SupabaseApi {
         }
         throw new ClodableError({
           code: "offline",
-          message: "Couldn't reach Supabase.",
-          hint: "Check your internet connection, then try again.",
+          message: tr("Couldn't reach Supabase."),
+          hint: tr("Check your internet connection, then try again."),
           details: messageOf(error),
         });
       }
@@ -224,8 +225,10 @@ export class SupabaseApi {
         if (response.status === 404 && method === "GET" && /^\/v1\/projects\/[a-z]+$/.test(path)) {
           throw new ClodableError({
             code: "not-found",
-            message: "Your new backend isn't available to this Supabase account.",
-            hint: "Open Supabase and check the account and project. It may have been removed or your access may have changed. Your live app hasn't changed.",
+            message: tr("Your new backend isn't available to this Supabase account."),
+            hint: tr(
+              "Open Supabase and check the account and project. It may have been removed or your access may have changed. Your live app hasn't changed.",
+            ),
           });
         }
         throw describeFailure(response.status, text, permissionFor(method, path));
@@ -403,25 +406,30 @@ function describeFailure(status: number, text: string, permission?: string): Clo
   if (status === 401) {
     return new ClodableError({
       code: "supabase-auth",
-      message: "Supabase didn't accept your access token.",
-      hint: "It may have expired or been deleted. Connect your Supabase account again in the Clodable panel.",
+      message: tr("Supabase didn't accept your access token."),
+      hint: tr(
+        "It may have expired or been deleted. Connect your Supabase account again in the Clodable panel.",
+      ),
       details,
     });
   }
   if (/active free projects/i.test(message)) {
     return new ClodableError({
       code: "supabase-limit",
-      message:
+      message: tr(
         "You already run 2 free Supabase projects, the most Supabase allows per person across all your organizations.",
-      hint: "Pause one you don't use in Supabase, or pick an organization on a paid plan, then try again.",
+      ),
+      hint: tr(
+        "Pause one you don't use in Supabase, or pick an organization on a paid plan, then try again.",
+      ),
       details,
     });
   }
   if (status === 402) {
     return new ClodableError({
       code: "supabase-limit",
-      message: "This goes past what your Supabase plan includes.",
-      hint: "Check your plan in Supabase (Organization → Billing), then try again.",
+      message: tr("This goes past what your Supabase plan includes."),
+      hint: tr("Check your plan in Supabase (Organization → Billing), then try again."),
       details,
     });
   }
@@ -429,16 +437,20 @@ function describeFailure(status: number, text: string, permission?: string): Clo
     return new ClodableError({
       code: "supabase-auth",
       message: permission
-        ? `Your Supabase access token is missing a permission: ${permission}.`
-        : "Your Supabase access token isn't allowed to do this.",
-      hint: "Create a new token that has it (or a full-access one: “Create legacy token”), then connect again. If the permission is there, your role in the organization may not allow it: ask its owner.",
+        ? tr("Your Supabase access token is missing a permission: {0}.", { "0": permission })
+        : tr("Your Supabase access token isn't allowed to do this."),
+      hint: tr(
+        "Create a new token that has it (or a full-access one: “Create legacy token”), then connect again. If the permission is there, your role in the organization may not allow it: ask its owner.",
+      ),
       details,
     });
   }
   return new ClodableError({
     code: "supabase-failed",
-    message: "Supabase refused the request.",
-    hint: "Try again in a minute. If it keeps happening, share the details with your developer.",
+    message: tr("Supabase refused the request."),
+    hint: tr(
+      "Try again in a minute. If it keeps happening, share the details with your developer.",
+    ),
     details,
   });
 }

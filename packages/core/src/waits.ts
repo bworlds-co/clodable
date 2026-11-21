@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { ClodableError } from "./errors.js";
 import { type Flow, type StepId, step } from "./events.js";
 import type { BuildProgress, Deployment } from "./github/types.js";
+import { tr } from "./i18n.js";
 import { loadMove } from "./move/state.js";
 import type { PublishResult } from "./publish.js";
 import type { Workspace } from "./workspace.js";
@@ -46,7 +47,7 @@ export async function runsChecksOnPullRequests(root: string): Promise<boolean> {
 }
 
 /** What a build is doing, in the builder's words, from the site workflow's own step names. */
-const BUILD_STEPS: Array<[RegExp, string]> = [
+const BUILD_STEPS: Array<[RegExp, Parameters<typeof tr>[0]]> = [
   [/^post /i, "Finishing"],
   [/set up|checkout|setup-|deployment started/i, "Getting ready"],
   [/install/i, "Installing your app's packages"],
@@ -61,14 +62,16 @@ const BUILD_STEPS: Array<[RegExp, string]> = [
  */
 export function buildLine(progress: BuildProgress | undefined, elapsedMs: number): string {
   const minutes = Math.floor(elapsedMs / 60_000);
-  const soFar = minutes < 1 ? "under a minute so far" : `${minutes} min so far`;
-  if (!progress) return `Your host is building it · ${soFar}`;
+  const soFar = minutes < 1 ? tr("under a minute so far") : tr("{minutes} min so far", { minutes });
+  if (!progress) return tr("Your host is building it · {time}", { time: soFar });
   const doing = progress.step
-    ? (BUILD_STEPS.find(([pattern]) => pattern.test(progress.step!))?.[1] ?? "Building your site")
-    : "Waiting for GitHub to start the build";
+    ? tr(BUILD_STEPS.find(([pattern]) => pattern.test(progress.step!))?.[1] ?? "Building your site")
+    : tr("Waiting for GitHub to start the build");
   const usual = progress.lastSeconds
-    ? `usually about ${Math.max(1, Math.round(progress.lastSeconds / 60))} min`
-    : "the first one takes a few minutes";
+    ? tr("usually about {minutes} min", {
+        minutes: Math.max(1, Math.round(progress.lastSeconds / 60)),
+      })
+    : tr("the first one takes a few minutes");
   return `${doing} · ${soFar} · ${usual}`;
 }
 
@@ -94,35 +97,35 @@ async function* waitForCi(ws: Workspace, prNumber: number, o: Timing): Flow<void
         await o.sleep(Math.min(o.poll, 3000));
         continue;
       }
-      if (announced) yield step("ci", "done", "Your project's checks passed");
+      if (announced) yield step("ci", "done", tr("Your project's checks passed"));
       return;
     }
     if (summary.state === "success") {
-      yield step("ci", "done", "Your project's checks passed");
+      yield step("ci", "done", tr("Your project's checks passed"));
       return;
     }
     if (summary.state === "failure") {
       const names = summary.failed.map((f) => f.name).join(", ");
-      yield step("ci", "failed", `A check failed: ${names}`);
+      yield step("ci", "failed", tr("A check failed: {0}", { "0": names }));
       throw new ClodableError({
         code: "ci-failed",
-        message: `Your project's own checks didn't pass (${names}).`,
-        hint: "Nothing went live. Ask Claude to look at the failing check and fix it.",
+        message: tr("Your project's own checks didn't pass ({0}).", { "0": names }),
+        hint: tr("Nothing went live. Ask Claude to look at the failing check and fix it."),
         details: summary.failed.map((f) => `${f.name}${f.url ? `: ${f.url}` : ""}`).join("\n"),
       });
     }
     yield step(
       "ci",
       "running",
-      "Waiting for your project's checks",
-      `${summary.done} of ${summary.total} finished`,
+      tr("Waiting for your project's checks"),
+      tr("{0} of {1} finished", { "0": summary.done, "1": summary.total }),
     );
     announced = true;
     if (o.now().getTime() > deadline) {
       throw new ClodableError({
         code: "ci-failed",
-        message: "Your project's checks are taking too long.",
-        hint: "Nothing went live. Try publishing again in a few minutes.",
+        message: tr("Your project's checks are taking too long."),
+        hint: tr("Nothing went live. Try publishing again in a few minutes."),
       });
     }
     await o.sleep(o.poll);
@@ -191,8 +194,8 @@ export async function* waitForDeploy(
     yield step(
       "deploy",
       "done",
-      "Published on GitHub",
-      "To put it live, click Publish, then Publish changes, in Lovable",
+      tr("Published on GitHub"),
+      tr("To put it live, click Publish, then Publish changes, in Lovable"),
     );
     // Moving off Lovable: the new site on Netlify follows each Publish, through GitHub.
     const moving = (await loadMove(ws.root)).site;
@@ -201,14 +204,14 @@ export async function* waitForDeploy(
       : undefined;
     return { state: "lovable", ...(url ? { url } : {}), ...(site ? { site } : {}) };
   }
-  yield step("deploy", "running", "Going live");
+  yield step("deploy", "running", tr("Going live"));
   const end = yield* followDeployment(
     ws,
     sha,
     o,
     {
       id: "deploy",
-      title: "Going live",
+      title: tr("Going live"),
       unreportedAfterMs: 75_000,
     },
     ignoredDeploymentIds,
@@ -217,15 +220,17 @@ export async function* waitForDeploy(
   switch (end.state) {
     case "success": {
       const url = end.deployment.url ?? ws.config.liveUrl;
-      yield step("deploy", "done", "You're live", url);
+      yield step("deploy", "done", tr("You're live"), url);
       return { state: "live", ...(url ? { url } : {}) };
     }
     case "failed":
-      yield step("deploy", "failed", "Your host couldn't put it live");
+      yield step("deploy", "failed", tr("Your host couldn't put it live"));
       throw new ClodableError({
         code: "deploy-failed",
-        message: "Your changes are saved, but your host couldn't put them live.",
-        hint: "Your previous version is still live. Fix the hosting problem, then retry Publish; no new app change is needed.",
+        message: tr("Your changes are saved, but your host couldn't put them live."),
+        hint: tr(
+          "Your previous version is still live. Fix the hosting problem, then retry Publish; no new app change is needed.",
+        ),
         ...(end.deployment.logUrl ? { details: end.deployment.logUrl } : {}),
       });
     case "unreported": {
@@ -234,16 +239,21 @@ export async function* waitForDeploy(
         yield step(
           "deploy",
           "done",
-          "Published on GitHub",
-          "No host puts it online from there yet",
+          tr("Published on GitHub"),
+          tr("No host puts it online from there yet"),
         );
         return { state: "unknown", noHost: true };
       }
-      yield step("deploy", "done", "Published", "Your host will put it live in a moment");
+      yield step("deploy", "done", tr("Published"), tr("Your host will put it live in a moment"));
       return { state: "unknown", ...liveUrl };
     }
     case "late":
-      yield step("deploy", "warning", "Still going live", "Your host is taking longer than usual");
+      yield step(
+        "deploy",
+        "warning",
+        tr("Still going live"),
+        tr("Your host is taking longer than usual"),
+      );
       return { state: "pending", ...liveUrl };
   }
 }
@@ -259,28 +269,28 @@ async function* followSite(
   url: string,
   ignoredDeploymentIds: number[] = [],
 ): Flow<NonNullable<PublishResult["site"]>> {
-  yield step("move:site", "running", "Updating your site on Netlify");
+  yield step("move:site", "running", tr("Updating your site on Netlify"));
   const end = yield* followDeployment(
     ws,
     sha,
     o,
     {
       id: "move:site",
-      title: "Updating your site on Netlify",
+      title: tr("Updating your site on Netlify"),
       unreportedAfterMs: 120_000,
     },
     ignoredDeploymentIds,
   );
   if (end.state === "success") {
     const siteUrl = end.deployment.url ?? url;
-    yield step("move:site", "done", "Your site on Netlify is up to date", siteUrl);
+    yield step("move:site", "done", tr("Your site on Netlify is up to date"), siteUrl);
     return { url: siteUrl, state: "live" };
   }
   if (end.state === "failed") {
     const { logUrl } = end.deployment;
-    yield step("move:site", "warning", "Your site on Netlify didn't update", logUrl);
+    yield step("move:site", "warning", tr("Your site on Netlify didn't update"), logUrl);
     return { url, state: "failed", ...(logUrl ? { logUrl } : {}) };
   }
-  yield step("move:site", "warning", "Your site on Netlify is still updating", url);
+  yield step("move:site", "warning", tr("Your site on Netlify is still updating"), url);
   return { url, state: "pending" };
 }

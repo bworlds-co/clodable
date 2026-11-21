@@ -4,6 +4,7 @@ import type { ProjectConfig } from "../config.js";
 import { ClodableError } from "../errors.js";
 import { type Flow, step } from "../events.js";
 import { exec } from "../exec.js";
+import { tr } from "../i18n.js";
 import { type ProjectInfo, packageManagerHere, runScriptCommand } from "../project.js";
 import { ScannerUnavailable } from "./gitleaks.js";
 import { describeFinding, scanVersion } from "./secrets.js";
@@ -70,7 +71,7 @@ function realRoot(root: string): string {
 async function checkBuild(project: ProjectInfo, config: ProjectConfig): Promise<CheckResult> {
   const script = config.app.buildScript;
   if (!project.scripts[script]) {
-    return { id: "build", status: "skipped", summary: "No build step to check" };
+    return { id: "build", status: "skipped", summary: tr("No build step to check") };
   }
   const [command, args] = runScriptCommand(await packageManagerHere(project), script);
   const result = await exec(command, args, {
@@ -78,15 +79,15 @@ async function checkBuild(project: ProjectInfo, config: ProjectConfig): Promise<
     env: { CI: "1", NODE_ENV: "production", FORCE_COLOR: "0" },
     timeout: 10 * 60_000,
   });
-  if (result.exitCode === 0) return { id: "build", status: "passed", summary: "It builds" };
+  if (result.exitCode === 0) return { id: "build", status: "passed", summary: tr("It builds") };
   const output = `${result.stdout}\n${result.stderr}`;
   const { excerpt, location } = summarizeBuildOutput(output, project.root);
   return {
     id: "build",
     status: "failed",
     summary: location
-      ? `A page doesn't build (${location.file}, line ${location.line})`
-      : "Your app doesn't build",
+      ? tr("A page doesn't build ({0}, line {1})", { "0": location.file, "1": location.line })
+      : tr("Your app doesn't build"),
     details: excerpt || output.slice(-4000),
     ...(location ? { locations: [location] } : {}),
   };
@@ -110,7 +111,7 @@ async function checkPackages(project: ProjectInfo): Promise<CheckResult> {
     return {
       id: "packages",
       status: "skipped",
-      summary: "Package check not available for this project",
+      summary: tr("Package check not available for this project"),
     };
   }
   const result = await exec(command[0], command[1], { cwd: project.root, timeout: 120_000 });
@@ -118,10 +119,10 @@ async function checkPackages(project: ProjectInfo): Promise<CheckResult> {
   try {
     audit = JSON.parse(result.stdout || "{}") as AuditJson;
   } catch {
-    return { id: "packages", status: "skipped", summary: "Couldn't check packages (offline?)" };
+    return { id: "packages", status: "skipped", summary: tr("Couldn't check packages (offline?)") };
   }
   if (audit.error || !audit.metadata) {
-    return { id: "packages", status: "skipped", summary: "Couldn't check packages right now" };
+    return { id: "packages", status: "skipped", summary: tr("Couldn't check packages right now") };
   }
   const counts = audit.metadata.vulnerabilities ?? {};
   const critical = counts.critical ?? 0;
@@ -133,7 +134,12 @@ async function checkPackages(project: ProjectInfo): Promise<CheckResult> {
     return {
       id: "packages",
       status: "failed",
-      summary: `${critical} package${critical > 1 ? "s have" : " has"} a critical security issue`,
+      summary: tr(
+        critical === 1
+          ? "{count} package has a critical security issue"
+          : "{count} packages have a critical security issue",
+        { count: critical },
+      ),
       details: names.join("\n"),
     };
   }
@@ -141,11 +147,16 @@ async function checkPackages(project: ProjectInfo): Promise<CheckResult> {
     return {
       id: "packages",
       status: "warning",
-      summary: `${high} package${high > 1 ? "s have" : " has"} a known security issue`,
+      summary: tr(
+        high === 1
+          ? "{count} package has a known security issue"
+          : "{count} packages have a known security issue",
+        { count: high },
+      ),
       details: names.join("\n"),
     };
   }
-  return { id: "packages", status: "passed", summary: "Packages look safe" };
+  return { id: "packages", status: "passed", summary: tr("Packages look safe") };
 }
 
 /** The version about to go live, every tracked file, through gitleaks (see secrets.ts). */
@@ -157,7 +168,7 @@ async function checkSecrets(project: ProjectInfo): Promise<CheckResult> {
     return {
       id: "secrets",
       status: "failed",
-      summary: "Couldn't check for secret keys",
+      summary: tr("Couldn't check for secret keys"),
       details: error instanceof ScannerUnavailable ? error.message : String(error),
     };
   }
@@ -168,8 +179,8 @@ async function checkSecrets(project: ProjectInfo): Promise<CheckResult> {
       status: "failed",
       summary:
         blocking.length === 1
-          ? `A secret key is saved in ${blocking[0]!.file}`
-          : `${blocking.length} secret keys are saved in your project`,
+          ? tr("A secret key is saved in {0}", { "0": blocking[0]!.file })
+          : tr("{0} secret keys are saved in your project", { "0": blocking.length }),
       details: findings.map(describeFinding).join("\n"),
       locations: blocking.map((f) => ({ file: f.file, line: f.line })),
     };
@@ -178,15 +189,15 @@ async function checkSecrets(project: ProjectInfo): Promise<CheckResult> {
     return {
       id: "secrets",
       status: "warning",
-      summary: "Something that looks like a key is saved in your project",
+      summary: tr("Something that looks like a key is saved in your project"),
       details: findings.map(describeFinding).join("\n"),
       locations: findings.map((f) => ({ file: f.file, line: f.line })),
     };
   }
-  return { id: "secrets", status: "passed", summary: "No secret keys exposed" };
+  return { id: "secrets", status: "passed", summary: tr("No secret keys exposed") };
 }
 
-const RUNNING: Record<CheckId, string> = {
+const RUNNING: Record<CheckId, Parameters<typeof tr>[0]> = {
   build: "Checking it builds",
   packages: "Checking packages for security issues",
   secrets: "Looking for exposed secret keys",
@@ -199,7 +210,7 @@ const RUNNING: Record<CheckId, string> = {
 export function checksFailed(failed: CheckResult[], hint: string): ClodableError {
   return new ClodableError({
     code: "checks-failed",
-    message: failed[0]?.summary ?? "A check failed.",
+    message: failed[0]?.summary ?? tr("A check failed."),
     hint,
     details: failed
       .map((f) => `${f.summary}\n${f.details ?? ""}`)
@@ -219,7 +230,7 @@ export async function* runChecks(project: ProjectInfo, config: ProjectConfig): F
   const results: CheckResult[] = [];
   for (const id of enabled) {
     const stepId = `check:${id}` as const;
-    yield step(stepId, "running", RUNNING[id]);
+    yield step(stepId, "running", tr(RUNNING[id]));
     const result =
       id === "build"
         ? await checkBuild(project, config)

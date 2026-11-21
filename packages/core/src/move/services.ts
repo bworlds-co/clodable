@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { ClodableError } from "../errors.js";
+import { tr } from "../i18n.js";
 import { CODE_DIRS, LOVABLE_AI } from "../project.js";
 import { setSetting } from "../settings.js";
 import type { Workspace } from "../workspace.js";
@@ -108,10 +109,10 @@ export function servicesLeft(
   emailsSkipped = false,
 ): string[] {
   return [
-    ...(status.ai && !status.aiSwitched ? ["AI"] : []),
+    ...(status.ai && !status.aiSwitched ? [tr("AI")] : []),
     // Without emails of their own (skipped), the app's own emails stop with Lovable: nothing to do.
-    ...(status.emails && !status.emailsSwitched && !emailsSkipped ? ["emails"] : []),
-    ...(status.hook && emailsConnected && !status.hookOn ? ["sign-in emails"] : []),
+    ...(status.emails && !status.emailsSwitched && !emailsSkipped ? [tr("emails")] : []),
+    ...(status.hook && emailsConnected && !status.hookOn ? [tr("sign-in emails")] : []),
     ...status.connectors,
   ];
 }
@@ -150,8 +151,8 @@ export async function setAiProvider(
   if (!provider || !(provider in AI_PROVIDERS)) {
     throw new ClodableError({
       code: "invalid-config",
-      message: "Which AI provider?",
-      hint: `One of: ${Object.keys(AI_PROVIDERS).join(", ")}.`,
+      message: tr("Which AI provider?"),
+      hint: tr("One of: {0}.", { "0": Object.keys(AI_PROVIDERS).join(", ") }),
     });
   }
   const chosen = AI_PROVIDERS[provider as AiProvider];
@@ -159,8 +160,8 @@ export async function setAiProvider(
   if (value.length < 20) {
     throw new ClodableError({
       code: "invalid-config",
-      message: `That doesn't look like a ${chosen.name} key.`,
-      hint: "Paste the whole key, as the provider shows it once.",
+      message: tr("That doesn't look like a {0} key.", { "0": chosen.name }),
+      hint: tr("Paste the whole key, as the provider shows it once."),
     });
   }
   await setSetting(ws, "AI_API_URL", chosen.url);
@@ -186,7 +187,7 @@ export async function provisionAppEmails(
   if (!state.emails?.connectedAt || !state.emails.domainId) {
     throw new ClodableError({
       code: "move-not-ready",
-      message: "Set up your emails first: your app's own emails go out the same way.",
+      message: tr("Set up your emails first: your app's own emails go out the same way."),
     });
   }
   const resend = await ResendApi.required();
@@ -214,15 +215,20 @@ export async function provisionAppEmails(
 export async function enableEmailHook(ws: Workspace): Promise<{ on: true }> {
   const state = await loadMove(ws.root);
   if (!state.home) {
-    throw new ClodableError({ code: "move-not-ready", message: "Create your new backend first." });
+    throw new ClodableError({
+      code: "move-not-ready",
+      message: tr("Create your new backend first."),
+    });
   }
   const api = await SupabaseApi.required();
   const deployed = (await api.functions(state.home.ref)).find((f) => f.slug === "auth-email-hook");
   if (deployed?.status !== "ACTIVE") {
     throw new ClodableError({
       code: "move-not-ready",
-      message: "Move your backend functions first: the sign-in emails come from auth-email-hook.",
-      hint: "clodable move functions",
+      message: tr(
+        "Move your backend functions first: the sign-in emails come from auth-email-hook.",
+      ),
+      hint: tr("clodable move functions"),
     });
   }
   const secret = `v1,whsec_${randomBytes(32).toString("base64")}`;
