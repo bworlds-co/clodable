@@ -1,4 +1,9 @@
 export const cli = {
+  "That preparation step isn't available.": "Cette étape de préparation n’est pas disponible.",
+  "Your original app is backed up on this computer.":
+    "Une copie de votre application d’origine est conservée sur cet ordinateur.",
+  "Keep a verified local copy before preparing your app":
+    "Conserver une copie locale vérifiée avant de préparer votre application",
   "Nothing was given.": "Aucune valeur n’a été fournie.",
   "Pipe the value in (never as an argument), or run this in a terminal to type it.":
     "Transmettez la valeur sur l’entrée standard, jamais comme argument, ou lancez la commande dans un terminal pour la saisir.",

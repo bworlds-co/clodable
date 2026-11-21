@@ -4,6 +4,7 @@ import { dbCommand } from "./commands/db.js";
 import { devCommand } from "./commands/dev.js";
 import { configCommand, moveCommand, moveHelp } from "./commands/move.js";
 import { backendCommand, connectCommand, siteCommand } from "./commands/online.js";
+import { preparationCommand } from "./commands/preparation.js";
 import { checkCommand, publishCommand, undoCommand } from "./commands/publish.js";
 import { settingsCommand } from "./commands/settings.js";
 import { doctorCommand, kitCommand, setupCommand } from "./commands/setup.js";
@@ -109,6 +110,10 @@ cli
 cli
   .command("doctor", tr("Check that everything Clodable needs is in place"))
   .action((options) => doctorCommand(ctx(options)));
+
+cli
+  .command("prepare <action>", tr("Keep a verified local copy before preparing your app"))
+  .action((action: string, options) => preparationCommand(ctx(options), action));
 
 cli
   .command(
