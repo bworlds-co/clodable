@@ -14,16 +14,16 @@ export const french = {
   "Help me open the right folder for this app, keeping its files and saving connection.":
     "Aide-moi à ouvrir le bon dossier pour cette application, en conservant ses fichiers et sa connexion d’enregistrement.",
   "Prepare your app for saving": "Préparer l’enregistrement de votre application",
-  "Claude can check what your app needs and keep a verified copy before making changes.":
-    "Claude peut examiner les besoins de votre application et conserver une copie vérifiée avant toute modification.",
-  "Your design, content and interactions stay the starting point. If a rewrite is needed, Claude will ask you first.":
-    "Votre design, votre contenu et vos interactions restent le point de départ. Si une réécriture est nécessaire, Claude vous demandera d’abord votre accord.",
-  "Prepare my app for saving, keeping its design, content and interactions.":
-    "Prépare mon application pour l’enregistrement, en conservant son design, son contenu et ses interactions.",
+  "Claude will adapt the technical setup while preserving your app's appearance, features and data.":
+    "Claude adaptera la partie technique en préservant l’apparence, les fonctionnalités et les données de votre application.",
+  "Claude keeps an original copy and checks your existing journeys. If a feature cannot be preserved, Claude explains it before proceeding.":
+    "Claude conserve une copie de l’original et vérifie les parcours existants. Si une fonction ne peut pas être préservée, Claude vous l’explique avant de poursuivre.",
+  "Prepare my app for saving, preserving its appearance, features and data, and verify its existing journeys.":
+    "Prépare mon application pour l’enregistrement, en préservant son apparence, ses fonctionnalités et ses données, et vérifie ses parcours existants.",
   "Claude is working on your app…": "Claude travaille sur votre application…",
   "Prepare my app for saving": "Préparer mon application pour l’enregistrement",
-  "Saving becomes available when Clodable recognizes your app. Nothing goes online during preparation.":
-    "L’enregistrement devient disponible lorsque Clodable reconnaît votre application. Rien n’est mis en ligne pendant la préparation.",
+  "Preparation includes checking that your existing journeys still work. Nothing goes online during preparation.":
+    "La préparation comprend la vérification des parcours existants. Rien n’est mis en ligne pendant la préparation.",
   "Clodable couldn't check this folder yet. Check again before setting up saving.":
     "Clodable n’a pas encore pu vérifier ce dossier. Vérifiez à nouveau avant de configurer l’enregistrement.",
   "This app already has saved versions on this computer. Clodable will keep the versions leading to this one and your current files in the new private app.":

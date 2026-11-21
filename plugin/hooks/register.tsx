@@ -3465,12 +3465,12 @@ function setupPane(
         <Text {...headingStyle(ui)}>{t("Prepare your app for saving")}</Text>
         <Text>
           {t(
-            "Claude can check what your app needs and keep a verified copy before making changes.",
+            "Claude will adapt the technical setup while preserving your app's appearance, features and data.",
           )}
         </Text>
         <Text {...supportingStyle(ui)} dimColor>
           {t(
-            "Your design, content and interactions stay the starting point. If a rewrite is needed, Claude will ask you first.",
+            "Claude keeps an original copy and checks your existing journeys. If a feature cannot be preserved, Claude explains it before proceeding.",
           )}
         </Text>
         <Button
@@ -3483,7 +3483,9 @@ function setupPane(
             background(
               askClaude(
                 $,
-                t("Prepare my app for saving, keeping its design, content and interactions."),
+                t(
+                  "Prepare my app for saving, preserving its appearance, features and data, and verify its existing journeys.",
+                ),
                 PREPARE_APP_DETAILS,
               ),
             );
@@ -3511,7 +3513,7 @@ function setupPane(
         </Button>
         <Text {...supportingStyle(ui)} dimColor>
           {t(
-            "Saving becomes available when Clodable recognizes your app. Nothing goes online during preparation.",
+            "Preparation includes checking that your existing journeys still work. Nothing goes online during preparation.",
           )}
         </Text>
       </Box>
