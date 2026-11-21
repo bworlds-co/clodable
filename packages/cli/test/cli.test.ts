@@ -43,6 +43,31 @@ function clodableWith(env: Record<string, string>, ...args: string[]) {
 }
 
 describe("clodable --json", () => {
+  it("localizes progress and errors while keeping the NDJSON contract stable", async () => {
+    const failed = clodableWith({ CLODABLE_LANGUAGE: "fr-CA" }, "move", "diagnose");
+    expect(failed.result).toMatchObject({
+      type: "result",
+      ok: false,
+      error: {
+        code: "move-not-ready",
+        message: "Aucun nouveau backend à examiner pour le moment.",
+      },
+    });
+    expect(clodableWith({ CLODABLE_LANGUAGE: "de" }, "move", "diagnose").result.error.message).toBe(
+      "There's no new backend to look at yet.",
+    );
+    const checked = clodableWith({ CLODABLE_LANGUAGE: "fr" }, "check");
+    expect(checked.events).toContainEqual(
+      expect.objectContaining({
+        type: "step",
+        id: "check:build",
+        state: "running",
+        title: "Vérification du build",
+      }),
+    );
+    expect(checked.result.type).toBe("result");
+  });
+
   it("records dated rehearsal evidence over stdin and reads it in a fresh process", async () => {
     const copy = { ref: "test-copy", dataAt: "2026-10-10T10:00:00.000Z" };
     await sb.write(

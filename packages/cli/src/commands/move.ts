@@ -61,6 +61,7 @@ import {
   type Workspace,
 } from "@clodable/core";
 import { type Context, drive, readStdin, run, secretInput } from "../context.js";
+import { tr } from "../i18n.js";
 import { ash, celadon, clay, link, ochre } from "../ui.js";
 
 const SETTINGS = {
@@ -83,8 +84,8 @@ export async function configCommand(ctx: Context, options: { key?: string; value
       if (!(options.key in SETTINGS)) {
         throw new ClodableError({
           code: "invalid-config",
-          message: `There's no setting called “${options.key}”.`,
-          hint: "Use backend or hosting.",
+          message: tr("There's no setting called “{0}”.", { "0": options.key }),
+          hint: tr("Use backend or hosting."),
         });
       }
       const key = options.key as Setting;
@@ -93,8 +94,8 @@ export async function configCommand(ctx: Context, options: { key?: string; value
       if (!allowed.includes(options.value)) {
         throw new ClodableError({
           code: "invalid-config",
-          message: `“${options.value}” isn't a value for ${key}.`,
-          hint: `Use one of: ${allowed.join(", ")}.`,
+          message: tr("“{0}” isn't a value for {1}.", { "0": options.value, "1": key }),
+          hint: tr("Use one of: {0}.", { "0": allowed.join(", ") }),
         });
       }
       const config: ProjectConfig = { ...ws.config, [key]: options.value };
@@ -110,7 +111,7 @@ export async function configCommand(ctx: Context, options: { key?: string; value
   );
 }
 
-const LEVEL: Record<MoveAssessment["level"], string> = {
+const LEVEL: Record<MoveAssessment["level"], Parameters<typeof tr>[0]> = {
   simple: "A simple move: Clodable does nearly everything, and you click a few buttons.",
   "some-steps": "A move with a few steps for you, each one guided.",
   "needs-help": "A move where some parts are best done with someone technical.",
@@ -146,7 +147,7 @@ export interface MoveOptions {
 const MARK = { done: celadon("✓"), next: clay("●"), later: ash("·"), attention: ochre("!") };
 
 function renderProgress(ctx: Context, progress: MoveProgress) {
-  ctx.out.header("move off Lovable");
+  ctx.out.header(tr("move off Lovable"));
   for (const step of progress.steps) {
     ctx.out.line(`${MARK[step.state]} ${step.title}${step.detail ? ash(` · ${step.detail}`) : ""}`);
   }
@@ -205,8 +206,8 @@ const STEPS = {
           return assessMove(ws.project, ws.config, (await loadMove(ws.root)).facts);
         },
         (assessment) => {
-          ctx.out.header("move off Lovable");
-          ctx.out.line(LEVEL[assessment.level]);
+          ctx.out.header(tr("move off Lovable"));
+          ctx.out.line(tr(LEVEL[assessment.level]));
           ctx.out.line("");
           const mark = { clodable: celadon("✓"), you: clay("●"), help: ochre("!") };
           const who = { clodable: "Clodable", you: "You", help: "Help" };
@@ -229,22 +230,25 @@ const STEPS = {
               if (!json) {
                 throw new ClodableError({
                   code: "invalid-config",
-                  message: "Nothing was given.",
-                  hint: "Pipe the facts in, as one JSON object.",
+                  message: tr("Nothing was given."),
+                  hint: tr("Pipe the facts in, as one JSON object."),
                 });
               }
               return recordFacts(await ctx.workspace(), json);
             },
-            (facts) => ctx.out.line(`${celadon("✓")} Recorded: ${factsSummary(facts)}`),
+            (facts) =>
+              ctx.out.line(
+                tr("{0} Recorded: {1}", { "0": celadon("✓"), "1": factsSummary(facts) }),
+              ),
           )
         : run(
             ctx,
             async () => moveFacts(await ctx.workspace()),
             ({ hints, facts }) => {
-              ctx.out.header("what your app uses");
-              ctx.out.line(facts ? factsSummary(facts) : ash("Not checked yet."));
+              ctx.out.header(tr("what your app uses"));
+              ctx.out.line(facts ? factsSummary(facts) : ash(tr("Not checked yet.")));
               ctx.out.line("");
-              ctx.out.line(ash("Clodable's scan, for Claude to check:"));
+              ctx.out.line(ash(tr("Clodable's scan, for Claude to check:")));
               ctx.out.line(JSON.stringify(hints, null, 2));
             },
           ),
@@ -269,7 +273,7 @@ const STEPS = {
           return options.set ? recordRehearsal(ws, (await readStdin()) ?? "") : readRehearsal(ws);
         },
         (record) => {
-          ctx.out.header("Checks on your copy");
+          ctx.out.header(tr("Checks on your copy"));
           for (const observation of record.observations) {
             ctx.out.line(
               `${observation.feature}: ${observation.result} (${observation.observedAt}, ${observation.method}, ${observation.scope})`,
@@ -289,13 +293,16 @@ const STEPS = {
         async () => {
           await ctx.workspace();
           return connectSupabase(
-            await secretInput(ctx, `Your Supabase access token (create one at ${TOKENS_PAGE})`),
+            await secretInput(
+              ctx,
+              tr("Your Supabase access token (create one at {0})", { "0": TOKENS_PAGE }),
+            ),
           );
         },
         (data) => {
-          ctx.out.line(`${celadon("✓")} Supabase is connected on this computer.`);
+          ctx.out.line(tr("{0} Supabase is connected on this computer.", { "0": celadon("✓") }));
           for (const org of data.organizations) {
-            ctx.out.line(ash(`  ${org.name} · ${org.plan} plan`));
+            ctx.out.line(ash(tr("  {0} · {1} plan", { "0": org.name, "1": org.plan })));
           }
         },
       ),
@@ -317,7 +324,8 @@ const STEPS = {
           for (const org of choices.organizations) {
             ctx.out.line(`${org.name} ${ash(`(${org.slug}) · ${org.cost}`)}`);
           }
-          if (choices.region) ctx.out.line(ash(`Suggested region: ${choices.region.name}`));
+          if (choices.region)
+            ctx.out.line(ash(tr("Suggested region: {0}", { "0": choices.region.name })));
         },
       ),
   },
@@ -370,11 +378,11 @@ const STEPS = {
         ctx,
         async () => diagnoseCopy(await ctx.workspace(), { fix: Boolean(options.fix) }),
         (result) => {
-          ctx.out.header("your new backend");
+          ctx.out.header(tr("your new backend"));
           for (const finding of result.findings) {
             const mark = finding.fixed || finding.ok ? celadon("✓") : ochre("!");
             ctx.out.line(
-              `${mark} ${finding.label}${finding.fixed ? ash(" · fixed just now") : ""}`,
+              `${mark} ${finding.label}${finding.fixed ? ash(tr(" · fixed just now")) : ""}`,
             );
             if (finding.detail) ctx.out.line(ash(`  ${finding.detail}`));
             if (finding.fix) ctx.out.line(ash(`  → ${finding.fix}`));
@@ -388,7 +396,7 @@ const STEPS = {
       run(ctx, async () => {
         const ws = await ctx.workspace();
         const sourceKey = options.private
-          ? await secretInput(ctx, "Lovable Cloud's service key")
+          ? await secretInput(ctx, tr("Lovable Cloud's service key"))
           : undefined;
         return drive(ctx, copyUploads(ws, sourceKey ? { sourceKey } : {}));
       }),
@@ -409,12 +417,16 @@ const STEPS = {
           const ws = await ctx.workspace();
           const name = argument(
             options,
-            "Which secret?",
-            "clodable move secret RESEND_API_KEY, with the value piped in.",
+            tr("Which secret?"),
+            tr("clodable move secret RESEND_API_KEY, with the value piped in."),
           );
-          return setFunctionSecret(ws, name, await secretInput(ctx, `The value of ${name}`));
+          return setFunctionSecret(
+            ws,
+            name,
+            await secretInput(ctx, tr("The value of {0}", { "0": name })),
+          );
         },
-        () => ctx.out.line(`${celadon("✓")} Saved in your new backend.`),
+        () => ctx.out.line(tr("{0} Saved in your new backend.", { "0": celadon("✓") })),
       ),
   },
 
@@ -427,10 +439,13 @@ const STEPS = {
         ctx,
         async () => {
           const ws = await ctx.workspace();
-          const value = await secretInput(ctx, `The value of ${options.arg ?? "the secret"}`);
+          const value = await secretInput(
+            ctx,
+            tr("The value of {0}", { "0": options.arg ?? "the secret" }),
+          );
           return setVaultValue(ws, options.arg, value);
         },
-        () => ctx.out.line(`${celadon("✓")} Saved in your new backend's vault.`),
+        () => ctx.out.line(tr("{0} Saved in your new backend's vault.", { "0": celadon("✓") })),
       ),
   },
 
@@ -445,8 +460,8 @@ const STEPS = {
           if (target !== "copy" && target !== "live") {
             throw new ClodableError({
               code: "invalid-config",
-              message: "Preview which backend?",
-              hint: "clodable move preview copy, or clodable move preview live.",
+              message: tr("Preview which backend?"),
+              hint: tr("clodable move preview copy, or clodable move preview live."),
             });
           }
           await setPreview(ws, target);
@@ -455,8 +470,8 @@ const STEPS = {
         (data) =>
           ctx.out.line(
             data.preview === "copy"
-              ? `${celadon("✓")} The preview now uses your new backend.`
-              : `${celadon("✓")} The preview uses your live backend again.`,
+              ? tr("{0} The preview now uses your new backend.", { "0": celadon("✓") })
+              : tr("{0} The preview uses your live backend again.", { "0": celadon("✓") }),
           ),
       ),
   },
@@ -470,12 +485,12 @@ const STEPS = {
           return connectNetlify(
             await secretInput(
               ctx,
-              `Your Netlify access token (create one at ${NETLIFY_TOKENS_PAGE})`,
+              tr("Your Netlify access token (create one at {0})", { "0": NETLIFY_TOKENS_PAGE }),
             ),
           );
         },
         (data) => {
-          ctx.out.line(`${celadon("✓")} Netlify is connected on this computer.`);
+          ctx.out.line(tr("{0} Netlify is connected on this computer.", { "0": celadon("✓") }));
           for (const account of data.accounts) {
             ctx.out.line(ash(`  ${account.name} (${account.slug})`));
           }
@@ -514,13 +529,20 @@ const STEPS = {
           ),
         (outcome) => {
           ctx.out.line(ash(`  ${outcome.site.url}`));
-          if (outcome.files.length > 0) ctx.out.line(ash(`  Added: ${outcome.files.join(", ")}`));
+          if (outcome.files.length > 0)
+            ctx.out.line(ash(tr("  Added: {0}", { "0": outcome.files.join(", ") })));
           const missing = outcome.settings.wanted.filter((n) => !outcome.settings.set.includes(n));
           if (missing.length > 0) {
-            ctx.out.line(ash(`  Settings your app reads, to fill in: ${missing.join(", ")}`));
+            ctx.out.line(
+              ash(tr("  Settings your app reads, to fill in: {0}", { "0": missing.join(", ") })),
+            );
           }
           if (outcome.settings.lovable.length > 0) {
-            ctx.out.line(ash(`  Lovable's own, for later: ${outcome.settings.lovable.join(", ")}`));
+            ctx.out.line(
+              ash(
+                tr("  Lovable's own, for later: {0}", { "0": outcome.settings.lovable.join(", ") }),
+              ),
+            );
           }
         },
       ),
@@ -543,14 +565,14 @@ const STEPS = {
           const ws = await ctx.workspace();
           const name = argument(
             options,
-            "Which setting?",
-            "clodable move setting GREETING, with the value piped in.",
+            tr("Which setting?"),
+            tr("clodable move setting GREETING, with the value piped in."),
           );
           // For the preview too, not only the site: one paste, both places.
-          await setSetting(ws, name, await secretInput(ctx, `The value of ${name}`));
+          await setSetting(ws, name, await secretInput(ctx, tr("The value of {0}", { "0": name })));
           return siteSettings(ws);
         },
-        () => ctx.out.line(`${celadon("✓")} Saved on your Netlify site.`),
+        () => ctx.out.line(tr("{0} Saved on your Netlify site.", { "0": celadon("✓") })),
       ),
   },
 
@@ -562,7 +584,7 @@ const STEPS = {
         async () => setMoveMethod(await ctx.workspace(), options.arg),
         (data) =>
           ctx.out.line(
-            `${celadon("✓")} ${data.method === "quick" ? "In one go: no pause, no last export." : "Carefully: a short pause at the end, nothing lost."}`,
+            `${celadon("✓")} ${data.method === "quick" ? tr("In one go: no pause, no last export.") : tr("Carefully: a short pause at the end, nothing lost.")}`,
           ),
       ),
   },
@@ -574,10 +596,13 @@ const STEPS = {
         async () => {
           await ctx.workspace();
           return connectResend(
-            await secretInput(ctx, `Your Resend key, with Full access (${RESEND_KEYS_PAGE})`),
+            await secretInput(
+              ctx,
+              tr("Your Resend key, with Full access ({0})", { "0": RESEND_KEYS_PAGE }),
+            ),
           );
         },
-        () => ctx.out.line(`${celadon("✓")} Resend is connected on this computer.`),
+        () => ctx.out.line(tr("{0} Resend is connected on this computer.", { "0": celadon("✓") })),
       ),
   },
 
@@ -606,18 +631,24 @@ const STEPS = {
         },
         (outcome) => {
           if ("hook" in outcome) {
-            ctx.out.line(`${celadon("✓")} Sign-in emails go out through your app's own templates.`);
+            ctx.out.line(
+              tr("{0} Sign-in emails go out through your app's own templates.", {
+                "0": celadon("✓"),
+              }),
+            );
             return;
           }
           if ("skipped" in outcome) {
             ctx.out.line(
-              `${celadon("✓")} Going live without emails: no confirmations, no password resets.`,
+              tr("{0} Going live without emails: no confirmations, no password resets.", {
+                "0": celadon("✓"),
+              }),
             );
             return;
           }
           if (outcome.connected) return;
           ctx.out.line("");
-          ctx.out.line(`Add these records at ${outcome.domain}'s DNS provider:`);
+          ctx.out.line(tr("Add these records at {0}'s DNS provider:", { "0": outcome.domain }));
           for (const r of outcome.records) {
             const priority = r.priority !== undefined ? ash(`  (priority ${r.priority})`) : "";
             ctx.out.line(`  ${r.type.padEnd(5)} ${r.name.padEnd(22)} ${r.value}${priority}`);
@@ -640,20 +671,22 @@ const STEPS = {
               line(
                 status.ai,
                 status.aiSwitched,
-                "AI: Lovable's AI gateway → your own provider (AI_API_URL, AI_API_KEY)",
+                tr("AI: Lovable's AI gateway → your own provider (AI_API_URL, AI_API_KEY)"),
               );
               line(
                 status.emails,
                 status.emailsSwitched,
-                "Emails: Lovable's email API → Resend (RESEND_API_KEY, EMAIL_FROM)",
+                tr("Emails: Lovable's email API → Resend (RESEND_API_KEY, EMAIL_FROM)"),
               );
               line(
                 status.hook,
                 status.hookOn,
-                "Sign-in emails: your own templates (auth-email-hook)",
+                tr("Sign-in emails: your own templates (auth-email-hook)"),
               );
               for (const name of status.connectors) {
-                ctx.out.line(`${clay("●")} ${name}, through Lovable's connectors`);
+                ctx.out.line(
+                  tr("{0} {1}, through Lovable's connectors", { "0": clay("●"), "1": name }),
+                );
               }
             },
           ),
@@ -666,12 +699,18 @@ const STEPS = {
         ctx,
         async () => {
           const ws = await ctx.workspace();
-          const key = await secretInput(ctx, `Your ${options.arg ?? "AI provider"} key`);
+          const key = await secretInput(
+            ctx,
+            tr("Your {0} key", { "0": options.arg ?? "AI provider" }),
+          );
           return setAiProvider(ws, options.arg, key);
         },
         (data) =>
           ctx.out.line(
-            `${celadon("✓")} Saved for your preview, your site and your backend functions: ${data.url}`,
+            tr("{0} Saved for your preview, your site and your backend functions: {1}", {
+              "0": celadon("✓"),
+              "1": data.url,
+            }),
           ),
       ),
   },
@@ -683,7 +722,10 @@ const STEPS = {
         async () => provisionAppEmails(await ctx.workspace()),
         (data) =>
           ctx.out.line(
-            `${celadon("✓")} Your app has its own Resend key (RESEND_API_KEY), sending from ${data.sender}.`,
+            tr("{0} Your app has its own Resend key (RESEND_API_KEY), sending from {1}.", {
+              "0": celadon("✓"),
+              "1": data.sender,
+            }),
           ),
       ),
   },
@@ -696,14 +738,14 @@ const STEPS = {
         async () => {
           const ws = await ctx.workspace();
           if (options.skip) return skipGoogle(ws);
-          const secret = await secretInput(ctx, "Your Google client secret");
+          const secret = await secretInput(ctx, tr("Your Google client secret"));
           return setGoogleSignIn(ws, options.arg, secret);
         },
         (data) =>
           ctx.out.line(
             "skipped" in data
-              ? `${celadon("✓")} Google sign-in stays off on your new site.`
-              : `${celadon("✓")} Google sign-in is on in your new backend.`,
+              ? tr("{0} Google sign-in stays off on your new site.", { "0": celadon("✓") })
+              : tr("{0} Google sign-in is on in your new backend.", { "0": celadon("✓") }),
           ),
       ),
   },
@@ -715,11 +757,13 @@ const STEPS = {
         async () => switchPlan(await ctx.workspace()),
         (plan) => {
           ctx.out.line(
-            "Paste this in Lovable (More → Cloud → SQL editor) to pause changes on your live app:",
+            tr(
+              "Paste this in Lovable (More → Cloud → SQL editor) to pause changes on your live app:",
+            ),
           );
           ctx.out.line(plan.freeze);
           ctx.out.line("");
-          ctx.out.line(ash("To undo the pause:"));
+          ctx.out.line(ash(tr("To undo the pause:")));
           ctx.out.line(ash(plan.undo));
         },
       ),
@@ -732,7 +776,9 @@ const STEPS = {
         async () => markFrozen(await ctx.workspace()),
         () =>
           ctx.out.line(
-            `${celadon("✓")} Paused. Next: export from Lovable once more, then copy it in.`,
+            tr("{0} Paused. Next: export from Lovable once more, then copy it in.", {
+              "0": celadon("✓"),
+            }),
           ),
       ),
   },
@@ -750,11 +796,12 @@ const STEPS = {
             }),
           ),
         (outcome) => {
-          if (outcome.files.length > 0) ctx.out.line(ash(`  Updated: ${outcome.files.join(", ")}`));
+          if (outcome.files.length > 0)
+            ctx.out.line(ash(tr("  Updated: {0}", { "0": outcome.files.join(", ") })));
           if (outcome.jobs?.created) {
-            ctx.out.line(ash(`  Started ${outcome.jobs.created} scheduled job(s)`));
+            ctx.out.line(ash(tr("  Started {0} scheduled job(s)", { "0": outcome.jobs.created })));
           }
-          ctx.out.line(`Publish to put it live at ${outcome.url}.`);
+          ctx.out.line(tr("Publish to put it live at {0}.", { "0": outcome.url }));
         },
       ),
   },
@@ -770,17 +817,22 @@ const STEPS = {
         },
         (outcome) => {
           if ("skipped" in outcome) {
-            ctx.out.line(`${celadon("✓")} Your app keeps its Netlify address.`);
+            ctx.out.line(tr("{0} Your app keeps its Netlify address.", { "0": celadon("✓") }));
             return;
           }
           if (outcome.ready) {
             ctx.out.line(
-              `${celadon("✓")} ${outcome.name} points to your site. Sign-in links use it now.`,
+              tr("{0} {1} points to your site. Sign-in links use it now.", {
+                "0": celadon("✓"),
+                "1": outcome.name,
+              }),
             );
             return;
           }
           ctx.out.line(
-            `At ${outcome.name}'s provider, replace the records that point to Lovable with:`,
+            tr("At {0}'s provider, replace the records that point to Lovable with:", {
+              "0": outcome.name,
+            }),
           );
           for (const r of outcome.records) {
             ctx.out.line(`  ${r.type.padEnd(5)} ${r.name.padEnd(6)} ${r.value}`);
@@ -796,7 +848,10 @@ const STEPS = {
         async () => markFinished(await ctx.workspace()),
         () =>
           ctx.out.line(
-            `${celadon("✓")} Your app is off Lovable. Clodable deleted its copy of your export from this computer.`,
+            tr(
+              "{0} Your app is off Lovable. Clodable deleted its copy of your export from this computer.",
+              { "0": celadon("✓") },
+            ),
           ),
       ),
   },
@@ -811,7 +866,9 @@ const STEPS = {
         },
         () =>
           ctx.out.line(
-            `${celadon("✓")} Removed the export and the move's files from this computer.`,
+            tr("{0} Removed the export and the move's files from this computer.", {
+              "0": celadon("✓"),
+            }),
           ),
       ),
   },
@@ -826,7 +883,10 @@ const STEPS = {
         },
         () =>
           ctx.out.line(
-            `${celadon("✓")} Supabase is disconnected here. Delete the token in Supabase too: ${TOKENS_PAGE}`,
+            tr("{0} Supabase is disconnected here. Delete the token in Supabase too: {1}", {
+              "0": celadon("✓"),
+              "1": TOKENS_PAGE,
+            }),
           ),
       ),
   },
@@ -837,7 +897,10 @@ const COMMANDS: Record<MoveStepName, MoveStepCommand> = STEPS;
 const MOVE_STEPS = Object.keys(COMMANDS) as MoveStepName[];
 
 /** The move's line in `clodable --help`: every step, in order, with what it takes. */
-export const MOVE_HELP = `Move off Lovable, step by step: ${MOVE_STEPS.map((name) => COMMANDS[name].usage ?? name).join(", ")}`;
+export const moveHelp = () =>
+  tr("Move off Lovable, step by step: {steps}", {
+    steps: MOVE_STEPS.map((name) => COMMANDS[name].usage ?? name).join(", "),
+  });
 
 /** Moving off Lovable, step by step. Every step is safe to run again. */
 export async function moveCommand(ctx: Context, options: MoveOptions) {
@@ -845,8 +908,8 @@ export async function moveCommand(ctx: Context, options: MoveOptions) {
     return run(ctx, async () => {
       throw new ClodableError({
         code: "not-found",
-        message: `There's no move step called “${options.step}”.`,
-        hint: `Use one of: ${MOVE_STEPS.join(", ")}.`,
+        message: tr("There's no move step called “{0}”.", { "0": options.step }),
+        hint: tr("Use one of: {0}.", { "0": MOVE_STEPS.join(", ") }),
       });
     });
   }

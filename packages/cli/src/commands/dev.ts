@@ -14,6 +14,7 @@ import {
 import { startDevServer } from "@clodable/preview";
 import pc from "picocolors";
 import type { Context } from "../context.js";
+import { tr } from "../i18n.js";
 import { ash, clay, link, oxide } from "../ui.js";
 
 function findAppRoot(start: string): string {
@@ -36,12 +37,12 @@ export async function devCommand(
   if (!existsSync(join(root, "node_modules")) && existsSync(join(root, "package.json"))) {
     const pm = detectPackageManager(root);
     process.stdout.write(
-      `\n  ${clay("●")} ${pc.bold("clodable")} ${ash("·")} installing your app's packages (first time only)…\n`,
+      `\n  ${clay("●")} ${pc.bold("clodable")} ${ash("·")} ${tr("installing your app's packages (first time only)…")}\n`,
     );
     const installed = await exec(pm, ["install"], { cwd: root, timeout: 15 * 60_000 });
     if (installed.exitCode !== 0) {
       process.stderr.write(
-        `\n  ${oxide("✕")} ${pc.bold("Your app's packages couldn't be installed.")}\n\n    ${installed.stderr.trim().split("\n").slice(-6).join("\n    ")}\n\n`,
+        `\n  ${oxide("✕")} ${pc.bold(tr("Your app's packages couldn't be installed."))}\n\n    ${installed.stderr.trim().split("\n").slice(-6).join("\n    ")}\n\n`,
       );
       process.exitCode = 1;
       return;
@@ -73,11 +74,11 @@ export async function devCommand(
       settings: { current: () => localSettings(root), watch: join(root, SETTINGS_PATH) },
     });
     process.stdout.write(
-      `\n  ${clay("●")} ${pc.bold("clodable")} ${ash("·")} your app is running${server.backend === "copy" ? ash(" on your new backend (a copy of your data)") : ""}\n\n`,
+      `\n  ${clay("●")} ${pc.bold("clodable")} ${ash("·")} ${tr("your app is running")}${server.backend === "copy" ? ash(tr(" on your new backend (a copy of your data)")) : ""}\n\n`,
     );
     for (const url of server.urls.slice(0, 2)) process.stdout.write(`    ${link(url)}\n`);
     process.stdout.write(
-      `\n  ${ash("Preview tools: Edit text (⌥⇧E) · Point & ask (⌥⇧A). Only you see them.")}\n\n`,
+      `\n  ${ash(tr("Preview tools: Edit text (⌥⇧E) · Point & ask (⌥⇧A). Only you see them."))}\n\n`,
     );
     const stop = () => {
       void server.close().then(() => process.exit(0));
@@ -86,7 +87,7 @@ export async function devCommand(
     process.on("SIGTERM", stop);
   } catch (error) {
     process.stderr.write(
-      `\n  ${oxide("✕")} ${pc.bold("Your app couldn't start.")}\n\n    ${messageOf(error)}\n\n`,
+      `\n  ${oxide("✕")} ${pc.bold(tr("Your app couldn't start."))}\n\n    ${messageOf(error)}\n\n`,
     );
     process.exitCode = 1;
   }

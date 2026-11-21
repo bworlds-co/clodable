@@ -35,6 +35,7 @@ import {
 } from "@clodable/core";
 import pc from "picocolors";
 import { type Context, drive, run } from "../context.js";
+import { currentLocale, tr } from "../i18n.js";
 import { ash, celadon, clay, link, ochre, oxide } from "../ui.js";
 
 export interface DoctorItem {
@@ -64,19 +65,19 @@ export async function doctor(cwd: string): Promise<DoctorItem[]> {
   if (pending)
     items.push({
       id: "new-app",
-      label: "Saving setup",
+      label: tr("Saving setup"),
       status: "info",
       detail: `${pending.account}/${pending.name}`,
     });
   items.push({
     id: "repo",
-    label: "Your app on GitHub",
+    label: tr("Your app on GitHub"),
     status: parsed || standIn ? "ok" : "fail",
     ...(parsed
       ? { detail: `${parsed.owner}/${parsed.repo}` }
       : standIn
-        ? { detail: "a stand-in for GitHub on this computer" }
-        : { fix: "Run `clodable setup` in an empty folder to bring your app in from GitHub" }),
+        ? { detail: tr("a stand-in for GitHub on this computer") }
+        : { fix: tr("Run `clodable setup` in an empty folder to bring your app in from GitHub") }),
   });
   if (!isRepo) return items;
   return [...items, ...(await appChecks(git))];
@@ -89,24 +90,24 @@ async function toolChecks(cwd: string): Promise<DoctorItem[]> {
   const nodeOk = major > MIN_NODE[0] || (major === MIN_NODE[0] && minor >= MIN_NODE[1]);
   items.push({
     id: "node",
-    label: "Node.js",
+    label: tr("Node.js"),
     status: nodeOk ? "ok" : "fail",
     detail: `v${process.versions.node}`,
-    ...(nodeOk ? {} : { fix: "Install Node.js 22 or newer from https://nodejs.org" }),
+    ...(nodeOk ? {} : { fix: tr("Install Node.js 22 or newer from https://nodejs.org") }),
   });
 
   const gitOk = await hasCommand("git", cwd);
   items.push({
     id: "git",
-    label: "Git",
+    label: tr("Git"),
     status: gitOk ? "ok" : "fail",
     ...(gitOk
       ? {}
       : {
           fix:
             process.platform === "darwin"
-              ? "Run `xcode-select --install`, then try again"
-              : "Install Git from https://git-scm.com/downloads",
+              ? tr("Run `xcode-select --install`, then try again")
+              : tr("Install Git from https://git-scm.com/downloads"),
         }),
   });
 
@@ -117,15 +118,18 @@ async function toolChecks(cwd: string): Promise<DoctorItem[]> {
   );
   items.push({
     id: "secrets",
-    label: "Secret-key check",
+    label: tr("Secret-key check"),
     status: scanner.ok ? "ok" : "fail",
     ...(scanner.ok
       ? {
-          detail: scanner.path === "gitleaks" ? "gitleaks (yours)" : `gitleaks ${GITLEAKS_VERSION}`,
+          detail:
+            scanner.path === "gitleaks"
+              ? tr("gitleaks (yours)")
+              : tr("gitleaks {0}", { "0": GITLEAKS_VERSION }),
         }
       : {
           detail: scanner.reason,
-          fix: "Check your internet connection. Until it works, saves stay on this computer.",
+          fix: tr("Check your internet connection. Until it works, saves stay on this computer."),
         }),
   });
 
@@ -134,14 +138,16 @@ async function toolChecks(cwd: string): Promise<DoctorItem[]> {
   const ready = await gh.ready();
   items.push({
     id: "gh",
-    label: "GitHub CLI",
+    label: tr("GitHub CLI"),
     status: ready.installed ? "ok" : "fail",
     ...(ready.installed
       ? (await ghIsOurs())
-        ? { detail: `${GH_VERSION}, Clodable's own` }
+        ? { detail: tr("{0}, Clodable's own", { "0": GH_VERSION }) }
         : {}
       : {
-          fix: "Check your internet connection: Clodable downloads it. Or install it from https://cli.github.com",
+          fix: tr(
+            "Check your internet connection: Clodable downloads it. Or install it from https://cli.github.com",
+          ),
         }),
   });
   if (ready.installed) {
@@ -153,11 +159,11 @@ async function toolChecks(cwd: string): Promise<DoctorItem[]> {
         .catch(() => undefined);
     items.push({
       id: "github",
-      label: "GitHub account",
+      label: tr("GitHub account"),
       status: login ? "ok" : "fail",
       ...(login
         ? { detail: `@${login}` }
-        : { fix: "Run `gh auth login --web` to connect your account" }),
+        : { fix: tr("Run `gh auth login --web` to connect your account") }),
     });
   }
   return items;
@@ -170,23 +176,27 @@ async function appChecks(git: Git): Promise<DoctorItem[]> {
   const project = await detectProject(root);
   const typeLabel =
     project.appType === "tanstack-start"
-      ? "TanStack Start app"
+      ? tr("TanStack Start app")
       : project.appType === "vite-spa"
-        ? "Vite + React app"
-        : "Unknown app type";
+        ? tr("Vite + React app")
+        : tr("Unknown app type");
   items.push({
     id: "app",
-    label: "App",
+    label: tr("App"),
     status: project.appType === "unknown" ? "warn" : "ok",
-    detail: `${typeLabel}${project.lovable.generated ? ", made with Lovable" : ""}`,
+    detail: project.lovable.generated
+      ? tr("{type}, made with Lovable", { type: typeLabel })
+      : typeLabel,
   });
 
   const installed = existsSync(join(root, "node_modules"));
   items.push({
     id: "deps",
-    label: "App dependencies",
+    label: tr("App dependencies"),
     status: installed ? "ok" : "warn",
-    ...(installed ? {} : { fix: `Run \`${await packageManagerHere(project)} install\`` }),
+    ...(installed
+      ? {}
+      : { fix: tr("Run `{0} install`", { "0": await packageManagerHere(project) }) }),
   });
 
   const config = await loadConfig(root);
@@ -194,11 +204,14 @@ async function appChecks(git: Git): Promise<DoctorItem[]> {
   const missing = kit.filter((c) => c.action === "create");
   items.push({
     id: "kit",
-    label: "Clodable in this project",
+    label: tr("Clodable in this project"),
     status: missing.length === 0 ? "ok" : "warn",
     ...(missing.length === 0
       ? {}
-      : { detail: `${missing.length} file(s) missing`, fix: "Run `clodable kit --apply`" }),
+      : {
+          detail: tr("{0} file(s) missing", { "0": missing.length }),
+          fix: tr("Run `clodable kit --apply`"),
+        }),
   });
 
   const ref = supabaseRef(config, project);
@@ -206,20 +219,20 @@ async function appChecks(git: Git): Promise<DoctorItem[]> {
     config.backend === "lovable-cloud"
       ? {
           id: "supabase",
-          label: "Database",
+          label: tr("Database"),
           status: "info",
-          detail: "On Lovable Cloud: Lovable owns it, so Claude can't change it from here",
-          fix: "Move off Lovable, in the Clodable panel, to make it yours",
+          detail: tr("On Lovable Cloud: Lovable owns it, so Claude can't change it from here"),
+          fix: tr("Move off Lovable, in the Clodable panel, to make it yours"),
         }
       : {
           id: "supabase",
-          label: "Database",
+          label: tr("Database"),
           status: ref ? "ok" : "info",
           detail: ref
-            ? `Supabase project ${ref}`
+            ? tr("Supabase project {0}", { "0": ref })
             : project.supabase.used
-              ? "Supabase (project not found in code)"
-              : "None",
+              ? tr("Supabase (project not found in code)")
+              : tr("None"),
         },
   );
   return [...items, ...(await lovableChecks(git, project, config))];
@@ -256,41 +269,46 @@ async function lovableChecks(
       onLovable
         ? {
             id: "lovable-sync",
-            label: "Lovable",
+            label: tr("Lovable"),
             status: "info",
-            detail: "Changes made in Lovable come here too, through GitHub",
+            detail: tr("Changes made in Lovable come here too, through GitHub"),
           }
         : {
             id: "lovable-sync",
-            label: "Lovable",
+            label: tr("Lovable"),
             status: "warn",
-            detail: "Lovable still pushes changes straight to your live site",
-            fix: "In Lovable: More → Settings → Git → GitHub → Disconnect",
+            detail: tr("Lovable still pushes changes straight to your live site"),
+            fix: tr("In Lovable: More → Settings → Git → GitHub → Disconnect"),
           },
     );
   }
   // Lovable's AI with no key of the builder's: on Lovable, the move switches it; off it, it fails.
   const aiLeft = await lovableAiLeft(project.root);
   if (aiLeft) {
-    const one = aiLeft.features.length === 1;
-    const what =
-      aiLeft.features.length === 0
-        ? "Your app's AI features don't"
-        : `${quotedList(aiLeft.features)} ${one ? "doesn't" : "don't"}`;
     items.push(
       onLovable
         ? {
             id: "lovable-ai",
-            label: "Lovable AI",
+            label: tr("Lovable AI"),
             status: "info",
-            detail: "Your app uses Lovable's AI; the move switches it to your own key",
+            detail: tr("Your app uses Lovable's AI; the move switches it to your own key"),
           }
         : {
             id: "lovable-ai",
-            label: "Lovable AI",
+            label: tr("Lovable AI"),
             status: "warn",
-            detail: `${what} work: ${one ? "it calls" : "they call"} Lovable's AI, which your app no longer has`,
-            fix: "Claude can switch it to an AI key of your own",
+            detail:
+              aiLeft.features.length === 0
+                ? tr(
+                    "Your app's AI features don't work: they call Lovable's AI, which your app no longer has",
+                  )
+                : tr(
+                    aiLeft.features.length === 1
+                      ? "{features} doesn't work: it calls Lovable's AI, which your app no longer has"
+                      : "{features} don't work: they call Lovable's AI, which your app no longer has",
+                    { features: quotedList(aiLeft.features) },
+                  ),
+            fix: tr("Claude can switch it to an AI key of your own"),
           },
     );
   }
@@ -303,6 +321,8 @@ async function lovableChecks(
  */
 function quotedList(names: string[]): string {
   const quoted = names.map((n) => `“${n}”`);
+  if (currentLocale() === "fr")
+    return new Intl.ListFormat("fr", { style: "long", type: "conjunction" }).format(quoted);
   return quoted.length === 1
     ? quoted[0]!
     : `${quoted.slice(0, -1).join(", ")} and ${quoted.at(-1)}`;
@@ -319,7 +339,7 @@ function doctorLine(ctx: Context, item: DoctorItem) {
 }
 
 function renderDoctor(ctx: Context, items: DoctorItem[]) {
-  ctx.out.header("doctor");
+  ctx.out.header(tr("doctor"));
   for (const item of items) doctorLine(ctx, item);
   ctx.out.line();
 }
@@ -344,7 +364,7 @@ function renderKit(ctx: Context, changes: KitChange[], applied: boolean) {
   }
   ctx.out.line();
   if (!applied && changes.some((c) => c.action !== "unchanged")) {
-    ctx.out.line(ash("Nothing written yet. Run with --apply to add these files."));
+    ctx.out.line(ash(tr("Nothing written yet. Run with --apply to add these files.")));
     ctx.out.line();
   }
 }
@@ -369,7 +389,7 @@ export async function kitCommand(
       };
     },
     (data) => {
-      ctx.out.header(options.apply ? "repo kit added" : "repo kit");
+      ctx.out.header(options.apply ? tr("repo kit added") : tr("repo kit"));
       renderKit(ctx, full, data.applied);
     },
   );
@@ -388,17 +408,17 @@ async function whereItRuns(
   if (backend === "unknown" && !project.supabase.used) backend = "none";
   if (backend === "unknown" && current.interactive) {
     const choice = await select({
-      message: "Where does your app's data live?",
+      message: tr("Where does your app's data live?"),
       options: [
         {
           value: "lovable-cloud" as const,
-          label: "On Lovable Cloud",
-          hint: "you see it under Cloud in Lovable",
+          label: tr("On Lovable Cloud"),
+          hint: tr("you see it under Cloud in Lovable"),
         },
         {
           value: "supabase" as const,
-          label: "In my own Supabase project",
-          hint: "you can open it at supabase.com",
+          label: tr("In my own Supabase project"),
+          hint: tr("you can open it at supabase.com"),
         },
       ],
     });
@@ -406,18 +426,22 @@ async function whereItRuns(
   }
   if (hosting === "unknown" && current.interactive) {
     const choice = await select({
-      message: "Where is your site live?",
+      message: tr("Where is your site live?"),
       options: [
-        { value: "lovable" as const, label: "On Lovable", hint: "you click Publish in Lovable" },
+        {
+          value: "lovable" as const,
+          label: tr("On Lovable"),
+          hint: tr("you click Publish in Lovable"),
+        },
         {
           value: "github" as const,
-          label: "Elsewhere (Netlify, Vercel…)",
-          hint: "it updates when GitHub changes",
+          label: tr("Elsewhere (Netlify, Vercel…)"),
+          hint: tr("it updates when GitHub changes"),
         },
         {
           value: "none" as const,
-          label: "Not online yet",
-          hint: "Clodable can put it on your own Netlify",
+          label: tr("Not online yet"),
+          hint: tr("Clodable can put it on your own Netlify"),
         },
       ],
     });
@@ -436,7 +460,7 @@ function panelStep(ctx: Context, id: StepId, state: StepState, title: string) {
 
 /** Node, Git and GitHub, shown as they stand; without any of them, setup stops here. */
 async function requireTools(ctx: Context): Promise<void> {
-  panelStep(ctx, "setup:tools", "running", "Checking your tools");
+  panelStep(ctx, "setup:tools", "running", tr("Checking your tools"));
   const tools = (await toolChecks(ctx.cwd)).filter((t) => REQUIRED.includes(t.id));
   if (!ctx.out.json) for (const tool of tools) doctorLine(ctx, tool);
   const blocking = tools.filter((t) => t.status === "fail");
@@ -444,12 +468,12 @@ async function requireTools(ctx: Context): Promise<void> {
     ctx,
     "setup:tools",
     blocking.length > 0 ? "failed" : "done",
-    blocking.length > 0 ? "A few tools are needed first" : "Your tools are ready",
+    blocking.length > 0 ? tr("A few tools are needed first") : tr("Your tools are ready"),
   );
   if (blocking.length > 0) {
     throw new ClodableError({
       code: blocking.some((b) => b.id === "github") ? "gh-auth" : "gh-missing",
-      message: "A few tools are needed first.",
+      message: tr("A few tools are needed first."),
       hint: blocking
         .map((b) => b.fix)
         .filter(Boolean)
@@ -464,16 +488,17 @@ async function pickRepo(ctx: Context, given: string | undefined, interactive: bo
   if (interactive) {
     const repos = await new GhCli(ctx.cwd).repositories();
     const choice = await select({
-      message: "Which app should Clodable open?",
+      message: tr("Which app should Clodable open?"),
       options: repos.map((r) => ({ value: r.name, label: r.name, hint: r.description ?? "" })),
     });
-    if (isCancel(choice)) throw new ClodableError({ code: "unknown", message: "Setup cancelled." });
+    if (isCancel(choice))
+      throw new ClodableError({ code: "unknown", message: tr("Setup cancelled.") });
     return choice;
   }
   throw new ClodableError({
     code: "not-a-repo",
-    message: "Which app should Clodable open?",
-    hint: "Run `clodable setup --repo owner/name`.",
+    message: tr("Which app should Clodable open?"),
+    hint: tr("Run `clodable setup --repo owner/name`."),
   });
 }
 
@@ -481,20 +506,20 @@ async function pickRepo(ctx: Context, given: string | undefined, interactive: bo
 async function bringIn(ctx: Context, repo: string): Promise<string> {
   const empty = readdirSync(ctx.cwd).filter((n) => !n.startsWith(".")).length === 0;
   const target = empty ? ctx.cwd : join(ctx.cwd, repo.split("/")[1]!);
-  ctx.out.event(step("setup:app", "running", `Bringing in ${repo}`));
+  ctx.out.event(step("setup:app", "running", tr("Bringing in {0}", { "0": repo })));
   try {
     await new GhCli(ctx.cwd).clone(repo, target);
   } catch (error) {
-    ctx.out.event(step("setup:app", "failed", `Couldn't bring in ${repo}`));
+    ctx.out.event(step("setup:app", "failed", tr("Couldn't bring in {0}", { "0": repo })));
     // Not connected or offline says so; anything else is about this repository.
     if (error instanceof ClodableError && error.code !== "unknown") throw error;
     throw new ClodableError({
       code: "not-found",
-      message: `Couldn't bring in ${repo}.`,
+      message: tr("Couldn't bring in {0}.", { "0": repo }),
       details: error instanceof ClodableError ? error.details : messageOf(error),
     });
   }
-  ctx.out.event(step("setup:app", "done", `Brought in ${repo}`));
+  ctx.out.event(step("setup:app", "done", tr("Brought in {0}", { "0": repo })));
   return target;
 }
 
@@ -515,14 +540,15 @@ export async function setupCommand(
   await run(
     ctx,
     async () => {
-      ctx.out.header("let's bring your app home");
+      ctx.out.header(tr("let's bring your app home"));
       await requireTools(ctx);
       const git = new Git(ctx.cwd);
       if (options.new !== undefined && (!options.account || options.repo || options.publish)) {
         throw new ClodableError({
           code: "invalid-config",
-          message:
+          message: tr(
             "Choose the account for your new private app in Set up saving. Publishing comes later.",
+          ),
         });
       }
       const started =
@@ -553,24 +579,29 @@ export async function setupCommand(
       const changes = await planKit(project, config);
       if (!ctx.out.json) {
         ctx.out.line();
-        ctx.out.line(pc.bold("Clodable adds a few plain files to your project:"));
+        ctx.out.line(pc.bold(tr("Clodable adds a few plain files to your project:")));
         renderKit(ctx, changes, true);
       }
       if (interactive) {
-        const ok = await confirm({ message: "Add them?" });
+        const ok = await confirm({ message: tr("Add them?") });
         if (isCancel(ok) || !ok)
           throw new ClodableError({
             code: "unknown",
-            message: "Setup cancelled. Nothing was changed.",
+            message: tr("Setup cancelled. Nothing was changed."),
           });
       }
-      panelStep(ctx, "setup:files", "running", "Adding Clodable's files");
+      panelStep(ctx, "setup:files", "running", tr("Adding Clodable's files"));
       await applyKit(root, changes);
-      panelStep(ctx, "setup:files", "done", "Added Clodable's files");
+      panelStep(ctx, "setup:files", "done", tr("Added Clodable's files"));
 
       if (!existsSync(join(root, "node_modules"))) {
         ctx.out.event(
-          step("setup:packages", "running", "Installing your app's packages", "a minute or two"),
+          step(
+            "setup:packages",
+            "running",
+            tr("Installing your app's packages"),
+            tr("a minute or two"),
+          ),
         );
         const installed = await exec(await packageManagerHere(project), ["install"], {
           cwd: root,
@@ -578,36 +609,36 @@ export async function setupCommand(
         });
         ctx.out.event(
           installed.exitCode === 0
-            ? step("setup:packages", "done", "Installed your app's packages")
+            ? step("setup:packages", "done", tr("Installed your app's packages"))
             : step(
                 "setup:packages",
                 "warning",
-                "Your app's packages didn't install",
-                "ask Claude to install them",
+                tr("Your app's packages didn't install"),
+                tr("ask Claude to install them"),
               ),
         );
       }
 
-      ctx.out.event(step("setup:save", "running", "Saving it to your draft on GitHub"));
+      ctx.out.event(step("setup:save", "running", tr("Saving it to your draft on GitHub")));
       const ws = await Workspace.open({ cwd: root, ...(ctx.github ? { github: ctx.github } : {}) });
-      const saved = await save(ws, { message: "Set up Clodable", kind: "setup" });
+      const saved = await save(ws, { message: tr("Set up Clodable"), kind: "setup" });
       ctx.out.event(
         !saved.saved
-          ? step("setup:save", "skipped", "Nothing new to save")
+          ? step("setup:save", "skipped", tr("Nothing new to save"))
           : saved.pushed
-            ? step("setup:save", "done", "Saved to your draft on GitHub")
+            ? step("setup:save", "done", tr("Saved to your draft on GitHub"))
             : step(
                 "setup:save",
                 "warning",
-                "Saved on this computer",
+                tr("Saved on this computer"),
                 saved.unscanned
-                  ? "it goes to GitHub once it's checked for secret keys"
-                  : "it goes to GitHub once you're online",
+                  ? tr("it goes to GitHub once it's checked for secret keys")
+                  : tr("it goes to GitHub once you're online"),
               ),
       );
       let published = false;
       if (saved.saved && (options.publish || (interactive && (await confirmPublish())))) {
-        await drive(ctx, publish(ws, { message: "Set up Clodable" }));
+        await drive(ctx, publish(ws, { message: tr("Set up Clodable") }));
         published = true;
       }
       return {
@@ -621,11 +652,15 @@ export async function setupCommand(
     },
     (data) => {
       ctx.out.line();
-      ctx.out.line(`${celadon("●")} ${pc.bold("Your app is ready.")}`);
+      ctx.out.line(`${celadon("●")} ${pc.bold(tr("Your app is ready."))}`);
       ctx.out.line();
-      ctx.out.line(`  1. Open Claude Desktop → Code, and choose this folder: ${link(data.root)}`);
-      ctx.out.line("  2. The preview starts by itself. Ask for any change, in your own words.");
-      ctx.out.line("  3. When you're happy, click Publish.");
+      ctx.out.line(
+        tr("  1. Open Claude Desktop → Code, and choose this folder: {0}", {
+          "0": link(data.root),
+        }),
+      );
+      ctx.out.line(tr("  2. The preview starts by itself. Ask for any change, in your own words."));
+      ctx.out.line(tr("  3. When you're happy, click Publish."));
       ctx.out.line();
     },
   );
@@ -633,7 +668,7 @@ export async function setupCommand(
 
 async function confirmPublish(): Promise<boolean> {
   const ok = await confirm({
-    message: "Publish the setup now? It only adds Clodable's files. Your site looks the same.",
+    message: tr("Publish the setup now? It only adds Clodable's files. Your site looks the same."),
     initialValue: true,
   });
   return !isCancel(ok) && ok;

@@ -10,6 +10,7 @@ import {
   toErrorInfo,
   Workspace,
 } from "@clodable/core";
+import { tr } from "./i18n.js";
 import { createOutput, type Output } from "./ui.js";
 
 export interface GlobalOptions {
@@ -90,7 +91,7 @@ export async function secretInput(
   }
   throw new ClodableError({
     code: "invalid-config",
-    message: "Nothing was given.",
-    hint: "Pipe the value in (never as an argument), or run this in a terminal to type it.",
+    message: tr("Nothing was given."),
+    hint: tr("Pipe the value in (never as an argument), or run this in a terminal to type it."),
   });
 }

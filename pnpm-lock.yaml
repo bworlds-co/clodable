@@ -41,6 +41,9 @@ importers:
       '@clodable/design':
         specifier: workspace:*
         version: link:../design
+      '@clodable/i18n':
+        specifier: workspace:*
+        version: link:../i18n
       '@clodable/preview':
         specifier: workspace:*
         version: link:../preview
