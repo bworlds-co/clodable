@@ -1,3 +1,4 @@
+import "./sync-i18n.mjs";
 // The plugin's typecheck needs Claude Code's own declarations, which Claude Code writes beside the
 // plugin when it loads it (`claude --plugin-dir ./plugin`, interactive). They're Anthropic's, so the
 // repository doesn't carry them: without them (a fresh clone, CI), the plugin's typecheck is skipped.

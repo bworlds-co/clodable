@@ -6,6 +6,7 @@ import type {
   ClodableStatus,
   ClodableStep,
 } from "../types/index.d.ts";
+import { t } from "./i18n.ts";
 
 export type Result = { type: "result"; ok: boolean; data?: any; error?: ClodableError };
 
@@ -33,7 +34,7 @@ export function lastResult(stdout: string, stderr: string): Result {
     ok: false,
     error: {
       code: "unknown",
-      message: "Clodable didn't answer.",
+      message: t("Clodable didn't answer."),
       details: (stderr || stdout).slice(0, 2000),
     },
   };
@@ -120,7 +121,7 @@ export function notReady(error: ClodableError | undefined): ClodableNotReady {
           : code === "gh-auth"
             ? "no-github"
             : "unknown",
-    message: error?.message ?? "Clodable isn't ready here.",
+    message: error?.message ?? t("Clodable isn't ready here."),
     ...(error?.hint ? { fix: error.hint } : {}),
   };
 }

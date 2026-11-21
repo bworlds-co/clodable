@@ -14,6 +14,7 @@ import {
   safeCommand,
 } from "../hooks/guards.ts";
 import { connectorSetting, sizeOf, stagesOf, typedDomain } from "../hooks/move.ts";
+import { labelScript } from "../hooks/preview.ts";
 import { nodeFrom, nodeOk, pathWith, pluginDataFolder, toolsFolder } from "../hooks/tools.ts";
 import { FIX_TEXT, hostOf, pageName, pointedAt, saveMessage, versionName } from "../hooks/words.ts";
 
@@ -82,6 +83,7 @@ const BAND = {
   component: "AbovePrompt",
   props: {
     hasSurvey: false,
+    isCollapsed: false,
     isWorking: false,
     maxRows: 6,
     bodyColumns: 100,
@@ -438,6 +440,141 @@ describe("what the CLI prints", () => {
   });
 });
 
+describe("Claude's language setting", () => {
+  for (const [language, locale, label] of [
+    ["French", "fr", "Publier"],
+    ["fr-CA", "fr", "Publier"],
+    ["de", "en", "Publish"],
+    [undefined, "en", "Publish"],
+  ] as const) {
+    test(`${String(language)} selects the same catalog for the panel and CLI`, async ($, on) => {
+      const environments: Array<string | undefined> = [];
+      harness(on, STATUS, true, {}, (_argv, init) => {
+        environments.push(init?.env?.CLODABLE_LANGUAGE);
+      });
+      on("settings.read", () => ({ value: language === undefined ? {} : { language } }));
+      await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+      expect(await bandText($, "desktop", new RegExp(`^${label}$`))).toBe(label);
+      expect(environments.some((value) => value === locale)).toBe(true);
+      expect(
+        environments.filter((value) => value !== undefined).every((value) => value === locale),
+      ).toBe(true);
+    });
+  }
+
+  test("refreshes loaded migration wording without changing the selected account or region", async ($, on) => {
+    let language = "en";
+    const commands: string[] = [];
+    const state = {
+      ...STATUS,
+      project: { ...STATUS.project, backend: "lovable-cloud", hosting: "lovable" },
+      movingOffLovable: true,
+    };
+    harness(on, state, true, {}, (argv, init) => {
+      if (!argv.includes("move")) return;
+      const action = argv[argv.indexOf("move") + 1];
+      commands.push(action!);
+      const french = init?.env?.CLODABLE_LANGUAGE === "fr";
+      if (action === "check")
+        return out({
+          checked: true,
+          level: "simple",
+          items: [],
+          notes: [],
+        });
+      if (action === "choices")
+        return out({
+          organizations: [
+            {
+              slug: "free",
+              name: "Personal",
+              plan: "free",
+              freeLeft: 1,
+              cost: french ? "Gratuit" : "Free",
+            },
+            {
+              slug: "studio",
+              name: "Studio",
+              plan: "pro",
+              cost: french ? "Environ 10 $ par mois" : "About $10 a month",
+            },
+          ],
+          freeProjects: [],
+          region: { code: "eu", name: "Paris" },
+          regions: [
+            { code: "eu", name: "Paris" },
+            { code: "us", name: "Virginia" },
+          ],
+        });
+      return out({
+        steps: [
+          {
+            id: "create",
+            state: "next",
+            title: french ? "Créer votre nouveau backend" : "Create your new backend",
+          },
+        ],
+        method: "careful",
+        preview: "live",
+        vaultKey: false,
+        functions: 0,
+      });
+    });
+    on("settings.read", () => ({ value: { language } }));
+    on("prompt.submit", (_$: unknown, e: { text: string }) => ({ text: e.text }));
+    await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+    const pane = await $.ui.mount(PANE_PROPS);
+    for (let i = 0; i < 40 && !(await pane.find({ key: "move-org" })); i++) await pane.redraw();
+    await pane.select({ key: "move-org", value: "studio" });
+    await pane.select({ key: "move-region", value: "us" });
+    expect(await pane.find({ type: "Text", text: "About $10 a month" })).toBeDefined();
+    language = "fr";
+    await $.prompt.submit({ text: "Continue", origin: { kind: "sdk" }, wait: false });
+    await pane.redraw();
+    expect(await pane.find({ type: "Text", text: /Créer votre nouveau backend/ })).toBeDefined();
+    expect(await pane.find({ type: "Text", text: "Environ 10 $ par mois" })).toBeDefined();
+    expect(await pane.find({ key: "move-org" })).toMatchObject({ props: { value: "studio" } });
+    expect(await pane.find({ key: "move-region" })).toMatchObject({ props: { value: "us" } });
+    expect(commands.every((command) => ["check", "choices", "status"].includes(command))).toBe(
+      true,
+    );
+    await pane.unmount();
+  });
+
+  test("rereads the preference for a retained conversation and keeps the app content", async ($, on) => {
+    harness(on);
+    let language = "français";
+    const contexts: string[][] = [];
+    const requests: string[] = [];
+    on("settings.read", () => ({ value: { language } }));
+    on("prompt.submit", (_$: unknown, e: { text: string; context?: readonly string[] }) => {
+      requests.push(e.text);
+      contexts.push([...(e.context ?? [])]);
+      return { text: e.text, context: e.context };
+    });
+    await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+    const request = "Keep the heading Build something great";
+    await $.prompt.submit({
+      text: request,
+      context: ["Existing context"],
+      origin: { kind: "sdk" },
+      wait: false,
+    });
+    expect(contexts.at(-1)?.join(" ")).toContain("Rétablir cette version");
+    expect(contexts.at(-1)?.join(" ")).toContain("GitHub, Supabase, API and URL");
+    expect(requests.at(-1)).toBe(request);
+    language = "English";
+    await $.prompt.submit({
+      text: request,
+      context: ["Existing context"],
+      origin: { kind: "sdk" },
+      wait: false,
+    });
+    expect(contexts.at(-1)).toEqual(["Existing context"]);
+    expect(await bandText($, "desktop", /^Publish$/)).toBe("Publish");
+  });
+});
+
 describe("the Publish bar", () => {
   test("keeps a separate composer entry when Desktop removes its prompt band", async ($, on) => {
     const calls = harness(on);
@@ -582,7 +719,7 @@ describe("permissions", () => {
       "allow",
     );
     // Labelling this conversation's preview pane is allowed, but only that exact script.
-    const label = `/* Clodable: label this preview */ location.protocol.startsWith("http") ? (sessionStorage.setItem("clodable:conversation", "s1abc"), "labelled") : "not ready"`;
+    const label = labelScript("s1abc", "fr");
     const js = (text: string) =>
       check("mcp__Claude_Browser__javascript_tool", {
         action: "javascript_exec",
@@ -590,6 +727,8 @@ describe("permissions", () => {
         text,
       });
     expect((await js(label)).decision).toBe("allow");
+    expect((await js(labelScript("s1abc", "en"))).decision).toBe("allow");
+    expect((await js(label.replace('"fr"', '"de"'))).decision).toBe("ask");
     expect((await js(`${label}; fetch("https://evil.example")`)).decision).toBe("ask");
     expect((await js("document.cookie")).decision).toBe("ask");
     expect(
@@ -2980,6 +3119,7 @@ describe("questions about live data", () => {
     expect(await ask("I'll add a 'phone' column to the customers table. OK?", "Database")).toBe(
       true,
     );
+    expect(await ask("Ajouter une colonne téléphone à la table clients ?", "Données")).toBe(true);
     expect(await ask("Which color do you prefer for the header?", "Design")).toBe(false);
   });
 });
@@ -3444,6 +3584,8 @@ describe("a conversation Desktop started ahead of time", () => {
 describe("the preview, when Claude starts it", () => {
   test("the bar's Preview asks for the address Claude's preview_start returned, and its pane gets this conversation's name", async ($, on) => {
     harness(on);
+    let language = "en";
+    on("settings.read", () => ({ value: { language } }));
     const asked: Array<{ tool: string; args: any }> = [];
     on("mcp.call", (_$: unknown, e: { tool: string; args: any }) => {
       asked.push(e);
@@ -3496,6 +3638,16 @@ describe("the preview, when Claude starts it", () => {
     );
     await $.tool.call({ tool: "mcp__Claude_Browser__preview_start", name: "app" } as never);
     expect(asked.filter((a) => a.tool === "javascript_tool")).toHaveLength(1);
+    for (const nextLanguage of ["fr", "en"]) {
+      language = nextLanguage;
+      await $.prompt.submit({ text: "Continue", origin: { kind: "sdk" }, wait: false });
+      await $.tool.call({ tool: "mcp__Claude_Browser__preview_start", name: "app" } as never);
+    }
+    expect(
+      asked
+        .filter((a) => a.tool === "javascript_tool")
+        .map((a) => String(a.args.text).match(/"clodable:locale", "(en|fr)"/)?.[1]),
+    ).toEqual(["en", "fr", "en"]);
   });
 });
 
@@ -4508,6 +4660,7 @@ describe("the tools Clodable needs", () => {
     expect(seen.cliEnv).toEqual({
       CLODABLE_TOOLS_DIR: TOOLS,
       CLODABLE_RUNTIME_SOURCE: `${PLUGIN_ROOT}/cli/clodable.mjs`,
+      CLODABLE_LANGUAGE: "en",
     });
     expect(env.CLODABLE_TOOLS_DIR).toBe(TOOLS);
   });
