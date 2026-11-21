@@ -98,9 +98,9 @@ var require_picocolors = __commonJS({
     var argv = p.argv || [];
     var env = p.env || {};
     var isColorSupported = !(!!env.NO_COLOR || argv.includes("--no-color")) && (!!env.FORCE_COLOR || argv.includes("--color") || p.platform === "win32" || (p.stdout || {}).isTTY && env.TERM !== "dumb" || !!env.CI);
-    var formatter = (open3, close, replace = open3) => (input2) => {
-      let string4 = "" + input2, index = string4.indexOf(close, open3.length);
-      return ~index ? open3 + replaceClose(string4, close, replace, index) + close : open3 + string4 + close;
+    var formatter = (open4, close, replace = open4) => (input2) => {
+      let string4 = "" + input2, index = string4.indexOf(close, open4.length);
+      return ~index ? open4 + replaceClose(string4, close, replace, index) + close : open4 + string4 + close;
     };
     var replaceClose = (string4, close, replace, index) => {
       let result = "", cursor3 = 0;
@@ -194,6 +194,18 @@ function translate(locale, catalog, source, values = {}) {
 
 // ../i18n/src/core.ts
 var core = {
+  "Checking your existing versions before saving": "V\xE9rification des versions existantes avant l\u2019enregistrement",
+  "Couldn't preserve your app before preparing it.": "Impossible de pr\xE9server votre application avant de la pr\xE9parer.",
+  "Your app has not been converted. Fix the local backup problem, then try again.": "Votre application n\u2019a pas \xE9t\xE9 convertie. R\xE9solvez le probl\xE8me de copie locale, puis r\xE9essayez.",
+  "Saving setup is already running for this folder.": "La configuration de l\u2019enregistrement est d\xE9j\xE0 en cours pour ce dossier.",
+  "Wait for it to finish, then try again.": "Attendez qu\u2019elle se termine, puis r\xE9essayez.",
+  "Saving setup needs a local check before it can continue.": "La configuration de l\u2019enregistrement n\xE9cessite une v\xE9rification locale avant de continuer.",
+  "Ask Claude to check the interrupted saving setup on this computer, then try again. Your files are unchanged.": "Demandez \xE0 Claude de v\xE9rifier la configuration interrompue sur cet ordinateur, puis r\xE9essayez. Vos fichiers sont inchang\xE9s.",
+  "Review this app's existing versions before creating its private copy.": "V\xE9rifiez les versions existantes de cette application avant de cr\xE9er sa copie priv\xE9e.",
+  "Open Set up saving again and confirm that these versions should be kept.": "Rouvrez Configurer l\u2019enregistrement et confirmez que ces versions doivent \xEAtre conserv\xE9es.",
+  "Earlier versions contain files that must stay on this computer.": "Des versions pr\xE9c\xE9dentes contiennent des fichiers qui doivent rester sur cet ordinateur.",
+  "Ask Claude to inspect these versions. Nothing was sent and the history was not changed.": "Demandez \xE0 Claude d\u2019examiner ces versions. Rien n\u2019a \xE9t\xE9 envoy\xE9 et l\u2019historique n\u2019a pas \xE9t\xE9 modifi\xE9.",
+  "A secret key is in an earlier version of this app.": "Une version pr\xE9c\xE9dente de cette application contient une cl\xE9 secr\xE8te.",
   "Saving needs Git to work on this computer.": "Git doit fonctionner sur cet ordinateur pour permettre l\u2019enregistrement.",
   "Run `xcode-select --install`, finish Apple's installation, then check again.": "Ex\xE9cutez `xcode-select --install`, terminez l\u2019installation Apple, puis v\xE9rifiez \xE0 nouveau.",
   "Ask Claude to check Git on this computer, then press Check again.": "Demandez \xE0 Claude de v\xE9rifier Git sur cet ordinateur, puis cliquez sur V\xE9rifier \xE0 nouveau.",
@@ -779,7 +791,11 @@ var core = {
   "{features}: sent through Lovable. You connect a free Resend account and add its records to your domain; Clodable gives your app its own key, and Claude switches the sending.": "Emails envoy\xE9s via Lovable : {features}. Connectez un compte Resend gratuit et ajoutez ses enregistrements DNS \xE0 votre domaine. Clodable cr\xE9e une cl\xE9 pour votre application et Claude adapte l\u2019envoi.",
   "They're sent through Lovable. You connect a free Resend account and add its records to your domain; Clodable gives your app its own key, and Claude switches the sending.": "Ces emails sont envoy\xE9s via Lovable. Connectez un compte Resend gratuit et ajoutez ses enregistrements DNS \xE0 votre domaine. Clodable cr\xE9e une cl\xE9 pour votre application et Claude adapte l\u2019envoi.",
   "Skipped: {services} stops with Lovable": "\xC9tape ignor\xE9e. Services qui s\u2019arr\xEAteront avec Lovable : {services}",
-  "Skipped: {services} stop with Lovable": "\xC9tape ignor\xE9e. Services qui s\u2019arr\xEAteront avec Lovable : {services}"
+  "Skipped: {services} stop with Lovable": "\xC9tape ignor\xE9e. Services qui s\u2019arr\xEAteront avec Lovable : {services}",
+  "Some files selected for saving must stay on this computer.": "Certains fichiers s\xE9lectionn\xE9s pour l\u2019enregistrement doivent rester sur cet ordinateur.",
+  "Ask Claude to keep these files local, then try again. Nothing was sent.": "Demandez \xE0 Claude de conserver ces fichiers sur cet ordinateur, puis r\xE9essayez. Rien n\u2019a \xE9t\xE9 envoy\xE9.",
+  "Some unsaved work needs checking before setting up saving.": "Certains changements locaux doivent \xEAtre v\xE9rifi\xE9s avant de configurer l\u2019enregistrement.",
+  "Ask Claude to preserve both local versions of these files, then try again.": "Demandez \xE0 Claude de pr\xE9server les deux versions locales de ces fichiers, puis r\xE9essayez."
 };
 
 // ../core/src/i18n.ts
@@ -1060,8 +1076,8 @@ var ExecProcess = class {
     };
     this._command = command;
     this._args = args ?? [];
-    this._processClosed = new Promise((resolve10) => {
-      this._resolveClose = resolve10;
+    this._processClosed = new Promise((resolve12) => {
+      this._resolveClose = resolve12;
     });
   }
   kill(signal) {
@@ -1144,8 +1160,8 @@ var ExecProcess = class {
   }
   _resetState() {
     this._aborted = false;
-    this._processClosed = new Promise((resolve10) => {
-      this._resolveClose = resolve10;
+    this._processClosed = new Promise((resolve12) => {
+      this._resolveClose = resolve12;
     });
     this._thrownError = void 0;
   }
@@ -1380,7 +1396,7 @@ function configFor(root) {
     ""
   ].join("\n");
 }
-async function runGitleaks(cwd2, args) {
+async function runGitleaks(cwd2, args, options = {}) {
   const binary = await gitleaksBinary();
   const config2 = configFor(cwd2);
   const configPath = join2(
@@ -1410,7 +1426,11 @@ async function runGitleaks(cwd2, args) {
       "--max-target-megabytes",
       "2"
     ],
-    { cwd: cwd2, timeout: 12e4 }
+    {
+      cwd: cwd2,
+      timeout: 12e4,
+      ...options.indexFile ? { env: { GIT_INDEX_FILE: options.indexFile } } : {}
+    }
   );
   if (result.exitCode !== 0) {
     throw new ScannerUnavailable(
@@ -1666,10 +1686,12 @@ function kindOf(value) {
 var FIELD = "";
 var RECORD = "";
 var Git = class _Git {
-  constructor(cwd2) {
+  constructor(cwd2, options = {}) {
     this.cwd = cwd2;
+    this.options = options;
   }
   cwd;
+  options;
   readiness;
   environment;
   /** Shared by this operation's commands; a failed check can be retried after repair. */
@@ -1691,7 +1713,12 @@ var Git = class _Git {
   async run(args, options = {}) {
     return exec2(await this.ready(), args, {
       cwd: this.cwd,
-      env: { GIT_TERMINAL_PROMPT: "0", GIT_OPTIONAL_LOCKS: "0", LC_ALL: "C" },
+      env: {
+        GIT_TERMINAL_PROMPT: "0",
+        GIT_OPTIONAL_LOCKS: "0",
+        LC_ALL: "C",
+        ...this.options.indexFile ? { GIT_INDEX_FILE: this.options.indexFile } : {}
+      },
       ...options.input !== void 0 ? { input: options.input } : {},
       ...options.timeout !== void 0 ? { timeout: options.timeout } : {}
     });
@@ -1810,6 +1837,7 @@ ${kindTrailer(options.kind)}`
       [
         "push",
         "--quiet",
+        "--no-follow-tags",
         ...options.setUpstream ? ["--set-upstream"] : [],
         ...options.forceWithLease ? ["--force-with-lease"] : [],
         options.remote ?? "origin",
@@ -2150,8 +2178,8 @@ function settle(findings, fileOf) {
     (a2, b) => Number(a2.severity === "warn") - Number(b.severity === "warn") || a2.file.localeCompare(b.file) || a2.line - b.line
   );
 }
-async function scanStaged(root) {
-  const findings = await runGitleaks(root, ["git", "--pre-commit", "--staged", "."]);
+async function scanStaged(root, options = {}) {
+  const findings = await runGitleaks(root, ["git", "--pre-commit", "--staged", "."], options);
   return settle(findings, (f) => f.File);
 }
 async function scanUnsent(root, remote) {
@@ -2160,6 +2188,10 @@ async function scanUnsent(root, remote) {
     `--log-opts=HEAD --not --remotes=${remote}`,
     "."
   ]);
+  return settle(findings, (f) => f.File);
+}
+async function scanHistory(root, head) {
+  const findings = await runGitleaks(root, ["git", `--log-opts=--full-history -m ${head}`, "."]);
   return settle(findings, (f) => f.File);
 }
 async function scanVersion(root, ref = "HEAD") {
@@ -7379,7 +7411,7 @@ var recursive = /* @__PURE__ */ new WeakMap();
 var NONE = 0;
 var ASSUMED = 1;
 var PROVEN = 2;
-function isRecursive(inst, stack, resolve10) {
+function isRecursive(inst, stack, resolve12) {
   const cached3 = recursive.get(inst);
   if (cached3 !== void 0)
     return cached3 ? PROVEN : NONE;
@@ -7389,7 +7421,7 @@ function isRecursive(inst, stack, resolve10) {
   let result = NONE;
   const check2 = (child) => {
     if (result !== PROVEN && child?._zod) {
-      const answer = isRecursive(child, stack, resolve10);
+      const answer = isRecursive(child, stack, resolve12);
       if (answer > result)
         result = answer;
     }
@@ -7400,7 +7432,7 @@ function isRecursive(inst, stack, resolve10) {
       const desc = Object.getOwnPropertyDescriptor(sh, key2);
       if (spread && !desc.enumerable)
         continue;
-      const child = desc.get ? ASSUMED : desc.value?._zod ? isRecursive(desc.value, stack, resolve10) : NONE;
+      const child = desc.get ? ASSUMED : desc.value?._zod ? isRecursive(desc.value, stack, resolve12) : NONE;
       if (child > answer)
         answer = child;
     }
@@ -7464,7 +7496,7 @@ function isRecursive(inst, stack, resolve10) {
       break;
     // `$ZodLazy` caches its inner on the def, so a resolved edge is followed exactly
     case "lazy": {
-      const inner = def._cachedInner ?? (resolve10 ? inst._zod.innerType : void 0);
+      const inner = def._cachedInner ?? (resolve12 ? inst._zod.innerType : void 0);
       merge2(inner ? isRecursive(inner, stack, false) : ASSUMED);
       break;
     }
@@ -22772,9 +22804,9 @@ var SupabaseApi = class _SupabaseApi {
   }
   async regions(slug) {
     const answer = await this.request("GET", `/v1/projects/available-regions?organization_slug=${encodeURIComponent(slug)}`);
-    const open3 = (list) => (list ?? []).filter((r2) => r2.status !== "capacity");
-    const recommended = open3(answer.recommendations?.specific)[0];
-    return { ...recommended ? { recommended } : {}, all: open3(answer.all?.specific) };
+    const open4 = (list) => (list ?? []).filter((r2) => r2.status !== "capacity");
+    const recommended = open4(answer.recommendations?.specific)[0];
+    return { ...recommended ? { recommended } : {}, all: open4(answer.all?.specific) };
   }
   createProject(input2) {
     return this.request("POST", "/v1/projects", {
@@ -23151,14 +23183,14 @@ async function fetchRange(url2, start, length) {
   return Buffer.from(await response.arrayBuffer());
 }
 async function fetchMacFile(entry) {
-  const [path2, offset, compressed, size, hash2] = entry;
+  const [path2, offset, compressed, size, hash4] = entry;
   const chunk = await fetchRange(EDB_MAC, offset, 30 + 1024 + compressed);
   if (chunk.readUInt32LE(0) !== 67324752) throw new Error(`${path2} isn't where it should be`);
   const method = chunk.readUInt16LE(8);
   const start = 30 + chunk.readUInt16LE(26) + chunk.readUInt16LE(28);
   const raw = chunk.subarray(start, start + compressed);
   const data = method === 8 ? inflateRawSync(raw) : raw;
-  if (data.length !== size || sha256(data) !== hash2) {
+  if (data.length !== size || sha256(data) !== hash4) {
     throw new Error(`${path2} didn't match its checksum`);
   }
   return data;
@@ -23195,11 +23227,11 @@ async function install() {
         }
       }
     } else if (LINUX[platform]) {
-      const { url: url2, sha256: hash2, dir } = LINUX[platform];
+      const { url: url2, sha256: hash4, dir } = LINUX[platform];
       const response = await fetch(url2, { signal: AbortSignal.timeout(3e5) });
       if (!response.ok) throw new Error(`the download server answered ${response.status}`);
       const archive = Buffer.from(await response.arrayBuffer());
-      if (sha256(archive) !== hash2) throw new Error("the download didn't match its checksum");
+      if (sha256(archive) !== hash4) throw new Error("the download didn't match its checksum");
       await writeFile3(join9(work, "postgres.tar.gz"), archive);
       const unpacked = await exec2("tar", ["-xzf", "postgres.tar.gz"], {
         cwd: work,
@@ -23356,7 +23388,7 @@ async function* archiveLines(backup, entries, dir) {
   child.stderr.on("data", (chunk) => {
     if (stderr.length < 4e3) stderr += chunk.toString();
   });
-  const done = new Promise((resolve10) => child.on("close", (code2) => resolve10(code2 ?? 1)));
+  const done = new Promise((resolve12) => child.on("close", (code2) => resolve12(code2 ?? 1)));
   const lines = createInterface({ input: child.stdout, crlfDelay: Number.POSITIVE_INFINITY });
   try {
     for await (const line of lines) yield line;
@@ -23426,7 +23458,7 @@ async function restorePass(target, backup, entries, options) {
 `);
     }
   });
-  const exit = (child) => new Promise((resolve10) => child.on("close", (code2) => resolve10(code2 ?? 1)));
+  const exit = (child) => new Promise((resolve12) => child.on("close", (code2) => resolve12(code2 ?? 1)));
   const timer = setTimeout(
     () => {
       producer.kill();
@@ -25695,11 +25727,11 @@ async function download2(release, dir, path2) {
 }
 async function linkInBin(path2) {
   if (process.platform === "win32") return;
-  const link2 = join18(toolsBin(), executable2);
+  const link3 = join18(toolsBin(), executable2);
   await mkdir9(toolsBin(), { recursive: true });
-  await unlink(link2).catch(() => {
+  await unlink(link3).catch(() => {
   });
-  await symlink(path2, link2).catch(() => {
+  await symlink(path2, link3).catch(() => {
   });
 }
 
@@ -26207,16 +26239,104 @@ async function claimInbox(root, session) {
   return items;
 }
 
+// ../core/src/local-app.ts
+import { lstat, readdir as readdir4, realpath as realpath2 } from "node:fs/promises";
+import { join as join20, resolve as resolve5 } from "node:path";
+async function localAppForSaving(root) {
+  const local = await inspectLocalApp(root);
+  if (["nested", "protected"].includes(local.repository) || local.repository === "remote" && local.contents !== "supported")
+    throw new ClodableError({
+      code: "already-there",
+      message: tr("This folder already belongs to an app."),
+      hint: tr("Your files are unchanged. Ask Claude to check the connection before saving.")
+    });
+  if (local.contents !== "supported")
+    throw new ClodableError({
+      code: "invalid-config",
+      message: tr("Your local app needs a little preparation before saving."),
+      hint: tr(
+        "Ask Claude to prepare this prototype for Clodable, keeping your design and content."
+      )
+    });
+  return local;
+}
+async function inspectLocalApp(root) {
+  const entries = await readdir4(root);
+  const empty = entries.every((entry) => entry.startsWith("."));
+  const project = empty ? void 0 : await detectProject(root);
+  const local = {
+    contents: empty ? "empty" : project?.appType === "unknown" ? "unsupported" : "supported",
+    repository: "unavailable",
+    ...project ? { appType: project.appType } : {}
+  };
+  const metadata = await lstat(join20(root, ".git")).catch(() => void 0);
+  const git = new Git(root);
+  try {
+    const inside2 = await git.run(["rev-parse", "--is-inside-work-tree"]);
+    if (inside2.exitCode !== 0 || inside2.stdout.trim() !== "true") {
+      const bare = await git.run(["rev-parse", "--is-bare-repository"]);
+      local.repository = metadata || bare.stdout.trim() === "true" || !/not a git repository/i.test(inside2.stderr) ? "protected" : "none";
+      return local;
+    }
+    if (await realpath2(await git.root()) !== await realpath2(root)) {
+      local.repository = "nested";
+      return local;
+    }
+    const common = await git.ok(["rev-parse", "--git-common-dir"]);
+    if (!metadata?.isDirectory() || metadata.isSymbolicLink() || await realpath2(resolve5(root, common)) !== await realpath2(join20(root, ".git")) || (await git.ok(["rev-parse", "--show-superproject-working-tree"])).length > 0) {
+      local.repository = "protected";
+      return local;
+    }
+    const interrupted = await Promise.all(
+      [
+        "MERGE_HEAD",
+        "CHERRY_PICK_HEAD",
+        "REVERT_HEAD",
+        "rebase-merge",
+        "rebase-apply",
+        "shallow",
+        "info/grafts"
+      ].map(
+        (name) => lstat(join20(root, ".git", name)).then(
+          () => true,
+          () => false
+        )
+      )
+    );
+    if (interrupted.some(Boolean) || (await git.ok(["for-each-ref", "--format=%(refname)", "refs/replace"])).length > 0) {
+      local.repository = "protected";
+      return local;
+    }
+    if ((await git.ok(["remote"])).length > 0) {
+      local.repository = "remote";
+      return local;
+    }
+    const head = await git.head();
+    if (head) {
+      local.repository = "history";
+      local.head = head;
+    } else {
+      const refs = await git.ok(["for-each-ref", "--format=%(refname)", "refs/heads", "refs/tags"]);
+      local.repository = await git.currentBranch() && !refs ? "unborn" : "protected";
+    }
+    return local;
+  } catch (error62) {
+    if (error62 instanceof ClodableError && error62.code === "tools-unavailable") return local;
+    local.repository = "protected";
+    return local;
+  }
+}
+
 // ../core/src/move/copy.ts
 import { existsSync as existsSync17 } from "node:fs";
-import { mkdtemp as mkdtemp7, readdir as readdir5, readFile as readFile12, rename as rename8, rm as rm12 } from "node:fs/promises";
-import { join as join23 } from "node:path";
+import { mkdtemp as mkdtemp7, readdir as readdir6, readFile as readFile12, rename as rename8, rm as rm12 } from "node:fs/promises";
+import { join as join24 } from "node:path";
 
 // ../core/src/move/export.ts
 import { createWriteStream as createWriteStream3, existsSync as existsSync15 } from "node:fs";
-import { copyFile, readdir as readdir4, rm as rm11, stat as stat2, writeFile as writeFile10 } from "node:fs/promises";
+import { copyFile, readdir as readdir5, rm as rm11, stat as stat2, writeFile as writeFile10 } from "node:fs/promises";
 import { homedir as homedir2 } from "node:os";
-import { basename as basename4, extname, join as join20 } from "node:path";
+import { basename as basename4, extname, join as join21 } from "node:path";
 
 // ../core/src/move/zip.ts
 import { createReadStream, createWriteStream as createWriteStream2 } from "node:fs";
@@ -26384,14 +26504,14 @@ async function checkExportSource(source, projectUrl2) {
     });
   }
 }
-async function findExport(folder = join20(homedir2(), "Downloads"), projectUrl2) {
+async function findExport(folder = join21(homedir2(), "Downloads"), projectUrl2) {
   if (!existsSync15(folder)) return void 0;
   const month = Date.now() - 31 * 24 * 60 * 6e4;
   const candidates2 = [];
-  for (const name of await readdir4(folder).catch(() => [])) {
+  for (const name of await readdir5(folder).catch(() => [])) {
     const ext = extname(name).toLowerCase();
     if (ext !== ".zip" && !isBackup(name)) continue;
-    const path2 = join20(folder, name);
+    const path2 = join21(folder, name);
     const info = await stat2(path2).catch(() => void 0);
     if (!info?.isFile() || info.mtimeMs < month) continue;
     candidates2.push({ path: path2, at: info.mtimeMs });
@@ -26407,7 +26527,7 @@ async function findExport(folder = join20(homedir2(), "Downloads"), projectUrl2)
   return void 0;
 }
 async function takeBackup(source, dir) {
-  const target = join20(dir, BACKUP);
+  const target = join21(dir, BACKUP);
   await rm11(target, { force: true });
   if (source.toLowerCase().endsWith(".zip")) {
     let entries;
@@ -26446,9 +26566,9 @@ var unreadable = (error62) => new ClodableError({
 });
 async function readExport(source, dir) {
   await takeBackup(source, dir);
-  const backup = join20(dir, BACKUP);
+  const backup = join21(dir, BACKUP);
   const listing = await listArchive(backup);
-  await writeFile10(join20(dir, "toc.list"), listing, { mode: 384 });
+  await writeFile10(join21(dir, "toc.list"), listing, { mode: 384 });
   const toc = parseToc(listing);
   if (toc.entries.length === 0) {
     throw new ClodableError({
@@ -26505,7 +26625,7 @@ async function readExport(source, dir) {
   const wanted = (e) => e.type === "TABLE DATA" && (e.schema !== null && !isManaged(e.schema) && e.schema !== "supabase_migrations" || e.schema === "auth" && ["users", "identities", "sessions"].includes(e.tag) || e.schema === "storage" && (e.tag === "buckets" || e.tag === "objects") || e.schema === "cron" && e.tag === "job" || e.schema === "vault" && e.tag === "secrets");
   await scanRows(backup, toc.entries.filter(wanted), dir, summary, sourceRefs);
   summary.sourceRefs = [...sourceRefs].sort();
-  await writeJsonFile(join20(dir, "export.json"), summary, { private: true });
+  await writeJsonFile(join21(dir, "export.json"), summary, { private: true });
   return { summary, toc };
 }
 var API_ROLES = /* @__PURE__ */ new Set(["anon", "authenticated", "service_role"]);
@@ -26565,7 +26685,7 @@ function copyValue(raw) {
   );
 }
 async function scanRows(backup, entries, dir, summary, sourceRefs) {
-  const files = createWriteStream3(join20(dir, FILES_LIST), { mode: 384 });
+  const files = createWriteStream3(join21(dir, FILES_LIST), { mode: 384 });
   const jobs = [];
   const buckets = /* @__PURE__ */ new Map();
   let table = null;
@@ -26592,8 +26712,8 @@ async function scanRows(backup, entries, dir, summary, sourceRefs) {
     const values = line.split("	");
     const get = (name) => copyValue(values[col(name)]);
     if (table === "auth.users") {
-      const hash2 = get("encrypted_password");
-      if (hash2 && /^\$(2[aby]|argon2)/.test(hash2)) summary.people.withPassword++;
+      const hash4 = get("encrypted_password");
+      if (hash4 && /^\$(2[aby]|argon2)/.test(hash4)) summary.people.withPassword++;
       else summary.people.withoutPassword++;
     } else if (table === "auth.identities") {
       const provider = get("provider") ?? "unknown";
@@ -26657,7 +26777,7 @@ async function scanRows(backup, entries, dir, summary, sourceRefs) {
   summary.buckets = [...buckets.values()].sort((a2, b) => a2.id.localeCompare(b.id));
   summary.scheduledJobs.sort();
   summary.vaultSecrets.sort();
-  await writeJsonFile(join20(dir, JOBS_FILE), jobs, { private: true });
+  await writeJsonFile(join21(dir, JOBS_FILE), jobs, { private: true });
 }
 
 // ../core/src/move/messages.ts
@@ -26805,7 +26925,7 @@ function presentMoveCheck(check2) {
 }
 
 // ../core/src/move/restore.ts
-import { join as join21 } from "node:path";
+import { join as join22 } from "node:path";
 var managed = [...MANAGED_SCHEMAS].map((s) => `'${s}'`).join(", ");
 async function emptyCopy(sql) {
   await sql.run(`
@@ -26852,7 +26972,7 @@ end $$;`);
 }
 async function* copyExport(target, dir, toc, summary, options = {}) {
   const plan = planRestore(toc, new Set(summary.appTriggers));
-  const backup = join21(dir, BACKUP);
+  const backup = join22(dir, BACKUP);
   const problems = [];
   const keep = (errors) => {
     for (const error62 of errors) {
@@ -27016,7 +27136,7 @@ async function newBackendSignIn(api, ref, site) {
 // ../core/src/move/switch.ts
 import { existsSync as existsSync16 } from "node:fs";
 import { readFile as readFile11, writeFile as writeFile11 } from "node:fs/promises";
-import { join as join22 } from "node:path";
+import { join as join23 } from "node:path";
 function writeGrants(grants) {
   const lines = [];
   for (const [table, roles] of Object.entries(grants)) {
@@ -27176,7 +27296,7 @@ async function giveBackGrants(sql, grants) {
   return lines.length;
 }
 async function recreateJobs(sql, dir, from, to, keys) {
-  const path2 = join22(dir, JOBS_FILE);
+  const path2 = join23(dir, JOBS_FILE);
   if (!existsSync16(path2)) return { created: 0, check: [] };
   const jobs = JSON.parse(await readFile11(path2, "utf8"));
   const site = to.siteUrl ? new URL(to.siteUrl).origin : void 0;
@@ -27280,7 +27400,7 @@ async function* goLive(ws, options = {}) {
   const backend = backendOf(state.home.ref, keys);
   const { SUPABASE_SERVICE_ROLE_KEY: _, ...values } = backendEnv(backend);
   for (const name of [".env", ".env.local", ".env.production"]) {
-    const path2 = join22(ws.root, name);
+    const path2 = join23(ws.root, name);
     if (!existsSync16(path2)) continue;
     const before = await readFile11(path2, "utf8");
     const after = rewriteEnv(before, values);
@@ -27290,7 +27410,7 @@ async function* goLive(ws, options = {}) {
     }
   }
   if (from) {
-    const toml = join22(ws.root, "supabase", "config.toml");
+    const toml = join23(ws.root, "supabase", "config.toml");
     if (existsSync16(toml)) {
       const before = await readFile11(toml, "utf8");
       const after = before.replace(
@@ -27306,7 +27426,7 @@ async function* goLive(ws, options = {}) {
       if (!file3.text.includes(from)) continue;
       const next = repoint(file3.text, from, state.home.ref, { ...keys.legacy, anon: backend.anon });
       if (next.text !== file3.text) {
-        await writeFile11(join22(ws.root, file3.path), next.text);
+        await writeFile11(join23(ws.root, file3.path), next.text);
         files.push(file3.path.replace(/^\//, ""));
       }
     }
@@ -27569,7 +27689,7 @@ async function* importExport(ws, options = {}) {
   const dir = await moveDir(ws.root);
   const before = await loadMove(ws.root);
   const pausedAt = before.switch?.liveAt ? void 0 : before.switch?.frozenAt;
-  const target = await mkdtemp7(join23(dir, "incoming-"));
+  const target = await mkdtemp7(join24(dir, "incoming-"));
   let summary;
   try {
     summary = (await readExport(file3, target)).summary;
@@ -27586,9 +27706,9 @@ async function* importExport(ws, options = {}) {
         });
       }
     }
-    for (const name of await readdir5(target)) {
-      await rm12(join23(dir, name), { recursive: true, force: true });
-      await rename8(join23(target, name), join23(dir, name));
+    for (const name of await readdir6(target)) {
+      await rm12(join24(dir, name), { recursive: true, force: true });
+      await rename8(join24(target, name), join24(dir, name));
     }
   } finally {
     await rm12(target, { recursive: true, force: true });
@@ -27611,9 +27731,9 @@ function describeExport(summary) {
   ].join(" \xB7 ");
 }
 async function migrationVersions(root) {
-  const dir = join23(root, "supabase", "migrations");
+  const dir = join24(root, "supabase", "migrations");
   if (!existsSync17(dir)) return [];
-  return (await readdir5(dir)).map((name) => name.match(/^(\d{8,})_.*\.sql$/)?.[1]).filter((v) => Boolean(v)).sort();
+  return (await readdir6(dir)).map((name) => name.match(/^(\d{8,})_.*\.sql$/)?.[1]).filter((v) => Boolean(v)).sort();
 }
 async function* copyData(ws) {
   const state = await loadMove(ws.root);
@@ -27633,7 +27753,7 @@ async function* copyData(ws) {
   }
   const api = await SupabaseApi.required();
   const dir = await moveDir(ws.root);
-  const backup = join23(dir, "export.backup");
+  const backup = join24(dir, "export.backup");
   if (!existsSync17(backup)) {
     throw new ClodableError({
       code: "export-not-found",
@@ -27641,7 +27761,7 @@ async function* copyData(ws) {
       hint: tr("Read it again: download the export from Lovable, then run that step again.")
     });
   }
-  const toc = parseToc(await readFile12(join23(dir, "toc.list"), "utf8"));
+  const toc = parseToc(await readFile12(join24(dir, "toc.list"), "utf8"));
   const summary = state.export.summary;
   yield step(
     "move:data",
@@ -28207,12 +28327,12 @@ async function* setUpEmails(ws, options = {}) {
 import { createHash as createHash6 } from "node:crypto";
 import { existsSync as existsSync18 } from "node:fs";
 import { appendFile, readFile as readFile13 } from "node:fs/promises";
-import { join as join24 } from "node:path";
+import { join as join25 } from "node:path";
 var LEDGER = "files-done.txt";
 var key = (f) => `${f.bucket}/${f.name}#${f.size}`;
 var path = (name) => name.split("/").map(encodeURIComponent).join("/");
 async function readFileList(dir) {
-  const list = join24(dir, FILES_LIST);
+  const list = join25(dir, FILES_LIST);
   if (!existsSync18(list)) return [];
   return (await readFile13(list, "utf8")).split("\n").filter(Boolean).map((line) => JSON.parse(line));
 }
@@ -28250,7 +28370,7 @@ var sha2562 = (data) => createHash6("sha256").update(data).digest("hex");
 async function* copyFiles(target, dir, buckets) {
   const files = await readFileList(dir);
   const isPublic = new Map(buckets.map((b) => [b.id, b.public]));
-  const ledgerPath = join24(dir, LEDGER);
+  const ledgerPath = join25(dir, LEDGER);
   const done = new Set(
     existsSync18(ledgerPath) ? (await readFile13(ledgerPath, "utf8")).split("\n").filter(Boolean) : []
   );
@@ -28293,7 +28413,7 @@ async function* copyFiles(target, dir, buckets) {
     finished = true;
   });
   while (!finished) {
-    await Promise.race([all, new Promise((resolve10) => setTimeout(resolve10, 2e3))]);
+    await Promise.race([all, new Promise((resolve12) => setTimeout(resolve12, 2e3))]);
     if (Date.now() - lastReport >= 2e3 || finished) {
       lastReport = Date.now();
       yield step("move:files", "running", tr("Copying your files"), soFar());
@@ -28431,14 +28551,14 @@ async function repointLinks(sql, from, to) {
 
 // ../core/src/move/functions.ts
 import { existsSync as existsSync19 } from "node:fs";
-import { readdir as readdir6, readFile as readFile14 } from "node:fs/promises";
-import { dirname as dirname7, join as join25, normalize as normalize2, relative as relative3, sep as sep3 } from "node:path";
+import { readdir as readdir7, readFile as readFile14 } from "node:fs/promises";
+import { dirname as dirname7, join as join26, normalize as normalize2, relative as relative3, sep as sep3 } from "node:path";
 var BUILT_IN = /^SUPABASE_/;
 var LOVABLE_OWN = /^LOVABLE_/;
 var IMPORT = /(?:import|export)\s[^'"`;]*?from\s*["']([^"']+)["']|import\s*\(\s*["']([^"']+)["']\s*\)|import\s+["']([^"']+)["']/g;
 async function jwtSettings(root) {
   const settings2 = /* @__PURE__ */ new Map();
-  const path2 = join25(root, "supabase", "config.toml");
+  const path2 = join26(root, "supabase", "config.toml");
   if (!existsSync19(path2)) return settings2;
   let section = null;
   for (const line of (await readFile14(path2, "utf8")).split("\n")) {
@@ -28457,18 +28577,18 @@ async function jwtSettings(root) {
   return settings2;
 }
 async function localFunctions(root) {
-  const base = join25(root, "supabase", "functions");
+  const base = join26(root, "supabase", "functions");
   if (!existsSync19(base)) return [];
   const settings2 = await jwtSettings(root);
   const out = [];
-  for (const entry of await readdir6(base, { withFileTypes: true })) {
+  for (const entry of await readdir7(base, { withFileTypes: true })) {
     if (!entry.isDirectory() || entry.name.startsWith("_") || entry.name.startsWith(".")) continue;
-    const dir = join25(base, entry.name);
+    const dir = join26(base, entry.name);
     const index = ["index.ts", "index.tsx", "index.js", "index.mjs"].find(
-      (f) => existsSync19(join25(dir, f))
+      (f) => existsSync19(join26(dir, f))
     );
     if (!index) continue;
-    const entrypoint = join25(dir, index);
+    const entrypoint = join26(dir, index);
     const files = /* @__PURE__ */ new Set();
     const walk2 = async (file3) => {
       const key2 = relative3(root, file3).split(sep3).join("/");
@@ -28479,13 +28599,13 @@ async function localFunctions(root) {
       for (const match of text2.matchAll(IMPORT)) {
         const spec = match[1] ?? match[2] ?? match[3];
         if (!spec || !(spec.startsWith("./") || spec.startsWith("../"))) continue;
-        const target = normalize2(join25(dirname7(file3), spec));
+        const target = normalize2(join26(dirname7(file3), spec));
         if (relative3(root, target).startsWith("..")) continue;
         await walk2(target);
       }
     };
     await walk2(entrypoint);
-    const importMap = ["deno.json", "deno.jsonc", "import_map.json"].map((f) => join25(dir, f)).find((f) => existsSync19(f));
+    const importMap = ["deno.json", "deno.jsonc", "import_map.json"].map((f) => join26(dir, f)).find((f) => existsSync19(f));
     if (importMap) files.add(relative3(root, importMap).split(sep3).join("/"));
     out.push({
       name: entry.name,
@@ -28504,7 +28624,7 @@ async function functionSecrets(root, functions) {
     for (const file3 of fn.files) {
       if (seen.has(file3)) continue;
       seen.add(file3);
-      const text2 = await readFile14(join25(root, file3), "utf8").catch(() => "");
+      const text2 = await readFile14(join26(root, file3), "utf8").catch(() => "");
       for (const match of text2.matchAll(/Deno\.env\.get\(\s*["'`]([A-Z][A-Z0-9_]*)["'`]\s*\)/g)) {
         if (!BUILT_IN.test(match[1]) && !LOVABLE_OWN.test(match[1])) names2.add(match[1]);
       }
@@ -28517,7 +28637,7 @@ async function stripeWebhooks(root, functions) {
   for (const fn of functions) {
     for (const file3 of fn.files) {
       if (file3.includes("/_shared/")) continue;
-      const text2 = await readFile14(join25(root, file3), "utf8").catch(() => "");
+      const text2 = await readFile14(join26(root, file3), "utf8").catch(() => "");
       if (/stripe-signature|constructEvent(Async)?\(/i.test(text2)) {
         names2.push(fn.name);
         break;
@@ -28530,7 +28650,7 @@ async function uploadFunction(api, ref, root, fn) {
   const files = await Promise.all(
     fn.files.map(async (path2) => ({
       path: path2,
-      content: new Uint8Array(await readFile14(join25(root, path2)))
+      content: new Uint8Array(await readFile14(join26(root, path2)))
     }))
   );
   await api.deployFunction(
@@ -29530,135 +29650,515 @@ async function moveProgress(ws) {
 
 // ../core/src/new-app.ts
 import { existsSync as existsSync20 } from "node:fs";
-import { appendFile as appendFile2, readFile as readFile15, realpath as realpath2 } from "node:fs/promises";
-import { join as join26 } from "node:path";
+import { appendFile as appendFile2, mkdtemp as mkdtemp8, readFile as readFile16, realpath as realpath4, rm as rm14 } from "node:fs/promises";
+import { tmpdir as tmpdir6 } from "node:os";
+import { join as join28 } from "node:path";
+
+// ../core/src/setup-lock.ts
+import { AsyncLocalStorage } from "node:async_hooks";
+import { createHash as createHash7, randomUUID as randomUUID2 } from "node:crypto";
+import { link, lstat as lstat2, readFile as readFile15, realpath as realpath3, rm as rm13, writeFile as writeFile12 } from "node:fs/promises";
+import { tmpdir as tmpdir5 } from "node:os";
+import { join as join27 } from "node:path";
+var held = new AsyncLocalStorage();
+var hash2 = (value) => createHash7("sha256").update(value).digest("hex");
+var codeOf = (error62) => error62.code;
+function busy() {
+  return new ClodableError({
+    code: "needs-choice",
+    message: tr("Saving setup is already running for this folder."),
+    hint: tr("Wait for it to finish, then try again.")
+  });
+}
+function repair(path2) {
+  return new ClodableError({
+    code: "needs-choice",
+    message: tr("Saving setup needs a local check before it can continue."),
+    hint: tr(
+      "Ask Claude to check the interrupted saving setup on this computer, then try again. Your files are unchanged."
+    ),
+    details: `Lock owner cannot be verified: ${path2}
+Check that no setup process is running before removing this legacy lock.`
+  });
+}
+async function ownerOf(path2) {
+  try {
+    const stat3 = await lstat2(path2);
+    if (!stat3.isFile()) throw repair(path2);
+    const owner = JSON.parse(await readFile15(path2, "utf8"));
+    if (!owner || !Number.isSafeInteger(owner.pid) || owner.pid <= 0 || typeof owner.token !== "string" || !owner.token)
+      throw repair(path2);
+    return {
+      pid: owner.pid,
+      token: owner.token,
+      identity: `${stat3.dev}:${stat3.ino}:${owner.token}`
+    };
+  } catch (error62) {
+    if (codeOf(error62) === "ENOENT") return void 0;
+    if (error62 instanceof SyntaxError) throw repair(path2);
+    throw error62;
+  }
+}
+function dead(pid) {
+  try {
+    process.kill(pid, 0);
+    return false;
+  } catch (error62) {
+    return codeOf(error62) === "ESRCH";
+  }
+}
+async function acquire(path2) {
+  const token = randomUUID2();
+  const candidate = `${path2}.${token}.owner`;
+  try {
+    await writeFile12(candidate, JSON.stringify({ pid: process.pid, token }), {
+      flag: "wx",
+      mode: 384
+    });
+    for (; ; ) {
+      try {
+        await link(candidate, path2);
+        break;
+      } catch (error62) {
+        if (codeOf(error62) !== "EEXIST") throw error62;
+      }
+      const previous = await ownerOf(path2);
+      if (!previous) continue;
+      if (!dead(previous.pid)) throw busy();
+      const guard = join27(
+        tmpdir5(),
+        `clodable-setup-recovery-${hash2(`${path2}\0${previous.identity}`)}.lock`
+      );
+      const release = await acquire(guard);
+      try {
+        const current = await ownerOf(path2);
+        if (current?.identity === previous.identity) {
+          if (!dead(current.pid)) throw busy();
+          await rm13(path2);
+        }
+      } finally {
+        await release();
+      }
+    }
+  } finally {
+    await rm13(candidate, { force: true });
+  }
+  let released = false;
+  return async () => {
+    if (released) return;
+    released = true;
+    const current = await ownerOf(path2);
+    if (current?.token === token) await rm13(path2, { force: true });
+  };
+}
+async function withSetupLock(root, work) {
+  const canonical = await realpath3(root);
+  const release = await lockSetup(root);
+  try {
+    return await held.run(/* @__PURE__ */ new Set([...held.getStore() ?? [], canonical]), work);
+  } finally {
+    await release();
+  }
+}
+async function lockSetup(root) {
+  const canonical = await realpath3(root);
+  if (held.getStore()?.has(canonical)) return async () => {
+  };
+  const path2 = join27(tmpdir5(), `clodable-setup-${hash2(canonical)}.lock`);
+  if (await lstat2(`${path2}.recovery`).catch((error62) => {
+    if (codeOf(error62) === "ENOENT") return void 0;
+    throw error62;
+  }))
+    throw repair(`${path2}.recovery`);
+  return acquire(path2);
+}
+
+// ../core/src/workspace.ts
+var Workspace = class _Workspace {
+  constructor(root, git, github, config2, project, remote) {
+    this.root = root;
+    this.git = git;
+    this.github = github;
+    this.config = config2;
+    this.project = project;
+    this.remote = remote;
+  }
+  root;
+  git;
+  github;
+  config;
+  project;
+  remote;
+  static async open(options) {
+    const probe = new Git(options.cwd);
+    if (!await probe.isRepo()) {
+      throw new ClodableError({
+        code: "not-a-repo",
+        message: tr("This folder isn't connected to GitHub yet."),
+        hint: tr("Type /clodable to open the Clodable panel and set this folder up there.")
+      });
+    }
+    const root = await probe.root();
+    if (options.requireSetup !== false && !isSetUp(root)) {
+      throw new ClodableError({
+        code: "not-set-up",
+        message: tr("Clodable isn't set up in this project."),
+        hint: tr(
+          "Type /clodable to open the Clodable panel and set it up here. Until then, Clodable leaves this project alone."
+        )
+      });
+    }
+    const git = new Git(root);
+    const [config2, project] = await Promise.all([loadConfig(root), detectProject(root)]);
+    return new _Workspace(
+      root,
+      git,
+      options.github ?? new GhCli(root),
+      config2,
+      project,
+      options.remote ?? "origin"
+    );
+  }
+  get liveBranch() {
+    return this.config.liveBranch;
+  }
+  get liveRef() {
+    return `${this.remote}/${this.config.liveBranch}`;
+  }
+  async state() {
+    return loadState(this.root);
+  }
+  async updateState(patch) {
+    const next = { ...await this.state(), ...patch };
+    await saveState(this.root, next);
+    return next;
+  }
+  /** The GitHub login of the person at this computer, cached locally after the first lookup. */
+  async login() {
+    const cached3 = (await this.state()).login;
+    if (cached3) return cached3;
+    const viewer = await this.github.viewer();
+    await this.updateState({ login: viewer.login });
+    return viewer.login;
+  }
+  /** `draft/<login>`: one draft per person, so nobody publishes someone else's unfinished work. */
+  async draftBranch() {
+    return draftBranchFor(await this.login());
+  }
+};
+function draftBranchFor(login) {
+  const slug = login.toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-+|-+$/g, "");
+  return `draft/${slug || "me"}`;
+}
+
+// ../core/src/new-app.ts
 var PENDING = ".clodable/local/new-app.json";
 async function pendingNewApp(root) {
-  const path2 = join26(root, PENDING);
-  return existsSync20(path2) ? JSON.parse(await readFile15(path2, "utf8")) : void 0;
+  const path2 = join28(root, PENDING);
+  return existsSync20(path2) ? JSON.parse(await readFile16(path2, "utf8")) : void 0;
+}
+function protectedApp() {
+  throw new ClodableError({
+    code: "already-there",
+    message: tr("This folder already belongs to an app."),
+    hint: tr("Your files are unchanged. Ask Claude to check the connection before saving.")
+  });
+}
+function changedHistory() {
+  throw new ClodableError({
+    code: "needs-choice",
+    message: tr("Review this app's existing versions before creating its private copy."),
+    hint: tr("Open Set up saving again and confirm that these versions should be kept.")
+  });
+}
+async function remotesOf(git) {
+  return (await git.ok(["remote"])).split("\n").filter(Boolean);
+}
+function matchingDestination(pending) {
+  const destination = pending.destination;
+  return Boolean(
+    destination?.repo.isPrivate && destination.repo.owner === pending.account && destination.repo.name === pending.name && destination.cloneUrl
+  );
+}
+async function validateScope(git, local, pending, canonicalRoot) {
+  if (["nested", "protected"].includes(local.repository)) protectedApp();
+  if (local.repository === "unavailable") await git.ready();
+  if (local.repository !== "remote") return;
+  if (!pending || !matchingDestination(pending)) protectedApp();
+  const remotes = await remotesOf(git);
+  if (remotes.length !== 1 || remotes[0] !== "origin" || await git.remoteUrl("origin") !== pending.destination.cloneUrl)
+    protectedApp();
+  if (pending.version === 1 && pending.root === canonicalRoot) {
+    const head2 = await git.head();
+    if (pending.history) {
+      if (!/^[a-f0-9]{40,64}$/.test(pending.history.head)) protectedApp();
+      if (head2 === pending.history.head) return;
+      if (pending.history.anchor && head2 && (await git.run(["merge-base", "--is-ancestor", pending.history.anchor, head2])).exitCode === 0)
+        return;
+      changedHistory();
+    }
+    if (!head2 || pending.base && (await git.run(["merge-base", "--is-ancestor", pending.base, head2])).exitCode === 0)
+      return;
+    protectedApp();
+  }
+  const head = await git.head();
+  const initial = await git.revParse(`origin/${pending.destination.repo.defaultBranch}`);
+  if (head && head !== initial) protectedApp();
+}
+function isPrivatePath(name) {
+  return /(^|\/)\.env(?:$|[./])/i.test(name) && !/(^|\/)\.env\.example$/i.test(name) || /(^|\/)\.clodable\/(?:local|inbox)(?:\/|$)/i.test(name);
+}
+async function checkPrivateIndex(git) {
+  const files = (await git.ok(["ls-files", "--cached", "-z"])).split("\0").filter(isPrivatePath);
+  if (files.length)
+    throw new ClodableError({
+      code: "secret-found",
+      message: tr("Some files selected for saving must stay on this computer."),
+      hint: tr("Ask Claude to keep these files local, then try again. Nothing was sent."),
+      files
+    });
+}
+async function checkIndex(git) {
+  await checkPrivateIndex(git);
+  const staged = (await git.ok(["diff", "--cached", "--name-only", "--no-renames", "-z"])).split("\0").filter(Boolean);
+  if (!staged.length) return;
+  const working = /* @__PURE__ */ new Set([
+    ...(await git.ok(["diff", "--name-only", "--no-renames", "-z"])).split("\0"),
+    ...(await git.ok(["ls-files", "--others", "--exclude-standard", "-z"])).split("\0")
+  ]);
+  const files = staged.filter((name) => working.has(name));
+  if (files.length)
+    throw new ClodableError({
+      code: "needs-choice",
+      message: tr("Some unsaved work needs checking before setting up saving."),
+      hint: tr("Ask Claude to preserve both local versions of these files, then try again."),
+      files
+    });
+}
+async function checkLocalFiles(root, git) {
+  const temporary = await mkdtemp8(join28(tmpdir6(), "clodable-setup-index-"));
+  try {
+    const indexFile = join28(temporary, "index");
+    const preview = new Git(root, { indexFile });
+    await preview.ok(["read-tree", await git.head() ? "HEAD" : "--empty"]);
+    await preview.stageAll();
+    await checkPrivateIndex(preview);
+    return (await scanStaged(root, { indexFile })).filter(
+      (finding) => finding.severity === "block"
+    );
+  } finally {
+    await rm14(temporary, { recursive: true, force: true });
+  }
+}
+async function checkHistory(git, root, head) {
+  const names2 = await git.ok(["log", "-m", "--format=", "--name-only", "-z", head, "--"]);
+  const protectedFiles = [
+    ...new Set(names2.split("\0").map((name) => name.replace(/^\n+/, "")))
+  ].filter(isPrivatePath);
+  if (protectedFiles.length)
+    throw new ClodableError({
+      code: "secret-found",
+      message: tr("Earlier versions contain files that must stay on this computer."),
+      hint: tr(
+        "Ask Claude to inspect these versions. Nothing was sent and the history was not changed."
+      ),
+      files: protectedFiles
+    });
+  const found2 = (await scanHistory(root, head)).filter((finding) => finding.severity === "block");
+  if (found2.length)
+    throw new ClodableError({
+      code: "secret-found",
+      message: tr("A secret key is in an earlier version of this app."),
+      hint: tr(
+        "Ask Claude to inspect these versions. Nothing was sent and the history was not changed."
+      ),
+      files: found2.map((finding) => finding.file)
+    });
+}
+async function verifySource(git, pending) {
+  const source = pending.history;
+  if (!source) {
+    const head2 = await git.head();
+    if (!head2 || pending.base && (await git.run(["merge-base", "--is-ancestor", pending.base, head2])).exitCode === 0)
+      return;
+    changedHistory();
+  }
+  if (source.branch && await git.revParse(`refs/heads/${source.branch}`) !== source.head)
+    changedHistory();
+  const head = await git.head();
+  if (head === source.head) return;
+  if (source.anchor && head && (await git.run(["merge-base", "--is-ancestor", source.anchor, head])).exitCode === 0)
+    return;
+  changedHistory();
 }
 async function* prepareNewApp(root, options, github = new GhCli(root)) {
-  if (!/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,99}$/.test(options.name) || /\.git$/i.test(options.name)) {
+  if (!/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,99}$/.test(options.name) || /\.git$/i.test(options.name))
     throw new ClodableError({
       code: "invalid-config",
       message: tr("Give your app a short name using letters, numbers or dashes.")
     });
-  }
-  const git = new Git(root);
-  await git.ready();
-  const viewer = await github.viewer();
-  if (viewer.login !== options.account) {
-    throw new ClodableError({
-      code: "gh-auth",
-      message: tr("The connected GitHub account has changed."),
-      hint: tr("Open Set up saving again and check the account before continuing.")
-    });
-  }
-  const project = await detectProject(root);
-  if (project.appType === "unknown") {
-    throw new ClodableError({
-      code: "invalid-config",
-      message: tr("Your local app needs a little preparation before saving."),
-      hint: tr(
-        "Ask Claude to prepare this prototype for Clodable, keeping your design and content."
-      )
-    });
-  }
-  let pending = await pendingNewApp(root);
-  if (pending && (pending.name !== options.name || pending.account !== options.account)) {
-    if (pending.destination)
-      throw new ClodableError({
-        code: "invalid-config",
-        message: tr("Saving was already started for a different app name or account."),
-        hint: tr("Continue with {0}/{1}. Your local work is still here.", {
-          "0": pending.account,
-          "1": pending.name
-        })
-      });
-    pending = { ...options };
-    await writeJsonFile(join26(root, PENDING), pending);
-  }
-  if (await git.isRepo()) {
-    if (!pending || await realpath2(await git.root()) !== await realpath2(root)) {
-      throw new ClodableError({
-        code: "already-there",
-        message: tr("This folder already belongs to an app."),
-        hint: tr("Open Clodable to set up that app. Start a new idea in an empty folder.")
-      });
+  const release = await lockSetup(root);
+  try {
+    const local = await localAppForSaving(root);
+    const canonicalRoot = await realpath4(root);
+    const git = new Git(root);
+    await git.ready();
+    let pending = await pendingNewApp(root);
+    await validateScope(git, local, pending, canonicalRoot);
+    if (pending?.root && pending.root !== canonicalRoot) protectedApp();
+    if (local.repository !== "none") await checkIndex(git);
+    if (pending && (pending.name !== options.name || pending.account !== options.account)) {
+      if (pending.destination || pending.history?.anchor)
+        throw new ClodableError({
+          code: "invalid-config",
+          message: tr("Saving was already started for a different app name or account."),
+          hint: tr("Continue with {0}/{1}. Your local work is still here.", {
+            "0": pending.account,
+            "1": pending.name
+          })
+        });
+      if (pending.history && options.adoptHistory !== local.head) changedHistory();
+      pending = void 0;
     }
-  } else {
-    pending = { ...options };
-    await writeJsonFile(join26(root, PENDING), pending);
-    await git.ok(["init", "--initial-branch=main"]);
-  }
-  await keepIgnored(root);
-  const ignored = await readFile15(join26(root, ".gitignore"), "utf8");
-  const missing = ["node_modules/", "dist/", ".env", ".env.*", "!.env.example"].filter(
-    (line) => !ignored.split("\n").includes(line)
-  );
-  if (missing.length)
-    await appendFile2(join26(root, ".gitignore"), `
+    let source = pending?.history;
+    if (local.repository === "history" && !source) {
+      if (options.adoptHistory !== local.head) changedHistory();
+      const draft = draftBranchFor(options.account);
+      if (await git.branchExists(draft)) changedHistory();
+      source = { head: local.head, branch: await git.currentBranch(), draft };
+    }
+    if (source) {
+      if (source.draft !== draftBranchFor(options.account)) protectedApp();
+      await verifySource(git, { name: options.name, account: options.account, history: source });
+      yield step("setup:app", "running", tr("Checking your existing versions before saving"));
+      await checkHistory(git, root, source.head);
+    }
+    const viewer = await github.viewer();
+    if (viewer.login !== options.account)
+      throw new ClodableError({
+        code: "gh-auth",
+        message: tr("The connected GitHub account has changed."),
+        hint: tr("Open Set up saving again and check the account before continuing.")
+      });
+    pending = {
+      ...pending,
+      name: options.name,
+      account: options.account,
+      version: 1,
+      root: canonicalRoot,
+      ...source ? { history: source } : {}
+    };
+    if (pending.destination && !source && !pending.base) {
+      const initial = await git.revParse(`origin/${pending.destination.repo.defaultBranch}`);
+      if (initial && await git.head() === initial) pending.base = initial;
+    }
+    const current = await inspectLocalApp(root);
+    await validateScope(git, current, pending, canonicalRoot);
+    await verifySource(git, pending);
+    if (current.repository !== "none") await checkIndex(git);
+    await writeJsonFile(join28(root, PENDING), pending);
+    if (local.repository === "none") await git.ok(["init", "--initial-branch=main"]);
+    await keepIgnored(root);
+    const ignored = await readFile16(join28(root, ".gitignore"), "utf8");
+    const missing = ["node_modules/", "dist/", ".env", ".env.*", "!.env.example"].filter(
+      (line) => !ignored.split("\n").includes(line)
+    );
+    if (missing.length)
+      await appendFile2(join28(root, ".gitignore"), `
 # Local app files
 ${missing.join("\n")}
 `);
-  yield step("setup:app", "running", tr("Checking your local app before saving"));
-  await git.stageAll();
-  const secrets = (await scanStaged(root)).filter((f) => f.severity === "block");
-  if (secrets.length) {
-    throw new ClodableError({
-      code: "secret-found",
-      message: tr("A secret key needs to stay out of your app's code."),
-      hint: tr(
-        "Ask Claude to move it out, then try Set up saving again. Nothing was sent to GitHub."
-      ),
-      files: secrets.map((f) => f.file)
-    });
-  }
-  if (!pending.destination) {
-    if (!github.createPrivateRepository)
+    yield step("setup:app", "running", tr("Checking your local app before saving"));
+    const secrets = await checkLocalFiles(root, git);
+    if (secrets.length)
       throw new ClodableError({
-        code: "unknown",
-        message: tr("This GitHub connection can't create a new app.")
+        code: "secret-found",
+        message: tr("A secret key needs to stay out of your app's code."),
+        hint: tr(
+          "Ask Claude to move it out, then try Set up saving again. Nothing was sent to GitHub."
+        ),
+        files: secrets.map((finding) => finding.file)
       });
-    yield step(
-      "setup:app",
-      "running",
-      tr("Creating your private app on GitHub"),
-      `${options.account}/${options.name}`
-    );
-    pending.destination = await github.createPrivateRepository(options.name);
-    await writeJsonFile(join26(root, PENDING), pending);
+    await verifySource(git, pending);
+    await validateScope(git, await inspectLocalApp(root), pending, canonicalRoot);
+    if (!pending.destination) {
+      if ((await remotesOf(git)).length) protectedApp();
+      if (!github.createPrivateRepository)
+        throw new ClodableError({
+          code: "unknown",
+          message: tr("This GitHub connection can't create a new app.")
+        });
+      yield step(
+        "setup:app",
+        "running",
+        tr("Creating your private app on GitHub"),
+        `${options.account}/${options.name}`
+      );
+      pending.destination = await github.createPrivateRepository(options.name);
+      await writeJsonFile(join28(root, PENDING), pending);
+    }
+    if (!matchingDestination(pending))
+      throw new ClodableError({
+        code: "gh-auth",
+        message: tr("GitHub returned a different app than the one you approved."),
+        hint: tr("Nothing was sent. Check your GitHub account before continuing.")
+      });
+    const { repo, cloneUrl } = pending.destination;
+    await verifySource(git, pending);
+    const remote = await git.remoteUrl("origin");
+    if (remote && remote !== cloneUrl) protectedApp();
+    if (!remote) await git.ok(["remote", "add", "origin", cloneUrl]);
+    if (github instanceof GhCli) await github.configureCredentials();
+    await git.ok(["fetch", "origin", repo.defaultBranch]);
+    const base = await git.revParse(`origin/${repo.defaultBranch}`);
+    if (!base) protectedApp();
+    pending.base ??= base;
+    await verifySource(git, pending);
+    if (source) {
+      await verifySource(git, pending);
+      if (!source.anchor) {
+        const tree = await git.ok(["rev-parse", `${source.head}^{tree}`]);
+        source.anchor = await git.ok(
+          [
+            "-c",
+            `user.name=${viewer.name ?? viewer.login}`,
+            "-c",
+            `user.email=${viewer.email}`,
+            "commit-tree",
+            tree,
+            "-p",
+            source.head,
+            "-p",
+            pending.base
+          ],
+          { input: "Kept existing local versions\n" }
+        );
+        await writeJsonFile(join28(root, PENDING), pending);
+      }
+      const draftRef = `refs/heads/${source.draft}`;
+      const current2 = await git.revParse(draftRef);
+      if (!current2) await git.ok(["update-ref", draftRef, source.anchor, ""]);
+      else if ((await git.run(["merge-base", "--is-ancestor", source.anchor, current2])).exitCode !== 0)
+        changedHistory();
+      await git.ok(["symbolic-ref", "HEAD", draftRef]);
+    } else {
+      await writeJsonFile(join28(root, PENDING), pending);
+      if (!await git.head()) {
+        await git.ok(["symbolic-ref", "HEAD", `refs/heads/${repo.defaultBranch}`]);
+        await git.ok(["reset", "--mixed", `origin/${repo.defaultBranch}`]);
+      }
+    }
+    yield step("setup:app", "done", tr("Your private app is ready for its first save"));
+    return { root, liveBranch: repo.defaultBranch };
+  } finally {
+    await release();
   }
-  const { repo, cloneUrl } = pending.destination;
-  if (!repo.isPrivate || repo.owner !== options.account || repo.name !== options.name) {
-    throw new ClodableError({
-      code: "gh-auth",
-      message: tr("GitHub returned a different app than the one you approved."),
-      hint: tr("Nothing was sent. Check your GitHub account before continuing.")
-    });
-  }
-  const remote = await git.remoteUrl("origin");
-  if (remote && remote !== cloneUrl)
-    throw new ClodableError({
-      code: "already-there",
-      message: tr("This folder is connected to a different app."),
-      hint: tr("Your files are unchanged. Ask Claude to check the connection before saving.")
-    });
-  if (!remote) await git.ok(["remote", "add", "origin", cloneUrl]);
-  if (github instanceof GhCli) await github.configureCredentials();
-  await git.ok(["fetch", "origin", repo.defaultBranch]);
-  if (!await git.head()) {
-    await git.ok(["symbolic-ref", "HEAD", `refs/heads/${repo.defaultBranch}`]);
-    await git.ok(["reset", "--mixed", `origin/${repo.defaultBranch}`]);
-  }
-  yield step("setup:app", "done", tr("Your private app is ready for its first save"));
-  return { root, liveBranch: repo.defaultBranch };
 }
 
 // ../core/src/online.ts
 import { existsSync as existsSync21 } from "node:fs";
-import { readFile as readFile16, writeFile as writeFile12 } from "node:fs/promises";
-import { join as join27 } from "node:path";
+import { readFile as readFile17, writeFile as writeFile13 } from "node:fs/promises";
+import { join as join29 } from "node:path";
 async function siteChoices(ws) {
   const netlify = await NetlifyApi.onThisComputer();
   const teams = netlify ? await netlify.accounts() : [];
@@ -29828,15 +30328,15 @@ async function* createBackend(ws, options = {}) {
   yield step("backend", "running", tr("Creating your backend"), tr("Connecting your app to it"));
   const backend = backendOf(ref, await homeKeys(api, ref));
   const files = [];
-  const envPath = join27(ws.root, ENV_FILE);
-  const before = existsSync21(envPath) ? await readFile16(envPath, "utf8") : "";
+  const envPath = join29(ws.root, ENV_FILE);
+  const before = existsSync21(envPath) ? await readFile17(envPath, "utf8") : "";
   const after = envWith(before, {
     VITE_SUPABASE_PROJECT_ID: ref,
     VITE_SUPABASE_PUBLISHABLE_KEY: backend.publishable,
     VITE_SUPABASE_URL: backend.url
   });
   if (after !== before) {
-    await writeFile12(envPath, after);
+    await writeFile13(envPath, after);
     files.push(ENV_FILE);
   }
   await rememberSettings(ws.root, {
@@ -29885,15 +30385,283 @@ function pickOrganization(organizations, slug) {
   return org;
 }
 
+// ../core/src/preparation-backup.ts
+import { createHash as createHash8, randomUUID as randomUUID3 } from "node:crypto";
+import { constants as constants2 } from "node:fs";
+import {
+  chmod as chmod6,
+  lstat as lstat3,
+  mkdir as mkdir10,
+  open as open3,
+  readdir as readdir8,
+  readFile as readFile18,
+  readlink,
+  realpath as realpath5,
+  rename as rename9,
+  rm as rm15,
+  symlink as symlink2,
+  writeFile as writeFile14
+} from "node:fs/promises";
+import { dirname as dirname8, join as join30 } from "node:path";
+import { pipeline as pipeline3 } from "node:stream/promises";
+var ORIGINALS = ".clodable/local/original";
+var IGNORE = "/.clodable/local/";
+var hash3 = (bytes) => createHash8("sha256").update(bytes).digest("hex");
+var absent = (error62) => error62.code === "ENOENT";
+async function exists(path2) {
+  return lstat3(path2).catch((error62) => {
+    if (absent(error62)) return void 0;
+    throw error62;
+  });
+}
+async function privateFolder(path2) {
+  const before = await exists(path2);
+  if (!before)
+    await mkdir10(path2, { mode: 448 }).catch((error62) => {
+      if (error62.code !== "EEXIST") throw error62;
+    });
+  const now = await lstat3(path2);
+  if (!now.isDirectory() || now.isSymbolicLink()) throw new Error("Unsafe backup folder.");
+}
+async function regularFile(path2) {
+  const file3 = await open3(path2, constants2.O_RDONLY | constants2.O_NOFOLLOW);
+  try {
+    if (!(await file3.stat()).isFile()) throw new Error("An app file changed while being copied.");
+    return file3;
+  } catch (error62) {
+    await file3.close();
+    throw error62;
+  }
+}
+async function fileHash(path2) {
+  const file3 = await regularFile(path2);
+  try {
+    const digest = createHash8("sha256");
+    for await (const chunk of file3.createReadStream({ autoClose: false })) digest.update(chunk);
+    return digest.digest("hex");
+  } finally {
+    await file3.close();
+  }
+}
+async function installedDependencies(path2) {
+  for (const marker of [
+    ".package-lock.json",
+    ".modules.yaml",
+    ".yarn-integrity",
+    ".yarn-state.yml"
+  ]) {
+    const file3 = join30(path2, marker);
+    if (!(await exists(file3))?.isFile()) continue;
+    const contents = await readFile18(file3, "utf8");
+    if (marker === ".modules.yaml" && /^layoutVersion: \d+$/m.test(contents)) return true;
+    if (marker === ".yarn-state.yml" && /^__metadata:\s*$/m.test(contents)) return true;
+    if (marker.endsWith(".json") || marker === ".yarn-integrity") {
+      try {
+        const data = JSON.parse(contents);
+        if (marker === ".package-lock.json" && typeof data.lockfileVersion === "number" && data.packages && typeof data.packages === "object")
+          return true;
+        if (marker === ".yarn-integrity" && Array.isArray(data.topLevelPatterns) && typeof data.systemParams === "string")
+          return true;
+      } catch {
+      }
+    }
+  }
+  return false;
+}
+async function inventory(root) {
+  const entries = [];
+  const excluded = [];
+  async function walk2(relative5) {
+    const directory = join30(root, relative5);
+    if (await realpath5(directory) !== directory)
+      throw new Error("An app folder changed while being copied.");
+    for (const name of (await readdir8(directory)).sort()) {
+      const path2 = relative5 ? `${relative5}/${name}` : name;
+      if (name === ".git" || path2 === ".clodable/local") {
+        excluded.push(path2);
+        continue;
+      }
+      const full = join30(root, path2);
+      const stat3 = await lstat3(full);
+      if (stat3.isSymbolicLink()) {
+        entries.push({ path: path2, kind: "symlink", target: await readlink(full) });
+      } else if (stat3.isDirectory()) {
+        if (name === "node_modules" && await installedDependencies(full)) {
+          excluded.push(path2);
+          continue;
+        }
+        entries.push({ path: path2, kind: "directory", mode: stat3.mode & 511 });
+        await walk2(path2);
+      } else if (stat3.isFile()) {
+        entries.push({
+          path: path2,
+          kind: "file",
+          mode: stat3.mode & 511,
+          bytes: stat3.size,
+          sha256: await fileHash(full)
+        });
+      } else {
+        throw new Error("The app contains a file that cannot be preserved safely.");
+      }
+    }
+  }
+  await walk2("");
+  return { entries, excluded };
+}
+async function copyEntry(root, destination, entry) {
+  const source = join30(root, entry.path);
+  const target = join30(destination, entry.path);
+  if (entry.kind === "directory") {
+    await mkdir10(target, { mode: 448 });
+  } else if (entry.kind === "symlink") {
+    await symlink2(entry.target, target);
+  } else {
+    if (await realpath5(dirname8(source)) !== dirname8(source)) {
+      throw new Error("An app folder changed while being copied.");
+    }
+    const input2 = await regularFile(source);
+    try {
+      const output2 = await open3(target, "wx", 384);
+      try {
+        await pipeline3(input2.createReadStream(), output2.createWriteStream());
+        await chmod6(target, entry.mode);
+      } finally {
+        await output2.close();
+      }
+    } finally {
+      await input2.close();
+    }
+  }
+}
+async function verifyCopy2(destination, entries) {
+  for (const entry of entries) {
+    const path2 = join30(destination, entry.path);
+    const stat3 = await lstat3(path2);
+    if (entry.kind === "directory" && stat3.isDirectory() && !stat3.isSymbolicLink()) continue;
+    if (entry.kind === "symlink" && stat3.isSymbolicLink() && await readlink(path2) === entry.target)
+      continue;
+    if (entry.kind === "file" && stat3.isFile() && !stat3.isSymbolicLink() && stat3.size === entry.bytes && await fileHash(path2) === entry.sha256)
+      continue;
+    throw new Error("The local backup did not match the original app.");
+  }
+}
+async function ignoreSnapshots(originals) {
+  const path2 = join30(originals, ".gitignore");
+  const stat3 = await exists(path2);
+  if (stat3 && (!stat3.isFile() || stat3.isSymbolicLink()))
+    throw new Error("Unsafe backup ignore file.");
+  const before = stat3 ? await readFile18(path2) : Buffer.alloc(0);
+  if (before.toString("utf8").trimEnd().split(/\r?\n/).at(-1) === "*") return;
+  const file3 = await open3(
+    path2,
+    constants2.O_WRONLY | constants2.O_CREAT | constants2.O_APPEND | constants2.O_NOFOLLOW,
+    384
+  );
+  try {
+    await file3.writeFile("\n*\n");
+  } finally {
+    await file3.close();
+  }
+}
+async function keepPrivate(root, staging, entries) {
+  const original = entries.find((entry) => entry.path === ".gitignore");
+  const path2 = join30(root, ".gitignore");
+  const stat3 = await exists(path2);
+  if (original?.kind === "symlink" || stat3 && (!stat3.isFile() || stat3.isSymbolicLink())) {
+    throw new Error("The app's ignore file is not a regular file.");
+  }
+  const before = stat3 ? await readFile18(path2) : Buffer.alloc(0);
+  if (original?.kind === "file" && (!stat3 || hash3(before) !== original.sha256) || !original && stat3)
+    throw new Error("The app's ignore file changed during the backup.");
+  if (before.toString("utf8").trimEnd().endsWith(`
+${IGNORE}`)) return;
+  const temporary = join30(staging, "ignore.tmp");
+  await writeFile14(temporary, Buffer.concat([before, Buffer.from(`
+${IGNORE}
+`)]), {
+    flag: "wx",
+    mode: stat3 ? stat3.mode & 511 : 420
+  });
+  try {
+    await rename9(temporary, path2);
+  } finally {
+    await rm15(temporary, { force: true });
+  }
+}
+async function backupOriginal(folder) {
+  let staging;
+  try {
+    const root = await realpath5(folder);
+    const ignore = await exists(join30(root, ".gitignore"));
+    if (ignore && (!ignore.isFile() || ignore.isSymbolicLink()))
+      throw new Error("The app's ignore file is not a regular file.");
+    for (const relative5 of [".clodable", ".clodable/local", ORIGINALS]) {
+      await privateFolder(join30(root, relative5));
+    }
+    const originals = join30(root, ORIGINALS);
+    await chmod6(originals, 448);
+    await ignoreSnapshots(originals);
+    const id = randomUUID3();
+    staging = join30(originals, `.incomplete-${id}`);
+    await mkdir10(staging, { mode: 448 });
+    const files = join30(staging, "files");
+    await mkdir10(files, { mode: 448 });
+    const before = await inventory(root);
+    for (const entry of before.entries) await copyEntry(root, files, entry);
+    await verifyCopy2(files, before.entries);
+    if (JSON.stringify(await inventory(root)) !== JSON.stringify(before)) {
+      throw new Error("The app changed during the backup. Stop other edits and try again.");
+    }
+    const manifest = `${JSON.stringify({ version: 1, createdAt: (/* @__PURE__ */ new Date()).toISOString(), ...before }, null, 2)}
+`;
+    await writeFile14(join30(staging, "manifest.json"), manifest, { flag: "wx", mode: 384 });
+    await writeFile14(
+      join30(staging, "complete.json"),
+      `${JSON.stringify({ manifestSha256: hash3(manifest) })}
+`,
+      {
+        flag: "wx",
+        mode: 384
+      }
+    );
+    const destination = join30(originals, id);
+    if (await exists(destination)) throw new Error("A backup already exists at this location.");
+    await rename9(staging, destination);
+    staging = void 0;
+    await keepPrivate(root, destination, before.entries);
+    return {
+      id,
+      path: `${ORIGINALS}/${id}`,
+      files: before.entries.filter((entry) => entry.kind !== "directory").length,
+      bytes: before.entries.reduce(
+        (sum, entry) => sum + (entry.kind === "file" ? entry.bytes : 0),
+        0
+      ),
+      completed: true
+    };
+  } catch (error62) {
+    if (staging) await rm15(staging, { recursive: true, force: true }).catch(() => {
+    });
+    const code2 = error62.code;
+    throw new ClodableError({
+      code: "copy-failed",
+      message: tr("Couldn't preserve your app before preparing it."),
+      hint: tr("Your app has not been converted. Fix the local backup problem, then try again."),
+      // System error messages can contain arbitrary file names. Never return their contents or paths.
+      details: code2 ? `Local backup failed (${code2}).` : error62 instanceof Error ? error62.message : "Local backup failed."
+    });
+  }
+}
+
 // ../core/src/publish.ts
-import { mkdtemp as mkdtemp8, rm as rm13 } from "node:fs/promises";
-import { tmpdir as tmpdir5 } from "node:os";
-import { join as join30 } from "node:path";
+import { mkdtemp as mkdtemp9, rm as rm16 } from "node:fs/promises";
+import { tmpdir as tmpdir7 } from "node:os";
+import { join as join33 } from "node:path";
 
 // ../core/src/publish-functions.ts
 import { existsSync as existsSync22 } from "node:fs";
-import { readdir as readdir7 } from "node:fs/promises";
-import { join as join28 } from "node:path";
+import { readdir as readdir9 } from "node:fs/promises";
+import { join as join31 } from "node:path";
 async function changedFunctions(ws, sha) {
   const files = await ws.git.diffNames(`${sha}^..${sha}`);
   const names2 = /* @__PURE__ */ new Set();
@@ -29905,9 +30673,9 @@ async function changedFunctions(ws, sha) {
     else names2.add(match[1]);
   }
   if (shared) {
-    const dir = join28(ws.root, "supabase", "functions");
+    const dir = join31(ws.root, "supabase", "functions");
     if (existsSync22(dir)) {
-      for (const entry of await readdir7(dir, { withFileTypes: true })) {
+      for (const entry of await readdir9(dir, { withFileTypes: true })) {
         if (entry.isDirectory() && !entry.name.startsWith("_")) names2.add(entry.name);
       }
     }
@@ -29991,21 +30759,21 @@ async function* deployThroughCli(ref, root, names2, outcome) {
 
 // ../core/src/waits.ts
 import { existsSync as existsSync23 } from "node:fs";
-import { readdir as readdir8, readFile as readFile17 } from "node:fs/promises";
-import { join as join29 } from "node:path";
+import { readdir as readdir10, readFile as readFile19 } from "node:fs/promises";
+import { join as join32 } from "node:path";
 function timing(options) {
   return {
-    sleep: options.sleep ?? ((ms) => new Promise((resolve10) => setTimeout(resolve10, ms))),
+    sleep: options.sleep ?? ((ms) => new Promise((resolve12) => setTimeout(resolve12, ms))),
     now: options.now ?? (() => /* @__PURE__ */ new Date()),
     poll: options.pollIntervalMs ?? 4e3
   };
 }
 async function runsChecksOnPullRequests(root) {
-  const dir = join29(root, ".github", "workflows");
+  const dir = join32(root, ".github", "workflows");
   if (!existsSync23(dir)) return false;
-  for (const name of await readdir8(dir)) {
+  for (const name of await readdir10(dir)) {
     if (!/\.ya?ml$/.test(name)) continue;
-    const text2 = await readFile17(join29(dir, name), "utf8").catch(() => "");
+    const text2 = await readFile19(join32(dir, name), "utf8").catch(() => "");
     if (/\bpull_request(_target)?\b/.test(text2)) return true;
   }
   return false;
@@ -30480,7 +31248,7 @@ async function* undoPublish(ws, options = {}) {
   const [target] = options.sha ? await ws.git.log(`${options.sha}^!`) : await ws.git.log(ws.liveRef, { firstParent: true, limit: 1 });
   if (!target)
     throw new ClodableError({ code: "not-found", message: tr("There's no publish to undo yet.") });
-  const dir = await mkdtemp8(join30(tmpdir5(), "clodable-undo-"));
+  const dir = await mkdtemp9(join33(tmpdir7(), "clodable-undo-"));
   const branch = `undo/${target.sha.slice(0, 7)}`;
   try {
     const side = await ws.git.worktreeAdd(dir, branch, ws.liveRef);
@@ -30563,87 +31331,9 @@ ${kindTrailer("undo")}`
     };
   } finally {
     await ws.git.worktreeRemove(dir);
-    await rm13(dir, { recursive: true, force: true });
+    await rm16(dir, { recursive: true, force: true });
     await ws.git.run(["branch", "-D", branch]);
   }
-}
-
-// ../core/src/workspace.ts
-var Workspace = class _Workspace {
-  constructor(root, git, github, config2, project, remote) {
-    this.root = root;
-    this.git = git;
-    this.github = github;
-    this.config = config2;
-    this.project = project;
-    this.remote = remote;
-  }
-  root;
-  git;
-  github;
-  config;
-  project;
-  remote;
-  static async open(options) {
-    const probe = new Git(options.cwd);
-    if (!await probe.isRepo()) {
-      throw new ClodableError({
-        code: "not-a-repo",
-        message: tr("This folder isn't connected to GitHub yet."),
-        hint: tr("Type /clodable to open the Clodable panel and set this folder up there.")
-      });
-    }
-    const root = await probe.root();
-    if (options.requireSetup !== false && !isSetUp(root)) {
-      throw new ClodableError({
-        code: "not-set-up",
-        message: tr("Clodable isn't set up in this project."),
-        hint: tr(
-          "Type /clodable to open the Clodable panel and set it up here. Until then, Clodable leaves this project alone."
-        )
-      });
-    }
-    const git = new Git(root);
-    const [config2, project] = await Promise.all([loadConfig(root), detectProject(root)]);
-    return new _Workspace(
-      root,
-      git,
-      options.github ?? new GhCli(root),
-      config2,
-      project,
-      options.remote ?? "origin"
-    );
-  }
-  get liveBranch() {
-    return this.config.liveBranch;
-  }
-  get liveRef() {
-    return `${this.remote}/${this.config.liveBranch}`;
-  }
-  async state() {
-    return loadState(this.root);
-  }
-  async updateState(patch) {
-    const next = { ...await this.state(), ...patch };
-    await saveState(this.root, next);
-    return next;
-  }
-  /** The GitHub login of the person at this computer, cached locally after the first lookup. */
-  async login() {
-    const cached3 = (await this.state()).login;
-    if (cached3) return cached3;
-    const viewer = await this.github.viewer();
-    await this.updateState({ login: viewer.login });
-    return viewer.login;
-  }
-  /** `draft/<login>`: one draft per person, so nobody publishes someone else's unfinished work. */
-  async draftBranch() {
-    return draftBranchFor(await this.login());
-  }
-};
-function draftBranchFor(login) {
-  const slug = login.toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-+|-+$/g, "");
-  return `draft/${slug || "me"}`;
 }
 
 // ../../node_modules/.pnpm/cac@7.0.1/node_modules/cac/dist/index.js
@@ -31266,7 +31956,7 @@ var CAC = class extends EventTarget {
 var cac = (name = "") => new CAC(name);
 
 // src/context.ts
-import { resolve as resolve5 } from "node:path";
+import { resolve as resolve6 } from "node:path";
 
 // ../../node_modules/.pnpm/@clack+core@1.5.1/node_modules/@clack/core/dist/index.mjs
 import { styleText } from "node:util";
@@ -32274,6 +32964,14 @@ var i = `${styleText2("gray", S_BAR)}  `;
 
 // ../i18n/src/cli.ts
 var cli = {
+  "Inspect this folder without connecting accounts or downloading tools": "Examiner ce dossier sans connecter de comptes ni t\xE9l\xE9charger d\u2019outils",
+  "That preparation step isn't available.": "Cette \xE9tape de pr\xE9paration n\u2019est pas disponible.",
+  "Your original app is backed up on this computer.": "Une copie de votre application d\u2019origine est conserv\xE9e sur cet ordinateur.",
+  "Keep a verified local copy before preparing your app": "Conserver une copie locale v\xE9rifi\xE9e avant de pr\xE9parer votre application",
+  "Keep the local versions approved in Set up saving": "Conserver les versions locales approuv\xE9es dans Configurer l\u2019enregistrement",
+  "Local app": "Application locale",
+  "That app's folder already exists on this computer.": "Le dossier de cette application existe d\xE9j\xE0 sur cet ordinateur.",
+  "Open that folder in Claude, or choose an empty folder for the import.": "Ouvrez ce dossier dans Claude, ou choisissez un dossier vide pour l\u2019importation.",
   "Nothing was given.": "Aucune valeur n\u2019a \xE9t\xE9 fournie.",
   "Pipe the value in (never as an argument), or run this in a terminal to type it.": "Transmettez la valeur sur l\u2019entr\xE9e standard, jamais comme argument, ou lancez la commande dans un terminal pour la saisir.",
   "Print one JSON event per line (for programs)": "Afficher un \xE9v\xE9nement JSON par ligne, pour les programmes",
@@ -32503,6 +33201,7 @@ var cli = {
   "ask Claude to install them": "demandez \xE0 Claude de les installer",
   "Saving it to your draft on GitHub": "Enregistrement dans votre brouillon sur GitHub",
   "Set up Clodable": "Configurer Clodable",
+  "First saved version": "Premi\xE8re version enregistr\xE9e",
   "Nothing new to save": "Rien de nouveau \xE0 enregistrer",
   "Saved to your draft on GitHub": "Enregistr\xE9 dans votre brouillon sur GitHub",
   "Saved on this computer": "Enregistr\xE9 sur cet ordinateur",
@@ -32744,13 +33443,13 @@ function indent(text2, spaces) {
   return text2.split("\n").map((l) => pad + l).join("\n");
 }
 var label = (text2) => ash(text2.padEnd(11));
-var link = (url2) => color ? import_picocolors.default.underline(url2) : url2;
+var link2 = (url2) => color ? import_picocolors.default.underline(url2) : url2;
 
 // src/context.ts
 function createContext(options) {
-  const cwd2 = resolve5(options.cwd ?? process.cwd());
+  const cwd2 = resolve6(options.cwd ?? process.cwd());
   const fake = process.env.CLODABLE_FAKE_GITHUB;
-  const github = fake ? FakeGitHub.persistent(resolve5(fake)) : void 0;
+  const github = fake ? FakeGitHub.persistent(resolve6(fake)) : void 0;
   return {
     cwd: cwd2,
     out: createOutput({ json: Boolean(options.json) }),
@@ -32855,18 +33554,18 @@ async function dbCommand(ctx2, options) {
 
 // src/commands/dev.ts
 import { existsSync as existsSync27 } from "node:fs";
-import { dirname as dirname9, join as join32, resolve as resolve8 } from "node:path";
+import { dirname as dirname10, join as join35, resolve as resolve10 } from "node:path";
 
 // ../preview/src/dev-server.ts
 import { existsSync as existsSync26, readFileSync as readFileSync3, statSync as statSync2 } from "node:fs";
-import { dirname as dirname8, join as join31 } from "node:path";
+import { dirname as dirname9, join as join34 } from "node:path";
 import { pathToFileURL } from "node:url";
 
 // ../preview/src/plugin.ts
 import { randomBytes as randomBytes3 } from "node:crypto";
-import { existsSync as existsSync25, readFileSync as readFileSync2, realpathSync as realpathSync4 } from "node:fs";
-import { readFile as readFile19, writeFile as writeFile13 } from "node:fs/promises";
-import { isAbsolute, relative as relative4, resolve as resolve7, sep as sep4 } from "node:path";
+import { existsSync as existsSync25, readFileSync as readFileSync2, realpathSync as realpathSync5 } from "node:fs";
+import { readFile as readFile21, writeFile as writeFile15 } from "node:fs/promises";
+import { isAbsolute, relative as relative4, resolve as resolve9, sep as sep4 } from "node:path";
 import { stripVTControlCharacters as stripVTControlCharacters2 } from "node:util";
 
 // ../design/src/tokens.ts
@@ -33203,7 +33902,7 @@ function parseFileUrl(input2) {
   const path2 = match[2];
   return makeUrl("file:", "", match[1] || "", "", isAbsolutePath(path2) ? path2 : "/" + path2, match[3] || "", match[4] || "");
 }
-function makeUrl(scheme, user, host, port, path2, query, hash2) {
+function makeUrl(scheme, user, host, port, path2, query, hash4) {
   return {
     scheme,
     user,
@@ -33211,7 +33910,7 @@ function makeUrl(scheme, user, host, port, path2, query, hash2) {
     port,
     path: path2,
     query,
-    hash: hash2,
+    hash: hash4,
     type: 7
   };
 }
@@ -33290,7 +33989,7 @@ function normalizePath(url2, type) {
   }
   url2.path = path2;
 }
-function resolve6(input2, base) {
+function resolve7(input2, base) {
   if (!input2 && !base)
     return "";
   const url2 = parseUrl(input2);
@@ -33353,7 +34052,7 @@ function stripFilename(path2) {
 function resolver(mapUrl, sourceRoot) {
   const from = stripFilename(mapUrl);
   const prefix2 = sourceRoot ? sourceRoot + "/" : "";
-  return (source) => resolve6(prefix2 + (source || ""), from);
+  return (source) => resolve7(prefix2 + (source || ""), from);
 }
 var COLUMN = 0;
 var SOURCES_INDEX = 1;
@@ -33466,8 +34165,8 @@ var TraceMap = class {
     this.sources = sources;
     this.sourcesContent = sourcesContent;
     this.ignoreList = parsed.ignoreList || parsed.x_google_ignoreList || void 0;
-    const resolve10 = resolver(mapUrl, sourceRoot);
-    this.resolvedSources = sources.map(resolve10);
+    const resolve12 = resolver(mapUrl, sourceRoot);
+    this.resolvedSources = sources.map(resolve12);
     const { mappings } = parsed;
     if (typeof mappings === "string") {
       this._encoded = mappings;
@@ -33680,7 +34379,7 @@ function htmlInjectionMiddleware(req, res, next) {
   const end = res.end.bind(res);
   const writeHead = res.writeHead.bind(res);
   let mode = "unknown";
-  let held = [];
+  let held2 = [];
   let heldBytes = 0;
   const decide = () => {
     if (mode === "pass") return mode;
@@ -33700,10 +34399,10 @@ function htmlInjectionMiddleware(req, res, next) {
     return mode;
   };
   const release = (final) => {
-    const all = Buffer.concat(held);
+    const all = Buffer.concat(held2);
     const injected = injectToolbarBytes(all);
     if (injected === void 0 && !final && heldBytes < MAX_HOLD) return void 0;
-    held = [];
+    held2 = [];
     heldBytes = 0;
     mode = "pass";
     return Buffer.from(injected ?? all);
@@ -33725,7 +34424,7 @@ function htmlInjectionMiddleware(req, res, next) {
     const callback = rest.find((r2) => typeof r2 === "function");
     const buf = toBuffer(chunk, encoding);
     if (!buf) return write(chunk, ...rest);
-    held.push(buf);
+    held2.push(buf);
     heldBytes += buf.length;
     const out = release(false);
     if (out === void 0) {
@@ -33736,21 +34435,72 @@ function htmlInjectionMiddleware(req, res, next) {
   });
   res.end = ((chunk, ...rest) => {
     if (typeof chunk === "function") {
-      if (mode === "hold" && held.length > 0) write(release(true));
+      if (mode === "hold" && held2.length > 0) write(release(true));
       return end(chunk, ...rest);
     }
     if (decide() !== "hold") return end(chunk, ...rest);
     const encoding = typeof rest[0] === "string" ? rest[0] : void 0;
     const buf = chunk === void 0 || chunk === null ? void 0 : toBuffer(chunk, encoding);
     if (buf) {
-      held.push(buf);
+      held2.push(buf);
       heldBytes += buf.length;
     }
-    const out = held.length > 0 ? release(true) : void 0;
+    const out = held2.length > 0 ? release(true) : void 0;
     const callback = rest.find((r2) => typeof r2 === "function");
     return out ? end(out, ...callback ? [callback] : []) : end(...callback ? [callback] : []);
   });
   next();
+}
+
+// ../preview/src/private-files.ts
+import { realpathSync as realpathSync4 } from "node:fs";
+import { resolve as resolve8 } from "node:path";
+var PRIVATE = /(?:^|[/\\])\.clodable[/\\]local(?:[/\\]|$)/i;
+function privateRequest(url2, roots, base = "/") {
+  let path2 = url2.split(/[?#]/, 1)[0] ?? "/";
+  try {
+    for (let i2 = 0; i2 < 3; i2++) {
+      const decoded = decodeURIComponent(path2);
+      if (decoded === path2) break;
+      path2 = decoded;
+    }
+  } catch {
+    return true;
+  }
+  if (PRIVATE.test(path2)) return true;
+  if (base !== "/" && path2.startsWith(base))
+    path2 = `/${path2.slice(base.length).replace(/^\/+/, "")}`;
+  const paths = path2.startsWith("/@fs/") ? [path2.slice("/@fs/".length)] : roots.map((root) => resolve8(root, path2.replace(/^[/\\]+/, "")));
+  return paths.some((file3) => {
+    if (PRIVATE.test(file3)) return true;
+    try {
+      return PRIVATE.test(realpathSync4(file3));
+    } catch {
+      return false;
+    }
+  });
+}
+function privateFilesPlugin() {
+  let roots = [];
+  let base = "/";
+  return {
+    name: "clodable:private-files",
+    apply: "serve",
+    enforce: "pre",
+    configResolved(config2) {
+      roots = [config2.root, ...config2.publicDir ? [config2.publicDir] : []];
+      base = config2.base;
+    },
+    configureServer(server) {
+      const protect = (req, res, next) => {
+        if (!privateRequest(req.url ?? "/", roots, base)) return next();
+        res.statusCode = 403;
+        res.setHeader("cache-control", "no-store");
+        res.end("Forbidden");
+      };
+      server.middlewares.stack.unshift({ route: "", handle: protect });
+    }
+  };
 }
 
 // ../../node_modules/.pnpm/magic-string@1.4.3/node_modules/magic-string/dist/index.mjs
@@ -49612,7 +50362,7 @@ function editText(code2, file3, location, before, after) {
 
 // ../preview/src/toolbar-source.ts
 import { existsSync as existsSync24 } from "node:fs";
-import { readFile as readFile18 } from "node:fs/promises";
+import { readFile as readFile20 } from "node:fs/promises";
 import { fileURLToPath as fileURLToPath2 } from "node:url";
 var cached2;
 async function toolbarSource() {
@@ -49621,7 +50371,7 @@ async function toolbarSource() {
   if (cached2 && !live) return cached2;
   const dist = fileURLToPath2(new URL("../dist/toolbar.js", import.meta.url));
   if (!live && existsSync24(dist)) {
-    cached2 = await readFile18(dist, "utf8");
+    cached2 = await readFile20(dist, "utf8");
     return cached2;
   }
   const esbuild = await import("esbuild");
@@ -49669,7 +50419,7 @@ function send(res, status2, body, type = "application/json") {
   res.end(type === "application/json" ? JSON.stringify(body) : String(body));
 }
 function inside(root, path2) {
-  const rel = relative4(root, resolve7(root, path2));
+  const rel = relative4(root, resolve9(root, path2));
   return rel && !rel.startsWith("..") && !isAbsolute(rel) ? rel.split(sep4).join("/") : void 0;
 }
 function codeFrame(code2, line, column) {
@@ -49693,14 +50443,14 @@ function describeBuildError(error62, root, at = Date.now()) {
   let file3 = where ? inside(root, where) : void 0;
   if (!file3 && where) {
     try {
-      file3 = inside(realpathSync4(root), where);
+      file3 = inside(realpathSync5(root), where);
     } catch {
     }
   }
   let frame = e.frame && stripVTControlCharacters2(e.frame);
   if (where && e.loc?.line) {
     try {
-      frame = codeFrame(readFileSync2(resolve7(root, where), "utf8"), e.loc.line, e.loc.column) || frame;
+      frame = codeFrame(readFileSync2(resolve9(root, where), "utf8"), e.loc.line, e.loc.column) || frame;
     } catch {
     }
   }
@@ -49716,6 +50466,8 @@ function clodablePreview(options = {}) {
   const token = randomBytes3(16).toString("hex");
   const tagged = /* @__PURE__ */ new Set();
   let root = options.root ?? process.cwd();
+  let publicDir = resolve9(root, "public");
+  let base = "/";
   let server;
   let lastBuildError;
   const authorized = (req) => {
@@ -49748,11 +50500,11 @@ ${await toolbarSource()}
   async function textEdit(body, probe) {
     const location = parseSourceAttr(String(body.src ?? ""));
     const rel = location && inside(root, location.file);
-    const full = rel && resolve7(root, rel);
+    const full = rel && resolve9(root, rel);
     if (!location || !full || !EDITABLE.test(full) || !tagged.has(full) || !existsSync25(full)) {
       return { ok: false, editable: false, reason: "not-found" };
     }
-    const code2 = await readFile19(full, "utf8");
+    const code2 = await readFile21(full, "utf8");
     if (probe) {
       return probeText(
         code2,
@@ -49767,7 +50519,7 @@ ${await toolbarSource()}
     if (!after.trim()) return { ok: false, reason: "empty" };
     const result = editText(code2, location.file, location, before, after);
     if (!result.ok) return result;
-    await writeFile13(full, result.code);
+    await writeFile15(full, result.code);
     await writeInbox(root, {
       kind: "edit",
       page: toolbarPage(body.page) ?? { url: "", path: "/" },
@@ -49799,7 +50551,7 @@ ${await toolbarSource()}
   async function conversationLocale(id) {
     try {
       const marker = JSON.parse(
-        await readFile19(resolve7(root, ".clodable", "local", `session-${id}.json`), "utf8")
+        await readFile21(resolve9(root, ".clodable", "local", `session-${id}.json`), "utf8")
       );
       if (!marker || typeof marker !== "object" || !("locale" in marker)) return null;
       return resolveLocale(marker.locale);
@@ -49808,6 +50560,8 @@ ${await toolbarSource()}
     }
   }
   async function handle(req, res, next) {
+    if (privateRequest(req.url ?? "/", [root, publicDir], base))
+      return send(res, 403, { error: "forbidden" });
     const url2 = new URL(req.url ?? "/", "http://localhost");
     const path2 = url2.pathname;
     if (!path2.startsWith(PREFIX)) return next();
@@ -49860,6 +50614,8 @@ ${await toolbarSource()}
     enforce: "pre",
     configResolved(config2) {
       root = options.root ?? config2.root;
+      publicDir = config2.publicDir;
+      base = config2.base;
     },
     configureServer(viteServer) {
       server = viteServer;
@@ -49967,7 +50723,7 @@ function backendPlugin(current) {
 function resolveProjectVite(root) {
   let dir = root;
   while (true) {
-    const pkgPath = join31(dir, "node_modules", "vite", "package.json");
+    const pkgPath = join34(dir, "node_modules", "vite", "package.json");
     if (existsSync26(pkgPath)) {
       const pkg = JSON.parse(readFileSync3(pkgPath, "utf8"));
       const dot = pkg.exports?.["."];
@@ -49980,9 +50736,9 @@ function resolveProjectVite(root) {
         return void 0;
       };
       const entry = pick2(dot) ?? pkg.module ?? pkg.main ?? "dist/node/index.js";
-      return join31(dirname8(pkgPath), entry);
+      return join34(dirname9(pkgPath), entry);
     }
-    const parent = dirname8(dir);
+    const parent = dirname9(dir);
     if (parent === dir) break;
     dir = parent;
   }
@@ -50003,6 +50759,7 @@ async function startDevServer(options) {
     root: options.root,
     clearScreen: false,
     plugins: [
+      privateFilesPlugin(),
       backendPlugin(() => backend),
       ...options.toolbar === false ? [] : [clodablePreview({ root: options.root, backend: () => backend ? "copy" : "live" })]
     ],
@@ -50091,17 +50848,17 @@ function markerWatch(path2) {
 // src/commands/dev.ts
 var import_picocolors2 = __toESM(require_picocolors(), 1);
 function findAppRoot(start) {
-  let dir = resolve8(start);
+  let dir = resolve10(start);
   while (true) {
-    if (existsSync27(join32(dir, "package.json"))) return dir;
-    const parent = dirname9(dir);
-    if (parent === dir) return resolve8(start);
+    if (existsSync27(join35(dir, "package.json"))) return dir;
+    const parent = dirname10(dir);
+    if (parent === dir) return resolve10(start);
     dir = parent;
   }
 }
 async function devCommand(ctx2, options) {
   const root = findAppRoot(ctx2.cwd);
-  if (!existsSync27(join32(root, "node_modules")) && existsSync27(join32(root, "package.json"))) {
+  if (!existsSync27(join35(root, "node_modules")) && existsSync27(join35(root, "package.json"))) {
     const pm = detectPackageManager(root);
     process.stdout.write(
       `
@@ -50141,10 +50898,10 @@ async function devCommand(ctx2, options) {
           if (fresh) known.set(move.home.ref, fresh);
           return fresh;
         },
-        watch: join32(root, MOVE_PATH)
+        watch: join35(root, MOVE_PATH)
       },
       // The settings the app's server code reads, from Clodable's private store on this computer.
-      settings: { current: () => localSettings(root), watch: join32(root, SETTINGS_PATH) }
+      settings: { current: () => localSettings(root), watch: join35(root, SETTINGS_PATH) }
     });
     process.stdout.write(
       `
@@ -50152,7 +50909,7 @@ async function devCommand(ctx2, options) {
 
 `
     );
-    for (const url2 of server.urls.slice(0, 2)) process.stdout.write(`    ${link(url2)}
+    for (const url2 of server.urls.slice(0, 2)) process.stdout.write(`    ${link2(url2)}
 `);
     process.stdout.write(
       `
@@ -50232,7 +50989,7 @@ function renderProgress(ctx2, progress) {
   }
   if (progress.home) {
     ctx2.out.line("");
-    ctx2.out.line(`${ash("new backend")} ${link(progress.home.dashboard)}`);
+    ctx2.out.line(`${ash("new backend")} ${link2(progress.home.dashboard)}`);
   }
 }
 function checklist(ctx2, status2) {
@@ -50947,7 +51704,7 @@ async function siteCommand(ctx2, options) {
       ),
       (outcome) => {
         ctx2.out.line(
-          `  ${link(outcome.site.url)} ${ash(tr2("\xB7 goes online at your next Publish"))}`
+          `  ${link2(outcome.site.url)} ${ash(tr2("\xB7 goes online at your next Publish"))}`
         );
         if (outcome.files.length > 0)
           ctx2.out.line(ash(tr2("  Added: {0}", { "0": outcome.files.join(", ") })));
@@ -50975,7 +51732,7 @@ async function siteCommand(ctx2, options) {
     },
     (choices) => {
       if (choices.site)
-        ctx2.out.line(tr2("{0} Your site: {1}", { "0": celadon("\u25CF"), "1": link(choices.site.url) }));
+        ctx2.out.line(tr2("{0} Your site: {1}", { "0": celadon("\u25CF"), "1": link2(choices.site.url) }));
       else ctx2.out.line(ash(tr2("Your site isn't online with Clodable yet.")));
       if (!choices.connected) ctx2.out.line(ash(tr2("Netlify isn't connected on this computer.")));
       for (const team of choices.teams) ctx2.out.line(`${team.name} ${ash(`(${team.slug})`)}`);
@@ -50995,7 +51752,7 @@ async function backendCommand(ctx2, options) {
       ),
       (outcome) => {
         ctx2.out.line(ash(`  ${outcome.name} \xB7 ${outcome.region}`));
-        ctx2.out.line(`  ${link(outcome.dashboard)}`);
+        ctx2.out.line(`  ${link2(outcome.dashboard)}`);
       }
     );
     return;
@@ -51027,6 +51784,23 @@ async function backendCommand(ctx2, options) {
   );
 }
 
+// src/commands/preparation.ts
+async function preparationCommand(ctx2, action) {
+  await run(
+    ctx2,
+    () => {
+      if (action !== "backup") {
+        throw new ClodableError({
+          code: "invalid-config",
+          message: tr2("That preparation step isn't available.")
+        });
+      }
+      return backupOriginal(ctx2.cwd);
+    },
+    () => ctx2.out.line(tr2("Your original app is backed up on this computer."))
+  );
+}
+
 // src/commands/publish.ts
 var import_picocolors3 = __toESM(require_picocolors(), 1);
 async function publishCommand(ctx2, options) {
@@ -51051,19 +51825,19 @@ async function publishCommand(ctx2, options) {
       out.line();
       if (result.deploy === "live") {
         out.line(
-          `${celadon("\u25CF")} ${import_picocolors3.default.bold(tr2("You're live"))}${result.url ? `  ${link(result.url)}` : ""}`
+          `${celadon("\u25CF")} ${import_picocolors3.default.bold(tr2("You're live"))}${result.url ? `  ${link2(result.url)}` : ""}`
         );
       } else if (result.deploy === "pending") {
         out.line(
           tr2("{0} {1}. Your host is still putting it live{2}", {
             "0": ochre("\u25CF"),
             "1": import_picocolors3.default.bold(tr2("Published")),
-            "2": result.url ? `: ${link(result.url)}` : "."
+            "2": result.url ? `: ${link2(result.url)}` : "."
           })
         );
       } else {
         out.line(
-          `${celadon("\u25CF")} ${import_picocolors3.default.bold(tr2("Published"))}${result.url ? `  ${link(result.url)}` : ""}`
+          `${celadon("\u25CF")} ${import_picocolors3.default.bold(tr2("Published"))}${result.url ? `  ${link2(result.url)}` : ""}`
         );
       }
       out.line(ash(`  \u201C${result.title}\u201D`));
@@ -51112,7 +51886,7 @@ async function undoCommand(ctx2, options) {
           "0": celadon("\u25CF"),
           "1": import_picocolors3.default.bold(tr2("Undone")),
           "2": result.undid.title,
-          "3": result.url ? `  ${link(result.url)}` : ""
+          "3": result.url ? `  ${link2(result.url)}` : ""
         })
       );
       if (result.conflicts?.length) {
@@ -51184,25 +51958,35 @@ async function settingsCommand(ctx2, options) {
 
 // src/commands/setup.ts
 import { existsSync as existsSync28, readdirSync } from "node:fs";
-import { join as join33, resolve as resolve9 } from "node:path";
+import { join as join36, resolve as resolve11 } from "node:path";
 var import_picocolors4 = __toESM(require_picocolors(), 1);
 var MIN_NODE = [20, 19];
 var REQUIRED = ["node", "git", "gh", "github"];
-async function doctor(cwd2) {
+async function doctor(cwd2, options = {}) {
+  const localApp = await inspectLocalApp(cwd2);
+  const local = { id: "local-app", label: tr2("Local app"), status: "info", localApp };
+  const protectedFolder = ["nested", "protected"].includes(localApp.repository);
+  if (options.local) return protectedFolder ? [local] : [local, appCheck(await detectProject(cwd2))];
   const items = await toolChecks(cwd2);
+  items.push(local);
   const git = new Git(cwd2);
-  const isRepo = items.some((i2) => i2.id === "git" && i2.status === "ok") && await git.isRepo();
+  const isRepo = items.some((i2) => i2.id === "git" && i2.status === "ok") && ["unborn", "history", "remote"].includes(localApp.repository);
   const remote = isRepo ? await git.remoteUrl("origin") : void 0;
   const parsed = remote ? parseGitHubRemote(remote) : void 0;
   const fake = process.env.CLODABLE_FAKE_GITHUB;
-  const standIn = Boolean(fake && remote && resolve9(cwd2, remote) === resolve9(fake));
+  const standIn = Boolean(fake && remote && resolve11(cwd2, remote) === resolve11(fake));
   const pending = await pendingNewApp(cwd2);
   if (pending)
     items.push({
       id: "new-app",
       label: tr2("Saving setup"),
       status: "info",
-      detail: `${pending.account}/${pending.name}`
+      detail: `${pending.account}/${pending.name}`,
+      newApp: {
+        name: pending.name,
+        account: pending.account,
+        locked: Boolean(pending.destination || pending.history?.anchor)
+      }
     });
   items.push({
     id: "repo",
@@ -51210,8 +51994,8 @@ async function doctor(cwd2) {
     status: parsed || standIn ? "ok" : "fail",
     ...parsed ? { detail: `${parsed.owner}/${parsed.repo}` } : standIn ? { detail: tr2("a stand-in for GitHub on this computer") } : { fix: tr2("Run `clodable setup` in an empty folder to bring your app in from GitHub") }
   });
-  if (!isRepo) return items;
-  return [...items, ...await appChecks(git)];
+  if (protectedFolder) return items;
+  return [...items, ...await appChecks(cwd2, isRepo ? git : void 0)];
 }
 async function toolChecks(cwd2, checkedGit) {
   const items = [];
@@ -51276,18 +52060,19 @@ async function toolChecks(cwd2, checkedGit) {
   }
   return items;
 }
-async function appChecks(git) {
-  const items = [];
-  const root = await git.root();
-  const project = await detectProject(root);
+function appCheck(project) {
   const typeLabel = project.appType === "tanstack-start" ? tr2("TanStack Start app") : project.appType === "vite-spa" ? tr2("Vite + React app") : tr2("Unknown app type");
-  items.push({
+  return {
     id: "app",
     label: tr2("App"),
     status: project.appType === "unknown" ? "warn" : "ok",
     detail: project.lovable.generated ? tr2("{type}, made with Lovable", { type: typeLabel }) : typeLabel
-  });
-  const installed = existsSync28(join33(root, "node_modules"));
+  };
+}
+async function appChecks(root, git) {
+  const project = await detectProject(root);
+  const items = [appCheck(project)];
+  const installed = existsSync28(join36(root, "node_modules"));
   items.push({
     id: "deps",
     label: tr2("App dependencies"),
@@ -51321,7 +52106,7 @@ async function appChecks(git) {
       detail: ref ? tr2("Supabase project {0}", { "0": ref }) : project.supabase.used ? tr2("Supabase (project not found in code)") : tr2("None")
     }
   );
-  return [...items, ...await lovableChecks(git, project, config2)];
+  return git ? [...items, ...await lovableChecks(git, project, config2)] : items;
 }
 async function lovableChecks(git, project, config2) {
   const items = [];
@@ -51393,10 +52178,10 @@ function renderDoctor(ctx2, items) {
   for (const item of items) doctorLine(ctx2, item);
   ctx2.out.line();
 }
-async function doctorCommand(ctx2) {
+async function doctorCommand(ctx2, options = {}) {
   await run(
     ctx2,
-    () => doctor(ctx2.cwd),
+    () => doctor(ctx2.cwd, options),
     (items) => renderDoctor(ctx2, items)
   );
 }
@@ -51525,8 +52310,14 @@ async function pickRepo(ctx2, given, interactive) {
   });
 }
 async function bringIn(ctx2, repo) {
-  const empty = readdirSync(ctx2.cwd).filter((n4) => !n4.startsWith(".")).length === 0;
-  const target = empty ? ctx2.cwd : join33(ctx2.cwd, repo.split("/")[1]);
+  const empty = readdirSync(ctx2.cwd).length === 0;
+  const target = empty ? ctx2.cwd : join36(ctx2.cwd, repo.split("/")[1]);
+  if (target !== ctx2.cwd && existsSync28(target))
+    throw new ClodableError({
+      code: "already-there",
+      message: tr2("That app's folder already exists on this computer."),
+      hint: tr2("Open that folder in Claude, or choose an empty folder for the import.")
+    });
   ctx2.out.event(step("setup:app", "running", tr2("Bringing in {0}", { "0": repo })));
   try {
     await new GhCli(ctx2.cwd).clone(repo, target);
@@ -51546,8 +52337,9 @@ async function setupCommand(ctx2, options) {
   const interactive = !ctx2.out.json && process.stdin.isTTY && !options.yes;
   await run(
     ctx2,
-    async () => {
+    () => withSetupLock(ctx2.cwd, async () => {
       ctx2.out.header(tr2("let's bring your app home"));
+      if (options.new !== void 0) await localAppForSaving(ctx2.cwd);
       await requireTools(ctx2);
       const git = new Git(ctx2.cwd);
       if (options.new !== void 0 && (!options.account || options.repo || options.publish)) {
@@ -51560,9 +52352,17 @@ async function setupCommand(ctx2, options) {
       }
       const started = options.new !== void 0 ? await drive(
         ctx2,
-        prepareNewApp(ctx2.cwd, { name: options.new, account: options.account }, ctx2.github)
+        prepareNewApp(
+          ctx2.cwd,
+          {
+            name: options.new,
+            account: options.account,
+            adoptHistory: options.adoptHistory
+          },
+          ctx2.github
+        )
       ) : void 0;
-      const root = started?.root ?? (await git.isRepo() ? await git.root() : await bringIn(ctx2, await pickRepo(ctx2, options.repo, interactive)));
+      const root = started?.root ?? (options.repo ? await bringIn(ctx2, options.repo) : await git.isRepo() ? await git.root() : await bringIn(ctx2, await pickRepo(ctx2, options.repo, interactive)));
       const project = await detectProject(root);
       const loaded = await loadConfig(root);
       const config2 = {
@@ -51591,7 +52391,7 @@ async function setupCommand(ctx2, options) {
       panelStep(ctx2, "setup:files", "running", tr2("Adding Clodable's files"));
       await applyKit(root, changes);
       panelStep(ctx2, "setup:files", "done", tr2("Added Clodable's files"));
-      if (!existsSync28(join33(root, "node_modules"))) {
+      if (!existsSync28(join36(root, "node_modules"))) {
         ctx2.out.event(
           step(
             "setup:packages",
@@ -51614,8 +52414,14 @@ async function setupCommand(ctx2, options) {
         );
       }
       ctx2.out.event(step("setup:save", "running", tr2("Saving it to your draft on GitHub")));
-      const ws = await Workspace.open({ cwd: root, ...ctx2.github ? { github: ctx2.github } : {} });
-      const saved = await save2(ws, { message: tr2("Set up Clodable"), kind: "setup" });
+      const ws = await Workspace.open({
+        cwd: root,
+        ...ctx2.github ? { github: ctx2.github } : {}
+      });
+      const saved = await save2(
+        ws,
+        options.new !== void 0 ? { message: tr2("First saved version"), kind: "save" } : { message: tr2("Set up Clodable"), kind: "setup" }
+      );
       ctx2.out.event(
         !saved.saved ? step("setup:save", "skipped", tr2("Nothing new to save")) : saved.pushed ? step("setup:save", "done", tr2("Saved to your draft on GitHub")) : step(
           "setup:save",
@@ -51637,14 +52443,14 @@ async function setupCommand(ctx2, options) {
         pushed: saved.pushed,
         published
       };
-    },
+    }),
     (data) => {
       ctx2.out.line();
       ctx2.out.line(`${celadon("\u25CF")} ${import_picocolors4.default.bold(tr2("Your app is ready."))}`);
       ctx2.out.line();
       ctx2.out.line(
         tr2("  1. Open Claude Desktop \u2192 Code, and choose this folder: {0}", {
-          "0": link(data.root)
+          "0": link2(data.root)
         })
       );
       ctx2.out.line(tr2("  2. The preview starts by itself. Ask for any change, in your own words."));
@@ -51752,9 +52558,9 @@ async function statusCommand(ctx2, options) {
           })
         );
       }
-      const live = s.lastPublish ? `${s.lastPublish.url ? `${link(s.lastPublish.url)} ${ash("\xB7")} ` : ""}${ash(tr2("published {when}", { when: formatRelative(s.lastPublish.at) }))}` : s.project.liveUrl ? link(s.project.liveUrl) : ash(tr2("not published with Clodable yet"));
+      const live = s.lastPublish ? `${s.lastPublish.url ? `${link2(s.lastPublish.url)} ${ash("\xB7")} ` : ""}${ash(tr2("published {when}", { when: formatRelative(s.lastPublish.at) }))}` : s.project.liveUrl ? link2(s.project.liveUrl) : ash(tr2("not published with Clodable yet"));
       out.line(`${label(tr2("Live"))}${live}`);
-      if (s.pullRequest) out.line(`${label(tr2("On GitHub"))}${link(s.pullRequest.url)}`);
+      if (s.pullRequest) out.line(`${label(tr2("On GitHub"))}${link2(s.pullRequest.url)}`);
       out.line();
     }
   );
@@ -51829,7 +52635,7 @@ async function inboxCommand(ctx2, options) {
 }
 
 // src/index.ts
-var version2 = true ? "0.4.0" : "0.1.0-dev";
+var version2 = true ? "0.4.1" : "0.1.0-dev";
 var cli2 = cac("clodable");
 cli2.option("--json", tr2("Print one JSON event per line (for programs)"));
 cli2.option("--cwd <dir>", tr2("Run in another folder"));
@@ -51852,7 +52658,7 @@ cli2.command("history", tr2("Your saves and publishes")).option("--limit <n>", t
   (options) => historyCommand(ctx(options), { limit: options.limit ? Number(options.limit) : void 0 })
 );
 cli2.command("check", tr2("Run the publish checks without publishing")).action((options) => checkCommand(ctx(options)));
-cli2.command("setup", tr2("Bring your app home: connect GitHub, add Clodable's files")).option("--repo <owner/name>", tr2("The GitHub repository of your app")).option("--new <name>", tr2("Set up saving for a local prototype in a new private GitHub app")).option("--account <login>", tr2("The connected GitHub account approved for the new app")).option("-y, --yes", tr2("Don't ask questions")).option("--publish", tr2("Publish the setup right away")).option("--backend <where>", tr2("Where the data lives: lovable-cloud, supabase or none")).option(
+cli2.command("setup", tr2("Bring your app home: connect GitHub, add Clodable's files")).option("--repo <owner/name>", tr2("The GitHub repository of your app")).option("--new <name>", tr2("Set up saving for a local prototype in a new private GitHub app")).option("--account <login>", tr2("The connected GitHub account approved for the new app")).option("--adopt-history <head>", tr2("Keep the local versions approved in Set up saving")).option("-y, --yes", tr2("Don't ask questions")).option("--publish", tr2("Publish the setup right away")).option("--backend <where>", tr2("Where the data lives: lovable-cloud, supabase or none")).option(
   "--hosting <where>",
   tr2("Where the site is live: lovable, github or none (not online yet)")
 ).action(
@@ -51860,13 +52666,15 @@ cli2.command("setup", tr2("Bring your app home: connect GitHub, add Clodable's f
     repo: options.repo,
     new: options.new,
     account: options.account,
+    adoptHistory: options.adoptHistory,
     yes: options.yes,
     publish: options.publish,
     ...["lovable-cloud", "supabase", "none"].includes(options.backend) ? { backend: options.backend } : {},
     ...["lovable", "github", "none"].includes(options.hosting) ? { hosting: options.hosting } : {}
   })
 );
-cli2.command("doctor", tr2("Check that everything Clodable needs is in place")).action((options) => doctorCommand(ctx(options)));
+cli2.command("doctor", tr2("Check that everything Clodable needs is in place")).option("--local", tr2("Inspect this folder without connecting accounts or downloading tools")).action((options) => doctorCommand(ctx(options), { local: options.local }));
+cli2.command("prepare <action>", tr2("Keep a verified local copy before preparing your app")).action((action, options) => preparationCommand(ctx(options), action));
 cli2.command(
   "config [key] [value]",
   tr2(

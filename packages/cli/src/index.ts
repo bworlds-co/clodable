@@ -84,6 +84,7 @@ cli
   .option("--repo <owner/name>", tr("The GitHub repository of your app"))
   .option("--new <name>", tr("Set up saving for a local prototype in a new private GitHub app"))
   .option("--account <login>", tr("The connected GitHub account approved for the new app"))
+  .option("--adopt-history <head>", tr("Keep the local versions approved in Set up saving"))
   .option("-y, --yes", tr("Don't ask questions"))
   .option("--publish", tr("Publish the setup right away"))
   .option("--backend <where>", tr("Where the data lives: lovable-cloud, supabase or none"))
@@ -96,6 +97,7 @@ cli
       repo: options.repo,
       new: options.new,
       account: options.account,
+      adoptHistory: options.adoptHistory,
       yes: options.yes,
       publish: options.publish,
       ...(["lovable-cloud", "supabase", "none"].includes(options.backend)
@@ -109,7 +111,8 @@ cli
 
 cli
   .command("doctor", tr("Check that everything Clodable needs is in place"))
-  .action((options) => doctorCommand(ctx(options)));
+  .option("--local", tr("Inspect this folder without connecting accounts or downloading tools"))
+  .action((options) => doctorCommand(ctx(options), { local: options.local }));
 
 cli
   .command("prepare <action>", tr("Keep a verified local copy before preparing your app"))
