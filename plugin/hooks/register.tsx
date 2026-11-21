@@ -2256,6 +2256,9 @@ export const register: Register = (on) => {
     const table = $.ui.resolve(e);
     const ui: PaneUi = {
       styled: e.surface === "desktop" && styledPanels,
+      ...(e.surface === "desktop" && styledPanels && typeof table.Progress === "function"
+        ? { Progress: table.Progress }
+        : {}),
       Box: table.Box,
       Text: table.Text,
       Button: heldButton(table.Button),
@@ -2892,7 +2895,7 @@ function barSides(
  * Code, with Input and Select where the surface has them.
  */
 type PaneUi = Pick<Elements["terminal"], "Box" | "Text" | "Button" | "Link" | "Code"> &
-  Partial<Pick<Elements["terminal"], "Input" | "Select">> & {
+  Partial<Pick<Elements["terminal"], "Input" | "Select" | "Progress">> & {
     styled: boolean;
   };
 
@@ -2955,9 +2958,37 @@ function card(
  * Before the first one comes in, `starting` says it has begun.
  */
 function setupProgress(ui: PaneUi, starting: string) {
-  const { Box, Text } = ui;
-  if (setupSteps.length === 0) return settingUp ? <Text dimColor>{starting}</Text> : null;
-  return <Box flexDirection="column">{setupSteps.map((x) => stepLine(ui, x))}</Box>;
+  return operationSteps(ui, setupSteps, settingUp, starting, setupProblem !== null);
+}
+
+/** Steps arrive as work runs, so there is no fixed total from which to calculate a percentage. */
+function operationSteps(
+  ui: PaneUi,
+  steps: ClodableStep[],
+  running: boolean,
+  starting: string,
+  failed = false,
+) {
+  const { Box, Text, Progress } = ui;
+  const current = steps.findLast((step) => step.state === "running");
+  const indicator =
+    running && Progress ? (
+      <Progress
+        key="operation-progress"
+        label={current?.title ?? starting}
+        valueText="In progress"
+      />
+    ) : null;
+  const visible = indicator ? steps.filter((step) => step.state !== "running") : steps;
+  if (steps.length === 0 && !running) return null;
+  return (
+    <Box flexDirection="column" rowGap={ui.styled ? "sm" : 0}>
+      {indicator ?? (steps.length === 0 ? <Text dimColor>{starting}</Text> : null)}
+      {visible.map((step) =>
+        stepLine(ui, failed && step.state === "running" ? { ...step, state: "failed" } : step),
+      )}
+    </Box>
+  );
 }
 
 /** One step of a publish, an undo or the setup, as it went. */
@@ -3347,7 +3378,13 @@ function stateCard(
   desktop: boolean,
 ): RenderElement | null {
   const { Box, Text, Button, Link, Code } = ui;
-  const steps = <Box flexDirection="column">{a.steps.map((step) => stepLine(ui, step))}</Box>;
+  const steps = operationSteps(
+    ui,
+    a.steps,
+    a.kind === "publishing" || a.kind === "undoing",
+    a.kind === "undoing" ? "Putting the previous version back" : "Preparing your app",
+    a.kind === "failed",
+  );
   if (confirming?.kind === "undo" && a.kind !== "publishing" && a.kind !== "undoing") {
     return card(
       ui,

@@ -758,6 +758,50 @@ describe("secret keys", () => {
 });
 
 describe("a publish that stopped", () => {
+  test("progress has no invented percentage and stops even if the CLI leaves a step running", async ($, on) => {
+    harness(on);
+    on("session.version", () => ({ value: { version: "2.1.326" } }));
+    let finish = () => {};
+    on("process.spawn", async function* () {
+      yield {
+        stream: "stdout",
+        text: `${JSON.stringify({ type: "step", id: "checks", state: "running", title: "Checking everything works" })}\n`,
+      };
+      await new Promise<void>((resolve) => {
+        finish = resolve;
+      });
+      yield {
+        stream: "stdout",
+        text: `${JSON.stringify({ type: "result", ok: false, error: { code: "checks-failed", message: "Your app needs a fix." } })}\n`,
+      };
+      return { value: { code: 1, signal: null } };
+    });
+    await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+    const pane = await $.ui.mount(PANE_PROPS);
+    const band = await $.ui.mount({ ...BAND, surface: "desktop" });
+    await band.press({ key: "publish" });
+    for (
+      let i = 0;
+      i < 30 && !(await pane.find({ type: "Text", text: "Checking everything works" }));
+      i++
+    )
+      await pane.redraw();
+    expect(await pane.find({ type: "Text", text: "In progress" })).toBeDefined();
+    expect(await pane.find({ type: "Text", text: /[0-9]+%/ })).toBeUndefined();
+    finish();
+    for (
+      let i = 0;
+      i < 30 && !(await pane.find({ type: "Text", text: "Your app needs a fix." }));
+      i++
+    )
+      await pane.redraw();
+    expect(await pane.find({ type: "Text", text: "In progress" })).toBeUndefined();
+    expect(await pane.find({ type: "Text", text: /◐/ })).toBeUndefined();
+    expect(await pane.find({ type: "Text", text: /✕ Checking everything works/ })).toBeDefined();
+    await pane.unmount();
+    await band.unmount();
+  });
+
   test("says so in a few words on one line, with the way forward", async ($, on) => {
     harness(on);
     // Publish streams its steps: the CLI's last line is the result.
@@ -3688,6 +3732,85 @@ describe("everywhere else", () => {
     await pane.unmount();
   });
 
+  for (const [surface, version, enhanced] of [
+    ["desktop", "2.1.326", true],
+    ["desktop", "2.1.296", false],
+    ["terminal", "2.1.326", false],
+  ] as const) {
+    test(`saving progress stops on failure and restarts on retry (${surface}, ${version})`, async ($, on) => {
+      harness(on, { code: "not-a-repo", message: "Local folder" }, false, {
+        doctor: out([
+          { id: "github", status: "ok", label: "GitHub account", detail: "@ada" },
+          { id: "repo", status: "fail", label: "Your app on GitHub" },
+        ]),
+      });
+      on("session.version", () => ({ value: { version } }));
+      on("fs.list", () => ({
+        value: [{ name: "package.json", kind: "file", size: 100, mtimeMs: 0, isLink: false }],
+      }));
+      let finish = () => {};
+      on("process.spawn", async function* () {
+        yield {
+          stream: "stdout",
+          text: `${JSON.stringify({ type: "step", id: "tools", state: "done", title: "Your tools are ready" })}\n`,
+        };
+        yield {
+          stream: "stdout",
+          text: `${JSON.stringify({ type: "step", id: "app", state: "running", title: "Checking your local app" })}\n`,
+        };
+        await new Promise<void>((resolve) => {
+          finish = resolve;
+        });
+        yield {
+          stream: "stdout",
+          text: `${JSON.stringify({ type: "result", ok: false, error: { code: "unknown", message: "Saving stopped." } })}\n`,
+        };
+        return { value: { code: 1, signal: null } };
+      });
+      await $.session.start({ surface, isInteractive: true, cwd: CWD });
+      const pane = await $.ui.mount({ ...PANE_PROPS, surface });
+      for (let i = 0; i < 30 && !(await pane.find({ key: "set-up-saving" })); i++)
+        await pane.redraw();
+      await pane.press({ key: "set-up-saving" });
+      for (let i = 0; i < 30 && !(await pane.find({ key: "new-app-name" })); i++)
+        await pane.redraw();
+      for (let attempt = 0; attempt < 2; attempt++) {
+        await $.ui.input({ plugin: "clodable", key: "new-app-name", kind: "submit", text: "tiny" });
+        for (
+          let i = 0;
+          i < 30 && !(await pane.find({ type: "Text", text: /Checking your local app/ }));
+          i++
+        )
+          await pane.redraw();
+        expect(await pane.find({ type: "Text", text: /Your tools are ready/ })).toBeDefined();
+        expect(await pane.find({ type: "Text", text: /Saving stopped/ })).toBeUndefined();
+        if (enhanced) {
+          expect(await pane.find({ type: "Text", text: "In progress" })).toBeDefined();
+          expect(await pane.find({ type: "Text", text: /◐/ })).toBeUndefined();
+          expect(await pane.find({ type: "Text", text: /[0-9]+%/ })).toBeUndefined();
+        } else {
+          expect(
+            await pane.find({ type: "Text", text: /◐ Checking your local app/ }),
+          ).toBeDefined();
+          expect(await pane.find({ type: "Text", text: "In progress" })).toBeUndefined();
+          const tree = JSON.stringify(await pane.drawn());
+          // This newer test renderer normalizes legacy bold into weight itself.
+          expect(tree).not.toMatch(/"(?:size|mono|tabular)"\s*:/);
+          expect(tree).not.toMatch(
+            /"(?:rowGap|columnGap|padding|paddingX|paddingY)"\s*:\s*"(?:xs|sm|md|lg|xl)"/,
+          );
+        }
+        finish();
+        for (let i = 0; i < 30 && !(await pane.find({ key: "setup-help" })); i++)
+          await pane.redraw();
+        expect(await pane.find({ type: "Text", text: "In progress" })).toBeUndefined();
+        expect(await pane.find({ type: "Text", text: /◐/ })).toBeUndefined();
+        expect(await pane.find({ type: "Text", text: /✕ Checking your local app/ })).toBeDefined();
+      }
+      await pane.unmount();
+    });
+  }
+
   test("a setup that stops gives Claude what Clodable reported, not a request to prepare the app", async ($, on) => {
     harness(on, { code: "not-a-repo", message: "Local folder" }, false, {
       doctor: out([
@@ -3836,10 +3959,10 @@ describe("everywhere else", () => {
           text: "https://github.com/acme/website",
         });
       else await pane.press({ key: control });
-      // While the packages install, the panel says so, under what's done, and the button waits.
+      // While packages install, the panel names the work and keeps completed steps; the button waits.
       let running: any;
       for (let i = 0; i < 30 && !running; i++) {
-        running = await pane.find({ type: "Text", text: /Installing your app's packages…/ });
+        running = await pane.find({ type: "Text", text: /Installing your app's packages/ });
         if (!running) await pane.redraw();
       }
       expect(running).toBeDefined();
@@ -3849,6 +3972,7 @@ describe("everywhere else", () => {
       if (importing) expect(await pane.find({ key: "list-repos" })).toBeUndefined();
       installed();
       for (let i = 0; i < 30 && !toasts.some((t) => t.includes("ready")); i++) await pane.redraw();
+      expect(await pane.find({ type: "Text", text: "In progress" })).toBeUndefined();
       await pane.unmount();
       expect(ran[0]).toEqual([
         "setup",
