@@ -10,7 +10,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [0.4.1] - 2026-11-21
 
-Prepare existing local apps before saving, preserve verified originals, keep approved local versions, and explain migration choices in plain language. [Release notes](docs/releases/0.4.1.md). ([#121](https://github.com/bworlds-co/clodable/issues/121))
+Prepare existing local apps before saving, preserve verified originals, keep approved local versions, and explain migration choices in plain language. [Release notes](docs/releases/0.4.1.md). ([#124](https://github.com/bworlds-co/clodable/pull/124))
 
 ## [0.4.0] - 2026-11-21
 
