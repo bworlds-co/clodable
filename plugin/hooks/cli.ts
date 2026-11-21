@@ -119,7 +119,9 @@ export function notReady(error: ClodableError | undefined): ClodableNotReady {
           ? "no-kit"
           : code === "gh-auth"
             ? "no-github"
-            : "unknown",
+            : code === "tools-unavailable"
+              ? "tools"
+              : "unknown",
     message: error?.message ?? "Clodable isn't ready here.",
     ...(error?.hint ? { fix: error.hint } : {}),
   };

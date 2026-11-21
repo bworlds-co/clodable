@@ -99,6 +99,17 @@ const out = (data: unknown, ok = true) => ({
   isStderrTruncated: false,
 });
 
+const READY_CHECKS = [
+  { id: "node", label: "Node.js", status: "ok" },
+  { id: "git", label: "Git", status: "ok" },
+  { id: "gh", label: "GitHub CLI", status: "ok" },
+  { id: "github", label: "GitHub account", status: "ok", detail: "@ada" },
+];
+
+async function shows(pane: any, text: string | RegExp) {
+  return pane.find({ type: "Text", text });
+}
+
 const HISTORY = {
   draft: [
     { sha: "b2", subject: "Added the menu", date: "2026-10-10T10:00:00Z", kind: "save" },
@@ -180,28 +191,48 @@ function harness(
   (calls as unknown as { timeouts: typeof timeouts }).timeouts = timeouts;
   on(
     "process.run",
-    (
+    async (
       _$: unknown,
       e: {
         argv: string[];
         init?: { stdin?: string; timeoutMs?: number; env?: Record<string, string>; cwd?: string };
       },
     ) => {
-      const early = first?.(e.argv, e.init);
+      const early = await first?.(e.argv, e.init);
       if (early) return { value: early };
+      // Most tests start with a working runtime; missing/broken Node is modeled explicitly below.
+      if (e.argv[1] === "-e" && e.argv[2]?.includes("process.versions.node"))
+        return { value: { ...out({}), stdout: JSON.stringify(["22.11.0", "node"]) } };
+      if (e.argv[0] === "uname") return { value: { ...out({}), stdout: "" } };
       calls.push(e.argv.slice(2));
       stdins.push(e.init?.stdin);
       timeouts.push(e.init?.timeoutMs);
       const answer = Object.keys(answers).find((command) => e.argv.includes(command));
       if (answer) {
         const value = answers[answer]!;
-        return { value: typeof value === "function" ? value(e.argv.slice(2)) : value };
+        const response = typeof value === "function" ? value(e.argv.slice(2)) : value;
+        // A doctor's fixture describes the checks it changes; other prerequisites are working.
+        // Tests for malformed/incomplete reports override process.run directly.
+        if (answer === "doctor") {
+          const report = JSON.parse(response.stdout);
+          if (report.ok && Array.isArray(report.data) && report.data.length) {
+            return {
+              value: out([
+                ...READY_CHECKS.filter(
+                  (c) => !report.data.some((v: { id: string }) => v.id === c.id),
+                ),
+                ...report.data,
+              ]),
+            };
+          }
+        }
+        return { value: response };
       }
       if (e.argv.includes("status")) return { value: out(status, ok) };
       if (e.argv.includes("save"))
         return { value: out({ saved: true, sha: "c4", pushed: true, unpublished: 3 }) };
       if (e.argv.includes("history")) return { value: out(HISTORY) };
-      if (e.argv.includes("doctor")) return { value: out([]) };
+      if (e.argv.includes("doctor")) return { value: out(READY_CHECKS) };
       return { value: out({}) };
     },
   );
@@ -4785,6 +4816,168 @@ describe("the tools Clodable needs", () => {
     expect(nodeFrom('["22.11.0","/opt/homebrew/bin/node"]')).toBe("/opt/homebrew/bin/node");
     expect(nodeFrom('["18.20.4","/usr/local/bin/node"]')).toBeUndefined();
     expect(nodeFrom("22.11.0")).toBeUndefined();
+  });
+
+  test("a failed Node download retries once in the same session before running the CLI", async ($, on) => {
+    const { seen, first } = computer(on, undefined);
+    let downloads = 0;
+    const calls = harness(
+      on,
+      { code: "not-a-repo", message: "Local app" },
+      false,
+      {},
+      (argv, init) => {
+        if (argv[0] === "/bin/sh" && ++downloads === 1)
+          return { ...ran("", 1), stderr: "curl: Could not resolve host: nodejs.org" };
+        return first(argv, init);
+      },
+    );
+    await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+    await $.command.run({ command: "clodable", args: "" } as never);
+    const pane = await $.ui.mount(PANE_PROPS);
+    for (let i = 0; i < 60 && !(await pane.find({ key: "check-again" })); i++) await pane.redraw();
+    expect(downloads).toBe(1);
+    expect(seen.cliAt).toBe(-1);
+    expect(await pane.find({ key: "tools-help" })).toBeDefined();
+    await pane.press({ key: "check-again" });
+    for (let i = 0; i < 60 && seen.cliAt < 0; i++) await pane.redraw();
+    expect(downloads).toBe(2);
+    expect(seen.cliAt).toBeGreaterThanOrEqual(0);
+    expect(calls.some((c) => c[0] === "setup")).toBe(false);
+    await pane.unmount();
+  });
+
+  test("unusable Git blocks setup without treating the folder as an existing app", async ($, on) => {
+    const calls = harness(
+      on,
+      { code: "tools-unavailable", message: "Saving needs Git to work on this computer." },
+      false,
+      {
+        doctor: out([
+          {
+            id: "git",
+            label: "Git",
+            status: "fail",
+            detail: "Saving needs Git to work on this computer.",
+            fix: "Run xcode-select --install",
+            details: "Git readiness: apple-tools-unavailable",
+          },
+          { id: "github", label: "GitHub account", status: "ok", detail: "@ada" },
+        ]),
+      },
+    );
+    await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+    await $.command.run({ command: "clodable", args: "" } as never);
+    const pane = await $.ui.mount(PANE_PROPS);
+    for (let i = 0; i < 60 && !(await pane.find({ key: "install-git" })); i++) await pane.redraw();
+    expect(await pane.find({ key: "install-git" })).toBeDefined();
+    expect(await pane.find({ key: "git-help" })).toBeDefined();
+    expect(await shows(pane, /keep shaping your app/)).toBeDefined();
+    expect(await pane.find({ key: "new-app-name" })).toBeUndefined();
+    expect(calls.some((c) => c[0] === "setup" || c[0] === "save")).toBe(false);
+    await pane.unmount();
+  });
+
+  test("an installer refusal never claims that Apple's window opened", async ($, on) => {
+    harness(
+      on,
+      { code: "tools-unavailable", message: "Git needs repair." },
+      false,
+      {
+        doctor: out([
+          { id: "git", label: "Git", status: "fail", fix: "Run xcode-select --install" },
+        ]),
+      },
+      (argv) =>
+        argv[0] === "xcode-select"
+          ? { ...ran("", 1), stderr: "install request failed" }
+          : undefined,
+    );
+    await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+    await $.command.run({ command: "clodable", args: "" } as never);
+    const pane = await $.ui.mount(PANE_PROPS);
+    for (let i = 0; i < 60 && !(await pane.find({ key: "install-git" })); i++) await pane.redraw();
+    await pane.press({ key: "install-git" });
+    for (let i = 0; i < 60 && !(await shows(pane, /couldn't open the installer/)); i++)
+      await pane.redraw();
+    expect(await shows(pane, /couldn't open the installer/)).toBeDefined();
+    expect(await shows(pane, /Follow Apple's window/)).toBeUndefined();
+    await pane.unmount();
+  });
+
+  test("a later failed check removes old green checks and setup controls", async ($, on) => {
+    let failed = false;
+    harness(on, { code: "no-kit", message: "Not ready" }, false, {
+      doctor: () =>
+        failed
+          ? out({ code: "offline", message: "The tools could not be checked." }, false)
+          : out([
+              { id: "git", label: "Git", status: "ok" },
+              { id: "github", label: "GitHub account", status: "ok", detail: "@ada" },
+            ]),
+    });
+    await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+    await $.command.run({ command: "clodable", args: "" } as never);
+    const pane = await $.ui.mount(PANE_PROPS);
+    for (let i = 0; i < 60 && !(await shows(pane, /✓ Git/)); i++) await pane.redraw();
+    expect(await shows(pane, /✓ Git/)).toBeDefined();
+    failed = true;
+    await $.command.run({ command: "clodable", args: "" } as never);
+    for (let i = 0; i < 60 && !(await pane.find({ key: "check-again" })); i++) await pane.redraw();
+    expect(await shows(pane, /✓ Git/)).toBeUndefined();
+    expect(await shows(pane, /The tools could not be checked/)).toBeDefined();
+    expect(await pane.find({ key: "new-app-name" })).toBeUndefined();
+    await pane.unmount();
+  });
+
+  test("an incomplete report cannot enable saving and offers a real retry", async ($, on) => {
+    harness(
+      on,
+      { code: "tools-unavailable", message: "Tools need checking." },
+      false,
+      {},
+      (argv) =>
+        argv.includes("doctor")
+          ? out([{ id: "github", label: "GitHub account", status: "ok", detail: "@ada" }])
+          : undefined,
+    );
+    await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+    await $.command.run({ command: "clodable", args: "" } as never);
+    const pane = await $.ui.mount(PANE_PROPS);
+    for (let i = 0; i < 60 && !(await pane.find({ key: "check-again" })); i++) await pane.redraw();
+    expect(await shows(pane, /couldn't finish checking/)).toBeDefined();
+    expect(await pane.find({ key: "new-app-name" })).toBeUndefined();
+    expect(await pane.find({ key: "repo-name" })).toBeUndefined();
+    await pane.unmount();
+  });
+
+  test("a slow older check cannot replace a newer failure with green results", async ($, on) => {
+    const finish: Array<(value: ReturnType<typeof out>) => void> = [];
+    harness(
+      on,
+      { code: "tools-unavailable", message: "Tools need checking." },
+      false,
+      {},
+      async (argv) => {
+        if (!argv.includes("doctor")) return undefined;
+        return new Promise<ReturnType<typeof out>>((done) => finish.push(done));
+      },
+    );
+    await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+    await $.command.run({ command: "clodable", args: "" } as never);
+    const pane = await $.ui.mount(PANE_PROPS);
+    for (let i = 0; i < 60 && finish.length < 1; i++) await pane.redraw();
+    await $.command.run({ command: "clodable", args: "" } as never);
+    for (let i = 0; i < 60 && finish.length < 2; i++) await pane.redraw();
+    expect(finish.length).toBe(2);
+    finish[1]!(out({ code: "offline", message: "The latest check failed." }, false));
+    for (let i = 0; i < 60 && !(await pane.find({ key: "check-again" })); i++) await pane.redraw();
+    finish[0]!(out(READY_CHECKS));
+    for (let i = 0; i < 10; i++) await pane.redraw();
+    expect(await shows(pane, "The latest check failed.")).toBeDefined();
+    expect(await shows(pane, /✓ Git/)).toBeUndefined();
+    expect(await pane.find({ key: "new-app-name" })).toBeUndefined();
+    await pane.unmount();
   });
 
   test("the tools live in the plugin's data folder, which Claude Code removes with the plugin", () => {

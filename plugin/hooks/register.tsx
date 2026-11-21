@@ -19,6 +19,7 @@ import type {
   ClodableAssessment,
   ClodableCheck,
   ClodableDnsRecord,
+  ClodableError,
   ClodableMove,
   ClodableMoveChoices,
   ClodableMoveStep,
@@ -40,6 +41,7 @@ import {
   toVersion,
   type Version,
 } from "./cli.ts";
+import { safeToolDetails } from "./diagnostics.ts";
 import {
   commandInApp,
   dbCommandIn,
@@ -189,6 +191,9 @@ let gitHubSignIn:
   | { step: "code"; code: string; copied: boolean }
   | { step: "failed" }
   | null = null;
+let installingGit = false;
+let gitInstallMessage: string | null = null;
+let gitInstallDetails = "";
 const requests = new Map<string, string>();
 /**
  * What Claude also needs about a request Clodable sends in the builder's name (the element and its
@@ -370,6 +375,12 @@ async function syncFolder($: EngineInterface): Promise<string> {
 
 /** What Clodable knows of the session's folder, found out anew: at start, and after a move. */
 async function lookAtFolder($: EngineInterface) {
+  checksGeneration++;
+  checksPending = false;
+  checksRequested = false;
+  checksFailed = null;
+  checksDetails = "";
+  if ((await read($, checks)).length) await update<ClodableCheck[]>($, checks, () => []);
   inApp = (await $.fs.exists(".clodable/config.json").catch(() => false)) ? true : null;
   emptyFolder = false;
   hasLocalApp = false;
@@ -445,10 +456,15 @@ function background(work: Promise<unknown>): void {
 
 /** Clodable's tools are on the session's PATH, once per session. */
 let toolsReady: Promise<void> | null = null;
+let toolsProblem: ClodableError | null = null;
 /** Node.js being fetched: the setup screen says so. */
 let fetchingNode = false;
 /** Why the tool check failed, when it did: the setup screen says so instead of "Checking…". */
 let checksFailed: string | null = null;
+let checksDetails = "";
+let checksPending = false;
+let checksRequested = false;
+let checksGeneration = 0;
 /** The Node.js Clodable's CLI runs with, by its full path once found: no PATH lookup can miss it. */
 let nodePath = "node";
 /** Where the tools Clodable fetched live (`toolsFolder`), for the CLI: `CLODABLE_TOOLS_DIR`. */
@@ -463,7 +479,14 @@ let toolsDir = "";
  */
 function ensureTools($: EngineInterface): Promise<void> {
   toolsReady ??= prepareTools($).catch((error: unknown) => {
-    note($, `tools: ${String(error)}`.slice(0, 400));
+    toolsProblem = {
+      code: "tools-unavailable",
+      message: "Clodable couldn't get its tools ready on this computer.",
+      hint: "Check your connection, then press Check again. Your files are still here.",
+      details: safeToolDetails(String(error)),
+    };
+    note($, `tools: ${toolsProblem.details}`.slice(0, 400));
+    $.ui.invalidate("ui.render");
   });
   return toolsReady;
 }
@@ -482,25 +505,35 @@ async function toolsFirst($: EngineInterface): Promise<void> {
 }
 
 async function prepareTools($: EngineInterface) {
-  const home = await $.env.get("HOME");
+  const home = await $.env.get("HOME").catch(() => undefined);
   const uname = await $.process.run(["uname", "-sm"], { timeoutMs: 10_000 }).catch(() => null);
   const system = uname?.exitCode === 0 ? uname.stdout.trim() : "";
   const tools = toolsFolder($.plugin.root, system, {
     ...(home ? { home } : {}),
-    xdg: (await $.env.get("XDG_CACHE_HOME")) ?? "",
-    override: (await $.env.get("CLODABLE_TOOLS_DIR")) ?? "",
+    xdg: (await $.env.get("XDG_CACHE_HOME").catch(() => undefined)) ?? "",
+    override: (await $.env.get("CLODABLE_TOOLS_DIR").catch(() => undefined)) ?? "",
   });
-  if (!tools) return;
+  if (!tools) {
+    const own = await nodeAt($, "node");
+    if (own) {
+      nodePath = own;
+      return;
+    }
+    throw new Error(
+      `No supported Node.js was found. Automatic preparation is unavailable for ${system || "this system"}.`,
+    );
+  }
   toolsDir = tools;
   // Claude's own runs of the CLI find the same tools.
   await $.env.set("CLODABLE_TOOLS_DIR", tools).catch(() => {});
   const bin = `${tools}/bin`;
   const own = await nodeAt($, "node");
   if (own) nodePath = own;
-  const path = (await $.env.get("PATH")) ?? "";
+  const path = (await $.env.get("PATH").catch(() => undefined)) ?? "";
   // A PATH that can't be read is left alone: replacing it would lose every tool on it.
   if (!path) {
     note($, "tools: the session's PATH couldn't be read; left as it is");
+    if (!own) throw new Error("The session's PATH couldn't be read and Node.js is unavailable.");
     return;
   }
   if (own) {
@@ -510,7 +543,7 @@ async function prepareTools($: EngineInterface) {
   let ours = await nodeAt($, `${bin}/node`);
   if (!ours) {
     const build = NODE_BUILDS[system];
-    if (!build) return;
+    if (!build) throw new Error(`No Node.js download is available for ${system}.`);
     fetchingNode = true;
     $.ui.invalidate("ui.render");
     try {
@@ -525,8 +558,9 @@ async function prepareTools($: EngineInterface) {
         },
       });
       if (fetched.exitCode !== 0) {
-        note($, `Node.js wasn't fetched: ${fetched.stderr}`.slice(0, 400));
-        return;
+        throw new Error(
+          `Node.js download failed (exit ${fetched.exitCode}): ${fetched.stderr || fetched.stdout}`,
+        );
       }
     } finally {
       fetchingNode = false;
@@ -534,7 +568,10 @@ async function prepareTools($: EngineInterface) {
     }
     ours = await nodeAt($, `${bin}/node`);
   }
-  if (!ours) return;
+  if (!ours)
+    throw new Error(
+      "The downloaded Node.js could not run. Press Check again to retry preparation.",
+    );
   nodePath = ours;
   await setPath($, path, pathWith(path, bin, true));
 }
@@ -577,6 +614,7 @@ async function cli(
   input?: string,
 ): Promise<Result> {
   await toolsFirst($);
+  if (toolsProblem) return { type: "result", ok: false, error: toolsProblem };
   try {
     const out = await $.process.run(argv($, args), {
       cwd: await syncFolder($),
@@ -612,6 +650,7 @@ async function streamCli(
   input?: string,
 ): Promise<{ result?: Result; failure?: unknown }> {
   await toolsFirst($);
+  if (toolsProblem) return { result: { type: "result", ok: false, error: toolsProblem } };
   const read = eventReader();
   let result: Result | undefined;
   try {
@@ -686,7 +725,7 @@ async function refreshStatus($: EngineInterface) {
   else if (code === "not-a-repo" || code === "not-set-up") inApp = false;
   // Any other problem comes after the setup check, so this is an app with a problem to show.
   // "unknown" (the CLI didn't run) keeps what the quick look at the folder found.
-  else if (code !== "unknown") inApp = true;
+  else if (code !== "unknown" && code !== "tools-unavailable") inApp = true;
   if (code === "not-a-repo") await refreshEmptyFolder($);
   // Sites drawn before Clodable knew where it is draw again.
   if (inApp !== before) $.ui.invalidate("ui.render");
@@ -700,16 +739,43 @@ async function refreshStatus($: EngineInterface) {
 }
 
 async function refreshChecks($: EngineInterface) {
-  const result = await cli($, ["doctor"], 60_000);
-  const failed = result.ok ? null : (result.error?.message ?? "The check didn't finish.");
-  if (failed !== checksFailed) {
-    checksFailed = failed;
-    $.ui.invalidate("ui.render");
+  const where = await syncFolder($);
+  const generation = ++checksGeneration;
+  checksRequested = true;
+  checksPending = true;
+  $.ui.invalidate("ui.render");
+  let result = await cli($, ["doctor"], 60_000);
+  if (generation !== checksGeneration || cwd !== where) return undefined;
+  if (
+    result.ok &&
+    (!Array.isArray(result.data) ||
+      !["node", "git", "gh"].every((id) => result.data.some((c: ClodableCheck) => c.id === id)) ||
+      (result.data.some((c: ClodableCheck) => c.id === "gh" && c.status === "ok") &&
+        !result.data.some((c: ClodableCheck) => c.id === "github")))
+  ) {
+    result = {
+      type: "result",
+      ok: false,
+      error: {
+        code: "tools-unavailable",
+        message: "Clodable couldn't finish checking the tools. Check again.",
+        details: "The tool check returned an incomplete report.",
+      },
+    };
   }
-  if (result.ok && Array.isArray(result.data))
-    if (!same(await read($, checks), result.data)) {
-      await update<ClodableCheck[]>($, checks, () => result.data as ClodableCheck[]);
-    }
+  checksPending = false;
+  checksFailed =
+    result.ok && Array.isArray(result.data)
+      ? null
+      : (result.error?.message ?? "The check didn't finish.");
+  checksDetails = result.error?.details ? safeToolDetails(result.error.details) : "";
+  if (checksFailed) {
+    if ((await read($, checks)).length) await update<ClodableCheck[]>($, checks, () => []);
+  } else if (!same(await read($, checks), result.data)) {
+    await update<ClodableCheck[]>($, checks, () => result.data as ClodableCheck[]);
+  }
+  $.ui.invalidate("ui.render");
+  return result;
 }
 
 // ── Actions ─────────────────────────────────────────────────────────────────
@@ -2285,6 +2351,10 @@ export const register: Register = (on) => {
 
     // Not set up yet: a guided, self-serve setup.
     if (!s?.ready) {
+      if (s && !checksRequested) {
+        checksRequested = true;
+        background(refreshChecks($));
+      }
       return setupPane($, ui, header, s, doctor);
     }
 
@@ -3092,8 +3162,12 @@ function setupPane(
       </Box>
     );
   }
-  const tools = doctor.filter((c) => ["node", "git", "gh", "github"].includes(c.id));
-  const blocking = tools.filter((c) => c.status === "fail");
+  const tools = checksPending
+    ? []
+    : doctor.filter((c) => ["node", "git", "gh", "github"].includes(c.id));
+  const checksBlocked =
+    checksPending || Boolean(checksFailed || toolsProblem) || tools.length === 0;
+  const blocking = tools.filter((c) => c.status !== "ok");
   const github = doctor.find((c) => c.id === "github");
   const noRemote = doctor.some((c) => c.id === "repo" && c.status === "fail");
   const localPrototype =
@@ -3163,24 +3237,33 @@ function setupPane(
     <Box flexDirection="column" {...panelSpacing(ui, true)}>
       {header}
       <Text>
-        {setupChoice === "saving"
-          ? "Set up saving for your app."
-          : s?.reason === "not-a-repo" && !emptyFolder
-            ? "Keep shaping your local app with Claude."
-            : "Let's bring your app home. It takes a minute, once."}
+        {s.reason === "tools"
+          ? "Saving isn't ready yet. You can keep shaping your app with Claude."
+          : setupChoice === "saving"
+            ? "Set up saving for your app."
+            : s?.reason === "not-a-repo" && !emptyFolder
+              ? "Keep shaping your local app with Claude."
+              : "Let's bring your app home. It takes a minute, once."}
       </Text>
       {section(ui, setupChoice === "saving" ? "1 · Your account" : "1 · Tools")}
       {fetchingNode ? (
         <Text {...supportingStyle(ui)} dimColor>
           Getting Node.js ready for your app: about a minute, once.
         </Text>
-      ) : tools.length === 0 && (checksFailed || s?.reason === "unknown") ? (
+      ) : checksPending ? (
+        <Text {...supportingStyle(ui)} dimColor>
+          Checking…
+        </Text>
+      ) : checksFailed ||
+        toolsProblem ||
+        (tools.length === 0 && (s.reason === "unknown" || s.reason === "tools")) ? (
         <Box flexDirection="column" rowGap={1}>
-          <Text color="error">
-            {checksFailed ?? s?.message ?? "Clodable couldn't check your tools."}
-          </Text>
+          <Text color="error">{checksFailed ?? toolsProblem?.message ?? s.message}</Text>
           <Button key="check-again" variant="secondary" onPress={() => background(checkAgain($))}>
             Check again
+          </Button>
+          <Button key="tools-help" plain onPress={() => background(askReadinessHelp($))}>
+            Ask Claude for help
           </Button>
         </Box>
       ) : tools.length === 0 ? (
@@ -3203,19 +3286,35 @@ function setupPane(
                 <Button
                   key="install-git"
                   variant="primary"
+                  dimColor={installingGit}
                   onPress={() => background(installGit($))}
                 >
-                  Install Git
+                  {installingGit ? "Opening Apple's installer…" : "Install Git"}
                 </Button>
-                <Button key="git-check-again" plain onPress={() => background(refreshChecks($))}>
+                <Button key="git-check-again" plain onPress={() => background(checkAgain($))}>
                   Check again
                 </Button>
               </Box>
-            ) : c.status !== "ok" && c.fix ? (
+            ) : c.status !== "ok" && c.fix && c.id !== "git" ? (
               <Text {...supportingStyle(ui)} dimColor>
                 {" "}
                 {c.fix}
               </Text>
+            ) : null}
+            {c.id === "git" && c.status !== "ok" ? (
+              <Box flexDirection="column" rowGap={1}>
+                {gitInstallMessage ? (
+                  <Text {...supportingStyle(ui)}>{gitInstallMessage}</Text>
+                ) : null}
+                {!c.fix?.includes("xcode-select") ? (
+                  <Button key="git-check-again" plain onPress={() => background(checkAgain($))}>
+                    Check again
+                  </Button>
+                ) : null}
+                <Button key="git-help" plain onPress={() => background(askReadinessHelp($))}>
+                  Ask Claude for help
+                </Button>
+              </Box>
             ) : null}
           </Box>
         ))}
@@ -3225,11 +3324,9 @@ function setupPane(
         <Text {...supportingStyle(ui)} dimColor>
           Checking your GitHub account before creating anything…
         </Text>
-      ) : blocking.length > 0 ? (
+      ) : blocking.length > 0 || checksBlocked ? (
         <Text {...supportingStyle(ui)} dimColor>
-          {setupChoice === "saving"
-            ? "Once your GitHub account is connected, you name your app here."
-            : "Once the tools above are ready, pick your app here."}
+          Finish the checks above before setting up saving.
         </Text>
       ) : setupChoice === "saving" && localPrototype ? (
         <Box flexDirection="column" rowGap={1}>
@@ -5983,7 +6080,23 @@ async function loadRepos($: EngineInterface) {
  */
 async function runSetup($: EngineInterface, args: string[]): Promise<Result | undefined> {
   if (settingUp) return undefined;
+  if (checksPending || checksFailed || toolsProblem) {
+    setupProblem = { message: "Finish checking the tools before setting up saving.", help: false };
+    $.ui.invalidate("ui.render");
+    return undefined;
+  }
   settingUp = true;
+  const currentChecks = await read($, checks);
+  if (
+    !["node", "git", "gh", "github"].every((id) =>
+      currentChecks.some((c) => c.id === id && c.status === "ok"),
+    )
+  ) {
+    settingUp = false;
+    setupProblem = { message: "Finish checking the tools before setting up saving.", help: false };
+    $.ui.invalidate("ui.render");
+    return undefined;
+  }
   setupSteps = [];
   setupProblem = null;
   $.ui.invalidate("ui.render");
@@ -6113,13 +6226,53 @@ async function setUpHere($: EngineInterface) {
 
 /** The setup screen's Check again: the tools and where this folder stands, looked at once more. */
 async function checkAgain($: EngineInterface) {
+  // Keep a running preparation shared. Only an already-failed attempt is retried.
+  if (toolsProblem) {
+    toolsProblem = null;
+    toolsReady = null;
+  }
   await Promise.all([refreshChecks($), refreshStatus($)]);
+}
+
+async function askReadinessHelp($: EngineInterface) {
+  const failed = (await read($, checks))
+    .filter((c) => c.status === "fail" && c.id !== "github")
+    .map((c) => ({
+      tool: c.id,
+      status: c.status,
+      details: safeToolDetails(c.details ?? c.detail ?? c.fix ?? ""),
+    }));
+  await askClaude(
+    $,
+    "Clodable isn't ready to save. Find out why and help me fix it on this computer.",
+    `Diagnose the failed local tool check. Use official sources for any repair. Keep the app's files and existing saving setup. Leave system installation and administrator dialogs to the user. Do not create or delete anything on GitHub, change accounts, read credentials, or run setup. After repair, ask me to press Check again in Clodable.\n\nReported checks:\n${JSON.stringify(failed)}\n${toolsProblem?.details ?? checksDetails}\n${gitInstallDetails}`,
+  );
 }
 
 /** Apple's installer for its command line developer tools, Git among them: its own window. */
 async function installGit($: EngineInterface) {
-  await $.process.run(["xcode-select", "--install"], { timeoutMs: 30_000 }).catch(() => null);
-  $.ui.toast("Follow Apple's window to install Git, then press Check again.");
+  if (installingGit) return;
+  installingGit = true;
+  gitInstallMessage = null;
+  gitInstallDetails = "";
+  $.ui.invalidate("ui.render");
+  try {
+    const result = await $.process.run(["xcode-select", "--install"], { timeoutMs: 30_000 });
+    gitInstallMessage =
+      result.exitCode === 0
+        ? "Follow Apple's window to finish installing, then press Check again."
+        : "Apple couldn't open the installer. Check again, or ask Claude for help.";
+    if (result.exitCode !== 0)
+      gitInstallDetails = safeToolDetails(
+        `Apple installer exit ${result.exitCode}: ${result.stderr || result.stdout}`,
+      );
+  } catch (error) {
+    gitInstallMessage = "Apple's installer couldn't start. Ask Claude for help.";
+    gitInstallDetails = safeToolDetails(String(error));
+  } finally {
+    installingGit = false;
+    $.ui.invalidate("ui.render");
+  }
 }
 
 /**
