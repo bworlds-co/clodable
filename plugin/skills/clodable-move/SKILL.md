@@ -12,6 +12,12 @@ The builder may press a step in the Clodable panel or ask naturally in the conve
 
 Their live app keeps running on Lovable until the switch: everything before it builds a **working copy** on their own Supabase. The switch (below) moves the live app over.
 
+## Preserve the existing application
+
+Explain the move as preserving the app's appearance, features and data while changing the services behind it. Moving consent does not authorize removing features. Before any optional skip, name the affected user journey and the capability that will stop; only the builder's explicit choice accepts that loss. Do not present a skipped service as a successful migration check.
+
+When checking the working copy, identify existing journeys from the app's code, recorded facts and available original evidence. Compare the same actions and expected results on the copy: navigation, sign-in, forms and validation, persistence after reload, uploads, messages and other used services. Exercise writes only on isolated test data in the copy; never send real messages, charge payments or change live data just to test. Record passed, failed or blocked results with the rehearsal commands below. Keep inferred expectations separate from observed behavior. Missing original evidence or unavailable services remain explicit limits. Fix regressions and replay affected journeys. Before recommending the switch, state any failures, blocked checks or explicitly accepted feature loss; a successful transfer or a choice to move in one go does not prove that existing journeys still work.
+
 ## Running a step
 
 - Run the exact command Clodable gives you for the step with Bash. It's Clodable's own command line, `node "…/cli/clodable.mjs" move <step>`. Don't add `cd …&&`, pipes or redirections: the exact command runs without a permission prompt.
