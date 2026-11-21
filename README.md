@@ -44,7 +44,7 @@ The first run may ask to install Apple's developer tools, which takes a few minu
 
 Then start from an idea, or bring an app you already have.
 
-Clodable follows Claude Code's response language and supports French and English. If no language is set, or another language is selected, its controls use English. This does not translate the app you are building.
+Clodable supports French and English. It follows Claude Code's response language when set; otherwise, on a Mac, it uses your primary system language. Unsupported or unavailable languages fall back to English. There is no separate language setting, and this does not translate the app you are building.
 
 ### Start from an idea
 

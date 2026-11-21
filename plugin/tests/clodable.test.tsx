@@ -1,3 +1,4 @@
+import type { SessionInfo } from "claude-code";
 import { describe, expect, mock, test } from "claude-code/testing";
 import { eventReader, lastResult } from "../hooks/cli.ts";
 import {
@@ -181,6 +182,11 @@ function harness(
   /** Answers a command before anything else does (the computer's own tools), or passes it on. */
   first?: (argv: string[], init?: { env?: Record<string, string>; cwd?: string }) => unknown,
   folder: () => string = () => CWD,
+  sessionInfo: () => SessionInfo = () => ({
+    transcriptPath: "",
+    platform: "linux",
+    isHosted: false,
+  }),
 ) {
   const calls: string[][] = [];
   /** What each CLI call got on stdin, in call order (keys and tokens travel only this way). */
@@ -189,6 +195,7 @@ function harness(
   const clock = mock.clock(on);
   (calls as unknown as { clock: typeof clock }).clock = clock;
   on("session.start", () => ({ cwd: CWD }));
+  on("session.info", () => ({ value: sessionInfo() }));
   on("session.cwd", () => ({ value: folder() }));
   // Claude Code's own drawing: a plain Box, or the engine reference where a site requires one.
   on("ui.render", (_$: unknown, e: { component: string }) =>
@@ -524,6 +531,201 @@ describe("what the CLI prints", () => {
 });
 
 describe("Claude's language setting", () => {
+  const mac = (): SessionInfo => ({ transcriptPath: "", platform: "macos", isHosted: false });
+  for (const [name, language, preferred, locale, lookups] of [
+    ["a French Mac", undefined, '(\n    "fr-FR",\n    "en-US"\n)', "fr", 1],
+    ["a blank Claude setting", "  ", "(fr_CA, en)", "fr", 1],
+    ["explicit English on a French Mac", "English", '("fr-FR")', "en", 0],
+    ["an unsupported explicit language", "German", '("fr-FR")', "en", 0],
+    ["explicit French on an English Mac", "French", '("en-GB")', "fr", 0],
+    ["an unsupported primary Mac language", undefined, '("de-DE", "fr-FR")', "en", 1],
+  ] as const) {
+    test(`${name} selects the catalog for the panel and CLI`, async ($, on) => {
+      let reads = 0;
+      const environments: Array<string | undefined> = [];
+      harness(
+        on,
+        STATUS,
+        true,
+        {},
+        (argv, init) => {
+          if (argv[0] === "/usr/bin/defaults") {
+            reads++;
+            expect(argv).toEqual(["/usr/bin/defaults", "read", "-g", "AppleLanguages"]);
+            return { ...out({}), stdout: preferred };
+          }
+          if (argv[1]?.endsWith("/cli/clodable.mjs"))
+            environments.push(init?.env?.CLODABLE_LANGUAGE);
+        },
+        undefined,
+        mac,
+      );
+      on("settings.read", () => ({ value: language === undefined ? {} : { language } }));
+      await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+      const label = locale === "fr" ? "Publier" : "Publish";
+      expect(await bandText($, "desktop", new RegExp(`^${label}$`))).toBe(label);
+      expect(reads).toBe(lookups);
+      expect(environments.length).toBeGreaterThan(0);
+      expect(environments.every((value) => value === locale)).toBe(true);
+    });
+  }
+
+  test("a French Mac supplies French preview labels and requests to Claude", async ($, on) => {
+    harness(
+      on,
+      STATUS,
+      true,
+      {},
+      (argv) => (argv[0] === "/usr/bin/defaults" ? { ...out({}), stdout: '("fr-FR")' } : undefined),
+      undefined,
+      mac,
+    );
+    on("settings.read", () => ({ value: {} }));
+    const scripts: string[] = [];
+    const requests: string[] = [];
+    const locales: string[] = [];
+    on("mcp.call", (_$: unknown, e: { tool: string; args: { text?: string } }) => {
+      if (e.tool === "javascript_tool") scripts.push(e.args.text ?? "");
+      return { value: { content: [{ type: "text", text: '"labelled"' }], isError: false } };
+    });
+    on("tool.call", { tool: "mcp__Claude_Browser__preview_start" }, () => ({
+      result: { content: [{ type: "text", text: '{"port":7001,"tabId":"french-preview"}' }] },
+    }));
+    on("prompt.submit", (_$: unknown, e: { text: string }) => {
+      requests.push(e.text);
+      return { text: e.text };
+    });
+    on("fs.write", (_$: unknown, e: { path: string; text: string }) => {
+      if (/\.clodable\/local\/session-s\w+\.json$/.test(e.path))
+        locales.push(JSON.parse(e.text).locale);
+      return { value: undefined };
+    });
+    await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+    await $.tool.call({ tool: "mcp__Claude_Browser__preview_start", name: "app" } as never);
+    const band = await $.ui.mount({ ...BAND, surface: "desktop" });
+    await band.press({ key: "preview" });
+    for (let i = 0; i < 30 && requests.length === 0; i++) await band.redraw();
+    expect(requests).toEqual(["Montre-moi l’aperçu de mon application."]);
+    expect(scripts.some((script) => script.includes('setItem("clodable:locale", "fr")'))).toBe(
+      true,
+    );
+    expect(locales).toContain("fr");
+    await band.unmount();
+  });
+
+  const unavailable: Array<{
+    name: string;
+    platform?: "linux" | "windows";
+    hosted?: boolean;
+    output?: string;
+    failure?: "info" | "read" | "exit";
+    reads: number;
+  }> = [
+    { name: "Linux", platform: "linux", reads: 0 },
+    { name: "Windows", platform: "windows", reads: 0 },
+    { name: "a hosted Mac", hosted: true, reads: 0 },
+    { name: "unavailable host information", failure: "info", reads: 0 },
+    { name: "an empty preference list", output: "(\n)", reads: 1 },
+    { name: "malformed preferences", output: "fr-FR", reads: 1 },
+    { name: "a failed preference command", failure: "exit", reads: 1 },
+    { name: "a timed-out preference command", failure: "read", reads: 1 },
+  ];
+  for (const scenario of unavailable) {
+    test(`${scenario.name} safely defaults to English`, async ($, on) => {
+      let reads = 0;
+      harness(
+        on,
+        STATUS,
+        true,
+        {},
+        (argv) => {
+          if (argv[0] !== "/usr/bin/defaults") return;
+          reads++;
+          if (scenario.failure === "read") throw new Error("Preference read timed out");
+          return {
+            ...out({}),
+            exitCode: scenario.failure === "exit" ? 1 : 0,
+            stdout: scenario.output ?? '("fr-FR")',
+          };
+        },
+        undefined,
+        () => {
+          if (scenario.failure === "info") throw new Error("Host information unavailable");
+          return {
+            ...mac(),
+            platform: scenario.platform ?? "macos",
+            isHosted: scenario.hosted ?? false,
+          };
+        },
+      );
+      on("settings.read", () => ({ value: {} }));
+      await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+      expect(await bandText($, "desktop", /^Publish$/)).toBe("Publish");
+      expect(reads).toBe(scenario.reads);
+    });
+  }
+
+  test("retained conversations reread the Mac language and resume it when a setting is cleared", async ($, on) => {
+    let language: string | undefined;
+    let preferred = '("fr-FR")';
+    harness(
+      on,
+      STATUS,
+      true,
+      {},
+      (argv) => (argv[0] === "/usr/bin/defaults" ? { ...out({}), stdout: preferred } : undefined),
+      undefined,
+      mac,
+    );
+    on("settings.read", () => ({ value: language === undefined ? {} : { language } }));
+    on("prompt.submit", (_$: unknown, e: { text: string }) => ({ text: e.text }));
+    await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+    expect(await bandText($, "desktop", /^Publier$/)).toBe("Publier");
+    preferred = '("en-GB")';
+    for (const [nextLanguage, label] of [
+      [undefined, "Publish"],
+      ["French", "Publier"],
+      [undefined, "Publish"],
+    ] as const) {
+      language = nextLanguage;
+      await $.prompt.submit({ text: "Continue", origin: { kind: "sdk" }, wait: false });
+      expect(await bandText($, "desktop", new RegExp(`^${label}$`))).toBe(label);
+    }
+  });
+
+  test("a delayed Mac preference cannot replace a more recent explicit setting", async ($, on) => {
+    let language: string | undefined = "English";
+    let finish: ((value: ReturnType<typeof out>) => void) | undefined;
+    harness(
+      on,
+      STATUS,
+      true,
+      {},
+      (argv) => {
+        if (argv[0] === "/usr/bin/defaults")
+          return new Promise<ReturnType<typeof out>>((done) => {
+            finish = done;
+          });
+      },
+      undefined,
+      mac,
+    );
+    on("settings.read", () => ({ value: language === undefined ? {} : { language } }));
+    on("prompt.submit", (_$: unknown, e: { text: string }) => ({ text: e.text }));
+    await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+    const pane = await $.ui.mount(PANE_PROPS);
+    language = undefined;
+    const pending = $.prompt.submit({ text: "Continue", origin: { kind: "sdk" }, wait: false });
+    for (let i = 0; i < 40 && !finish; i++) await pane.redraw();
+    expect(finish).toBeDefined();
+    language = "English";
+    await $.prompt.submit({ text: "Continue", origin: { kind: "sdk" }, wait: false });
+    finish!({ ...out({}), stdout: '("fr-FR")' });
+    await pending;
+    expect(await bandText($, "desktop", /^Publish$/)).toBe("Publish");
+    await pane.unmount();
+  });
+
   for (const [language, locale, label] of [
     ["French", "fr", "Publier"],
     ["fr-CA", "fr", "Publier"],

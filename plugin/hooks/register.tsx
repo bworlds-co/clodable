@@ -1925,10 +1925,31 @@ async function refreshLanguageData($: EngineInterface) {
 }
 
 let languageLoaded = false;
+let languageRefresh = 0;
+
+/** Dock-launched apps do not reliably inherit the Mac's language through LANG. */
+async function systemLanguage($: EngineInterface): Promise<string | undefined> {
+  try {
+    const { platform, isHosted } = await $.session.info();
+    if (platform !== "macos" || isHosted) return undefined;
+    const result = await $.process.run(["/usr/bin/defaults", "read", "-g", "AppleLanguages"], {
+      timeoutMs: 2000,
+    });
+    if (result.exitCode !== 0) return undefined;
+    const first = result.stdout.match(/^\s*\(\s*(?:"([^"]+)"|([A-Za-z][\w-]*))\s*[,)]/);
+    return first?.[1] ?? first?.[2];
+  } catch {
+    return undefined;
+  }
+}
 
 async function refreshLanguage($: EngineInterface) {
+  const refresh = ++languageRefresh;
   const language = await $.settings.read({ key: "language" }).catch(() => undefined);
-  const locale = resolveLocale(language);
+  const preferred =
+    typeof language === "string" && language.trim() ? language : await systemLanguage($);
+  if (refresh !== languageRefresh) return;
+  const locale = resolveLocale(preferred);
   if (languageLoaded && locale === getLocale()) return;
   const changed = languageLoaded;
   setLocale(locale);
