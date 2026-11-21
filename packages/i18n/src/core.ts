@@ -1,4 +1,27 @@
 export const core = {
+  "Checking your existing versions before saving":
+    "Vérification des versions existantes avant l’enregistrement",
+  "Couldn't preserve your app before preparing it.":
+    "Impossible de préserver votre application avant de la préparer.",
+  "Your app has not been converted. Fix the local backup problem, then try again.":
+    "Votre application n’a pas été convertie. Résolvez le problème de copie locale, puis réessayez.",
+  "Saving setup is already running for this folder.":
+    "La configuration de l’enregistrement est déjà en cours pour ce dossier.",
+  "Wait for it to finish, then try again.": "Attendez qu’elle se termine, puis réessayez.",
+  "Saving setup needs a local check before it can continue.":
+    "La configuration de l’enregistrement nécessite une vérification locale avant de continuer.",
+  "Ask Claude to check the interrupted saving setup on this computer, then try again. Your files are unchanged.":
+    "Demandez à Claude de vérifier la configuration interrompue sur cet ordinateur, puis réessayez. Vos fichiers sont inchangés.",
+  "Review this app's existing versions before creating its private copy.":
+    "Vérifiez les versions existantes de cette application avant de créer sa copie privée.",
+  "Open Set up saving again and confirm that these versions should be kept.":
+    "Rouvrez Configurer l’enregistrement et confirmez que ces versions doivent être conservées.",
+  "Earlier versions contain files that must stay on this computer.":
+    "Des versions précédentes contiennent des fichiers qui doivent rester sur cet ordinateur.",
+  "Ask Claude to inspect these versions. Nothing was sent and the history was not changed.":
+    "Demandez à Claude d’examiner ces versions. Rien n’a été envoyé et l’historique n’a pas été modifié.",
+  "A secret key is in an earlier version of this app.":
+    "Une version précédente de cette application contient une clé secrète.",
   "Saving needs Git to work on this computer.":
     "Git doit fonctionner sur cet ordinateur pour permettre l’enregistrement.",
   "Run `xcode-select --install`, finish Apple's installation, then check again.":
@@ -838,4 +861,12 @@ export const core = {
     "Étape ignorée. Services qui s’arrêteront avec Lovable : {services}",
   "Skipped: {services} stop with Lovable":
     "Étape ignorée. Services qui s’arrêteront avec Lovable : {services}",
+  "Some files selected for saving must stay on this computer.":
+    "Certains fichiers sélectionnés pour l’enregistrement doivent rester sur cet ordinateur.",
+  "Ask Claude to keep these files local, then try again. Nothing was sent.":
+    "Demandez à Claude de conserver ces fichiers sur cet ordinateur, puis réessayez. Rien n’a été envoyé.",
+  "Some unsaved work needs checking before setting up saving.":
+    "Certains changements locaux doivent être vérifiés avant de configurer l’enregistrement.",
+  "Ask Claude to preserve both local versions of these files, then try again.":
+    "Demandez à Claude de préserver les deux versions locales de ces fichiers, puis réessayez.",
 } as const;

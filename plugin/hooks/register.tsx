@@ -184,8 +184,9 @@ let confirming:
   | null = null;
 let repoChoices: Array<{ value: string; label: string }> = [];
 let chosenRepo = "";
-let setupChoice: "import" | "saving" | null = null;
+let setupChoice: "import" | "saving" | "local" | null = null;
 let newAppName = "";
+let reviewingNewApp = false;
 /** Why setup stopped: the builder's words, and what Clodable reported for Claude to look into. */
 let setupProblem: { message: string; help: boolean; reported?: string } | null = null;
 /** Connecting GitHub: asking it for a code, the code to enter on GitHub, or it didn't finish. */
@@ -314,9 +315,31 @@ let deployable: string[] = [];
 let inApp: boolean | null = null;
 /** The session's first status check, for hooks that run before it's back. */
 let firstStatus: Promise<void> = Promise.resolve();
+let firstChecks: Promise<unknown> = Promise.resolve();
 /** An empty folder is where an app gets brought in, so the bar invites setup there. */
 let emptyFolder = false;
 let hasLocalApp = false;
+type LocalApp = NonNullable<ClodableCheck["localApp"]>;
+let localFolder: LocalApp | null = null;
+let localGeneration = 0;
+
+function localAppOf(doctor: ClodableCheck[]): LocalApp | undefined {
+  const facts = doctor.find((check) => check.id === "local-app")?.localApp;
+  return facts &&
+    ["empty", "supported", "unsupported"].includes(facts.contents) &&
+    ["none", "unborn", "history", "remote", "nested", "protected", "unavailable"].includes(
+      facts.repository,
+    )
+    ? facts
+    : undefined;
+}
+
+function isLocalFolder(s: ClodableStatus | ClodableNotReady | null): boolean {
+  if (!s || s.ready || !["not-a-repo", "no-kit"].includes(s.reason)) return false;
+  return localFolder
+    ? ["none", "unborn", "history"].includes(localFolder.repository)
+    : s.reason === "not-a-repo" && (emptyFolder || hasLocalApp);
+}
 /** The app's preview in Desktop's Browser, once it runs. */
 let previewUrl: string | null = null;
 /** The preview is started once per session, from whichever comes first: session start or the bar. */
@@ -350,11 +373,29 @@ async function folderIsEmpty($: EngineInterface): Promise<boolean> {
 
 /** A local prototype can appear during a reply, before Clodable has an app it can save. */
 async function refreshEmptyFolder($: EngineInterface) {
+  const where = cwd;
+  if (localFolder) return;
   const empty = await folderIsEmpty($);
   const app = !empty && (await $.fs.exists("package.json").catch(() => false));
+  if (cwd !== where || localFolder) return;
   if (empty === emptyFolder && app === hasLocalApp) return;
   emptyFolder = empty;
   hasLocalApp = app;
+  $.ui.invalidate("ui.render");
+}
+
+/** Conversation guidance needs folder facts, not a network/account check. */
+async function refreshLocalFolder($: EngineInterface) {
+  const where = await syncFolder($);
+  const locale = getLocale();
+  const generation = ++localGeneration;
+  const result = await cli($, ["doctor", "--local"], 30_000);
+  if (cwd !== where || getLocale() !== locale || generation !== localGeneration) return;
+  localFolder = result.ok && Array.isArray(result.data) ? (localAppOf(result.data) ?? null) : null;
+  if (localFolder) {
+    emptyFolder = localFolder.contents === "empty";
+    hasLocalApp = localFolder.contents !== "empty";
+  }
   $.ui.invalidate("ui.render");
 }
 
@@ -388,8 +429,11 @@ async function lookAtFolder($: EngineInterface) {
   inApp = (await $.fs.exists(".clodable/config.json").catch(() => false)) ? true : null;
   emptyFolder = false;
   hasLocalApp = false;
+  localFolder = null;
+  localGeneration++;
   setupChoice = null;
   newAppName = "";
+  reviewingNewApp = false;
   setupProblem = null;
   inspectingApp = false;
   paneView = null;
@@ -429,6 +473,8 @@ async function lookAtFolder($: EngineInterface) {
   background(loadReplySaves($));
   firstStatus = refreshStatus($);
   background(firstStatus);
+  firstChecks = firstStatus.then(() => (inApp === false ? refreshLocalFolder($) : undefined));
+  background(firstChecks);
   // On Desktop, the app's preview opens with the session. The terminal has no preview pane. Desktop
   // may attach after this runs, so the bar starts it too the first time Desktop draws it.
   background(
@@ -664,6 +710,7 @@ async function streamCli(
   args: string[],
   onStep: (step: Step) => unknown,
   input?: string,
+  expected?: { cwd: string; checksGeneration: number },
 ): Promise<{ result?: Result; failure?: unknown }> {
   await toolsFirst($);
   if (toolsProblem)
@@ -681,9 +728,15 @@ async function streamCli(
   const read = eventReader();
   let result: Result | undefined;
   try {
+    const where = await syncFolder($);
+    if (
+      expected &&
+      (where !== expected.cwd || checksGeneration !== expected.checksGeneration || turnActive)
+    )
+      return { failure: "The folder or its checks changed before setup. Check again." };
     for await (const chunk of $.process.spawn({
       argv: argv($, args),
-      cwd: await syncFolder($),
+      cwd: where,
       env: cliEnv($),
       ...(input !== undefined ? { input } : {}),
     })) {
@@ -754,7 +807,8 @@ async function refreshStatus($: EngineInterface) {
   // Any other problem comes after the setup check, so this is an app with a problem to show.
   // "unknown" (the CLI didn't run) keeps what the quick look at the folder found.
   else if (code !== "unknown" && code !== "tools-unavailable") inApp = true;
-  if (code === "not-a-repo") await refreshEmptyFolder($);
+  if (code === "not-a-repo" || code === "not-set-up") await refreshEmptyFolder($);
+  if (cwd !== where || locale !== getLocale()) return;
   // Sites drawn before Clodable knew where it is draw again.
   if (inApp !== before) $.ui.invalidate("ui.render");
   if (versions && inApp === true) background(refreshVersions($));
@@ -779,6 +833,7 @@ async function refreshChecks($: EngineInterface) {
     result.ok &&
     (!Array.isArray(result.data) ||
       !["node", "git", "gh"].every((id) => result.data.some((c: ClodableCheck) => c.id === id)) ||
+      (inApp === false && !localAppOf(result.data)) ||
       (result.data.some((c: ClodableCheck) => c.id === "gh" && c.status === "ok") &&
         !result.data.some((c: ClodableCheck) => c.id === "github")))
   ) {
@@ -799,9 +854,18 @@ async function refreshChecks($: EngineInterface) {
       : (result.error?.message ?? t("The check didn't finish."));
   checksDetails = result.error?.details ? safeToolDetails(result.error.details) : "";
   if (checksFailed) {
+    localGeneration++;
+    localFolder = null;
     if ((await read($, checks)).length) await update<ClodableCheck[]>($, checks, () => []);
-  } else if (!same(await read($, checks), result.data)) {
-    await update<ClodableCheck[]>($, checks, () => result.data as ClodableCheck[]);
+  } else {
+    localGeneration++;
+    localFolder = localAppOf(result.data as ClodableCheck[]) ?? null;
+    if (localFolder) {
+      emptyFolder = localFolder.contents === "empty";
+      hasLocalApp = localFolder.contents !== "empty";
+    }
+    if (!same(await read($, checks), result.data))
+      await update<ClodableCheck[]>($, checks, () => result.data as ClodableCheck[]);
   }
   $.ui.invalidate("ui.render");
   return result;
@@ -2058,6 +2122,7 @@ export const register: Register = (on) => {
     await refreshLanguage($);
     await syncFolder($);
     await isApp();
+    await firstChecks;
     const current = await read($, status);
     const context = [...(e.context ?? [])];
     if (getLocale() === "fr" && (inApp === true || detailsFor.has(e.text ?? ""))) {
@@ -2071,6 +2136,13 @@ export const register: Register = (on) => {
     ) {
       return next({ ...e, context: [...context, MOVE_TURN_CONTEXT] });
     }
+    if (
+      !detailsFor.has(e.text ?? "") &&
+      isLocalFolder(current) &&
+      localFolder?.contents === "unsupported"
+    ) {
+      context.push(LOCAL_PREPARATION_CONTEXT);
+    }
     return next({ ...e, context });
   });
 
@@ -2081,8 +2153,9 @@ export const register: Register = (on) => {
     // A plain first message needs the same builder guidance as a panel request. Wait for the
     // folder's initial status (including Desktop's spare-folder move), without opening a panel.
     await isApp();
+    await firstChecks;
     const current = await read($, status);
-    if (current?.ready === false && current.reason === "not-a-repo") {
+    if (isLocalFolder(current)) {
       await $.session
         .append({ message: { type: "user", content: [{ type: "text", text: LOCAL_APP_CONTEXT }] } })
         .catch(() => {});
@@ -2163,6 +2236,12 @@ export const register: Register = (on) => {
     }
     if (e.agentId === undefined) {
       turnActive = false;
+      if (inApp === false) {
+        // Even an interrupted reply may have changed files. Invalidate readiness before drawing
+        // a creation button, and refresh support as well as status without losing the chosen path.
+        checksPending = true;
+        background(Promise.all([refreshStatus($), refreshChecks($)]));
+      }
       $.ui.invalidate("ui.render");
     }
     if (e.agentId === undefined && !e.isAborted) {
@@ -2171,8 +2250,6 @@ export const register: Register = (on) => {
       background(
         isApp().then(async (yes) => {
           if (!yes) {
-            const s = await read($, status);
-            if (s?.ready === false && s.reason === "not-a-repo") await refreshEmptyFolder($);
             return;
           }
           const sha = await saveNow($, subject);
@@ -2397,8 +2474,7 @@ export const register: Register = (on) => {
     const engine = await next(e);
     if (e.surface !== "desktop") return engine;
     const s = await read($, status);
-    const invite =
-      s !== null && !s.ready && s.reason === "not-a-repo" && (emptyFolder || hasLocalApp);
+    const invite = isLocalFolder(s);
     if (inApp !== true && !invite) return engine;
     const { Box, Button: drawButton } = $.ui.resolve(e);
     const Button = heldButton(drawButton);
@@ -2423,8 +2499,7 @@ export const register: Register = (on) => {
   // ── The bar above the prompt ─────────────────────────────────────────────
   on("ui.render", { component: "AbovePrompt" }, async ($, e, next) => {
     const s = await read($, status);
-    const invite =
-      s !== null && !s.ready && s.reason === "not-a-repo" && (emptyFolder || hasLocalApp);
+    const invite = isLocalFolder(s);
     if (inApp !== true && !invite) return next(e);
     const desktop = e.surface === "desktop";
     if (desktop && inApp === true && !previewAsked) background(startPreview($));
@@ -3035,25 +3110,24 @@ function barSides(
     return { left: [<Text dimColor>{t("Saving…")}</Text>], right: [history, preview] };
   if (!s) return { left: [<Text dimColor>{t("Clodable is getting ready…")}</Text>] };
   if (!s.ready) {
-    if (s.reason === "not-a-repo") {
+    if (isLocalFolder(s)) {
+      const empty = localFolder ? localFolder.contents === "empty" : emptyFolder;
       return {
         left: [
-          <Text>
-            {emptyFolder ? t("Describe your idea to Claude") : t("Only on this computer")}
-          </Text>,
+          <Text>{empty ? t("Describe your idea to Claude") : t("Only on this computer")}</Text>,
         ],
         right: [
           <Button
-            key={emptyFolder ? "bring-app" : "save-local-app"}
+            key={empty ? "bring-app" : "save-local-app"}
             variant="secondary"
             dimColor={turnActive}
             onPress={() => {
               if (turnActive) return;
-              if (emptyFolder) setupChoice = "import";
-              background(openPane($, emptyFolder ? "app" : "saving"));
+              if (empty) setupChoice = "import";
+              background(openPane($, empty ? "app" : "saving"));
             }}
           >
-            {emptyFolder ? t("Bring an app from GitHub") : t("Set up saving")}
+            {empty ? t("Bring an app from GitHub") : t("Set up saving")}
           </Button>,
         ],
       };
@@ -3351,11 +3425,122 @@ function setupPane(
     checksPending || Boolean(checksFailed || toolsProblem) || tools.length === 0;
   const blocking = tools.filter((c) => c.status !== "ok");
   const github = doctor.find((c) => c.id === "github");
-  const noRemote = doctor.some((c) => c.id === "repo" && c.status === "fail");
+  const local = localAppOf(doctor);
+  const pendingCheck = doctor.find((c) => c.id === "new-app");
+  const pending = pendingCheck?.detail?.match(/^([^/]+)\/([^/]+)$/);
+  const lockedPending = pending && pendingCheck?.newApp?.locked !== false;
+  const pendingName = pending?.[2];
+  const pendingAccount = pending?.[1];
+  const localRepository = local && ["none", "unborn", "history"].includes(local.repository);
+  const emptyLocal =
+    local?.contents === "empty" && ["none", "unborn"].includes(local.repository) && !pending;
+  const preparing = local?.contents === "unsupported";
+  const existingRemote =
+    local?.repository === "remote" && doctor.some((c) => c.id === "repo" && c.status === "ok");
   const localPrototype =
-    (s?.reason === "not-a-repo" && !emptyFolder) || (s?.reason === "no-kit" && noRemote);
-  const pendingName = doctor.find((c) => c.id === "new-app")?.detail?.split("/")[1];
-  if (localPrototype && setupChoice !== "saving") {
+    local?.contents === "supported" &&
+    (localRepository || (pending && local.repository === "remote"));
+  const protectedFolder =
+    local &&
+    (["nested", "protected"].includes(local.repository) ||
+      (local.repository === "remote" && !existingRemote && !pending));
+  if (protectedFolder) {
+    return (
+      <Box flexDirection="column" {...panelSpacing(ui, true)}>
+        {header}
+        <Text {...headingStyle(ui)}>{t("Keep this app's existing setup")}</Text>
+        <Text>
+          {t(
+            "This folder belongs to another project or already has a saving connection. Claude can help you choose the right folder without changing it.",
+          )}
+        </Text>
+        <Button
+          key="folder-help"
+          variant="primary"
+          dimColor={turnActive}
+          onPress={() => {
+            if (turnActive) return;
+            background(
+              askClaude(
+                $,
+                t(
+                  "Help me open the right folder for this app, keeping its files and saving connection.",
+                ),
+                "Inspect this folder and its repository boundaries read-only. Explain the correct app folder or existing connection. Never initialize, reset, remove or change a repository/remote, run setup or create anything on GitHub. Preserve the files and existing history.",
+              ),
+            );
+          }}
+        >
+          {t("Ask Claude for help")}
+        </Button>
+        <Button key="check-again" plain onPress={() => background(checkAgain($))}>
+          {t("Check again")}
+        </Button>
+      </Box>
+    );
+  }
+  if (preparing && setupChoice !== "local" && local?.repository !== "unavailable") {
+    return (
+      <Box flexDirection="column" {...panelSpacing(ui, true)}>
+        {header}
+        <Text {...headingStyle(ui)}>{t("Prepare your app for saving")}</Text>
+        <Text>
+          {t(
+            "Claude will adapt the technical setup while preserving your app's appearance, features and data.",
+          )}
+        </Text>
+        <Text {...supportingStyle(ui)} dimColor>
+          {t(
+            "Claude keeps an original copy and checks your existing journeys. If a feature cannot be preserved, Claude explains it before proceeding.",
+          )}
+        </Text>
+        <Button
+          key="prepare-app"
+          variant="primary"
+          dimColor={turnActive || checksPending}
+          onPress={() => {
+            if (turnActive || checksPending) return;
+            setupChoice = "saving";
+            background(
+              askClaude(
+                $,
+                t(
+                  "Prepare my app for saving, preserving its appearance, features and data, and verify its existing journeys.",
+                ),
+                PREPARE_APP_DETAILS,
+              ),
+            );
+          }}
+        >
+          {turnActive ? t("Claude is working on your app…") : t("Prepare my app for saving")}
+        </Button>
+        <Button
+          key="keep-local"
+          plain
+          onPress={() => {
+            setupChoice = "local";
+            $.ui.invalidate("ui.render");
+          }}
+        >
+          {t("Keep working locally")}
+        </Button>
+        <Button
+          key="check-again"
+          plain
+          dimColor={checksPending}
+          onPress={() => background(checkAgain($))}
+        >
+          {t("Check again")}
+        </Button>
+        <Text {...supportingStyle(ui)} dimColor>
+          {t(
+            "Preparation includes checking that your existing journeys still work. Nothing goes online during preparation.",
+          )}
+        </Text>
+      </Box>
+    );
+  }
+  if ((localPrototype && setupChoice !== "saving") || (preparing && setupChoice === "local")) {
     return (
       <Box flexDirection="column" {...panelSpacing(ui, true)}>
         {header}
@@ -3367,9 +3552,9 @@ function setupPane(
         <Button
           key="set-up-saving"
           variant="primary"
-          dimColor={turnActive}
+          dimColor={turnActive || checksPending}
           onPress={() => {
-            if (turnActive) return;
+            if (turnActive || checksPending) return;
             setupChoice = "saving";
             background(refreshChecks($));
             newAppName ||=
@@ -3386,12 +3571,14 @@ function setupPane(
           {t("Set up saving")}
         </Button>
         <Text {...supportingStyle(ui)} dimColor>
-          {t("Choose your GitHub account next. Nothing goes live until you publish.")}
+          {preparing
+            ? t("Claude can help prepare it when you're ready to save.")
+            : t("Choose your GitHub account next. Nothing goes live until you publish.")}
         </Text>
       </Box>
     );
   }
-  if (s?.reason === "not-a-repo" && emptyFolder && setupChoice !== "import") {
+  if (emptyLocal && setupChoice !== "import") {
     return (
       <Box flexDirection="column" {...panelSpacing(ui, true)}>
         {header}
@@ -3512,11 +3699,29 @@ function setupPane(
         <Text {...supportingStyle(ui)} dimColor>
           {t("Finish the checks above before setting up saving.")}
         </Text>
+      ) : !local || local.repository === "unavailable" ? (
+        <Box flexDirection="column" rowGap={1}>
+          <Text>
+            {t("Clodable couldn't check this folder yet. Check again before setting up saving.")}
+          </Text>
+          <Button key="check-folder" variant="secondary" onPress={() => background(checkAgain($))}>
+            {t("Check again")}
+          </Button>
+        </Box>
       ) : setupChoice === "saving" && localPrototype ? (
         <Box flexDirection="column" rowGap={1}>
           <Text>
-            {t("Save to")} {github?.detail ?? t("your GitHub account")} {t("· Private")}
+            {t("Save to")}{" "}
+            {lockedPending ? `@${pendingAccount}` : (github?.detail ?? t("your GitHub account"))}{" "}
+            {t("· Private")}
           </Text>
+          {local.repository === "history" ? (
+            <Text>
+              {t(
+                "This app already has saved versions on this computer. Clodable will keep the versions leading to this one and your current files in the new private app.",
+              )}
+            </Text>
+          ) : null}
           <Text dimColor>
             {t(
               "Clodable creates a private app in this account and saves your files there. Only you and people you give access can see the code. This doesn't put your site online.",
@@ -3547,23 +3752,88 @@ function setupPane(
               ) : null}
             </Box>
           ) : null}
-          {!settingUp && Input ? (
+          {!settingUp && pendingName && lockedPending ? (
+            <Box flexDirection="column" rowGap={1}>
+              <Text>{t("Resume saving {0} in the same account.", { 0: pendingName })}</Text>
+              <Button
+                key="resume-saving"
+                variant="primary"
+                dimColor={turnActive || github?.detail !== `@${pendingAccount}`}
+                onPress={() => {
+                  newAppName = pendingName;
+                  background(
+                    setUpSaving(
+                      $,
+                      pendingAccount!,
+                      local.repository === "history" ? local.head : undefined,
+                    ),
+                  );
+                }}
+              >
+                {t("Resume saving")}
+              </Button>
+              {github?.detail !== `@${pendingAccount}` ? (
+                <Text>{t("Reconnect the original account to continue saving this app.")}</Text>
+              ) : null}
+            </Box>
+          ) : !settingUp && reviewingNewApp ? (
+            <Box flexDirection="column" rowGap={1}>
+              <Text>
+                {t("App name")}: {newAppName}
+              </Text>
+              <Button
+                key="create-private-app"
+                variant="primary"
+                dimColor={turnActive}
+                onPress={() =>
+                  background(
+                    setUpSaving(
+                      $,
+                      (github?.detail ?? "").replace(/^@/, ""),
+                      local.repository === "history" ? local.head : undefined,
+                    ),
+                  )
+                }
+              >
+                {local.repository === "history"
+                  ? t("Create private app and keep versions")
+                  : t("Create private app")}
+              </Button>
+              <Button
+                key="change-app-name"
+                plain
+                onPress={() => {
+                  reviewingNewApp = false;
+                  $.ui.invalidate("ui.render");
+                }}
+              >
+                {t("Change name")}
+              </Button>
+            </Box>
+          ) : !settingUp && Input ? (
             <Input
               key="new-app-name"
-              label={t("App name")}
+              label={t("Name")}
               value={newAppName}
-              submitLabel={t("Create private app")}
+              submitLabel={t("Continue")}
               onInput={(value) => {
                 newAppName = value.trim();
               }}
               onSubmit={(value) => {
+                if (turnActive || checksPending) return;
                 newAppName = value.trim();
-                background(setUpSaving($, (github?.detail ?? "").replace(/^@/, "")));
+                reviewingNewApp = Boolean(newAppName);
+                if (!newAppName)
+                  setupProblem = {
+                    message: t("Give your app a name before creating it."),
+                    help: false,
+                  };
+                $.ui.invalidate("ui.render");
               }}
             />
           ) : null}
         </Box>
-      ) : s?.reason === "no-kit" ? (
+      ) : existingRemote && local.contents === "supported" ? (
         <Box flexDirection="column" rowGap={1}>
           <Text>
             {t("This folder already holds an app. Clodable can set itself up right here.")}
@@ -3575,7 +3845,7 @@ function setupPane(
             </Button>
           )}
         </Box>
-      ) : s?.reason === "not-a-repo" && !emptyFolder ? (
+      ) : !emptyLocal ? (
         <Box flexDirection="column" rowGap={1}>
           <Text>{t("Your files are on this computer. Clodable isn't saving them yet.")}</Text>
           <Text {...supportingStyle(ui)} dimColor>
@@ -3605,14 +3875,15 @@ function setupPane(
         </Box>
       ) : Input ? (
         <Box flexDirection="column" rowGap={1}>
+          <Text>{t("Your app's GitHub address")}</Text>
           {setupProgress(ui, t("Bringing in your app…"))}
           {settingUp ? null : (
             <Input
               key="repo-name"
-              label={t("Your app's GitHub address")}
+              label="GitHub"
               placeholder="https://github.com/owner/name"
               value={chosenRepo}
-              submitLabel={t("bring it in")}
+              submitLabel={t("Import")}
               onSubmit={(value) => {
                 chosenRepo = value.trim();
                 background(bringIn($));
@@ -3633,27 +3904,43 @@ function setupPane(
       <Text {...supportingStyle(ui)} dimColor>
         {setupChoice === "saving"
           ? t("Publishing stays a separate choice. You can set up hosting after saving.")
-          : s?.reason === "no-kit"
+          : setupChoice === "import"
             ? t(
-                "Clodable adds a few plain files and saves them, with any changes in progress, to your draft on GitHub. Nothing goes live.",
+                "Clodable copies your app from GitHub here, using a new folder if this folder already contains files. Nothing goes live.",
               )
-            : s?.reason === "not-a-repo" && !emptyFolder
-              ? t("Your local files stay as they are. Nothing goes live.")
-              : t(
-                  "Clodable copies your app from GitHub into this folder and adds a few plain files. Nothing goes live.",
-                )}
+            : s?.reason === "no-kit"
+              ? t(
+                  "Clodable adds a few plain files and saves them, with any changes in progress, to your draft on GitHub. Nothing goes live.",
+                )
+              : s?.reason === "not-a-repo" && !emptyFolder
+                ? t("Your local files stay as they are. Nothing goes live.")
+                : t(
+                    "Clodable copies your app from GitHub into this folder and adds a few plain files. Nothing goes live.",
+                  )}
       </Text>
       {setupChoice === "saving" && !settingUp ? (
         <Button
           key="keep-local"
           plain
           onPress={() => {
-            setupChoice = null;
+            setupChoice = "local";
             setupProblem = null;
             $.ui.invalidate("ui.render");
           }}
         >
           {t("Keep working locally")}
+        </Button>
+      ) : null}
+      {setupChoice === "import" && !settingUp ? (
+        <Button
+          key="back-to-local"
+          plain
+          onPress={() => {
+            setupChoice = null;
+            $.ui.invalidate("ui.render");
+          }}
+        >
+          {t("Back")}
         </Button>
       ) : null}
     </Box>
@@ -6478,7 +6765,12 @@ async function loadRepos($: EngineInterface) {
  * alone can take a minute or two), and a setup that didn't finish says why. Its result when it did.
  */
 async function runSetup($: EngineInterface, args: string[]): Promise<Result | undefined> {
-  if (settingUp) return undefined;
+  if (settingUp || turnActive) return undefined;
+  const expected = { cwd, checksGeneration };
+  if ((await $.session.cwd()) !== expected.cwd) {
+    background(checkAgain($));
+    return undefined;
+  }
   if (checksPending || checksFailed || toolsProblem) {
     setupProblem = {
       message: t("Finish checking the tools before setting up saving."),
@@ -6490,6 +6782,8 @@ async function runSetup($: EngineInterface, args: string[]): Promise<Result | un
   settingUp = true;
   const currentChecks = await read($, checks);
   if (
+    expected.cwd !== cwd ||
+    expected.checksGeneration !== checksGeneration ||
     !["node", "git", "gh", "github"].every((id) =>
       currentChecks.some((c) => c.id === id && c.status === "ok"),
     )
@@ -6507,21 +6801,28 @@ async function runSetup($: EngineInterface, args: string[]): Promise<Result | un
   $.ui.invalidate("ui.render");
   let outcome: { result?: Result; failure?: unknown } = {};
   try {
-    outcome = await streamCli($, ["setup", ...args, "--yes"], (event) => {
-      const next: ClodableStep = {
-        id: event.id,
-        state: event.state,
-        title: event.title,
-        ...(event.detail ? { detail: event.detail } : {}),
-      };
-      const at = setupSteps.findIndex((x) => x.id === event.id);
-      setupSteps = at >= 0 ? setupSteps.with(at, next) : [...setupSteps, next];
-      $.ui.invalidate("ui.render");
-    });
+    outcome = await streamCli(
+      $,
+      ["setup", ...args, "--yes"],
+      (event) => {
+        const next: ClodableStep = {
+          id: event.id,
+          state: event.state,
+          title: event.title,
+          ...(event.detail ? { detail: event.detail } : {}),
+        };
+        const at = setupSteps.findIndex((x) => x.id === event.id);
+        setupSteps = at >= 0 ? setupSteps.with(at, next) : [...setupSteps, next];
+        $.ui.invalidate("ui.render");
+      },
+      undefined,
+      expected,
+    );
   } finally {
     settingUp = false;
     $.ui.invalidate("ui.render");
   }
+  if (cwd !== expected.cwd) return undefined;
   const { result, failure } = outcome;
   if (!result?.ok) {
     if (failure !== undefined) note($, `setup didn't run: ${String(failure)}`.slice(0, 400));
@@ -6556,11 +6857,31 @@ const MOVE_CHECKPOINT_CONTEXT =
 const MOVE_TURN_CONTEXT = `Clodable context for this turn: this app has an ongoing move off Lovable. For a migration progress, resume or setup request (including setting up users' emails or an AI provider), call mcp__clodable__open_panel with view: "move" before answering or asking for the next detail, even if earlier replies only described the controls. Opening the panel changes no app data and grants no consent. For an unrelated app request, follow that request without opening the move panel. Read move status only when fresh state is missing; never repeat a copy or create a service just to resume. Use the current clodable-move skill for steps. Keys and account consent stay in the panel; live changes still require explicit approval. ${MOVE_CHECKPOINT_CONTEXT}`;
 
 const LOCAL_APP_CONTEXT = `Clodable context: this folder is not set up for automatic saving. The builder's message in the conversation is the request; do not ask them to repeat it in a panel, type /clodable or press Start from an idea. If they ask to build an app, act on that request directly: make a small, working local prototype with Vite and React, dev and build scripts, and .gitignore excluding node_modules, dist and .env files. Inspect and preserve any existing local work; do not restart a prototype on a follow-up. Make sensible product and design choices, asking one focused question only if it is needed to proceed. Use sample data and browser storage first, and explain that it is local when relevant. If they are only exploring, asking a question or asking you to wait, respond to that intent without building. If they want to bring an existing app from GitHub, open the app view with open_panel for the import controls instead of scaffolding or cloning. Do not create a GitHub app, connect accounts, add a backend, initialize git, write Clodable setup files or publish. Open the preview in Desktop and try the main interaction before saying the prototype is ready. Keep replies brief, in product terms, without file lists, git vocabulary or local addresses. When they ask to keep/save the prototype, open the saving view with open_panel for account consent; they should not have to find a command or repeat their original request. Files are on this computer; Clodable is not saving to GitHub yet.`;
-const IDEA_PREPARE_DETAILS = `Keep the existing app's design, content and local work. Prepare it as a supported Vite + React app with dev and build scripts, checking that it builds. Keep environment files and generated dependencies ignored. Do not create a remote app, connect accounts or publish. Once ready, ask the builder to try Set up saving in Clodable again. All account consent and GitHub creation happen in the panel. Use plain builder language.`;
-const SETUP_HELP_DETAILS = `From Clodable: Set up saving stopped. What it reported is below; how far it got is in .clodable/local/new-app.json (a destination recorded there is a private app that already exists on GitHub). Find the cause in this folder and fix what's safe on this computer. If the app itself needs preparing: ${IDEA_PREPARE_DETAILS} Never create, rename or delete anything on GitHub, and never run setup yourself: once it's fixed, ask the builder to press Create private app again with the same name. If it's something Clodable itself got wrong, say so plainly.`;
+const LOCAL_PREPARATION_CONTEXT = `Clodable inspection found an existing app whose architecture is not supported. For a request to prepare it for Clodable or make saving possible, first invoke the Skill tool with skill: "clodable:clodable-prepare". For an ordinary app edit or a question, follow that request without starting preparation. Moving services off Lovable uses "clodable:clodable-move"; an unsupported architecture alone does not authorize a service move.`;
+const PREPARE_APP_DETAILS = `The builder selected preparation for this existing local app. Invoke the Skill tool with skill: "clodable:clodable-prepare" before changing it. Follow that workflow within the builder's requested scope.`;
+const SETUP_HELP_DETAILS = `From Clodable: Set up saving stopped. What it reported is below; how far it got is in .clodable/local/new-app.json (a destination recorded there is a private app that already exists on GitHub). Find the cause in this folder and fix what's safe on this computer. If the app itself needs adaptation to a supported architecture, invoke the Skill tool with skill: "clodable:clodable-prepare". Never create, rename or delete anything on GitHub, and never run setup yourself: once it's fixed, ask the builder to press Create private app again with the same name. If it's something Clodable itself got wrong, say so plainly.`;
 
-async function setUpSaving($: EngineInterface, account: string) {
-  if (turnActive) return;
+async function setUpSaving($: EngineInterface, account: string, approvedHead?: string) {
+  if (turnActive || settingUp || checksPending || checksFailed) return;
+  const current = await read($, checks);
+  const local = localAppOf(current);
+  const pendingCheck = current.find((c) => c.id === "new-app");
+  const pending = pendingCheck?.detail?.match(/^([^/]+)\/([^/]+)$/);
+  if (
+    local?.contents !== "supported" ||
+    !(
+      ["none", "unborn", "history"].includes(local.repository) ||
+      (pending && local.repository === "remote")
+    ) ||
+    (local.repository === "history" && (!approvedHead || approvedHead !== local.head)) ||
+    !current.some((c) => c.id === "github" && c.status === "ok" && c.detail === `@${account}`) ||
+    (pending &&
+      pendingCheck?.newApp?.locked !== false &&
+      (pending[1] !== account || pending[2] !== newAppName.trim()))
+  ) {
+    background(checkAgain($));
+    return;
+  }
   const name = newAppName.trim();
   if (!name) {
     setupProblem = { message: t("Give your app a name before creating it."), help: false };
@@ -6568,8 +6889,17 @@ async function setUpSaving($: EngineInterface, account: string) {
     return;
   }
   if (!account) return;
-  const result = await runSetup($, ["--new", name, "--account", account]);
-  if (!result) return;
+  const result = await runSetup($, [
+    "--new",
+    name,
+    "--account",
+    account,
+    ...(approvedHead ? ["--adopt-history", approvedHead] : []),
+  ]);
+  if (!result) {
+    await refreshChecks($);
+    return;
+  }
   setupChoice = null;
   await shareAppRules($);
   $.ui.toast(
@@ -6584,6 +6914,9 @@ async function setUpSaving($: EngineInterface, account: string) {
 }
 
 async function bringIn($: EngineInterface) {
+  if (turnActive || checksPending || checksFailed) return;
+  const local = localAppOf(await read($, checks));
+  if (local?.contents !== "empty" || !["none", "unborn"].includes(local.repository)) return;
   const repo = githubRepo(chosenRepo || repoChoices[0]?.value || "");
   if (!repo) {
     $.ui.toast(
@@ -6627,6 +6960,15 @@ async function shareAppRules($: EngineInterface) {
 }
 
 async function setUpHere($: EngineInterface) {
+  if (turnActive || checksPending || checksFailed) return;
+  const current = await read($, checks);
+  const local = localAppOf(current);
+  if (
+    local?.contents !== "supported" ||
+    local.repository !== "remote" ||
+    !current.some((c) => c.id === "repo" && c.status === "ok")
+  )
+    return;
   if (!(await runSetup($, []))) return;
   await shareAppRules($);
   $.ui.toast(t("Your app is ready. Ask Claude for any change."));

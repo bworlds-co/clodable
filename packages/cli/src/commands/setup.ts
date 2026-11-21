@@ -14,9 +14,12 @@ import {
   ghIsOurs,
   gitleaksBinary,
   gitReadiness,
+  inspectLocalApp,
   type KitChange,
+  type LocalApp,
   loadConfig,
   loadMove,
+  localAppForSaving,
   lovableAiLeft,
   messageOf,
   type ProjectConfig,
@@ -33,6 +36,7 @@ import {
   step,
   supabaseRef,
   Workspace,
+  withSetupLock,
 } from "@clodable/core";
 import pc from "picocolors";
 import { type Context, drive, run } from "../context.js";
@@ -47,6 +51,8 @@ export interface DoctorItem {
   details?: string;
   fix?: string;
   executable?: string;
+  localApp?: LocalApp;
+  newApp?: { name: string; account: string; locked: boolean };
 }
 
 const MIN_NODE = [20, 19] as const;
@@ -55,10 +61,20 @@ const MIN_NODE = [20, 19] as const;
 const REQUIRED = ["node", "git", "gh", "github"];
 
 /** Everything Clodable needs, then, in an app on GitHub, how the app stands. */
-export async function doctor(cwd: string): Promise<DoctorItem[]> {
+export async function doctor(
+  cwd: string,
+  options: { local?: boolean } = {},
+): Promise<DoctorItem[]> {
+  const localApp = await inspectLocalApp(cwd);
+  const local: DoctorItem = { id: "local-app", label: tr("Local app"), status: "info", localApp };
+  const protectedFolder = ["nested", "protected"].includes(localApp.repository);
+  if (options.local) return protectedFolder ? [local] : [local, appCheck(await detectProject(cwd))];
   const items = await toolChecks(cwd);
+  items.push(local);
   const git = new Git(cwd);
-  const isRepo = items.some((i) => i.id === "git" && i.status === "ok") && (await git.isRepo());
+  const isRepo =
+    items.some((i) => i.id === "git" && i.status === "ok") &&
+    ["unborn", "history", "remote"].includes(localApp.repository);
   const remote = isRepo ? await git.remoteUrl("origin") : undefined;
   const parsed = remote ? parseGitHubRemote(remote) : undefined;
   // Demos and tests: a folder on this computer stands in for GitHub (CLODABLE_FAKE_GITHUB).
@@ -71,6 +87,11 @@ export async function doctor(cwd: string): Promise<DoctorItem[]> {
       label: tr("Saving setup"),
       status: "info",
       detail: `${pending.account}/${pending.name}`,
+      newApp: {
+        name: pending.name,
+        account: pending.account,
+        locked: Boolean(pending.destination || pending.history?.anchor),
+      },
     });
   items.push({
     id: "repo",
@@ -82,8 +103,8 @@ export async function doctor(cwd: string): Promise<DoctorItem[]> {
         ? { detail: tr("a stand-in for GitHub on this computer") }
         : { fix: tr("Run `clodable setup` in an empty folder to bring your app in from GitHub") }),
   });
-  if (!isRepo) return items;
-  return [...items, ...(await appChecks(git))];
+  if (protectedFolder) return items;
+  return [...items, ...(await appChecks(cwd, isRepo ? git : undefined))];
 }
 
 /** Node, Git, the secret-key check, and GitHub. */
@@ -175,26 +196,27 @@ async function toolChecks(
   return items;
 }
 
-/** The app in this repository: what it is, its packages, Clodable's files, its database. */
-async function appChecks(git: Git): Promise<DoctorItem[]> {
-  const items: DoctorItem[] = [];
-  const root = await git.root();
-  const project = await detectProject(root);
+function appCheck(project: ProjectInfo): DoctorItem {
   const typeLabel =
     project.appType === "tanstack-start"
       ? tr("TanStack Start app")
       : project.appType === "vite-spa"
         ? tr("Vite + React app")
         : tr("Unknown app type");
-  items.push({
+  return {
     id: "app",
     label: tr("App"),
     status: project.appType === "unknown" ? "warn" : "ok",
     detail: project.lovable.generated
       ? tr("{type}, made with Lovable", { type: typeLabel })
       : typeLabel,
-  });
+  };
+}
 
+/** The app in this exact folder, also before Git has been initialized. */
+async function appChecks(root: string, git?: Git): Promise<DoctorItem[]> {
+  const project = await detectProject(root);
+  const items = [appCheck(project)];
   const installed = existsSync(join(root, "node_modules"));
   items.push({
     id: "deps",
@@ -241,7 +263,7 @@ async function appChecks(git: Git): Promise<DoctorItem[]> {
               : tr("None"),
         },
   );
-  return [...items, ...(await lovableChecks(git, project, config))];
+  return git ? [...items, ...(await lovableChecks(git, project, config))] : items;
 }
 
 /**
@@ -350,10 +372,10 @@ function renderDoctor(ctx: Context, items: DoctorItem[]) {
   ctx.out.line();
 }
 
-export async function doctorCommand(ctx: Context) {
+export async function doctorCommand(ctx: Context, options: { local?: boolean } = {}) {
   await run(
     ctx,
-    () => doctor(ctx.cwd),
+    () => doctor(ctx.cwd, options),
     (items) => renderDoctor(ctx, items),
   );
 }
@@ -515,8 +537,15 @@ async function pickRepo(ctx: Context, given: string | undefined, interactive: bo
 
 /** Bring the app onto this computer: into this folder if it's empty, else into a folder of its own. */
 async function bringIn(ctx: Context, repo: string): Promise<string> {
-  const empty = readdirSync(ctx.cwd).filter((n) => !n.startsWith(".")).length === 0;
+  // Hidden files and an existing .git also belong to the builder: clone beside them.
+  const empty = readdirSync(ctx.cwd).length === 0;
   const target = empty ? ctx.cwd : join(ctx.cwd, repo.split("/")[1]!);
+  if (target !== ctx.cwd && existsSync(target))
+    throw new ClodableError({
+      code: "already-there",
+      message: tr("That app's folder already exists on this computer."),
+      hint: tr("Open that folder in Claude, or choose an empty folder for the import."),
+    });
   ctx.out.event(step("setup:app", "running", tr("Bringing in {0}", { "0": repo })));
   try {
     await new GhCli(ctx.cwd).clone(repo, target);
@@ -545,122 +574,144 @@ export async function setupCommand(
     hosting?: ProjectConfig["hosting"];
     new?: string;
     account?: string;
+    adoptHistory?: string;
   },
 ) {
   const interactive = !ctx.out.json && process.stdin.isTTY && !options.yes;
   await run(
     ctx,
-    async () => {
-      ctx.out.header(tr("let's bring your app home"));
-      await requireTools(ctx);
-      const git = new Git(ctx.cwd);
-      if (options.new !== undefined && (!options.account || options.repo || options.publish)) {
-        throw new ClodableError({
-          code: "invalid-config",
-          message: tr(
-            "Choose the account for your new private app in Set up saving. Publishing comes later.",
-          ),
-        });
-      }
-      const started =
-        options.new !== undefined
-          ? await drive(
-              ctx,
-              prepareNewApp(ctx.cwd, { name: options.new, account: options.account! }, ctx.github),
-            )
-          : undefined;
-      const root =
-        started?.root ??
-        ((await git.isRepo())
-          ? await git.root()
-          : await bringIn(ctx, await pickRepo(ctx, options.repo, interactive)));
-
-      const project = await detectProject(root);
-      const loaded = await loadConfig(root);
-      // Where the data and the live site are decides what Clodable can do for this app.
-      const config = {
-        ...loaded,
-        ...(started ? { liveBranch: started.liveBranch } : {}),
-        ...(await whereItRuns(project, {
-          backend: options.backend ?? (started && !project.supabase.used ? "none" : loaded.backend),
-          hosting: options.hosting ?? (started ? "none" : loaded.hosting),
-          interactive,
-        })),
-      };
-      const changes = await planKit(project, config);
-      if (!ctx.out.json) {
-        ctx.out.line();
-        ctx.out.line(pc.bold(tr("Clodable adds a few plain files to your project:")));
-        renderKit(ctx, changes, true);
-      }
-      if (interactive) {
-        const ok = await confirm({ message: tr("Add them?") });
-        if (isCancel(ok) || !ok)
+    () =>
+      withSetupLock(ctx.cwd, async () => {
+        ctx.out.header(tr("let's bring your app home"));
+        if (options.new !== undefined) await localAppForSaving(ctx.cwd);
+        await requireTools(ctx);
+        const git = new Git(ctx.cwd);
+        if (options.new !== undefined && (!options.account || options.repo || options.publish)) {
           throw new ClodableError({
-            code: "unknown",
-            message: tr("Setup cancelled. Nothing was changed."),
+            code: "invalid-config",
+            message: tr(
+              "Choose the account for your new private app in Set up saving. Publishing comes later.",
+            ),
           });
-      }
-      panelStep(ctx, "setup:files", "running", tr("Adding Clodable's files"));
-      await applyKit(root, changes);
-      panelStep(ctx, "setup:files", "done", tr("Added Clodable's files"));
+        }
+        const started =
+          options.new !== undefined
+            ? await drive(
+                ctx,
+                prepareNewApp(
+                  ctx.cwd,
+                  {
+                    name: options.new,
+                    account: options.account!,
+                    adoptHistory: options.adoptHistory,
+                  },
+                  ctx.github,
+                ),
+              )
+            : undefined;
+        const root =
+          started?.root ??
+          (options.repo
+            ? await bringIn(ctx, options.repo)
+            : (await git.isRepo())
+              ? await git.root()
+              : await bringIn(ctx, await pickRepo(ctx, options.repo, interactive)));
 
-      if (!existsSync(join(root, "node_modules"))) {
-        ctx.out.event(
-          step(
-            "setup:packages",
-            "running",
-            tr("Installing your app's packages"),
-            tr("a minute or two"),
-          ),
-        );
-        const installed = await exec(await packageManagerHere(project), ["install"], {
+        const project = await detectProject(root);
+        const loaded = await loadConfig(root);
+        // Where the data and the live site are decides what Clodable can do for this app.
+        const config = {
+          ...loaded,
+          ...(started ? { liveBranch: started.liveBranch } : {}),
+          ...(await whereItRuns(project, {
+            backend:
+              options.backend ?? (started && !project.supabase.used ? "none" : loaded.backend),
+            hosting: options.hosting ?? (started ? "none" : loaded.hosting),
+            interactive,
+          })),
+        };
+        const changes = await planKit(project, config);
+        if (!ctx.out.json) {
+          ctx.out.line();
+          ctx.out.line(pc.bold(tr("Clodable adds a few plain files to your project:")));
+          renderKit(ctx, changes, true);
+        }
+        if (interactive) {
+          const ok = await confirm({ message: tr("Add them?") });
+          if (isCancel(ok) || !ok)
+            throw new ClodableError({
+              code: "unknown",
+              message: tr("Setup cancelled. Nothing was changed."),
+            });
+        }
+        panelStep(ctx, "setup:files", "running", tr("Adding Clodable's files"));
+        await applyKit(root, changes);
+        panelStep(ctx, "setup:files", "done", tr("Added Clodable's files"));
+
+        if (!existsSync(join(root, "node_modules"))) {
+          ctx.out.event(
+            step(
+              "setup:packages",
+              "running",
+              tr("Installing your app's packages"),
+              tr("a minute or two"),
+            ),
+          );
+          const installed = await exec(await packageManagerHere(project), ["install"], {
+            cwd: root,
+            timeout: 15 * 60_000,
+          });
+          ctx.out.event(
+            installed.exitCode === 0
+              ? step("setup:packages", "done", tr("Installed your app's packages"))
+              : step(
+                  "setup:packages",
+                  "warning",
+                  tr("Your app's packages didn't install"),
+                  tr("ask Claude to install them"),
+                ),
+          );
+        }
+
+        ctx.out.event(step("setup:save", "running", tr("Saving it to your draft on GitHub")));
+        const ws = await Workspace.open({
           cwd: root,
-          timeout: 15 * 60_000,
+          ...(ctx.github ? { github: ctx.github } : {}),
         });
-        ctx.out.event(
-          installed.exitCode === 0
-            ? step("setup:packages", "done", tr("Installed your app's packages"))
-            : step(
-                "setup:packages",
-                "warning",
-                tr("Your app's packages didn't install"),
-                tr("ask Claude to install them"),
-              ),
+        const saved = await save(
+          ws,
+          options.new !== undefined
+            ? { message: tr("First saved version"), kind: "save" }
+            : { message: tr("Set up Clodable"), kind: "setup" },
         );
-      }
-
-      ctx.out.event(step("setup:save", "running", tr("Saving it to your draft on GitHub")));
-      const ws = await Workspace.open({ cwd: root, ...(ctx.github ? { github: ctx.github } : {}) });
-      const saved = await save(ws, { message: tr("Set up Clodable"), kind: "setup" });
-      ctx.out.event(
-        !saved.saved
-          ? step("setup:save", "skipped", tr("Nothing new to save"))
-          : saved.pushed
-            ? step("setup:save", "done", tr("Saved to your draft on GitHub"))
-            : step(
-                "setup:save",
-                "warning",
-                tr("Saved on this computer"),
-                saved.unscanned
-                  ? tr("it goes to GitHub once it's checked for secret keys")
-                  : tr("it goes to GitHub once you're online"),
-              ),
-      );
-      let published = false;
-      if (saved.saved && (options.publish || (interactive && (await confirmPublish())))) {
-        await drive(ctx, publish(ws, { message: tr("Set up Clodable") }));
-        published = true;
-      }
-      return {
-        root,
-        appType: project.appType,
-        files: changes.filter((c) => c.action !== "unchanged").map((c) => c.path),
-        saved: saved.saved,
-        pushed: saved.pushed,
-        published,
-      };
-    },
+        ctx.out.event(
+          !saved.saved
+            ? step("setup:save", "skipped", tr("Nothing new to save"))
+            : saved.pushed
+              ? step("setup:save", "done", tr("Saved to your draft on GitHub"))
+              : step(
+                  "setup:save",
+                  "warning",
+                  tr("Saved on this computer"),
+                  saved.unscanned
+                    ? tr("it goes to GitHub once it's checked for secret keys")
+                    : tr("it goes to GitHub once you're online"),
+                ),
+        );
+        let published = false;
+        if (saved.saved && (options.publish || (interactive && (await confirmPublish())))) {
+          await drive(ctx, publish(ws, { message: tr("Set up Clodable") }));
+          published = true;
+        }
+        return {
+          root,
+          appType: project.appType,
+          files: changes.filter((c) => c.action !== "unchanged").map((c) => c.path),
+          saved: saved.saved,
+          pushed: saved.pushed,
+          published,
+        };
+      }),
     (data) => {
       ctx.out.line();
       ctx.out.line(`${celadon("●")} ${pc.bold(tr("Your app is ready."))}`);

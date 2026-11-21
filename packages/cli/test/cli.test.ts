@@ -489,6 +489,8 @@ describe("clodable --json", () => {
         ["setup:save", "done: Saved to your draft on GitHub"],
       ]);
       expect(readFileSync(join(sb.work, "AGENTS.md"), "utf8")).toContain("clodable:begin");
+      expect((await (await sb.ws()).git.log("HEAD", { limit: 1 }))[0]?.kind).toBe("setup");
+      expect(clodable("history").result.data.draft).toEqual([]);
     } finally {
       await rm(bin, { recursive: true, force: true });
     }

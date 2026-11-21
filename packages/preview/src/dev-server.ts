@@ -4,6 +4,7 @@ import { pathToFileURL } from "node:url";
 import { BACKEND_ENV, backendEnv, messageOf, type PreviewBackend, repoint } from "@clodable/core";
 import type { Plugin } from "vite";
 import { clodablePreview } from "./plugin.js";
+import { privateFilesPlugin } from "./private-files.js";
 
 export interface DevServerOptions {
   root: string;
@@ -128,6 +129,7 @@ export async function startDevServer(options: DevServerOptions): Promise<Running
     root: options.root,
     clearScreen: false,
     plugins: [
+      privateFilesPlugin(),
       backendPlugin(() => backend),
       ...(options.toolbar === false
         ? []
