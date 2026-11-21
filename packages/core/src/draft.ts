@@ -4,6 +4,7 @@ import type { LocalState, ProjectConfig } from "./config.js";
 import { ClodableError } from "./errors.js";
 import type { Commit, CommitKind } from "./git.js";
 import type { PullRequest } from "./github/types.js";
+import { tr } from "./i18n.js";
 import { CLODABLE_FILES, clodableFile, keepIgnored } from "./kit/index.js";
 import { readSecret } from "./local-secrets.js";
 import { NETLIFY_TOKEN, NetlifyApi } from "./move/netlify-api.js";
@@ -86,8 +87,8 @@ export async function ensureOnDraft(ws: Workspace): Promise<string> {
     if (await ws.git.hasChanges()) {
       throw new ClodableError({
         code: "on-live-branch",
-        message: "You have unsaved changes outside your draft.",
-        hint: "Save them first, or switch to your draft manually.",
+        message: tr("You have unsaved changes outside your draft."),
+        hint: tr("Save them first, or switch to your draft manually."),
       });
     }
     await ws.git.switchTo(draft);
@@ -108,8 +109,8 @@ export async function save(
     if (conflicts.length > 0) {
       throw new ClodableError({
         code: "conflict",
-        message: "Your draft is in the middle of being combined with the live site.",
-        hint: "Ask Claude to finish combining the changes, then save again.",
+        message: tr("Your draft is in the middle of being combined with the live site."),
+        hint: tr("Ask Claude to finish combining the changes, then save again."),
         files: conflicts,
       });
     }
@@ -186,7 +187,9 @@ async function keepSecretsHere(ws: Workspace): Promise<SecretFinding[]> {
       if (parents.length !== 1 || (await ws.git.unsent(ws.remote, { merges: true })).length > 0) {
         throw secretFound(
           found,
-          "Nothing went to GitHub. It's in an earlier save that hasn't been sent: a developer needs to take that save back.",
+          tr(
+            "Nothing went to GitHub. It's in an earlier save that hasn't been sent: a developer needs to take that save back.",
+          ),
         );
       }
       await ws.git.resetSoft(parents[0]!);
@@ -204,9 +207,10 @@ function secretFound(found: SecretFinding[], hint?: string): ClodableError {
     code: "secret-found",
     message:
       found.length === 1
-        ? `A secret key is in ${found[0]!.file}`
-        : `${found.length} secret keys are in your changes`,
-    hint: hint ?? "Nothing went to GitHub. Ask Claude to move it out of the code, and it saves.",
+        ? tr("A secret key is in {0}", { "0": found[0]!.file })
+        : tr("{0} secret keys are in your changes", { "0": found.length }),
+    hint:
+      hint ?? tr("Nothing went to GitHub. Ask Claude to move it out of the code, and it saves."),
     details: found.map(describeFinding).join("\n"),
     files: found.map((f) => `${f.file}:${f.line}`),
   });
@@ -244,8 +248,8 @@ async function pushWithRetry(
   }
   throw new ClodableError({
     code: "push-rejected",
-    message: "GitHub didn't accept your changes.",
-    hint: "Check that your GitHub account can write to this repository.",
+    message: tr("GitHub didn't accept your changes."),
+    hint: tr("Check that your GitHub account can write to this repository."),
     details: first.stderr,
   });
 }
@@ -474,7 +478,7 @@ export const BEFORE_RESTORE = "Saved changes before restoring";
 export async function restore(ws: Workspace, sha: string): Promise<SaveResult> {
   const target = await ws.git.revParse(sha);
   if (!target) {
-    throw new ClodableError({ code: "not-found", message: "That version couldn't be found." });
+    throw new ClodableError({ code: "not-found", message: tr("That version couldn't be found.") });
   }
   const [commit] = await ws.git.log(`${target}^!`);
   await ensureOnDraft(ws);

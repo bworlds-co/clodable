@@ -1,4 +1,5 @@
 import { ClodableError } from "../errors.js";
+import { tr } from "../i18n.js";
 import { storeSecret } from "../local-secrets.js";
 import {
   type Organization,
@@ -28,8 +29,10 @@ export async function connectSupabase(
   if (!/^sbp_[A-Za-z0-9_-]{20,}$/.test(trimmed)) {
     throw new ClodableError({
       code: "supabase-auth",
-      message: "That doesn't look like a Supabase access token.",
-      hint: "It starts with sbp_. Create one in Supabase: Account → Access Tokens → Generate new token.",
+      message: tr("That doesn't look like a Supabase access token."),
+      hint: tr(
+        "It starts with sbp_. Create one in Supabase: Account → Access Tokens → Generate new token.",
+      ),
     });
   }
   const api = new SupabaseApi(trimmed);
@@ -111,6 +114,6 @@ export async function homeChoices(): Promise<HomeChoices> {
 
 /** What a new project costs in this organization, in plain words. */
 export function costOf(org: OrganizationChoice): string {
-  if (org.plan === "free") return "Free";
-  return "About $10 a month, added to your Supabase plan";
+  if (org.plan === "free") return tr("Free");
+  return tr("About $10 a month, added to your Supabase plan");
 }

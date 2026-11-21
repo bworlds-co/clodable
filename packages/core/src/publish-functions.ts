@@ -5,6 +5,7 @@ import { supabaseRef } from "./config.js";
 import { ClodableError, messageOf } from "./errors.js";
 import { type Flow, log, step } from "./events.js";
 import { exec, hasCommand } from "./exec.js";
+import { tr } from "./i18n.js";
 import { localFunctions, uploadFunction } from "./move/functions.js";
 import { SupabaseApi } from "./move/supabase-api.js";
 import type { Workspace } from "./workspace.js";
@@ -52,7 +53,7 @@ export async function* deployChangedFunctions(ws: Workspace, sha: string): Flow<
   yield step(
     "functions",
     "running",
-    `Updating ${names.length} backend function${names.length > 1 ? "s" : ""}`,
+    tr("Updating {0} backend function{1}", { "0": names.length, "1": names.length > 1 ? "s" : "" }),
   );
   const api = ref ? await SupabaseApi.onThisComputer() : undefined;
   if (ref && api) yield* deployThroughApi(api, ref, ws.root, names, outcome);
@@ -60,14 +61,21 @@ export async function* deployChangedFunctions(ws: Workspace, sha: string): Flow<
     yield* deployThroughCli(ref, ws.root, names, outcome);
   } else {
     outcome.pending = names;
-    yield step("functions", "warning", "Backend functions need one more step", names.join(", "));
+    yield step(
+      "functions",
+      "warning",
+      tr("Backend functions need one more step"),
+      names.join(", "),
+    );
     return outcome;
   }
   const state = outcome.failed.length > 0 || outcome.pending.length > 0 ? "warning" : "done";
   yield step(
     "functions",
     state,
-    state === "done" ? "Backend functions updated" : "Some backend functions need attention",
+    state === "done"
+      ? tr("Backend functions updated")
+      : tr("Some backend functions need attention"),
     [...outcome.pending, ...outcome.failed].join(", ") || undefined,
   );
   return outcome;
@@ -96,7 +104,7 @@ async function* deployThroughApi(
         outcome.pending.push(name);
       } else {
         outcome.failed.push(name);
-        yield log("warn", `Function ${name}: ${messageOf(error)}`);
+        yield log("warn", tr("Function {0}: {1}", { "0": name, "1": messageOf(error) }));
       }
     }
   }
@@ -118,7 +126,13 @@ async function* deployThroughCli(
     else if (/login|access token|unauthorized/i.test(result.stderr)) outcome.pending.push(name);
     else {
       outcome.failed.push(name);
-      yield log("warn", `Function ${name}: ${result.stderr.trim().split("\n").pop() ?? "failed"}`);
+      yield log(
+        "warn",
+        tr("Function {0}: {1}", {
+          "0": name,
+          "1": result.stderr.trim().split("\n").pop() ?? "failed",
+        }),
+      );
     }
   }
 }

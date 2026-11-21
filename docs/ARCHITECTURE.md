@@ -32,8 +32,19 @@ The guiding rule is **judgment in Claude, mechanics in the CLI** ([DECISIONS](DE
 | `packages/cli` | `clodable` | Command-line front end over core. Prints a pretty view for people and NDJSON (`--json`) for programs | core, `cac`, `@clack/prompts`, `picocolors` |
 | `packages/preview` | `@clodable/preview` | A dev-only Vite plugin: source tagger, text-edit endpoint, device frames, error capture, and the toolbar UI | `@babel/parser`, `magic-string`, design |
 | `packages/design` | `@clodable/design` | Design tokens (TS + CSS), icons, and the logo | none |
+| `packages/i18n` | `@clodable/i18n` | Language resolution, message catalogs, and placeholder formatting | none |
 | `plugin/` | Claude Code plugin | The mod (a thin UI), skills, and the manifest. It ships a bundled copy of the CLI in `plugin/cli/` | CLI bundle |
 | `examples/` | none | Faithful Lovable-generated apps (classic Vite SPA and TanStack Start), used for development and tests | none |
+
+## Language
+
+Clodable follows Claude Code's effective `language` setting. The mod reads it through `$.settings.read({ key: "language" })`; French names and regional codes select `fr`, and unset or unsupported languages select `en`. There is no Clodable language preference. The language of the Builder's app is independent.
+
+`packages/i18n` owns the English source messages, French catalogs, placeholder formatting, and language resolution. Catalogs are split by surface so the preview only bundles its own copy. `pnpm sync:i18n` copies the mod's catalog and runtime into `plugin/i18n`, because installed plugins cannot import repository packages. Build and plugin checks refresh that copy.
+
+The mod passes its resolved catalog to CLI children through `CLODABLE_LANGUAGE`. This is an internal transport, not a separate preference. Human-readable progress, errors, and summaries use the catalog; NDJSON keys, step IDs, error codes, commands, and raw technical details stay stable. The fixed preview-label script writes the same locale beside the conversation ID in the preview tab's sessionStorage and announces it to the toolbar. The existing conversation heartbeat also carries the resolved locale. On load and focus, the toolbar reads it through a token-protected local endpoint to pick up setting changes. Each conversation keeps its own locale; the toolbar never changes the app's text or document language.
+
+French copy uses natural product language and retains established terms and external services' exact menu labels. Claude receives a short glossary so its references to controls match their labels. English workflow instructions remain shared between languages.
 
 ## The branch model: GitHub Flow, hidden
 

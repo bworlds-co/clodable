@@ -41,6 +41,7 @@
     "@clodable/preview": "workspace:*",
     "@clack/prompts": "^1.8.1",
     "cac": "^7.0.1",
-    "picocolors": "^1.1.1"
+    "picocolors": "^1.1.1",
+    "@clodable/i18n": "workspace:*"
   }
 }

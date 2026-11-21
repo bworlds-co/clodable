@@ -2,8 +2,10 @@ import { type Dirent, existsSync } from "node:fs";
 import { readdir, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import type { ProjectConfig } from "../config.js";
+import { currentLocale, tr } from "../i18n.js";
 import type { ProjectInfo } from "../project.js";
 import type { AppFacts } from "./facts.js";
+import { count } from "./words.js";
 
 /**
  * Moving off Lovable: what an app needs, read from its code, so the builder knows up front how big
@@ -76,10 +78,12 @@ export async function textFiles(
   return out;
 }
 
-const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+const plural = count;
 
 /** "A", "A and B", "A, B and C", the first letter capitalised. */
 function names(list: string[]): string {
+  if (currentLocale() === "fr")
+    return new Intl.ListFormat("fr", { type: "conjunction" }).format(list);
   const text =
     list.length <= 1 ? (list[0] ?? "") : `${list.slice(0, -1).join(", ")} and ${list.at(-1)}`;
   return text.charAt(0).toUpperCase() + text.slice(1);
@@ -110,10 +114,11 @@ export async function assessMove(
   if (project.supabase.used || config.backend === "lovable-cloud") {
     items.push({
       id: "database",
-      label: "Your data and users",
+      label: tr("Your data and users"),
       by: "clodable",
-      detail:
+      detail: tr(
         "Copied from Lovable's export into your own Supabase. Your users keep their accounts.",
+      ),
     });
   }
   if (functions.length > 0) {
@@ -121,7 +126,7 @@ export async function assessMove(
       id: "functions",
       label: plural(functions.length, "backend function"),
       by: "clodable",
-      detail: "Moved to your Supabase, all together.",
+      detail: tr("Moved to your Supabase, all together."),
     });
   }
 
@@ -138,7 +143,9 @@ export async function assessMove(
       id: "secrets",
       label: plural(secretNames.size, "secret key"),
       by: "you",
-      detail: `You paste their values into a secure form: ${[...secretNames].sort().join(", ")}.`,
+      detail: tr("You paste their values into a secure form: {0}.", {
+        "0": [...secretNames].sort().join(", "),
+      }),
     });
   }
   const ai = facts ? facts.ai.length > 0 : project.lovable.usesLovableAi;
@@ -146,9 +153,22 @@ export async function assessMove(
     const features = facts?.ai.map((f) => f.feature) ?? [];
     items.push({
       id: "lovable-ai",
-      label: features.length === 1 ? "An AI feature" : "AI features",
+      label: features.length === 1 ? tr("An AI feature") : tr("AI features"),
       by: "you",
-      detail: `${features.length > 0 ? `${names(features)}: ${features.length === 1 ? "it runs" : "they run"}` : "They run"} on Lovable's AI. You paste a key of your own (OpenRouter, Google Gemini or OpenAI), and Claude points ${features.length === 1 ? "it" : "them"} at it.`,
+      detail:
+        features.length === 1
+          ? tr(
+              "{features}: it runs on Lovable's AI. You paste a key of your own (OpenRouter, Google Gemini or OpenAI), and Claude points it at it.",
+              { features: names(features) },
+            )
+          : features.length > 1
+            ? tr(
+                "{features}: they run on Lovable's AI. You paste a key of your own (OpenRouter, Google Gemini or OpenAI), and Claude points them at it.",
+                { features: names(features) },
+              )
+            : tr(
+                "They run on Lovable's AI. You paste a key of your own (OpenRouter, Google Gemini or OpenAI), and Claude points them at it.",
+              ),
     });
   }
   const appEmails = facts
@@ -158,19 +178,28 @@ export async function assessMove(
     const sent = facts?.appEmails.map((f) => f.feature) ?? [];
     items.push({
       id: "emails",
-      label: "Emails",
+      label: tr("Emails"),
       by: "you",
-      detail: `${sent.length > 0 ? `${names(sent)}: sent` : "They're sent"} through Lovable. You connect a free Resend account and add its records to your domain; Clodable gives your app its own key, and Claude switches the sending.`,
+      detail:
+        sent.length > 0
+          ? tr(
+              "{features}: sent through Lovable. You connect a free Resend account and add its records to your domain; Clodable gives your app its own key, and Claude switches the sending.",
+              { features: names(sent) },
+            )
+          : tr(
+              "They're sent through Lovable. You connect a free Resend account and add its records to your domain; Clodable gives your app its own key, and Claude switches the sending.",
+            ),
     });
   }
   if (facts && facts.connectors.length > 0) {
     const services = [...new Set(facts.connectors.map((c) => c.service))];
     items.push({
       id: "connectors",
-      label: `Connected services: ${names(services)}`,
+      label: tr("Connected services: {0}", { "0": names(services) }),
       by: "you",
-      detail:
+      detail: tr(
         "They go through Lovable's connectors. You connect your own account for each, and Claude switches the code.",
+      ),
     });
   }
 
@@ -197,23 +226,27 @@ export async function assessMove(
     const title = (p: string) => p.charAt(0).toUpperCase() + p.slice(1);
     items.push({
       id: "sign-in",
-      label: `Sign in with ${names.map(title).join(", ")}`,
+      label: tr("Sign in with {0}", { "0": names.map(title).join(", ") }),
       by: hard.length > 0 ? "help" : "you",
       detail:
         hard.length > 0
-          ? `${hard.map(title).join(", ")} sign-in needs a developer account with that company. Best done with help.`
+          ? tr("{0} sign-in needs a developer account with that company. Best done with help.", {
+              "0": hard.map(title).join(", "),
+            })
           : names.includes("google")
-            ? "You create a Google sign-in client, following the steps in the panel, and paste its ID and secret."
-            : "You create your own sign-in credentials with that company: Claude explains how.",
+            ? tr(
+                "You create a Google sign-in client, following the steps in the panel, and paste its ID and secret.",
+              )
+            : tr("You create your own sign-in credentials with that company: Claude explains how."),
     });
   }
 
   if (facts ? facts.scheduledJobs.length > 0 : any(migrationFiles, /cron\.schedule\s*\(/)) {
     items.push({
       id: "scheduled-jobs",
-      label: "Scheduled jobs",
+      label: tr("Scheduled jobs"),
       by: "clodable",
-      detail: "Moved, and pointed at your new backend.",
+      detail: tr("Moved, and pointed at your new backend."),
     });
   }
   if (
@@ -223,9 +256,9 @@ export async function assessMove(
   ) {
     items.push({
       id: "files",
-      label: "Uploaded files",
+      label: tr("Uploaded files"),
       by: "clodable",
-      detail: "Copied to your Supabase. Their size shows once you've exported your data.",
+      detail: tr("Copied to your Supabase. Their size shows once you've exported your data."),
     });
   }
   const payments = facts
@@ -236,28 +269,31 @@ export async function assessMove(
   if (payments.length > 0) {
     items.push({
       id: "payments",
-      label: `Payments (${names(payments)})`,
+      label: tr("Payments ({0})", { "0": names(payments) }),
       by: "you",
-      detail:
+      detail: tr(
         "When you go live, you change your Stripe webhook's address to your new backend: the panel shows it.",
+      ),
     });
   }
   if (config.hosting === "lovable") {
     items.push({
       id: "hosting",
-      label: "Your website",
+      label: tr("Your website"),
       by: "you",
-      detail:
+      detail: tr(
         "Moves to Netlify (free to start), and your own domain with it. You create the account, Clodable sets it up.",
+      ),
     });
   }
   if (project.lovable.generated) {
     items.push({
       id: "lovable-sync",
-      label: "Lovable's link to your GitHub",
+      label: tr("Lovable's link to your GitHub"),
       by: "you",
-      detail:
+      detail: tr(
         "At the very end, you turn it off in Lovable, before removing Lovable Cloud: one click.",
+      ),
     });
   }
 

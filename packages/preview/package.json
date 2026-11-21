@@ -31,7 +31,8 @@
     "@clodable/core": "workspace:*",
     "@clodable/design": "workspace:*",
     "@jridgewell/trace-mapping": "^0.3.31",
-    "magic-string": "^1.4.3"
+    "magic-string": "^1.4.3",
+    "@clodable/i18n": "workspace:*"
   },
   "devDependencies": {
     "happy-dom": "^20.14.6",

@@ -11,6 +11,7 @@ import {
   TOKENS_PAGE,
 } from "@clodable/core";
 import { type Context, drive, run, secretInput } from "../context.js";
+import { tr } from "../i18n.js";
 import { ash, celadon, link } from "../ui.js";
 
 /** Connect Supabase or Netlify on this computer: the token is piped in, or typed hidden. */
@@ -21,12 +22,16 @@ export async function connectCommand(ctx: Context, service: string) {
       async () => {
         await ctx.workspace();
         return connectSupabase(
-          await secretInput(ctx, `Your Supabase access token (create one at ${TOKENS_PAGE})`),
+          await secretInput(
+            ctx,
+            tr("Your Supabase access token (create one at {0})", { "0": TOKENS_PAGE }),
+          ),
         );
       },
       (data) => {
-        ctx.out.line(`${celadon("✓")} Supabase is connected on this computer.`);
-        for (const org of data.organizations) ctx.out.line(ash(`  ${org.name} · ${org.plan} plan`));
+        ctx.out.line(tr("{0} Supabase is connected on this computer.", { "0": celadon("✓") }));
+        for (const org of data.organizations)
+          ctx.out.line(ash(tr("  {0} · {1} plan", { "0": org.name, "1": org.plan })));
       },
     );
     return;
@@ -39,12 +44,12 @@ export async function connectCommand(ctx: Context, service: string) {
         return connectNetlify(
           await secretInput(
             ctx,
-            `Your Netlify access token (create one at ${NETLIFY_TOKENS_PAGE})`,
+            tr("Your Netlify access token (create one at {0})", { "0": NETLIFY_TOKENS_PAGE }),
           ),
         );
       },
       (data) => {
-        ctx.out.line(`${celadon("✓")} Netlify is connected on this computer.`);
+        ctx.out.line(tr("{0} Netlify is connected on this computer.", { "0": celadon("✓") }));
         for (const account of data.accounts)
           ctx.out.line(ash(`  ${account.name} (${account.slug})`));
       },
@@ -54,8 +59,8 @@ export async function connectCommand(ctx: Context, service: string) {
   await run(ctx, async () => {
     throw new ClodableError({
       code: "invalid-config",
-      message: `Clodable can't connect “${service}”.`,
-      hint: "Use supabase or netlify.",
+      message: tr("Clodable can't connect “{0}”.", { "0": service }),
+      hint: tr("Use supabase or netlify."),
     });
   });
 }
@@ -68,7 +73,9 @@ export async function siteCommand(ctx: Context, options: { action?: string; team
       async () => reconnectSite(await ctx.workspace()),
       () => {
         ctx.out.line(
-          `${celadon("✓")} Your app's publishing connection is updated. You can retry Publish.`,
+          tr("{0} Your app's publishing connection is updated. You can retry Publish.", {
+            "0": celadon("✓"),
+          }),
         );
       },
     );
@@ -83,11 +90,16 @@ export async function siteCommand(ctx: Context, options: { action?: string; team
           putSiteOnline(await ctx.workspace(), options.team ? { team: options.team } : {}),
         ),
       (outcome) => {
-        ctx.out.line(`  ${link(outcome.site.url)} ${ash("· goes online at your next Publish")}`);
-        if (outcome.files.length > 0) ctx.out.line(ash(`  Added: ${outcome.files.join(", ")}`));
+        ctx.out.line(
+          `  ${link(outcome.site.url)} ${ash(tr("· goes online at your next Publish"))}`,
+        );
+        if (outcome.files.length > 0)
+          ctx.out.line(ash(tr("  Added: {0}", { "0": outcome.files.join(", ") })));
         const missing = outcome.settings.wanted.filter((n) => !outcome.settings.set.includes(n));
         if (missing.length > 0) {
-          ctx.out.line(ash(`  Settings your app reads, to fill in: ${missing.join(", ")}`));
+          ctx.out.line(
+            ash(tr("  Settings your app reads, to fill in: {0}", { "0": missing.join(", ") })),
+          );
         }
       },
     );
@@ -99,16 +111,17 @@ export async function siteCommand(ctx: Context, options: { action?: string; team
       if (options.action) {
         throw new ClodableError({
           code: "invalid-config",
-          message: `“${options.action}” isn't something site does.`,
-          hint: "Use clodable site to see where it stands, or clodable site create.",
+          message: tr("“{0}” isn't something site does.", { "0": options.action }),
+          hint: tr("Use clodable site to see where it stands, or clodable site create."),
         });
       }
       return siteChoices(await ctx.workspace());
     },
     (choices) => {
-      if (choices.site) ctx.out.line(`${celadon("●")} Your site: ${link(choices.site.url)}`);
-      else ctx.out.line(ash("Your site isn't online with Clodable yet."));
-      if (!choices.connected) ctx.out.line(ash("Netlify isn't connected on this computer."));
+      if (choices.site)
+        ctx.out.line(tr("{0} Your site: {1}", { "0": celadon("●"), "1": link(choices.site.url) }));
+      else ctx.out.line(ash(tr("Your site isn't online with Clodable yet.")));
+      if (!choices.connected) ctx.out.line(ash(tr("Netlify isn't connected on this computer.")));
       for (const team of choices.teams) ctx.out.line(`${team.name} ${ash(`(${team.slug})`)}`);
     },
   );
@@ -143,8 +156,8 @@ export async function backendCommand(
       if (options.action) {
         throw new ClodableError({
           code: "invalid-config",
-          message: `“${options.action}” isn't something backend does.`,
-          hint: "Use clodable backend to see your choices, or clodable backend create.",
+          message: tr("“{0}” isn't something backend does.", { "0": options.action }),
+          hint: tr("Use clodable backend to see your choices, or clodable backend create."),
         });
       }
       await ctx.workspace();
@@ -152,13 +165,14 @@ export async function backendCommand(
     },
     (choices) => {
       if (!choices.connected) {
-        ctx.out.line(ash("Supabase isn't connected on this computer."));
+        ctx.out.line(ash(tr("Supabase isn't connected on this computer.")));
         return;
       }
       for (const org of choices.organizations ?? []) {
         ctx.out.line(`${org.name} ${ash(`(${org.slug}) · ${choices.costs?.[org.slug] ?? ""}`)}`);
       }
-      if (choices.region) ctx.out.line(ash(`Suggested region: ${choices.region.name}`));
+      if (choices.region)
+        ctx.out.line(ash(tr("Suggested region: {0}", { "0": choices.region.name })));
     },
   );
 }

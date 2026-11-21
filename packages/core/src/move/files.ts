@@ -4,6 +4,7 @@ import { appendFile, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { messageOf } from "../errors.js";
 import { type Flow, log, step } from "../events.js";
+import { tr } from "../i18n.js";
 import { FILES_LIST } from "./export.js";
 import { ident, literal } from "./fixes.js";
 import type { Sql } from "./postgres.js";
@@ -139,7 +140,7 @@ export async function* copyFiles(
   const soFar = () =>
     `${copied.toLocaleString("en-US")} of ${files.length.toLocaleString("en-US")}`;
 
-  yield step("move:files", "running", "Copying your files", soFar());
+  yield step("move:files", "running", tr("Copying your files"), soFar());
   let lastReport = Date.now();
   let next = 0;
   const worker = async () => {
@@ -175,12 +176,17 @@ export async function* copyFiles(
     await Promise.race([all, new Promise((resolve) => setTimeout(resolve, 2000))]);
     if (Date.now() - lastReport >= 2000 || finished) {
       lastReport = Date.now();
-      yield step("move:files", "running", "Copying your files", soFar());
+      yield step("move:files", "running", tr("Copying your files"), soFar());
     }
   }
   await all;
 
-  yield step("move:files", "running", "Checking your files", "Comparing them byte for byte");
+  yield step(
+    "move:files",
+    "running",
+    tr("Checking your files"),
+    tr("Comparing them byte for byte"),
+  );
   const differences = await checkSample(files, target, isPublic, { waiting, notCopied });
   failed += differences.length;
   failures.push(...differences);
@@ -210,14 +216,14 @@ export async function* copyFiles(
   yield step(
     "move:files",
     pending ? "warning" : "done",
-    pending ? "Copied most of your files" : "Copied your files",
+    pending ? tr("Copied most of your files") : tr("Copied your files"),
     [
       soFar(),
       ...(outcome.waiting.length > 0
-        ? [`private folders waiting: ${outcome.waiting.join(", ")}`]
+        ? [tr("private folders waiting: {folders}", { folders: outcome.waiting.join(", ") })]
         : []),
-      ...(tooBig > 0 ? [`${tooBig} too large for your plan`] : []),
-      ...(failed > 0 ? [`${failed} failed`] : []),
+      ...(tooBig > 0 ? [tr("{count} too large for your plan", { count: tooBig })] : []),
+      ...(failed > 0 ? [tr("{count} failed", { count: failed })] : []),
     ].join(" · "),
   );
   return outcome;
@@ -275,7 +281,7 @@ async function checkSample(
           download(target.to, file, false, target.secretKey),
         ]);
         if (sha256(before) !== sha256(after)) {
-          differences.push(`${bucket}: a copied file differs from the original`);
+          differences.push(tr("{bucket}: a copied file differs from the original", { bucket }));
         }
       } catch (error) {
         differences.push(`${bucket}: ${messageOf(error)}`);

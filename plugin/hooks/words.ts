@@ -1,3 +1,5 @@
+import { isMessage, t } from "./i18n.ts";
+
 // Plain words for what Claude does. Pure functions: no `$`, so they're easy to test and share.
 
 const LIVE_DB_WRITE =
@@ -38,21 +40,24 @@ export function friendlyFile(path: string): string {
   const clean = path.replace(/\\/g, "/");
   const base = clean.split("/").pop() ?? clean;
   const name = base.replace(/\.(tsx|ts|jsx|js|mjs|css|scss|json|html|md|sql|toml)$/i, "");
-  if (/(^|\/)supabase\/migrations\//.test(clean)) return "a database change record";
+  if (/(^|\/)supabase\/migrations\//.test(clean)) return t("a database change record");
   const fn = clean.match(/supabase\/functions\/([^/]+)\//);
   if (fn)
-    return fn[1] === "_shared" ? "the backend's shared code" : `the “${fn[1]}” backend function`;
-  if (/tailwind\.config/.test(base)) return "the theme";
-  if (/\.(css|scss)$/.test(base)) return "the styles";
-  if (base === "package.json") return "the app's packages";
-  if (base === "index.html") return "the page head";
-  if (/^(AGENTS|CLAUDE)\.md$/.test(base)) return "Claude's working notes";
+    return fn[1] === "_shared"
+      ? t("the backend's shared code")
+      : t("the “{0}” backend function", { 0: fn[1]! });
+  if (/tailwind\.config/.test(base)) return t("the theme");
+  if (/\.(css|scss)$/.test(base)) return t("the styles");
+  if (base === "package.json") return t("the app's packages");
+  if (base === "index.html") return t("the page head");
+  if (/^(AGENTS|CLAUDE)\.md$/.test(base)) return t("Claude's working notes");
   if (/(^|\/)(pages|routes)\//.test(clean)) {
-    if (/^(index|Index|home|Home)$/.test(name)) return "the home page";
-    if (name === "__root") return "the page layout";
-    return `the ${titleCase(name.replace(/[-_.$]/g, " ").trim())} page`;
+    if (/^(index|Index|home|Home)$/.test(name)) return t("the home page");
+    if (name === "__root") return t("the page layout");
+    return t("the {0} page", { 0: titleCase(name.replace(/[-_.$]/g, " ").trim()) });
   }
-  if (/(^|\/)components\/ui\//.test(clean)) return `the ${name.replace(/-/g, " ")} style`;
+  if (/(^|\/)components\/ui\//.test(clean))
+    return t("the {0} style", { 0: name.replace(/-/g, " ") });
   return name.replace(/[-_]/g, " ");
 }
 
@@ -69,13 +74,13 @@ interface ToolLike {
   isErrored: boolean;
 }
 
-const verb = (running: boolean, now: string, done: string) => (running ? now : done);
+const verb = (running: boolean, now: string, done: string) => t(running ? now : done);
 
 function domainOf(url: unknown): string {
   try {
     return new URL(String(url)).hostname.replace(/^www\./, "");
   } catch {
-    return "a web page";
+    return t("a web page");
   }
 }
 
@@ -83,44 +88,53 @@ function domainOf(url: unknown): string {
 export function describeTool(call: ToolLike): FriendlyRow | undefined {
   const input = (call.input ?? {}) as Record<string, unknown>;
   const running = call.isRunning;
-  const file = typeof input.file_path === "string" ? friendlyFile(input.file_path) : "a file";
+  const file = typeof input.file_path === "string" ? friendlyFile(input.file_path) : t("a file");
   switch (call.tool) {
     case "mcp__clodable__open_panel":
-      return { text: verb(running, "Opening Clodable", "Opened Clodable"), tone: "quiet" };
+      return { text: verb(running, t("Opening Clodable"), t("Opened Clodable")), tone: "quiet" };
     case "mcp__clodable__app_context":
       return {
-        text: verb(running, "Looking at your app's setup", "Checked your app's setup"),
+        text: verb(running, t("Looking at your app's setup"), t("Checked your app's setup")),
         tone: "look",
       };
     case "mcp__clodable__remember_app":
       return {
-        text: verb(running, "Remembering your app's setup", "Remembered your app's setup"),
+        text: verb(running, t("Remembering your app's setup"), t("Remembered your app's setup")),
         tone: "quiet",
       };
     case "Edit":
     case "MultiEdit":
-      return { text: `${verb(running, "Updating", "Updated")} ${file}`, tone: "work" };
+      return { text: `${verb(running, t("Updating"), t("Updated"))} ${file}`, tone: "work" };
     case "Write":
-      return { text: `${verb(running, "Writing", "Wrote")} ${file}`, tone: "work" };
+      return { text: `${verb(running, t("Writing"), t("Wrote"))} ${file}`, tone: "work" };
     case "NotebookEdit":
-      return { text: `${verb(running, "Updating", "Updated")} a notebook`, tone: "work" };
+      return {
+        text: t("{0} a notebook", { 0: verb(running, t("Updating"), t("Updated")) }),
+        tone: "work",
+      };
     case "Read":
-      return { text: `${verb(running, "Looking at", "Looked at")} ${file}`, tone: "look" };
+      return { text: `${verb(running, t("Looking at"), t("Looked at"))} ${file}`, tone: "look" };
     case "Glob":
     case "Grep":
     case "LS":
-      return { text: verb(running, "Searching the project", "Searched the project"), tone: "look" };
+      return {
+        text: verb(running, t("Searching the project"), t("Searched the project")),
+        tone: "look",
+      };
     case "WebFetch":
-      return { text: `${verb(running, "Reading", "Read")} ${domainOf(input.url)}`, tone: "look" };
+      return {
+        text: `${verb(running, t("Reading"), "Read")} ${domainOf(input.url)}`,
+        tone: "look",
+      };
     case "WebSearch":
-      return { text: verb(running, "Searching the web", "Searched the web"), tone: "look" };
+      return { text: verb(running, t("Searching the web"), t("Searched the web")), tone: "look" };
     case "TodoWrite":
     case "TaskCreate":
     case "TaskUpdate":
-      return { text: "Updated the plan", tone: "quiet" };
+      return { text: t("Updated the plan"), tone: "quiet" };
     case "Task":
     case "Agent":
-      return { text: verb(running, "Asking a helper", "Asked a helper"), tone: "look" };
+      return { text: verb(running, t("Asking a helper"), t("Asked a helper")), tone: "look" };
     case "Bash":
       return describeCommand(String(input.command ?? ""), running);
     default:
@@ -153,65 +167,75 @@ export function describeCommand(command: string, running: boolean): FriendlyRow 
   const add = c.match(
     /^(?:npm\s+(?:install|i|add)|pnpm\s+add|yarn\s+add|bun\s+add)\s+(?:-[\w-]+\s+)*([@\w./-]+)/,
   );
-  if (add) return { text: `${verb(running, "Adding", "Added")} ${add[1]}`, tone: "work" };
+  if (add) return { text: `${verb(running, t("Adding"), t("Added"))} ${add[1]}`, tone: "work" };
   if (/^(npm|pnpm|yarn|bun)\s+(install|i|ci)\s*$/.test(c))
     return {
-      text: verb(running, "Installing the app's packages", "Installed the app's packages"),
+      text: verb(running, t("Installing the app's packages"), t("Installed the app's packages")),
       tone: "work",
     };
   if (/^(npm|pnpm|yarn|bun)\s+run\s+build\b|^npx\s+vite\s+build\b/.test(c))
     return {
-      text: verb(running, "Checking the app builds", "Checked the app builds"),
+      text: verb(running, t("Checking the app builds"), t("Checked the app builds")),
       tone: "look",
     };
   if (/^(npm|pnpm|yarn|bun)\s+(run\s+)?(test|lint)\b|^npx\s+(tsc|eslint|vitest)\b/.test(c))
-    return { text: verb(running, "Checking for problems", "Checked for problems"), tone: "look" };
+    return {
+      text: verb(running, t("Checking for problems"), t("Checked for problems")),
+      tone: "look",
+    };
   if (/^git\s+(status|diff|log|show)\b/.test(c))
     return {
-      text: verb(running, "Reviewing recent changes", "Reviewed recent changes"),
+      text: verb(running, t("Reviewing recent changes"), t("Reviewed recent changes")),
       tone: "look",
     };
   const db = c.match(/clodable(?:\.mjs")?\s+db\s+(query|run|apply|check)\b/);
   if (db) {
     return db[1] === "query" || db[1] === "check"
-      ? { text: verb(running, "Looking at your database", "Looked at your database"), tone: "look" }
+      ? {
+          text: verb(running, t("Looking at your database"), t("Looked at your database")),
+          tone: "look",
+        }
       : {
-          text: verb(running, "Changing your database", "Changed your database"),
+          text: verb(running, t("Changing your database"), t("Changed your database")),
           tone: "work",
         };
   }
   const site = c.match(/clodable(?:\.mjs")?\s+site\s+create\b/);
-  if (site) return { text: verb(running, "Setting up hosting", "Set up hosting"), tone: "work" };
+  if (site)
+    return { text: verb(running, t("Setting up hosting"), t("Set up hosting")), tone: "work" };
   const backend = c.match(/clodable(?:\.mjs")?\s+backend\s+create\b/);
   if (backend)
-    return { text: verb(running, "Creating your backend", "Created your backend"), tone: "work" };
+    return {
+      text: verb(running, t("Creating your backend"), t("Created your backend")),
+      tone: "work",
+    };
   const move = c.match(/clodable(?:\.mjs")?\s+move\s+(\w+)/);
   if (move) {
     const words = MOVE_WORDS[move[1]!] ?? MOVE_WORDS.status!;
     return { text: verb(running, words[0], words[1]), tone: words[2] };
   }
-  if (/^(npx\s+)?clodable\s+/.test(c)) return { text: "Checked your draft", tone: "quiet" };
+  if (/^(npx\s+)?clodable\s+/.test(c)) return { text: t("Checked your draft"), tone: "quiet" };
   if (/^(ls|cat|head|tail|find|grep|rg|wc|pwd)\b/.test(c))
     return {
-      text: verb(running, "Looking around the project", "Looked around the project"),
+      text: verb(running, t("Looking around the project"), t("Looked around the project")),
       tone: "look",
     };
   if (/^(mkdir|touch|cp|mv)\b/.test(c))
-    return { text: verb(running, "Organizing files", "Organized files"), tone: "work" };
+    return { text: verb(running, t("Organizing files"), t("Organized files")), tone: "work" };
   if (/^rm\b/.test(c))
-    return { text: verb(running, "Removing files", "Removed files"), tone: "work" };
+    return { text: verb(running, t("Removing files"), t("Removed files")), tone: "work" };
   if (/\b(curl|wget)\b/.test(c))
     return /localhost|127\.0\.0\.1/.test(c)
-      ? { text: verb(running, "Checking the preview", "Checked the preview"), tone: "look" }
-      : { text: verb(running, "Fetching a web page", "Fetched a web page"), tone: "look" };
+      ? { text: verb(running, t("Checking the preview"), t("Checked the preview")), tone: "look" }
+      : { text: verb(running, t("Fetching a web page"), t("Fetched a web page")), tone: "look" };
   if (/^(lsof|ps|pgrep)\b/.test(c))
     return {
-      text: verb(running, "Checking what's running", "Checked what's running"),
+      text: verb(running, t("Checking what's running"), t("Checked what's running")),
       tone: "quiet",
     };
   // Anything else stays out of the builder's way. Developers can turn plain wording off.
   return c
-    ? { text: verb(running, "Running a command", "Ran a command"), tone: "quiet" }
+    ? { text: verb(running, t("Running a command"), t("Ran a command")), tone: "quiet" }
     : undefined;
 }
 
@@ -224,46 +248,56 @@ function describeSupabase(
     case "execute_sql": {
       const sql = String(input.query ?? input.sql ?? "");
       return sqlWrites(sql)
-        ? { text: verb(running, "Changing your live data", "Changed your live data"), tone: "data" }
-        : { text: verb(running, "Looking at your data", "Looked at your data"), tone: "look" };
+        ? {
+            text: verb(running, t("Changing your live data"), t("Changed your live data")),
+            tone: "data",
+          }
+        : {
+            text: verb(running, t("Looking at your data"), t("Looked at your data")),
+            tone: "look",
+          };
     }
     case "apply_migration":
       return {
-        text: `${verb(running, "Changing your database", "Changed your database")}${input.name ? `: ${String(input.name).replace(/_/g, " ")}` : ""}`,
+        text: `${verb(running, t("Changing your database"), t("Changed your database"))}${input.name ? `: ${String(input.name).replace(/_/g, " ")}` : ""}`,
         tone: "data",
       };
     case "list_tables":
     case "list_extensions":
     case "list_migrations":
       return {
-        text: verb(running, "Looking at your database", "Looked at your database"),
+        text: verb(running, t("Looking at your database"), t("Looked at your database")),
         tone: "look",
       };
     case "get_advisors":
       return {
-        text: verb(running, "Checking your database's safety", "Checked your database's safety"),
+        text: verb(
+          running,
+          t("Checking your database's safety"),
+          t("Checked your database's safety"),
+        ),
         tone: "look",
       };
     case "get_logs":
       return {
-        text: verb(running, "Reading your backend's logs", "Read your backend's logs"),
+        text: verb(running, t("Reading your backend's logs"), t("Read your backend's logs")),
         tone: "look",
       };
     case "search_docs":
       return {
-        text: verb(running, "Reading Supabase's docs", "Read Supabase's docs"),
+        text: verb(running, t("Reading Supabase's docs"), t("Read Supabase's docs")),
         tone: "look",
       };
     case "deploy_edge_function":
       return {
-        text: verb(running, "Putting a backend function live", "Put a backend function live"),
+        text: verb(running, t("Putting a backend function live"), t("Put a backend function live")),
         tone: "data",
       };
     case "generate_typescript_types":
-      return { text: "Refreshed the app's database types", tone: "work" };
+      return { text: t("Refreshed the app's database types"), tone: "work" };
     default:
       return {
-        text: verb(running, "Working with your database", "Worked with your database"),
+        text: verb(running, t("Working with your database"), t("Worked with your database")),
         tone: "look",
       };
   }
@@ -282,10 +316,15 @@ export function describeGroup(calls: ReadonlyArray<ToolLike>): string {
     else if (row.tone === "look") look++;
   }
   const parts: string[] = [];
-  if (work) parts.push(`updated ${work} part${work > 1 ? "s" : ""} of your app`);
-  if (data) parts.push(`changed your database ${data === 1 ? "once" : `${data} times`}`);
-  if (look) parts.push(`looked at ${look} thing${look > 1 ? "s" : ""}`);
-  const text = parts.join(" · ") || "worked on your app";
+  if (work) parts.push(t("updated {0} part{1} of your app", { 0: work, 1: work > 1 ? "s" : "" }));
+  if (data)
+    parts.push(
+      t("changed your database {0}", {
+        0: data === 1 ? t("once") : t("{count} times", { count: data }),
+      }),
+    );
+  if (look) parts.push(t("looked at {0} thing{1}", { 0: look, 1: look > 1 ? "s" : "" }));
+  const text = parts.join(" · ") || t("worked on your app");
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
@@ -294,13 +333,13 @@ export function ago(iso: string | number, now: number): string {
   const then = typeof iso === "number" ? iso : Date.parse(iso);
   if (Number.isNaN(then)) return "";
   const s = Math.max(0, Math.round((now - then) / 1000));
-  if (s < 45) return "just now";
+  if (s < 45) return t("just now");
   const m = Math.round(s / 60);
-  if (m < 60) return `${m} min ago`;
+  if (m < 60) return t("{0} min ago", { 0: m });
   const h = Math.round(m / 60);
-  if (h < 24) return `${h} h ago`;
+  if (h < 24) return t("{0} h ago", { 0: h });
   const d = Math.round(h / 24);
-  return d === 1 ? "yesterday" : `${d} days ago`;
+  return d === 1 ? t("yesterday") : t("{0} days ago", { 0: d });
 }
 
 /**
@@ -311,7 +350,8 @@ export function supabaseTool(name: string): string | undefined {
   return name.match(/^mcp__(?:claude_ai_)?supabase__(.+)$/i)?.[1];
 }
 
-export const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+export const plural = (n: number, word: string) =>
+  t(`{count} ${word}${n === 1 ? "" : "s"}`, { count: n });
 
 /** A site's address as people read it: "https://crumb.example/" → "crumb.example". */
 export const hostOf = (url: string) => url.replace(/^https?:\/\//, "").replace(/\/$/, "");
@@ -320,7 +360,9 @@ export const hostOf = (url: string) => url.replace(/^https?:\/\//, "").replace(/
 export function versionName(subject: string): string {
   const back = subject.match(/^Restored the version from (.+?)(?:: (.+))?$/);
   if (!back) return subject;
-  return back[2] ? `Went back to “${back[2]}”` : `Went back to the version from ${back[1]}`;
+  return back[2]
+    ? t("Went back to “{0}”", { 0: back[2] })
+    : t("Went back to the version from {0}", { 0: back[1]! });
 }
 
 /**
@@ -330,40 +372,48 @@ export function versionName(subject: string): string {
 export function pointedAt(element: string | undefined): string {
   const described = element?.match(/^([A-Z][a-z]+) <[^>]*>(?: “(.*)”)?$/);
   const kind = described?.[1]?.toLowerCase();
-  if (!kind || kind === "element") return "this part of the page";
-  return described?.[2] ? `the ${kind} “${described[2]}”` : `the ${kind}`;
+  if (!kind || kind === "element") return t("this part of the page");
+  const label = t(`the ${kind}`);
+  return described?.[2] ? `${label} “${described[2]}”` : label;
 }
 
 /** The builder's words for a Point & ask request: "About the heading “Bread”: make it warmer". */
-export const POINTED_AT = /^About (?:the [a-z]+(?: “[^”]*”)?|this part of the page): (.+)$/s;
+export const POINTED_AT =
+  /^(?:About (?:the [a-z]+(?: “[^”]*”)?|this part of the page): |À propos de (?:[^“:]+(?:“[^”]*”)?|cette partie de la page) : )(.+)$/s;
 
 /** A page of the app, as the builder knows it: "the home page", "the /menu page". */
 export const pageName = (path: string | undefined) =>
-  !path || path === "/" ? "the home page" : `the ${path} page`;
+  !path || path === "/" ? t("the home page") : t("the {0} page", { 0: path });
 
 /** A commit subject from what the builder asked: first meaningful line, trimmed, at most 72 characters. */
 export function saveMessage(request: string): string {
   // Requests Clodable wrote for the builder get the builder's words, not the error's.
-  if (/^Fix (?:the home page|the \/\S* page): it's broken in the preview\.$/.test(request)) {
-    return "Fixed a page that broke";
+  if (
+    /^(?:Fix (?:the home page|the \/\S* page): it's broken in the preview\.|Répare la page (?:d’accueil|\/\S*) : elle ne fonctionne pas dans l’aperçu\.)$/.test(
+      request,
+    )
+  ) {
+    return t("Fixed a page that broke");
   }
   // Point & ask: what the builder asked, without what they pointed at.
   const asked = request.match(POINTED_AT)?.[1];
   if (asked) return saveMessage(asked);
-  if (request === FIX_TEXT.secret) return "Moved a secret key out of the code";
-  if (request === FIX_TEXT.publish) return "Fixed what stopped publishing";
-  if (request === FIX_TEXT.conflict) return "Combined the draft with the live site";
-  if (request.startsWith("Prepare a web address for my app.")) return "Set up hosting";
+  if (isMessage(request, FIX_TEXT.secret)) return t("Moved a secret key out of the code");
+  if (isMessage(request, FIX_TEXT.publish)) return t("Fixed what stopped publishing");
+  if (isMessage(request, FIX_TEXT.conflict)) return t("Combined the draft with the live site");
+  if (request.startsWith("Prepare a web address for my app.")) return t("Set up hosting");
   // A step of the move, or the panel's own request: what it did, not the command or the rest.
   if (
-    /^(Moving off Lovable: |Switch my preview |Put my site online|Prepare a web address for my app|Add a backend to my app)/.test(
+    /^(Moving off Lovable: |Switch my preview |Put my site online|Prepare a web address for my app|Add a backend to my app|Départ de Lovable : |Reconnecte mon aperçu )/.test(
       request,
     )
   ) {
     const what = request
-      .replace(/^Moving off Lovable: /, "")
-      .split(/ with `|\. Run `|\. Start from `|, then | \(|\. | in my Supabase organization/)[0]!
-      .replace(/^I've /, "")
+      .replace(/^(?:Moving off Lovable: |Départ de Lovable : )/, "")
+      .split(
+        / with `|\. Run `|\. Start from `|, then |, puis | \(|\. | in my Supabase organization| dans mon organisation Supabase/,
+      )[0]!
+      .replace(/^(?:I've |j’ai )/i, "")
       .replace(/[.!\s]+$/, "");
     return what.charAt(0).toUpperCase() + what.slice(1);
   }
@@ -372,25 +422,30 @@ export function saveMessage(request: string): string {
       .split("\n")
       .map((l) => l.trim())
       .find((l) => l.length > 0 && !l.startsWith("From the preview")) ?? "";
-  const cleaned = line.replace(/^(please|can you|could you|pls)\s+/i, "").replace(/[.!?\s]+$/, "");
-  if (!cleaned) return "Saved changes";
+  const cleaned = line
+    .replace(
+      /^(please|can you|could you|pls|s’il te plaît|s’il vous plaît|peux-tu|pouvez-vous)\s+/i,
+      "",
+    )
+    .replace(/[.!?\s]+$/, "");
+  if (!cleaned) return t("Saved changes");
   const short = cleaned.length > 72 ? `${cleaned.slice(0, 71).trimEnd()}…` : cleaned;
   return short.charAt(0).toUpperCase() + short.slice(1);
 }
 
 /** What stopped, in two words: a save a secret key held back, or a publish. */
 export const stoppedTitle = (code: string) =>
-  code === "secret-found" ? "Not saved" : "Not published";
+  code === "secret-found" ? t("Not saved") : t("Not published");
 
 /** What a publish or an undo did. On Lovable's hosting, it reached GitHub; Lovable puts it live. */
 export function doneTitle(kind: "published" | "undone", onLovable: boolean): string {
-  if (onLovable) return kind === "published" ? "Published on GitHub" : "Undone on GitHub";
-  return kind === "published" ? "You're live" : "Undone. The previous version is live";
+  if (onLovable) return kind === "published" ? t("Published on GitHub") : t("Undone on GitHub");
+  return kind === "published" ? t("You're live") : t("Undone. The previous version is live");
 }
 
 /** Why something stopped, in a few words for the bar. The panel tells the whole story. */
 export function shortReason(error: { code: string; message: string }): string {
-  if (error.code === "conflict") return "The live site changed the same text";
+  if (error.code === "conflict") return t("The live site changed the same text");
   // "A secret key is in src/components/Hero.tsx" reads better as "… in Hero.tsx".
   return error.message
     .replace(/\b(?:src|app|supabase|public)\/(?:[\w.@-]+\/)*([\w.-]+\.\w+)/g, "$1")
@@ -434,7 +489,7 @@ export function fixRequest(error: {
 }): { text: string; details: string } {
   if (error.code === "conflict") {
     return {
-      text: FIX_TEXT.conflict,
+      text: t(FIX_TEXT.conflict),
       details: [
         "From Clodable's Fix it: publishing stopped because the builder's draft and the live site both changed the same files.",
         RECOVERY_VOICE,
@@ -447,7 +502,7 @@ export function fixRequest(error: {
   }
   if (error.code === "secret-found") {
     return {
-      text: FIX_TEXT.secret,
+      text: t(FIX_TEXT.secret),
       details: [
         `From Clodable's Fix it: saving stopped. ${error.message}. Nothing went to GitHub.`,
         RECOVERY_VOICE,
@@ -460,7 +515,7 @@ export function fixRequest(error: {
     };
   }
   return {
-    text: FIX_TEXT.publish,
+    text: t(FIX_TEXT.publish),
     details: [
       `From Clodable's Fix it: publishing stopped. ${error.message}`,
       RECOVERY_VOICE,

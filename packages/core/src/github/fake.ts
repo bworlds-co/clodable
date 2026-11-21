@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ClodableError } from "../errors.js";
 import { Git } from "../git.js";
+import { tr } from "../i18n.js";
 import type {
   BuildProgress,
   CheckSummary,
@@ -83,7 +84,7 @@ export class FakeGitHub implements GitHubAdapter {
     if (existsSync(this.bareRepo))
       throw new ClodableError({
         code: "already-there",
-        message: "That app name is already in use.",
+        message: tr("That app name is already in use."),
       });
     const seed = await mkdtemp(join(tmpdir(), "clodable-new-app-"));
     try {
@@ -149,7 +150,10 @@ export class FakeGitHub implements GitHubAdapter {
   async merge(number: number, input: { subject: string; body: string }) {
     const pr = this.pullRequests.find((p) => p.number === number);
     if (pr?.state !== "open") {
-      throw new ClodableError({ code: "not-found", message: "That draft isn't open any more." });
+      throw new ClodableError({
+        code: "not-found",
+        message: tr("That draft isn't open any more."),
+      });
     }
     const dir = await mkdtemp(join(tmpdir(), "clodable-fake-merge-"));
     try {
@@ -162,7 +166,7 @@ export class FakeGitHub implements GitHubAdapter {
       if (merged.exitCode !== 0) {
         throw new ClodableError({
           code: "merge-blocked",
-          message: "GitHub couldn't combine your draft with the live site.",
+          message: tr("GitHub couldn't combine your draft with the live site."),
           details: merged.stderr || merged.stdout,
         });
       }

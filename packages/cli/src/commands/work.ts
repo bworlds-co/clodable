@@ -12,30 +12,52 @@ import {
 } from "@clodable/core";
 import pc from "picocolors";
 import { type Context, run } from "../context.js";
+import { tr } from "../i18n.js";
 import { ash, celadon, clay, label, link, ochre } from "../ui.js";
 
-const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+const plural = (n: number, word: "change" | "file" | "newer publish") => {
+  const forms = {
+    change: ["{count} change", "{count} changes"],
+    file: ["{count} file", "{count} files"],
+    "newer publish": ["{count} newer publish", "{count} newer publishes"],
+  } as const;
+  return tr(forms[word][n === 1 ? 0 : 1], { count: n });
+};
 
 function renderSave(ctx: Context, result: SaveResult) {
   const { out } = ctx;
   if (!result.saved && result.pushed) {
-    out.line(`${celadon("✓")} Everything is already saved`);
+    out.line(tr("{0} Everything is already saved", { "0": celadon("✓") }));
   } else if (result.unscanned && !result.offline) {
     out.line(
-      `${ochre("!")} Saved on this computer. It goes to GitHub once it's been checked for secret keys.`,
+      tr("{0} Saved on this computer. It goes to GitHub once it's been checked for secret keys.", {
+        "0": ochre("!"),
+      }),
     );
     out.line(ash(`  ${result.unscanned}`));
   } else if (result.offline || !result.pushed) {
-    out.line(`${ochre("!")} Saved on this computer. It goes up to GitHub when you're back online.`);
+    out.line(
+      tr("{0} Saved on this computer. It goes up to GitHub when you're back online.", {
+        "0": ochre("!"),
+      }),
+    );
   } else {
     out.line(
-      `${celadon("✓")} Saved ${ash(`· ${plural(result.unpublished, "change")} not live yet`)}`,
+      tr("{0} Saved {1}", {
+        "0": celadon("✓"),
+        "1": ash(
+          `· ${tr("{changes} not live yet", { changes: plural(result.unpublished, "change") })}`,
+        ),
+      }),
     );
   }
-  for (const note of result.notes ?? []) out.line(`${ochre("!")} Worth a look: ${note}`);
+  for (const note of result.notes ?? [])
+    out.line(tr("{0} Worth a look: {1}", { "0": ochre("!"), "1": note }));
   if (result.conflicts?.length) {
     out.line(
-      `${ochre("!")} Your draft also changed on another computer, and both changed the same thing.`,
+      tr("{0} Your draft also changed on another computer, and both changed the same thing.", {
+        "0": ochre("!"),
+      }),
     );
     out.line(ash(`  ${result.conflicts.join(", ")}`));
   }
@@ -58,33 +80,43 @@ export async function statusCommand(ctx: Context, options: { fetch?: boolean }) 
       out.header(`${s.project.name}`);
       const draftLine =
         s.unpublished.length === 0
-          ? ash("nothing waiting to go live")
-          : `${clay(plural(s.unpublished.length, "change"))} not live yet`;
-      out.line(`${label("Draft")}${draftLine}`);
+          ? ash(tr("nothing waiting to go live"))
+          : tr("{changes} not live yet", { changes: clay(plural(s.unpublished.length, "change")) });
+      out.line(`${label(tr("Draft"))}${draftLine}`);
       for (const commit of s.unpublished.slice(0, 5)) {
         out.line(`${label("")}${ash("·")} ${commit.subject} ${ash(formatRelative(commit.date))}`);
       }
       if (s.unpublished.length > 5)
-        out.line(`${label("")}${ash(`… and ${s.unpublished.length - 5} more`)}`);
+        out.line(
+          `${label("")}${ash(tr("… and {count} more", { count: s.unpublished.length - 5 }))}`,
+        );
       if (s.unsaved > 0)
-        out.line(`${label("Unsaved")}${plural(s.unsaved, "file")} changed since the last save`);
+        out.line(
+          tr("{0}{1} changed since the last save", {
+            "0": label(tr("Unsaved")),
+            "1": plural(s.unsaved, "file"),
+          }),
+        );
       if (s.conflicts.length > 0) {
         out.line(
-          `${label("Attention")}${ochre("Combining with the live site:")} ${s.conflicts.join(", ")}`,
+          `${label(tr("Attention"))}${ochre(tr("Combining with the live site:"))} ${s.conflicts.join(", ")}`,
         );
       }
       if (s.behindLive > 0) {
         out.line(
-          `${label("Live site")}${plural(s.behindLive, "newer publish")}, brought in when you publish`,
+          tr("{0}{1}, brought in when you publish", {
+            "0": label(tr("Live site")),
+            "1": plural(s.behindLive, "newer publish"),
+          }),
         );
       }
       const live = s.lastPublish
-        ? `${s.lastPublish.url ? `${link(s.lastPublish.url)} ${ash("·")} ` : ""}${ash(`published ${formatRelative(s.lastPublish.at)}`)}`
+        ? `${s.lastPublish.url ? `${link(s.lastPublish.url)} ${ash("·")} ` : ""}${ash(tr("published {when}", { when: formatRelative(s.lastPublish.at) }))}`
         : s.project.liveUrl
           ? link(s.project.liveUrl)
-          : ash("not published with Clodable yet");
-      out.line(`${label("Live")}${live}`);
-      if (s.pullRequest) out.line(`${label("On GitHub")}${link(s.pullRequest.url)}`);
+          : ash(tr("not published with Clodable yet"));
+      out.line(`${label(tr("Live"))}${live}`);
+      if (s.pullRequest) out.line(`${label(tr("On GitHub"))}${link(s.pullRequest.url)}`);
       out.line();
     },
   );
@@ -96,17 +128,17 @@ export async function historyCommand(ctx: Context, options: { limit?: number }) 
     async () => history(await ctx.workspace(), options.limit ? { limit: options.limit } : {}),
     (h) => {
       const { out } = ctx;
-      out.header("history");
-      out.line(pc.bold("Your draft"));
-      if (h.draft.length === 0) out.line(ash("  Nothing waiting to go live."));
-      else if (h.sameAsLive) out.line(ash("  Same as your live site: nothing to publish."));
+      out.header(tr("history"));
+      out.line(pc.bold(tr("Your draft")));
+      if (h.draft.length === 0) out.line(ash(tr("  Nothing waiting to go live.")));
+      else if (h.sameAsLive) out.line(ash(tr("  Same as your live site: nothing to publish.")));
       for (const c of h.draft) {
         out.line(
           `  ${clay("●")} ${c.subject} ${ash(`· ${formatRelative(c.date)} · ${c.sha.slice(0, 7)}`)}`,
         );
       }
       out.line();
-      out.line(pc.bold("Published"));
+      out.line(pc.bold(tr("Published")));
       for (const c of h.published) {
         const mark = c.kind === "undo" ? ochre("↺") : celadon("●");
         out.line(
@@ -114,7 +146,7 @@ export async function historyCommand(ctx: Context, options: { limit?: number }) 
         );
       }
       out.line();
-      out.line(ash("Bring back any version:  clodable restore <code>"));
+      out.line(ash(tr("Bring back any version:  clodable restore <code>")));
       out.line();
     },
   );
@@ -126,23 +158,30 @@ export async function restoreCommand(ctx: Context, sha: string) {
     async () => restore(await ctx.workspace(), sha),
     (result) => {
       if (!result.saved) {
-        ctx.out.line(`${celadon("✓")} Your app already looks like this version: nothing changed`);
+        ctx.out.line(
+          tr("{0} Your app already looks like this version: nothing changed", {
+            "0": celadon("✓"),
+          }),
+        );
         return;
       }
       ctx.out.line(
-        `${celadon("✓")} Restored ${ash(`· saved as a new version, nothing was erased`)}`,
+        tr("{0} Restored {1}", {
+          "0": celadon("✓"),
+          "1": ash(tr("· saved as a new version, nothing was erased")),
+        }),
       );
-      if (!result.pushed) ctx.out.line(ash("  It goes up to GitHub when you're back online."));
+      if (!result.pushed) ctx.out.line(ash(tr("  It goes up to GitHub when you're back online.")));
     },
   );
 }
 
 const describeItem = (item: InboxItem) =>
   item.kind === "fix"
-    ? `Fix: ${item.error.message}`
+    ? tr("Fix: {message}", { message: item.error.message })
     : item.kind === "edit"
-      ? `Edited text on ${item.page.path}`
-      : `Request on ${item.page.path}: ${item.request}`;
+      ? tr("Edited text on {path}", { path: item.page.path })
+      : tr("Request on {path}: {request}", { path: item.page.path, request: item.request });
 
 export async function inboxCommand(ctx: Context, options: { ack?: string; claim?: string }) {
   await run(
@@ -154,7 +193,7 @@ export async function inboxCommand(ctx: Context, options: { ack?: string; claim?
       return readInbox(ws.root);
     },
     (items) => {
-      if (items.length === 0) ctx.out.line(ash("The inbox is empty."));
+      if (items.length === 0) ctx.out.line(ash(tr("The inbox is empty.")));
       for (const item of items) ctx.out.line(`${clay("●")} ${describeItem(item)} ${ash(item.id)}`);
     },
   );

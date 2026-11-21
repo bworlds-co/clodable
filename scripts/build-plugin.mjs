@@ -1,3 +1,4 @@
+import "./sync-i18n.mjs";
 // Copies the bundled CLI into the plugin, so the plugin works on its own once installed from the
 // marketplace. Run after `pnpm -r build` (the root `pnpm build` does both).
 import {

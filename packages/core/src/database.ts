@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { basename, relative, resolve } from "node:path";
 import { ClodableError } from "./errors.js";
+import { tr } from "./i18n.js";
 import { literal } from "./move/fixes.js";
 import { homeKeys, homeSql, localTarget } from "./move/home.js";
 import { projectUrl, SupabaseApi } from "./move/supabase-api.js";
@@ -19,24 +20,26 @@ async function database(ws: Workspace) {
   if (ws.config.backend === "lovable-cloud") {
     throw new ClodableError({
       code: "invalid-config",
-      message: "Lovable owns this database: it can't be changed from here.",
-      hint: "Moving off Lovable gives your app a database of its own.",
+      message: tr("Lovable owns this database: it can't be changed from here."),
+      hint: tr("Moving off Lovable gives your app a database of its own."),
     });
   }
   const ref = ws.config.supabase.projectRef;
   if (ws.config.backend !== "supabase" || !ref) {
     throw new ClodableError({
       code: "invalid-config",
-      message: "This app has no Supabase database Clodable knows of.",
-      hint: "Its Supabase project goes in .clodable/config.json, under supabase.projectRef.",
+      message: tr("This app has no Supabase database Clodable knows of."),
+      hint: tr("Its Supabase project goes in .clodable/config.json, under supabase.projectRef."),
     });
   }
   const api = await SupabaseApi.onThisComputer();
   if (!api) {
     throw new ClodableError({
       code: "supabase-auth",
-      message: "Supabase isn't connected on this computer.",
-      hint: "Connect your Supabase account in the Clodable panel: changes to your database go through it.",
+      message: tr("Supabase isn't connected on this computer."),
+      hint: tr(
+        "Connect your Supabase account in the Clodable panel: changes to your database go through it.",
+      ),
     });
   }
   return { api, ref, sql: homeSql(api, ref) };
@@ -45,7 +48,7 @@ async function database(ws: Workspace) {
 function statement(sql: string | undefined): string {
   const text = (sql ?? "").trim().replace(/;\s*$/, "");
   if (!text) {
-    throw new ClodableError({ code: "invalid-config", message: "Which query?" });
+    throw new ClodableError({ code: "invalid-config", message: tr("Which query?") });
   }
   return text;
 }
@@ -80,8 +83,10 @@ export async function queryDatabase(
   if (!/^(select|with|values|table)\b/i.test(text)) {
     throw new ClodableError({
       code: "invalid-config",
-      message: "Only a query that reads goes here.",
-      hint: "To change data: clodable db run. To change the tables: a migration, with clodable db apply.",
+      message: tr("Only a query that reads goes here."),
+      hint: tr(
+        "To change data: clodable db run. To change the tables: a migration, with clodable db apply.",
+      ),
     });
   }
   const { sql: db } = await database(ws);
@@ -100,8 +105,10 @@ export async function runOnDatabase(
   if (SCHEMA_CHANGE.test(text)) {
     throw new ClodableError({
       code: "invalid-config",
-      message: "That changes the tables: it goes in a migration.",
-      hint: "Write it to supabase/migrations/<timestamp>_<what>.sql, then clodable db apply that file.",
+      message: tr("That changes the tables: it goes in a migration."),
+      hint: tr(
+        "Write it to supabase/migrations/<timestamp>_<what>.sql, then clodable db apply that file.",
+      ),
     });
   }
   const { sql: db } = await database(ws);
@@ -123,14 +130,14 @@ export async function applyMigration(
   if (!file || where.startsWith("..") || where.includes("/") || !match) {
     throw new ClodableError({
       code: "invalid-config",
-      message: "Which migration?",
-      hint: "A file in supabase/migrations/, named <timestamp>_<what>.sql.",
+      message: tr("Which migration?"),
+      hint: tr("A file in supabase/migrations/, named <timestamp>_<what>.sql."),
     });
   }
   const version = match[1]!;
   const name = match[2]!;
   const text = await readFile(path, "utf8").catch(() => {
-    throw new ClodableError({ code: "not-found", message: `There's no ${file}.` });
+    throw new ClodableError({ code: "not-found", message: tr("There's no {0}.", { "0": file }) });
   });
   const { api, ref, sql: db } = await database(ws);
   const [history] = await db.rows<{ present: boolean }>(

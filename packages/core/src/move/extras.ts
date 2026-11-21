@@ -1,5 +1,6 @@
 import { ClodableError } from "../errors.js";
 import type { Flow } from "../events.js";
+import { tr } from "../i18n.js";
 import type { Workspace } from "../workspace.js";
 import { copyFiles, type FilesOutcome } from "./files.js";
 import { EMAIL_QUEUE_KEY, literal, setVaultSecret } from "./fixes.js";
@@ -24,8 +25,8 @@ async function readyCopy(ws: Workspace) {
   if (!state.home || !state.export || !state.data) {
     throw new ClodableError({
       code: "move-not-ready",
-      message: "Copy your data first.",
-      hint: "Files, functions and secrets go into the copy, once it exists.",
+      message: tr("Copy your data first."),
+      hint: tr("Files, functions and secrets go into the copy, once it exists."),
     });
   }
   return { state, home: state.home, summary: state.export.summary };
@@ -43,8 +44,8 @@ export async function* copyUploads(
   if (!state.source) {
     throw new ClodableError({
       code: "move-not-ready",
-      message: "Clodable doesn't know which Lovable Cloud backend the files are in.",
-      hint: "Read your export again: it says where your files are.",
+      message: tr("Clodable doesn't know which Lovable Cloud backend the files are in."),
+      hint: tr("Read your export again: it says where your files are."),
     });
   }
   const api = await SupabaseApi.required();
@@ -174,12 +175,14 @@ export async function setVaultValue(
   if (!name || !wanted.includes(name)) {
     throw new ClodableError({
       code: "invalid-config",
-      message: name ? `Your database has no secret called “${name}”.` : "Which secret?",
-      ...(wanted.length > 0 ? { hint: `It has: ${wanted.join(", ")}.` } : {}),
+      message: name
+        ? tr("Your database has no secret called “{0}”.", { "0": name })
+        : tr("Which secret?"),
+      ...(wanted.length > 0 ? { hint: tr("It has: {0}.", { "0": wanted.join(", ") }) } : {}),
     });
   }
   if (!value.trim() || !state.home) {
-    throw new ClodableError({ code: "invalid-config", message: "That secret is empty." });
+    throw new ClodableError({ code: "invalid-config", message: tr("That secret is empty.") });
   }
   const api = await SupabaseApi.required();
   await setVaultSecret(homeSql(api, state.home.ref), name, value.replace(/\r?\n$/, ""));
@@ -196,12 +199,12 @@ export async function setFunctionSecret(
   if (!/^[A-Z][A-Z0-9_]*$/.test(name) || name.startsWith("SUPABASE_")) {
     throw new ClodableError({
       code: "invalid-config",
-      message: `“${name}” isn't a secret name Supabase accepts.`,
-      hint: "Use capitals, digits and underscores, not starting with SUPABASE_.",
+      message: tr("“{0}” isn't a secret name Supabase accepts.", { "0": name }),
+      hint: tr("Use capitals, digits and underscores, not starting with SUPABASE_."),
     });
   }
   if (!value.trim()) {
-    throw new ClodableError({ code: "invalid-config", message: "That secret is empty." });
+    throw new ClodableError({ code: "invalid-config", message: tr("That secret is empty.") });
   }
   const { home } = await readyCopy(ws);
   const api = await SupabaseApi.required();

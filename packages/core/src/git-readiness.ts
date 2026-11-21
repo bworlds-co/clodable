@@ -3,6 +3,7 @@ import { access, realpath } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { ClodableError, type ErrorInfo } from "./errors.js";
 import { commandPath, exec } from "./exec.js";
+import { tr } from "./i18n.js";
 
 type GitReadiness = { ok: true; executable: string } | { ok: false; error: ErrorInfo };
 
@@ -13,10 +14,10 @@ function unavailable(reason: string, detail: string, install = false): GitReadin
     ok: false,
     error: {
       code: "tools-unavailable",
-      message: "Saving needs Git to work on this computer.",
+      message: tr("Saving needs Git to work on this computer."),
       hint: install
-        ? "Run `xcode-select --install`, finish Apple's installation, then check again."
-        : "Ask Claude to check Git on this computer, then press Check again.",
+        ? tr("Run `xcode-select --install`, finish Apple's installation, then check again.")
+        : tr("Ask Claude to check Git on this computer, then press Check again."),
       details: `Git readiness: ${reason}\n${detail}`.trim(),
     },
   };

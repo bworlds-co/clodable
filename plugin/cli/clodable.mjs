@@ -169,6 +169,625 @@ import { existsSync } from "node:fs";
 import { chmod as chmod2, mkdir as mkdir2, mkdtemp, rename as rename2, rm, writeFile as writeFile2 } from "node:fs/promises";
 import { join as join2 } from "node:path";
 
+// ../i18n/src/index.ts
+var languages = {
+  en: ["english", "anglais"],
+  fr: ["french", "fran\xE7ais", "francais"]
+};
+function resolveLocale(value) {
+  if (typeof value !== "string") return "en";
+  const name = value.trim().toLowerCase();
+  for (const [locale, aliases] of Object.entries(languages)) {
+    if (name === locale || aliases.some((alias) => alias === name)) return locale;
+    if (new RegExp(`^${locale}[-_][a-z0-9]+(?:[-_][a-z0-9]+)*$`).test(name))
+      return locale;
+  }
+  return "en";
+}
+function translate(locale, catalog, source, values = {}) {
+  const template = locale === "fr" && Object.hasOwn(catalog, source) ? catalog[source] : source;
+  return template.replace(
+    /\{([\w]+)\}/g,
+    (placeholder, key2) => Object.hasOwn(values, key2) ? String(values[key2]) : placeholder
+  );
+}
+
+// ../i18n/src/core.ts
+var core = {
+  "Saving needs Git to work on this computer.": "Git doit fonctionner sur cet ordinateur pour permettre l\u2019enregistrement.",
+  "Run `xcode-select --install`, finish Apple's installation, then check again.": "Ex\xE9cutez `xcode-select --install`, terminez l\u2019installation Apple, puis v\xE9rifiez \xE0 nouveau.",
+  "Ask Claude to check Git on this computer, then press Check again.": "Demandez \xE0 Claude de v\xE9rifier Git sur cet ordinateur, puis cliquez sur V\xE9rifier \xE0 nouveau.",
+  "Clodable's settings file can't be read.": "Impossible de lire le fichier de param\xE8tres de Clodable.",
+  "Ask Claude to check {0} for a typo and fix it.": "Demandez \xE0 Claude de v\xE9rifier {0} et de corriger l\u2019erreur de saisie.",
+  "Clodable's settings file has a value it doesn't understand.": "Le fichier de param\xE8tres de Clodable contient une valeur non reconnue.",
+  "Ask Claude to check {0} and fix that value.": "Demandez \xE0 Claude de v\xE9rifier {0} et de corriger cette valeur.",
+  "Lovable owns this database: it can't be changed from here.": "Cette base de donn\xE9es appartient \xE0 Lovable : elle ne peut pas \xEAtre modifi\xE9e ici.",
+  "Moving off Lovable gives your app a database of its own.": "Quitter Lovable permet \xE0 votre application d\u2019avoir sa propre base de donn\xE9es.",
+  "This app has no Supabase database Clodable knows of.": "Clodable ne conna\xEEt aucune base de donn\xE9es Supabase pour cette application.",
+  "Its Supabase project goes in .clodable/config.json, under supabase.projectRef.": "Indiquez son projet Supabase dans .clodable/config.json, sous supabase.projectRef.",
+  "Supabase isn't connected on this computer.": "Supabase n\u2019est pas connect\xE9 sur cet ordinateur.",
+  "Connect your Supabase account in the Clodable panel: changes to your database go through it.": "Connectez votre compte Supabase dans le panneau Clodable pour modifier votre base de donn\xE9es.",
+  "Which query?": "Quelle requ\xEAte ?",
+  "Only a query that reads goes here.": "Seules les requ\xEAtes en lecture sont accept\xE9es ici.",
+  "To change data: clodable db run. To change the tables: a migration, with clodable db apply.": "Pour modifier les donn\xE9es : clodable db run. Pour modifier les tables : une migration avec clodable db apply.",
+  "That changes the tables: it goes in a migration.": "Cette op\xE9ration modifie les tables : utilisez une migration.",
+  "Write it to supabase/migrations/<timestamp>_<what>.sql, then clodable db apply that file.": "\xC9crivez-la dans supabase/migrations/<timestamp>_<what>.sql, puis appliquez ce fichier avec clodable db apply.",
+  "Which migration?": "Quelle migration ?",
+  "A file in supabase/migrations/, named <timestamp>_<what>.sql.": "Un fichier dans supabase/migrations/, nomm\xE9 <timestamp>_<what>.sql.",
+  "There's no {0}.": "{0} est introuvable.",
+  "You have unsaved changes outside your draft.": "Des modifications non enregistr\xE9es se trouvent en dehors de votre brouillon.",
+  "Save them first, or switch to your draft manually.": "Enregistrez-les d\u2019abord, ou revenez manuellement \xE0 votre brouillon.",
+  "Your draft is in the middle of being combined with the live site.": "Votre brouillon est en cours de combinaison avec le site en ligne.",
+  "Ask Claude to finish combining the changes, then save again.": "Demandez \xE0 Claude de terminer la combinaison des modifications, puis enregistrez \xE0 nouveau.",
+  "A secret key is in {0}": "Une cl\xE9 secr\xE8te se trouve dans {0}",
+  "{0} secret keys are in your changes": "Vos modifications contiennent {0} cl\xE9s secr\xE8tes",
+  "Nothing went to GitHub. Ask Claude to move it out of the code, and it saves.": "Rien n\u2019a \xE9t\xE9 envoy\xE9 \xE0 GitHub. Demandez \xE0 Claude de retirer la cl\xE9 du code pour permettre l\u2019enregistrement.",
+  "GitHub didn't accept your changes.": "GitHub n\u2019a pas accept\xE9 vos modifications.",
+  "Check that your GitHub account can write to this repository.": "V\xE9rifiez que votre compte GitHub peut modifier ce d\xE9p\xF4t.",
+  "That version couldn't be found.": "Cette version est introuvable.",
+  "Something unexpected went wrong.": "Un probl\xE8me inattendu est survenu.",
+  "Try again. If it keeps happening, share the details with your developer.": "R\xE9essayez. Si le probl\xE8me persiste, transmettez les d\xE9tails \xE0 votre d\xE9veloppeur.",
+  "Saving needs to know who you are.": "Connectez votre compte pour enregistrer.",
+  "Type /clodable to open the Clodable panel and connect your GitHub account there. Your changes stay on this computer meanwhile.": "Tapez /clodable pour ouvrir le panneau Clodable et y connecter votre compte GitHub. En attendant, vos modifications restent sur cet ordinateur.",
+  "Your changes couldn't be saved.": "Vos modifications n\u2019ont pas pu \xEAtre enregistr\xE9es.",
+  "Your draft couldn't be compared with the live site.": "Votre brouillon n\u2019a pas pu \xEAtre compar\xE9 au site en ligne.",
+  "Your draft couldn't be brought up to date.": "Votre brouillon n\u2019a pas pu \xEAtre mis \xE0 jour.",
+  "Give your app a short name using letters, numbers or dashes.": "Donnez \xE0 votre application un nom court compos\xE9 de lettres, de chiffres ou de tirets.",
+  "The connected GitHub account has changed.": "Le compte GitHub connect\xE9 a chang\xE9.",
+  "Open Set up saving again and check the account before continuing.": "Ouvrez \xE0 nouveau Configurer l\u2019enregistrement et v\xE9rifiez le compte avant de continuer.",
+  "Your local app needs a little preparation before saving.": "Votre application locale doit \xEAtre pr\xE9par\xE9e avant de pouvoir \xEAtre enregistr\xE9e.",
+  "Ask Claude to prepare this prototype for Clodable, keeping your design and content.": "Demandez \xE0 Claude de pr\xE9parer ce prototype pour Clodable, en conservant votre design et votre contenu.",
+  "Saving was already started for a different app name or account.": "L\u2019enregistrement a d\xE9j\xE0 commenc\xE9 pour un autre nom d\u2019app ou un autre compte.",
+  "Continue with {0}/{1}. Your local work is still here.": "Continuez avec {0}/{1}. Votre travail local est toujours l\xE0.",
+  "This folder already belongs to an app.": "Ce dossier appartient d\xE9j\xE0 \xE0 une application.",
+  "Open Clodable to set up that app. Start a new idea in an empty folder.": "Ouvrez Clodable pour configurer cette application. Pour une nouvelle id\xE9e, utilisez un dossier vide.",
+  "Checking your local app before saving": "V\xE9rification de votre application locale avant l\u2019enregistrement",
+  "A secret key needs to stay out of your app's code.": "Une cl\xE9 secr\xE8te doit \xEAtre retir\xE9e du code de votre application.",
+  "Ask Claude to move it out, then try Set up saving again. Nothing was sent to GitHub.": "Demandez \xE0 Claude de la retirer, puis r\xE9essayez Configurer l\u2019enregistrement. Rien n\u2019a \xE9t\xE9 envoy\xE9 \xE0 GitHub.",
+  "This GitHub connection can't create a new app.": "Cette connexion GitHub ne permet pas de cr\xE9er une nouvelle app.",
+  "Creating your private app on GitHub": "Cr\xE9ation de votre application priv\xE9e sur GitHub",
+  "GitHub returned a different app than the one you approved.": "GitHub a renvoy\xE9 une autre app que celle que vous avez approuv\xE9e.",
+  "Nothing was sent. Check your GitHub account before continuing.": "Rien n\u2019a \xE9t\xE9 envoy\xE9. V\xE9rifiez votre compte GitHub avant de continuer.",
+  "This folder is connected to a different app.": "Ce dossier est connect\xE9 \xE0 une autre app.",
+  "Your files are unchanged. Ask Claude to check the connection before saving.": "Vos fichiers sont inchang\xE9s. Demandez \xE0 Claude de v\xE9rifier la connexion avant d\u2019enregistrer.",
+  "Your private app is ready for its first save": "Votre application priv\xE9e est pr\xEAte pour son premier enregistrement",
+  "This app has no Netlify site to reconnect.": "Cette application n\u2019a aucun site Netlify \xE0 reconnecter.",
+  "This connection doesn't match your app's hosting account.": "Cette connexion ne correspond pas au compte d\u2019h\xE9bergement de votre application.",
+  "Your move off Lovable puts your site on Netlify.": "Le transfert depuis Lovable place votre site sur Netlify.",
+  "Go on with the move: its website step does this, pointed at your new backend.": "Continuez le transfert : l\u2019\xE9tape du site web s\u2019en charge et le relie \xE0 votre nouveau backend.",
+  "Setting up hosting": "Configuration de l\u2019h\xE9bergement",
+  "Creating your site on Netlify": "Cr\xE9ation de votre site sur Netlify",
+  "Giving it your app's settings": "Application des param\xE8tres de votre application",
+  "Setting up Publish": "Configuration de la publication",
+  "Your site is ready": "Votre site est pr\xEAt",
+  "Publish to put it online at {0}": "Publiez pour le mettre en ligne \xE0 l\u2019adresse {0}",
+  "Your app's data is on Lovable Cloud.": "Les donn\xE9es de votre application sont sur Lovable Cloud.",
+  "Moving off Lovable gives your app its own Supabase, with your data and your people.": "Quitter Lovable donne \xE0 votre application son propre Supabase, avec vos donn\xE9es et vos utilisateurs.",
+  "Your app already has its own backend on Supabase.": "Votre application poss\xE8de d\xE9j\xE0 son propre backend sur Supabase.",
+  "Creating your backend": "Cr\xE9ation de votre backend",
+  "Your Supabase account already runs its 2 free projects.": "Votre compte Supabase utilise d\xE9j\xE0 ses 2 projets gratuits.",
+  "Pause one in Supabase ({0}), or pick an organization on a paid plan, then try again.": "Mettez-en un en pause dans Supabase ({0}), ou choisissez une organisation avec un forfait payant, puis r\xE9essayez.",
+  "Which part of the world should your backend run in?": "Dans quelle r\xE9gion du monde voulez-vous h\xE9berger votre backend ?",
+  "Pick the region closest to the people who use your app.": "Choisissez la r\xE9gion la plus proche des utilisateurs de votre application.",
+  "Starting it up: about 2 minutes": "D\xE9marrage : environ 2 minutes",
+  "Connecting your app to it": "Connexion de votre application",
+  "Your backend is ready": "Votre backend est pr\xEAt",
+  "Which Supabase organization should your backend go in?": "Dans quelle organisation Supabase voulez-vous cr\xE9er votre backend ?",
+  "Pick one: {0}.": "Choisissez une option : {0}.",
+  "Updating {0} backend function{1}": "Mise \xE0 jour de {0} fonction{1} backend",
+  "Backend functions need one more step": "Une derni\xE8re \xE9tape est n\xE9cessaire pour les fonctions backend",
+  "Backend functions updated": "Fonctions backend mises \xE0 jour",
+  "Some backend functions need attention": "Certaines fonctions backend demandent votre attention",
+  "Function {0}: {1}": "Fonction {0} : {1}",
+  "Saving your latest changes": "Enregistrement de vos derni\xE8res modifications",
+  "Couldn't check your changes for secret keys": "Impossible de v\xE9rifier la pr\xE9sence de cl\xE9s secr\xE8tes dans vos modifications",
+  "Couldn't check your changes for secret keys, so nothing was sent.": "Impossible de v\xE9rifier la pr\xE9sence de cl\xE9s secr\xE8tes dans vos modifications. Rien n\u2019a \xE9t\xE9 envoy\xE9.",
+  "Check your internet connection and try again. Nothing went live.": "V\xE9rifiez votre connexion internet et r\xE9essayez. Rien n\u2019a \xE9t\xE9 mis en ligne.",
+  "Couldn't reach GitHub": "Impossible de joindre GitHub",
+  "Your changes are saved on this computer, but GitHub can't be reached to publish them.": "Vos modifications sont enregistr\xE9es sur cet ordinateur, mais GitHub est inaccessible pour les publier.",
+  "Check your internet connection and try again.": "V\xE9rifiez votre connexion internet et r\xE9essayez.",
+  "You're working directly on the live version.": "Vous travaillez directement sur la version en ligne.",
+  "Ask Claude to move your work onto your draft, then publish again.": "Demandez \xE0 Claude de d\xE9placer votre travail dans votre brouillon, puis publiez \xE0 nouveau.",
+  "Saved your latest changes": "Derni\xE8res modifications enregistr\xE9es",
+  "Everything was already saved": "Tout \xE9tait d\xE9j\xE0 enregistr\xE9",
+  "Catching up with your live site": "R\xE9cup\xE9ration des mises \xE0 jour du site en ligne",
+  "Your draft and the live site changed the same thing": "Votre brouillon et le site en ligne ont modifi\xE9 le m\xEAme \xE9l\xE9ment",
+  "Your draft and the live site both changed the same thing.": "Votre brouillon et le site en ligne ont modifi\xE9 le m\xEAme \xE9l\xE9ment.",
+  "Ask Claude to review both versions with you. Your preview is unchanged.": "Demandez \xE0 Claude de comparer les deux versions avec vous. Votre aper\xE7u est inchang\xE9.",
+  "Ask Claude to combine them. It knows what to do. Then publish again.": "Demandez \xE0 Claude de les combiner, puis publiez \xE0 nouveau.",
+  "GitHub didn't accept the update.": "GitHub n\u2019a pas accept\xE9 la mise \xE0 jour.",
+  "Up to date with your live site": "\xC0 jour avec votre site en ligne",
+  "{0} live update{1} brought in": "{0} mise{1} \xE0 jour du site r\xE9cup\xE9r\xE9e{1}",
+  "Already up to date with your live site": "D\xE9j\xE0 \xE0 jour avec votre site en ligne",
+  "There's no new app change to publish.": "Aucune nouvelle modification de l\u2019application \xE0 publier.",
+  "This does not confirm which version visitors see. Ask Claude to check the hosting status if your site looks out of date.": "Cela ne confirme pas la version visible par vos visiteurs. Si votre site semble ancien, demandez \xE0 Claude de v\xE9rifier l\u2019h\xE9bergement.",
+  "Checks skipped": "V\xE9rifications ignor\xE9es",
+  "Checking everything works": "V\xE9rification du bon fonctionnement",
+  "Checks found a problem": "Un probl\xE8me a \xE9t\xE9 d\xE9tect\xE9",
+  "Checks found {0} problems": "{0} probl\xE8mes ont \xE9t\xE9 d\xE9tect\xE9s",
+  "Checks passed, with a note": "V\xE9rifications r\xE9ussies, avec une remarque",
+  "Everything checks out": "Toutes les v\xE9rifications sont r\xE9ussies",
+  "Preparing your draft on GitHub": "Pr\xE9paration de votre brouillon sur GitHub",
+  "There's nothing new to publish.": "Rien de nouveau \xE0 publier.",
+  "Draft ready on GitHub": "Brouillon pr\xEAt sur GitHub",
+  Publishing: "Publication",
+  "Ready for your host": "Pr\xEAt pour votre h\xE9bergeur",
+  "Retrying the same version": "Nouvelle tentative avec la m\xEAme version",
+  "This version couldn't be retried automatically.": "Cette version n\u2019a pas pu \xEAtre publi\xE9e \xE0 nouveau automatiquement.",
+  "Ask Claude to check the hosting report. Keep the app unchanged; don't make an edit to trigger publishing.": "Demandez \xE0 Claude de v\xE9rifier le rapport de l\u2019h\xE9bergeur. Gardez l\u2019application telle quelle : ne la modifiez pas pour relancer la publication.",
+  "Starting a fresh draft": "Cr\xE9ation d\u2019un nouveau brouillon",
+  "Fresh draft ready": "Nouveau brouillon pr\xEAt",
+  "Undoing your last publish": "Annulation de votre derni\xE8re publication",
+  "There's no publish to undo yet.": "Aucune publication \xE0 annuler pour le moment.",
+  "This publish can't be undone automatically": "Cette publication ne peut pas \xEAtre annul\xE9e automatiquement",
+  "Newer changes on your live site touch the same lines, so this can't be undone automatically.": "Des modifications plus r\xE9centes du site en ligne touchent les m\xEAmes lignes. L\u2019annulation automatique est impossible.",
+  "Ask Claude to undo it by hand. It can see exactly what changed.": "Demandez \xE0 Claude de l\u2019annuler manuellement. Il peut voir pr\xE9cis\xE9ment ce qui a chang\xE9.",
+  "GitHub didn't accept the undo.": "GitHub n\u2019a pas accept\xE9 l\u2019annulation.",
+  "Prepared the undo": "Annulation pr\xE9par\xE9e",
+  "Putting the previous version back": "Remise en ligne de la version pr\xE9c\xE9dente",
+  "Previous version restored": "Version pr\xE9c\xE9dente r\xE9tablie",
+  "\u201C{0}\u201D isn't a setting name.": "\xAB {0} \xBB n\u2019est pas un nom de param\xE8tre.",
+  "Which setting?": "Quel param\xE8tre ?",
+  "Use capitals, digits and underscores, like GREETING.": "Utilisez des majuscules, des chiffres et des tirets bas, comme GREETING.",
+  "That setting is empty.": "Ce param\xE8tre est vide.",
+  "Your project's checks passed": "Les v\xE9rifications de votre projet sont r\xE9ussies",
+  "A check failed: {0}": "Une v\xE9rification a \xE9chou\xE9 : {0}",
+  "Your project's own checks didn't pass ({0}).": "Les v\xE9rifications de votre projet ont \xE9chou\xE9 ({0}).",
+  "Nothing went live. Ask Claude to look at the failing check and fix it.": "Rien n\u2019a \xE9t\xE9 mis en ligne. Demandez \xE0 Claude d\u2019examiner et de corriger la v\xE9rification en \xE9chec.",
+  "Waiting for your project's checks": "En attente des v\xE9rifications de votre projet",
+  "{0} of {1} finished": "{0} sur {1} termin\xE9es",
+  "Your project's checks are taking too long.": "Les v\xE9rifications de votre projet prennent trop de temps.",
+  "Nothing went live. Try publishing again in a few minutes.": "Rien n\u2019a \xE9t\xE9 mis en ligne. R\xE9essayez de publier dans quelques minutes.",
+  "Published on GitHub": "Publi\xE9 sur GitHub",
+  "To put it live, click Publish, then Publish changes, in Lovable": "Pour mettre le site en ligne, cliquez sur Publish, puis Publish changes dans Lovable",
+  "Going live": "Mise en ligne",
+  "You're live": "Votre site est en ligne",
+  "Your host couldn't put it live": "Votre h\xE9bergeur n\u2019a pas pu mettre le site en ligne",
+  "Your changes are saved, but your host couldn't put them live.": "Vos modifications sont enregistr\xE9es, mais votre h\xE9bergeur n\u2019a pas pu les mettre en ligne.",
+  "Your previous version is still live. Fix the hosting problem, then retry Publish; no new app change is needed.": "La version pr\xE9c\xE9dente reste en ligne. Corrigez le probl\xE8me d\u2019h\xE9bergement, puis r\xE9essayez Publier, sans modifier l\u2019application.",
+  "No host puts it online from there yet": "Aucun h\xE9bergeur ne le met encore en ligne depuis GitHub",
+  Published: "Publi\xE9",
+  "Your host will put it live in a moment": "Votre h\xE9bergeur va bient\xF4t le mettre en ligne",
+  "Still going live": "Mise en ligne toujours en cours",
+  "Your host is taking longer than usual": "Votre h\xE9bergeur prend plus de temps que d\u2019habitude",
+  "Updating your site on Netlify": "Mise \xE0 jour de votre site sur Netlify",
+  "Your site on Netlify is up to date": "Votre site sur Netlify est \xE0 jour",
+  "Your site on Netlify didn't update": "Votre site sur Netlify n\u2019a pas \xE9t\xE9 mis \xE0 jour",
+  "Your site on Netlify is still updating": "Votre site sur Netlify est toujours en cours de mise \xE0 jour",
+  "This folder isn't connected to GitHub yet.": "Ce dossier n\u2019est pas encore connect\xE9 \xE0 GitHub.",
+  "Type /clodable to open the Clodable panel and set this folder up there.": "Tapez /clodable pour ouvrir le panneau Clodable et y configurer ce dossier.",
+  "Clodable isn't set up in this project.": "Clodable n\u2019est pas configur\xE9 pour ce projet.",
+  "Type /clodable to open the Clodable panel and set it up here. Until then, Clodable leaves this project alone.": "Tapez /clodable pour ouvrir le panneau Clodable et le configurer ici. Jusque-l\xE0, Clodable ne modifie pas ce projet.",
+  "No build step to check": "Aucune \xE9tape de build \xE0 v\xE9rifier",
+  "It builds": "Le build fonctionne",
+  "A page doesn't build ({0}, line {1})": "Le build d\u2019une page \xE9choue ({0}, ligne {1})",
+  "Your app doesn't build": "Le build de votre application \xE9choue",
+  "Package check not available for this project": "La v\xE9rification des d\xE9pendances n\u2019est pas disponible pour ce projet",
+  "Couldn't check packages (offline?)": "Impossible de v\xE9rifier les d\xE9pendances : connexion indisponible ?",
+  "Couldn't check packages right now": "Impossible de v\xE9rifier les d\xE9pendances pour le moment",
+  "Packages look safe": "Les d\xE9pendances semblent s\xFBres",
+  "Couldn't check for secret keys": "Impossible de v\xE9rifier la pr\xE9sence de cl\xE9s secr\xE8tes",
+  "A secret key is saved in {0}": "Une cl\xE9 secr\xE8te est enregistr\xE9e dans {0}",
+  "{0} secret keys are saved in your project": "{0} cl\xE9s secr\xE8tes sont enregistr\xE9es dans votre projet",
+  "Something that looks like a key is saved in your project": "Une valeur ressemblant \xE0 une cl\xE9 est enregistr\xE9e dans votre projet",
+  "No secret keys exposed": "Aucune cl\xE9 secr\xE8te expos\xE9e",
+  "A check failed.": "Une v\xE9rification a \xE9chou\xE9.",
+  "That app name is already in use.": "Ce nom d\u2019app est d\xE9j\xE0 utilis\xE9.",
+  "That draft isn't open any more.": "Ce brouillon n\u2019est plus ouvert.",
+  "GitHub couldn't combine your draft with the live site.": "GitHub n\u2019a pas pu combiner votre brouillon avec le site en ligne.",
+  "GitHub didn't accept a request.": "GitHub n\u2019a pas accept\xE9 une requ\xEAte.",
+  "Couldn't create your private app on GitHub.": "Impossible de cr\xE9er votre application priv\xE9e sur GitHub.",
+  "That name may already be in use, or your account may not allow new apps. Your local work is still here. Check GitHub before trying again.": "Ce nom est peut-\xEAtre d\xE9j\xE0 utilis\xE9, ou votre compte ne permet pas de cr\xE9er une application. Votre travail local est toujours l\xE0. V\xE9rifiez GitHub avant de r\xE9essayer.",
+  "Couldn't connect this app to your GitHub account.": "Impossible de connecter cette application \xE0 votre compte GitHub.",
+  "Try Set up saving again.": "R\xE9essayez Configurer l\u2019enregistrement.",
+  "The draft's page on GitHub couldn't be created.": "Impossible de cr\xE9er la page du brouillon sur GitHub.",
+  "Couldn't read the checks on GitHub.": "Impossible de lire les v\xE9rifications sur GitHub.",
+  "GitHub didn't publish your draft.": "GitHub n\u2019a pas publi\xE9 votre brouillon.",
+  "Your repository may require something before publishing. Open the draft on GitHub to see why.": "Votre d\xE9p\xF4t exige peut-\xEAtre une \xE9tape avant la publication. Ouvrez le brouillon sur GitHub pour conna\xEEtre la raison.",
+  "GitHub didn't accept the {0} secret your site needs to publish.": "GitHub n\u2019a pas accept\xE9 le secret {0} n\xE9cessaire \xE0 la publication de votre site.",
+  "Check you can change this repository's settings on GitHub, then try again.": "V\xE9rifiez que vous pouvez modifier les param\xE8tres de ce d\xE9p\xF4t sur GitHub, puis r\xE9essayez.",
+  "Clodable isn't connected to your GitHub account.": "Clodable n\u2019est pas connect\xE9 \xE0 votre compte GitHub.",
+  "Type /clodable to open the Clodable panel and connect it there.": "Tapez /clodable pour ouvrir le panneau Clodable et y connecter votre compte.",
+  "GitHub can't be reached right now.": "GitHub est inaccessible pour le moment.",
+  "That doesn't look like a Supabase access token.": "Cette valeur ne ressemble pas \xE0 un token d\u2019acc\xE8s Supabase.",
+  "It starts with sbp_. Create one in Supabase: Account \u2192 Access Tokens \u2192 Generate new token.": "Il commence par sbp_. Cr\xE9ez-en un dans Supabase : Account \u2192 Access Tokens \u2192 Generate new token.",
+  "Your data and users": "Vos donn\xE9es et vos utilisateurs",
+  "Copied from Lovable's export into your own Supabase. Your users keep their accounts.": "Copi\xE9s depuis l\u2019export Lovable vers votre propre Supabase. Vos utilisateurs conservent leurs comptes.",
+  "Moved to your Supabase, all together.": "Transf\xE9r\xE9s ensemble vers votre Supabase.",
+  "You paste their values into a secure form: {0}.": "Collez leurs valeurs dans un formulaire s\xE9curis\xE9 : {0}.",
+  "An AI feature": "Une fonctionnalit\xE9 d\u2019IA",
+  "AI features": "Fonctionnalit\xE9s d\u2019IA",
+  Emails: "Emails",
+  "Connected services: {0}": "Services connect\xE9s : {0}",
+  "They go through Lovable's connectors. You connect your own account for each, and Claude switches the code.": "Ils utilisent les connecteurs de Lovable. Connectez votre propre compte pour chacun ; Claude adaptera le code.",
+  "Sign in with {0}": "Connexion avec {0}",
+  "{0} sign-in needs a developer account with that company. Best done with help.": "La connexion {0} n\xE9cessite un compte d\xE9veloppeur aupr\xE8s de ce service. Mieux vaut vous faire accompagner.",
+  "You create a Google sign-in client, following the steps in the panel, and paste its ID and secret.": "Cr\xE9ez un client de connexion Google en suivant les \xE9tapes du panneau, puis collez son ID et son secret.",
+  "You create your own sign-in credentials with that company: Claude explains how.": "Cr\xE9ez vos propres identifiants de connexion aupr\xE8s de ce service. Claude vous explique comment.",
+  "Scheduled jobs": "T\xE2ches planifi\xE9es",
+  "Moved, and pointed at your new backend.": "Transf\xE9r\xE9es et reli\xE9es \xE0 votre nouveau backend.",
+  "Uploaded files": "Fichiers import\xE9s",
+  "Copied to your Supabase. Their size shows once you've exported your data.": "Copi\xE9s vers votre Supabase. Leur taille sera visible apr\xE8s l\u2019export de vos donn\xE9es.",
+  "Payments ({0})": "Paiements ({0})",
+  "When you go live, you change your Stripe webhook's address to your new backend: the panel shows it.": "\xC0 la mise en ligne, remplacez l\u2019adresse de votre webhook Stripe par celle du nouveau backend indiqu\xE9e dans le panneau.",
+  "Your website": "Votre site web",
+  "Moves to Netlify (free to start), and your own domain with it. You create the account, Clodable sets it up.": "Transf\xE9r\xE9 vers Netlify, gratuit pour commencer, avec votre domaine. Cr\xE9ez le compte ; Clodable s\u2019occupe de la configuration.",
+  "Lovable's link to your GitHub": "Le lien entre Lovable et votre GitHub",
+  "At the very end, you turn it off in Lovable, before removing Lovable Cloud: one click.": "Tout \xE0 la fin, d\xE9sactivez-le dans Lovable avant de supprimer Lovable Cloud : un clic suffit.",
+  "Copy your data first: the preview would show an empty app.": "Copiez d\u2019abord vos donn\xE9es : sinon, l\u2019aper\xE7u afficherait une application vide.",
+  "Reading your export": "Lecture de votre export",
+  "Clodable couldn't match an export in Downloads to this app.": "Clodable n\u2019a trouv\xE9 aucun export correspondant \xE0 cette application dans T\xE9l\xE9chargements.",
+  "Download this app's export from Lovable, or tell Claude the name and location of its .zip, .backup or .dump file. Clodable won't guess between apps.": "T\xE9l\xE9chargez l\u2019export de cette application depuis Lovable, ou indiquez \xE0 Claude le nom et l\u2019emplacement du fichier .zip, .backup ou .dump. Clodable ne choisit pas au hasard entre les apps.",
+  "That export was made before the pause: it would miss what people wrote since.": "Cet export date d\u2019avant la pause : les donn\xE9es ajout\xE9es depuis seraient absentes.",
+  "Check the pause is in place in Lovable, export again, download the new zip, then read it.": "V\xE9rifiez que la pause est active dans Lovable, exportez \xE0 nouveau, t\xE9l\xE9chargez le nouveau zip, puis lancez sa lecture.",
+  "Read your export": "Export lu",
+  "Create your new backend first.": "Cr\xE9ez d\u2019abord votre nouveau backend.",
+  "It's the step before this one.": "C\u2019est l\u2019\xE9tape pr\xE9c\xE9dente.",
+  "Export your data from Lovable first.": "Exportez d\u2019abord vos donn\xE9es depuis Lovable.",
+  "The export Clodable read is gone from this computer.": "L\u2019export lu par Clodable n\u2019est plus sur cet ordinateur.",
+  "Read it again: download the export from Lovable, then run that step again.": "T\xE9l\xE9chargez \xE0 nouveau l\u2019export depuis Lovable, puis relancez sa lecture.",
+  "Copying your data": "Copie de vos donn\xE9es",
+  "Connecting to your new database": "Connexion \xE0 votre nouvelle base de donn\xE9es",
+  "Checking everything is there": "V\xE9rification de la copie",
+  "Everything is there": "Tout est pr\xE9sent",
+  "Some things need a look": "Certains \xE9l\xE9ments sont \xE0 v\xE9rifier",
+  "Your app's API is ready": "L\u2019API de votre application est pr\xEAte",
+  "Your app's API sees every table": "L\u2019API de votre application voit toutes les tables",
+  "Your app's API doesn't see some tables yet": "L\u2019API de votre application ne voit pas encore certaines tables",
+  "There's no copy to check yet.": "Aucune copie \xE0 v\xE9rifier pour le moment.",
+  "Copy your data first.": "Copiez d\u2019abord vos donn\xE9es.",
+  "There's no new backend to look at yet.": "Aucun nouveau backend \xE0 examiner pour le moment.",
+  "Create it first: it's an early step of the move.": "Cr\xE9ez-le d\u2019abord : c\u2019est une des premi\xE8res \xE9tapes du transfert.",
+  "Your new backend is running": "Votre nouveau backend fonctionne",
+  "Your new backend is paused": "Votre nouveau backend est en pause",
+  "Your new backend isn't ready yet": "Votre nouveau backend n\u2019est pas encore pr\xEAt",
+  "Sign-in links come back to your site": "Les liens de connexion ram\xE8nent vers votre site",
+  "Sign-in links don't come back to your site": "Les liens de connexion ne ram\xE8nent pas vers votre site",
+  "they go to {0}": "ils m\xE8nent vers {0}",
+  "The preview can sign people in on the copy": "L\u2019aper\xE7u permet de se connecter \xE0 la copie",
+  "Sign-ins on the copy don't come back to the preview": "Les connexions \xE0 la copie ne ram\xE8nent pas vers l\u2019aper\xE7u",
+  "{0} on the copy": "{0} dans la copie",
+  "last sign-up {0}, last sign-in {1} (UTC)": "derni\xE8re inscription : {0}, derni\xE8re connexion : {1} (UTC)",
+  "Your data's checks pass": "Les v\xE9rifications de vos donn\xE9es sont r\xE9ussies",
+  "The copy noted {0} from Postgres": "Postgres a signal\xE9 {0} pendant la copie",
+  "The preview uses the copy": "L\u2019aper\xE7u utilise la copie",
+  "The preview uses your live data (on Lovable Cloud)": "L\u2019aper\xE7u utilise vos donn\xE9es en ligne, sur Lovable Cloud",
+  "Go live on your new site first.": "Mettez d\u2019abord votre nouveau site en ligne.",
+  "Your domain moves once the app works at its Netlify address.": "Votre domaine sera transf\xE9r\xE9 une fois que l\u2019application fonctionnera \xE0 son adresse Netlify.",
+  "\u201C{0}\u201D isn't a domain of your own.": "\xAB {0} \xBB n\u2019est pas un domaine qui vous appartient.",
+  "Which domain?": "Quel domaine ?",
+  "The one your app uses, like yourapp.com or app.yourapp.com.": "Celui de votre application, par exemple votreapp.com ou app.votreapp.com.",
+  "That doesn't look like a Resend key.": "Cette valeur ne ressemble pas \xE0 une cl\xE9 Resend.",
+  "It starts with re_. In Resend: API Keys \u2192 Create API Key, with Full access.": "Elle commence par re_. Dans Resend : API Keys \u2192 Create API Key, avec Full access.",
+  "Create your new backend first: emails are sent from it.": "Cr\xE9ez d\u2019abord votre nouveau backend : c\u2019est lui qui envoie les emails.",
+  "\u201C{0}\u201D isn't a domain name.": "\xAB {0} \xBB n\u2019est pas un nom de domaine.",
+  "Which domain should your emails come from?": "Quel domaine voulez-vous utiliser pour envoyer vos emails ?",
+  "A domain you own, like example.com: emails will come from no-reply@ that domain.": "Un domaine qui vous appartient, comme example.com. Les emails partiront de no-reply@ sur ce domaine.",
+  "Setting up your emails": "Configuration de vos emails",
+  "From {0}": "Depuis {0}",
+  "Your domain needs its email records": "Votre domaine a besoin de ses enregistrements DNS pour les emails",
+  "Add the {0} records at your domain's provider, then check again": "Ajoutez les {0} enregistrements chez votre fournisseur de domaine, puis v\xE9rifiez \xE0 nouveau",
+  "Connecting Resend to Supabase": "Connexion de Resend \xE0 Supabase",
+  "Your emails are ready": "Vos emails sont pr\xEAts",
+  "From {0}, through Resend": "Depuis {0}, via Resend",
+  "That zip holds more than one database export.": "Ce zip contient plusieurs exports de base de donn\xE9es.",
+  "That zip doesn't hold a database export.": "Ce zip ne contient aucun export de base de donn\xE9es.",
+  "Choose the single .backup or .dump file for this app, or download its export again from Lovable.": "Choisissez le fichier .backup ou .dump de cette application, ou t\xE9l\xE9chargez \xE0 nouveau son export depuis Lovable.",
+  "That export is labelled for a different Lovable app.": "Cet export porte le nom d\u2019une autre app Lovable.",
+  "Download this app's export, or tell Claude where you saved the correct file. Your saved copy hasn't changed.": "T\xE9l\xE9chargez l\u2019export de cette application, ou indiquez \xE0 Claude o\xF9 se trouve le bon fichier. Votre copie enregistr\xE9e n\u2019a pas chang\xE9.",
+  "Couldn't open that export.": "Impossible d\u2019ouvrir cet export.",
+  "Download it again (from Lovable's email, or More \u2192 Cloud \u2192 Storage), then try again.": "T\xE9l\xE9chargez-le \xE0 nouveau depuis l\u2019email de Lovable ou More \u2192 Cloud \u2192 Storage, puis r\xE9essayez.",
+  "That export is empty.": "Cet export est vide.",
+  "Export your data again in Lovable, then download the new zip.": "Exportez \xE0 nouveau vos donn\xE9es dans Lovable, puis t\xE9l\xE9chargez le nouveau zip.",
+  "Files, functions and secrets go into the copy, once it exists.": "Les fichiers, fonctions et secrets seront ajout\xE9s \xE0 la copie une fois celle-ci cr\xE9\xE9e.",
+  "Clodable doesn't know which Lovable Cloud backend the files are in.": "Clodable ne sait pas quel backend Lovable Cloud contient les fichiers.",
+  "Read your export again: it says where your files are.": "Relancez la lecture de votre export : il indique o\xF9 sont vos fichiers.",
+  "Your database has no secret called \u201C{0}\u201D.": "Votre base de donn\xE9es ne contient aucun secret nomm\xE9 \xAB {0} \xBB.",
+  "Which secret?": "Quel secret ?",
+  "It has: {0}.": "Voici les secrets disponibles : {0}.",
+  "That secret is empty.": "Ce secret est vide.",
+  "\u201C{0}\u201D isn't a secret name Supabase accepts.": "\xAB {0} \xBB n\u2019est pas un nom de secret accept\xE9 par Supabase.",
+  "Use capitals, digits and underscores, not starting with SUPABASE_.": "Utilisez des majuscules, des chiffres et des tirets bas, sans commencer par SUPABASE_.",
+  "The facts aren't JSON.": "Les informations ne sont pas au format JSON.",
+  "Pipe one JSON object to `move facts --set`, shaped as the move skill shows.": "Transmettez un objet JSON \xE0 `move facts --set`, au format indiqu\xE9 par le skill de transfert.",
+  "The facts don't have the expected shape.": "Les informations n\u2019ont pas la structure attendue.",
+  "Fields: ai, signIn {email, google, apple, other}, appEmails, connectors, payments, scheduledJobs, uploads, notes.": "Champs : ai, signIn {email, google, apple, other}, appEmails, connectors, payments, scheduledJobs, uploads, notes.",
+  "Copying your files": "Copie de vos fichiers",
+  "Checking your files": "V\xE9rification de vos fichiers",
+  "Comparing them byte for byte": "Comparaison octet par octet",
+  "Copied most of your files": "La plupart des fichiers sont copi\xE9s",
+  "Copied your files": "Fichiers copi\xE9s",
+  "This app has no backend functions to move.": "Cette application n\u2019a aucune fonction backend \xE0 transf\xE9rer.",
+  "Moving your backend functions": "Transfert de vos fonctions backend",
+  "{0} of {1}: {2}": "{0} sur {1} : {2}",
+  "Some backend functions didn't move": "Certaines fonctions backend n\u2019ont pas \xE9t\xE9 transf\xE9r\xE9es",
+  "Moved your backend functions": "Fonctions backend transf\xE9r\xE9es",
+  "{0} running": "{0} en service",
+  "That doesn't look like a Google client ID.": "Cette valeur ne ressemble pas \xE0 un ID client Google.",
+  "It ends with .apps.googleusercontent.com.": "Il se termine par .apps.googleusercontent.com.",
+  "That client secret is empty.": "Ce secret client est vide.",
+  "Checking your new backend": "V\xE9rification de votre nouveau backend",
+  "Your new backend is paused.": "Votre nouveau backend est en pause.",
+  "Restore it on its page in Supabase, then try this step again. Your live app hasn't changed.": "R\xE9activez-le depuis sa page Supabase, puis r\xE9essayez cette \xE9tape. Votre application en ligne n\u2019a pas chang\xE9.",
+  "Your new backend is ready": "Votre nouveau backend est pr\xEAt",
+  "Creating your new backend": "Cr\xE9ation de votre nouveau backend",
+  "Which Supabase organization should it go in?": "Dans quelle organisation Supabase voulez-vous le cr\xE9er ?",
+  "Pick the region closest to your users.": "Choisissez la r\xE9gion la plus proche de vos utilisateurs.",
+  "Supabase couldn't start your new backend.": "Supabase n\u2019a pas pu d\xE9marrer votre nouveau backend.",
+  "Delete it in Supabase, then create it again from Clodable.": "Supprimez-le dans Supabase, puis recr\xE9ez-le depuis Clodable.",
+  "Your new backend is taking unusually long to start.": "Votre nouveau backend met plus de temps que pr\xE9vu \xE0 d\xE9marrer.",
+  "Check it in Supabase, then try this step again: Clodable picks up where it was.": "V\xE9rifiez-le dans Supabase, puis r\xE9essayez cette \xE9tape. Clodable reprend l\xE0 o\xF9 il s\u2019\xE9tait arr\xEAt\xE9.",
+  "Clodable doesn't have this backend's database password.": "Clodable n\u2019a pas le mot de passe de la base de donn\xE9es de ce backend.",
+  "Run the move from the computer that created it.": "Lancez le transfert depuis l\u2019ordinateur qui l\u2019a cr\xE9\xE9.",
+  "Supabase didn't say how to connect to your new database.": "Supabase n\u2019a pas indiqu\xE9 comment se connecter \xE0 votre nouvelle base de donn\xE9es.",
+  "Try again in a minute.": "R\xE9essayez dans une minute.",
+  "Couldn't reach {0}.": "Impossible de joindre {0}.",
+  "Check your internet connection, then try again.": "V\xE9rifiez votre connexion internet, puis r\xE9essayez.",
+  "{0} answered in a way Clodable didn't expect.": "{0} a renvoy\xE9 une r\xE9ponse que Clodable ne reconna\xEEt pas.",
+  "Try again in a minute. If it keeps happening, share the details with your developer.": "R\xE9essayez dans une minute. Si le probl\xE8me persiste, transmettez les d\xE9tails \xE0 votre d\xE9veloppeur.",
+  "Netlify didn't accept your access token.": "Netlify n\u2019a pas accept\xE9 votre token d\u2019acc\xE8s.",
+  "It may have expired or been deleted. Create a new one and connect again.": "Il a peut-\xEAtre expir\xE9 ou \xE9t\xE9 supprim\xE9. Cr\xE9ez-en un nouveau et reconnectez-vous.",
+  "Netlify refused that.": "Netlify a refus\xE9 cette op\xE9ration.",
+  "Netlify refused the request.": "Netlify a refus\xE9 la requ\xEAte.",
+  "Netlify isn't connected on this computer yet.": "Netlify n\u2019est pas encore connect\xE9 sur cet ordinateur.",
+  "Connect your Netlify account in the Clodable panel first.": "Connectez d\u2019abord votre compte Netlify dans le panneau Clodable.",
+  "Couldn't get PostgreSQL's tools, which copying your data needs.": "Impossible de r\xE9cup\xE9rer les outils PostgreSQL n\xE9cessaires \xE0 la copie de vos donn\xE9es.",
+  "Couldn't connect to your new database.": "Impossible de se connecter \xE0 votre nouvelle base de donn\xE9es.",
+  "It can take a few minutes after it's created. Try again shortly.": "La connexion peut prendre quelques minutes apr\xE8s sa cr\xE9ation. R\xE9essayez bient\xF4t.",
+  "That file isn't a database export Clodable can read.": "Ce fichier n\u2019est pas un export de base de donn\xE9es lisible par Clodable.",
+  "Download the export again (from Lovable's email, or More \u2192 Cloud \u2192 Storage), then try again.": "T\xE9l\xE9chargez \xE0 nouveau l\u2019export depuis l\u2019email de Lovable ou More \u2192 Cloud \u2192 Storage, puis r\xE9essayez.",
+  "Couldn't read part of your export.": "Impossible de lire une partie de votre export.",
+  "Couldn't read your export's data.": "Impossible de lire les donn\xE9es de votre export.",
+  "Couldn't read your export while copying it.": "Impossible de lire votre export pendant la copie.",
+  "The connection to your new database dropped during the copy.": "La connexion \xE0 votre nouvelle base de donn\xE9es a \xE9t\xE9 interrompue pendant la copie.",
+  "Try again: the copy starts over cleanly on a fresh database.": "R\xE9essayez : la copie recommence sur une base de donn\xE9es vide.",
+  "Look at your app": "Examiner votre application",
+  "Connected on this computer": "Connect\xE9 sur cet ordinateur",
+  "Connect your Supabase account": "Connecter votre compte Supabase",
+  "Create your new backend": "Cr\xE9er votre nouveau backend",
+  "Export your data from Lovable": "Exporter vos donn\xE9es depuis Lovable",
+  "Copy it into your new backend": "Les copier dans votre nouveau backend",
+  "{0} to add": "{0} \xE0 ajouter",
+  "Copy your uploaded files": "Copier vos fichiers import\xE9s",
+  "{0} of {1} copied": "{0} sur {1} copi\xE9s",
+  "Move your backend functions": "Transf\xE9rer vos fonctions backend",
+  "Try your app on the copy": "Essayer votre application sur la copie",
+  "The preview uses your new backend": "L\u2019aper\xE7u utilise votre nouveau backend",
+  "The preview still uses Lovable Cloud": "L\u2019aper\xE7u utilise encore Lovable Cloud",
+  "Connect your Netlify account": "Connecter votre compte Netlify",
+  "Prepare your website": "Pr\xE9parer votre site web",
+  "Set up emails for your users": "Configurer les emails de vos utilisateurs",
+  "Skipped for now: no password-reset emails": "\xC9tape ignor\xE9e : aucun email de r\xE9initialisation de mot de passe",
+  "{0}: waiting for its records": "{0} : en attente des enregistrements DNS",
+  "Switch off Lovable's services": "D\xE9sactiver les services de Lovable",
+  "Google sign-in": "connexion avec Google",
+  "Skipped: it stays off on your new site": "\xC9tape ignor\xE9e : la connexion reste d\xE9sactiv\xE9e sur votre nouveau site",
+  "On your new backend": "Sur votre nouveau backend",
+  "Pause changes on your live app": "Mettre en pause les modifications de l\u2019application en ligne",
+  "Since {0} UTC": "Depuis {0} UTC",
+  "Export your data again": "Exporter \xE0 nouveau vos donn\xE9es",
+  "Copy it in for good": "Effectuer la copie finale",
+  "Go live on your new backend and site": "Mettre en ligne votre nouveau backend et votre site",
+  "Live at {0}": "En ligne \xE0 l\u2019adresse {0}",
+  "Publish puts it live": "Publier permet de le mettre en ligne",
+  "Your app's address": "L\u2019adresse de votre application",
+  "Finish in Lovable": "Terminer dans Lovable",
+  "The checked database functions and webhooks no longer name the old backend": "Les fonctions de base de donn\xE9es et webhooks v\xE9rifi\xE9s ne r\xE9f\xE9rencent plus l\u2019ancien backend",
+  "The rehearsal notes don't have the expected shape.": "Les notes de test n\u2019ont pas la structure attendue.",
+  "Include the copy identity from move rehearsal and dated feature observations, with their result, method and evidence. Never include keys or people's data.": "Incluez l\u2019identit\xE9 de la copie fournie par move rehearsal et les observations dat\xE9es sur les fonctionnalit\xE9s, avec le r\xE9sultat, la m\xE9thode et les preuves. N\u2019incluez aucune cl\xE9 ni donn\xE9e personnelle.",
+  "These notes don't match the current copy.": "Ces notes ne correspondent pas \xE0 la copie actuelle.",
+  "Read the current rehearsal record and check which copy was actually tested. Don't relabel old checks as new ones.": "Consultez les notes de test actuelles et v\xE9rifiez quelle copie a \xE9t\xE9 test\xE9e. Ne pr\xE9sentez pas d\u2019anciens tests comme de nouveaux r\xE9sultats.",
+  "A check's date is outside this copy's lifetime.": "La date d\u2019une v\xE9rification se situe en dehors de la p\xE9riode d\u2019existence de cette copie.",
+  "Use the date the check actually happened, after this copy was made.": "Utilisez la date r\xE9elle de la v\xE9rification, apr\xE8s la cr\xE9ation de cette copie.",
+  "That Resend key can only send emails.": "Cette cl\xE9 Resend permet uniquement d\u2019envoyer des emails.",
+  "Resend didn't accept that key.": "Resend n\u2019a pas accept\xE9 cette cl\xE9.",
+  "Create a key with Full access in Resend (API Keys \u2192 Create API Key), then connect again.": "Cr\xE9ez une cl\xE9 avec Full access dans Resend, via API Keys \u2192 Create API Key, puis reconnectez-vous.",
+  "Resend refused the request.": "Resend a refus\xE9 la requ\xEAte.",
+  "Resend isn't connected on this computer yet.": "Resend n\u2019est pas encore connect\xE9 sur cet ordinateur.",
+  "Connect your Resend account in the Clodable panel first.": "Connectez d\u2019abord votre compte Resend dans le panneau Clodable.",
+  "Clearing the earlier copy": "Suppression de la copie pr\xE9c\xE9dente",
+  "Turning on your database's extensions": "Activation des extensions de votre base de donn\xE9es",
+  "Bringing your people over": "Transfert de vos utilisateurs",
+  "Copying your tables": "Copie de vos tables",
+  "Putting the access rules back": "R\xE9tablissement des r\xE8gles d\u2019acc\xE8s",
+  "Copied your data": "Donn\xE9es copi\xE9es",
+  "{0} parts didn't copy cleanly": "Certaines parties n\u2019ont pas \xE9t\xE9 copi\xE9es correctement : {0}",
+  "Getting the copy ready": "Pr\xE9paration de la copie",
+  "Got the copy ready": "Copie pr\xE9par\xE9e",
+  "Which AI provider?": "Quel fournisseur d\u2019IA ?",
+  "One of: {0}.": "Au choix : {0}.",
+  "That doesn't look like a {0} key.": "Cette valeur ne ressemble pas \xE0 une cl\xE9 {0}.",
+  "Paste the whole key, as the provider shows it once.": "Collez la cl\xE9 compl\xE8te, telle que le fournisseur l\u2019affiche lors de sa cr\xE9ation.",
+  "Set up your emails first: your app's own emails go out the same way.": "Configurez d\u2019abord vos emails : les emails propres \xE0 votre application utiliseront le m\xEAme service.",
+  "Move your backend functions first: the sign-in emails come from auth-email-hook.": "Transf\xE9rez d\u2019abord vos fonctions backend : les emails de connexion sont envoy\xE9s par auth-email-hook.",
+  "clodable move functions": "clodable move functions",
+  "That doesn't look like a Netlify access token.": "Cette valeur ne ressemble pas \xE0 un token d\u2019acc\xE8s Netlify.",
+  "In Netlify: User settings \u2192 Applications \u2192 Personal access tokens \u2192 New access token.": "Dans Netlify : User settings \u2192 Applications \u2192 Personal access tokens \u2192 New access token.",
+  "Create your new backend first: the site needs it.": "Cr\xE9ez d\u2019abord votre nouveau backend : le site en a besoin.",
+  "It's one of the first steps of the move.": "C\u2019est l\u2019une des premi\xE8res \xE9tapes du transfert.",
+  "Preparing your website": "Pr\xE9paration de votre site web",
+  "Creating the site": "Cr\xE9ation du site",
+  "Pointing it at your new backend": "Connexion \xE0 votre nouveau backend",
+  "Your website is prepared": "Votre site web est pr\xE9par\xE9",
+  "Nothing has been published. Continue the move in the panel.": "Rien n\u2019a \xE9t\xE9 publi\xE9. Continuez le transfert dans le panneau.",
+  "Which Netlify team should the site go in?": "Dans quelle \xE9quipe Netlify voulez-vous cr\xE9er le site ?",
+  "Netlify didn't accept a name for your site.": "Netlify n\u2019a pas accept\xE9 de nom pour votre site.",
+  "Try again: Clodable picks another name.": "R\xE9essayez : Clodable choisira un autre nom.",
+  "Prepare your website first.": "Pr\xE9parez d\u2019abord votre site web.",
+  "Use capitals, digits and underscores.": "Utilisez des majuscules, des chiffres et des tirets bas.",
+  "Supabase isn't connected on this computer yet.": "Supabase n\u2019est pas encore connect\xE9 sur cet ordinateur.",
+  "Connect your Supabase account first: it's the first step of the move.": "Connectez d\u2019abord votre compte Supabase : c\u2019est la premi\xE8re \xE9tape du transfert.",
+  "Couldn't reach Supabase.": "Impossible de joindre Supabase.",
+  "Your new backend isn't available to this Supabase account.": "Ce compte Supabase ne peut pas acc\xE9der \xE0 votre nouveau backend.",
+  "Open Supabase and check the account and project. It may have been removed or your access may have changed. Your live app hasn't changed.": "Ouvrez Supabase et v\xE9rifiez le compte et le projet. Le projet a peut-\xEAtre \xE9t\xE9 supprim\xE9 ou vos droits ont chang\xE9. Votre application en ligne n\u2019a pas chang\xE9.",
+  "Supabase didn't accept your access token.": "Supabase n\u2019a pas accept\xE9 votre token d\u2019acc\xE8s.",
+  "It may have expired or been deleted. Connect your Supabase account again in the Clodable panel.": "Il a peut-\xEAtre expir\xE9 ou \xE9t\xE9 supprim\xE9. Reconnectez votre compte Supabase dans le panneau Clodable.",
+  "You already run 2 free Supabase projects, the most Supabase allows per person across all your organizations.": "Vous utilisez d\xE9j\xE0 2 projets Supabase gratuits, la limite par personne pour l\u2019ensemble de vos organisations.",
+  "Pause one you don't use in Supabase, or pick an organization on a paid plan, then try again.": "Mettez en pause un projet inutilis\xE9 dans Supabase, ou choisissez une organisation avec un forfait payant, puis r\xE9essayez.",
+  "This goes past what your Supabase plan includes.": "Cette op\xE9ration d\xE9passe les limites de votre forfait Supabase.",
+  "Check your plan in Supabase (Organization \u2192 Billing), then try again.": "V\xE9rifiez votre forfait dans Supabase, via Organization \u2192 Billing, puis r\xE9essayez.",
+  "Your Supabase access token is missing a permission: {0}.": "Il manque une autorisation \xE0 votre token d\u2019acc\xE8s Supabase : {0}.",
+  "Your Supabase access token isn't allowed to do this.": "Votre token d\u2019acc\xE8s Supabase n\u2019autorise pas cette op\xE9ration.",
+  "Create a new token that has it (or a full-access one: \u201CCreate legacy token\u201D), then connect again. If the permission is there, your role in the organization may not allow it: ask its owner.": "Cr\xE9ez un token avec cette autorisation, ou un token complet via \xAB Create legacy token \xBB, puis reconnectez-vous. Si l\u2019autorisation est pr\xE9sente, contactez le propri\xE9taire de l\u2019organisation pour v\xE9rifier votre r\xF4le.",
+  "Supabase refused the request.": "Supabase a refus\xE9 la requ\xEAte.",
+  "Careful or quick?": "Avec pr\xE9caution ou en une fois ?",
+  "clodable move method careful (a pause at the end, nothing lost) or quick (in one go).": "clodable move method careful pour une pause finale sans perte, ou quick pour un transfert en une fois.",
+  "Your app is live on its new home already.": "Votre application est d\xE9j\xE0 en ligne chez son nouvel h\xE9bergeur.",
+  "Your live app is paused already: finish the careful way.": "Votre application en ligne est d\xE9j\xE0 en pause : terminez avec la m\xE9thode careful.",
+  "Or undo the pause in Lovable first, with the line the panel shows.": "Vous pouvez aussi annuler la pause dans Lovable avec la commande affich\xE9e dans le panneau.",
+  "Get the copy and your site on Netlify ready first.": "Pr\xE9parez d\u2019abord la copie et votre site Netlify.",
+  "The pause should be as short as possible: everything else is done before it.": "La pause doit rester aussi courte que possible : toutes les autres \xE9tapes viennent avant.",
+  "Going live points your app and its sign-in at it.": "La mise en ligne y reliera votre application et la connexion de ses utilisateurs.",
+  "Some things on your new backend need a look first.": "Certains \xE9l\xE9ments de votre nouveau backend doivent d\u2019abord \xEAtre v\xE9rifi\xE9s.",
+  "Ask Claude to run clodable move diagnose.": "Demandez \xE0 Claude d\u2019ex\xE9cuter clodable move diagnose.",
+  "Pause changes on your live app first.": "Mettez d\u2019abord en pause les modifications de votre application en ligne.",
+  "Going live comes after the pause and the final copy.": "La mise en ligne vient apr\xE8s la pause et la copie finale.",
+  "Copy your data in for good first: export again from Lovable, then copy it.": "Effectuez d\u2019abord la copie finale : exportez \xE0 nouveau depuis Lovable, puis copiez les donn\xE9es.",
+  "That copy is what keeps everything written before the pause.": "Cette copie conserve toutes les donn\xE9es ajout\xE9es avant la pause.",
+  "Switching to your new backend": "Bascule vers votre nouveau backend",
+  "Sign-in for real people": "Connexion de vos utilisateurs",
+  "Your scheduled jobs": "Vos t\xE2ches planifi\xE9es",
+  "Your app's files": "Les fichiers de votre application",
+  "Clodable's settings": "Les param\xE8tres de Clodable",
+  "Ready to go live": "Pr\xEAt pour la mise en ligne",
+  "Publish to put it live at {0}": "Publiez pour mettre le site en ligne \xE0 l\u2019adresse {0}",
+  "Go live first: Lovable Cloud stays until your app works on its new home.": "Mettez d\u2019abord la nouvelle app en ligne. Lovable Cloud reste actif jusqu\u2019\xE0 ce qu\u2019elle fonctionne chez son nouvel h\xE9bergeur.",
+  "All {0} and their {1} are there": "Tout est pr\xE9sent : {0} et {1}",
+  "{0} didn't copy fully": "Copie incompl\xE8te : {0}",
+  "{0} can sign in as before": "Connexion inchang\xE9e : {0}",
+  "{0} of {1} came over": "Transfert effectu\xE9 : {0} sur {1}",
+  "{0} sign in without a password (Google and the like, or invited).": "Connexion sans mot de passe : {0} (Google ou autre service, ou sur invitation).",
+  "Every access rule is in place": "Toutes les r\xE8gles d\u2019acc\xE8s sont en place",
+  "Some access rules are missing": "Certaines r\xE8gles d\u2019acc\xE8s manquent",
+  "Links between tables and automatic actions are in place": "Les liens entre tables et les actions automatiques sont en place",
+  "Some links or automatic actions are missing": "Certains liens ou certaines actions automatiques manquent",
+  "Your app can reach its tables as before": "Votre application acc\xE8de \xE0 ses tables comme avant",
+  "Your app can't reach some of its tables": "Votre application ne peut pas acc\xE9der \xE0 certaines tables",
+  "New rows will save cleanly": "Les nouvelles lignes pourront \xEAtre enregistr\xE9es correctement",
+  "Some counters are behind": "Certains compteurs sont en retard",
+  "{0} still call Lovable Cloud": "Appels vers Lovable Cloud encore pr\xE9sents : {0}",
+  "Database extensions are on": "Les extensions de la base de donn\xE9es sont activ\xE9es",
+  "Some database extensions are off": "Certaines extensions de la base de donn\xE9es sont d\xE9sactiv\xE9es",
+  "Some files are missing": "Certains fichiers manquent",
+  "Some file folders are missing": "Certains dossiers de fichiers manquent",
+  "All {0} are there": "Tout est pr\xE9sent : {0}",
+  "{0} ready for your files": "Stockage pr\xEAt pour vos fichiers : {0}",
+  "{count} package has a critical security issue": "{count} d\xE9pendance pr\xE9sente une faille critique",
+  "{count} packages have a critical security issue": "{count} d\xE9pendances pr\xE9sentent une faille critique",
+  "{count} package has a known security issue": "{count} d\xE9pendance pr\xE9sente une faille connue",
+  "{count} packages have a known security issue": "{count} d\xE9pendances pr\xE9sentent une faille connue",
+  "Checking it builds": "V\xE9rification du build",
+  "Checking packages for security issues": "Recherche de failles dans les d\xE9pendances",
+  "Looking for exposed secret keys": "Recherche de cl\xE9s secr\xE8tes expos\xE9es",
+  "{features} uses Lovable's AI. Paste your own OpenRouter, Google Gemini or OpenAI key; Claude connects these features to it.": "IA de Lovable : {features}. Collez votre propre cl\xE9 OpenRouter, Google Gemini ou OpenAI ; Claude adaptera ces fonctionnalit\xE9s.",
+  "Your app uses Lovable's AI. Paste your own OpenRouter, Google Gemini or OpenAI key; Claude connects your app to it.": "Votre application utilise l\u2019IA de Lovable. Collez votre propre cl\xE9 OpenRouter, Google Gemini ou OpenAI ; Claude adaptera votre application.",
+  "Emails sent through Lovable: {features}. Connect your own Resend account and domain; Claude switches the sending.": "Emails envoy\xE9s via Lovable : {features}. Connectez votre compte Resend et votre domaine ; Claude adaptera l\u2019envoi.",
+  "Your app sends emails through Lovable. Connect your own Resend account and domain; Claude switches the sending.": "Votre application envoie des emails via Lovable. Connectez votre compte Resend et votre domaine ; Claude adaptera l\u2019envoi.",
+  "Skipped: these services stop with Lovable: {services}": "\xC9tape ignor\xE9e : ces services s\u2019arr\xEAtent avec Lovable : {services}",
+  "{count} table": "{count} table",
+  "{count} tables": "{count} tables",
+  "{count} row": "{count} ligne",
+  "{count} rows": "{count} lignes",
+  "{count} person": "{count} utilisateur",
+  "{count} people": "{count} utilisateurs",
+  "{count} message": "{count} message",
+  "{count} messages": "{count} messages",
+  "{count} file": "{count} fichier",
+  "{count} files": "{count} fichiers",
+  "{count} file folder": "{count} dossier",
+  "{count} file folders": "{count} dossiers",
+  "{count} database function or webhook": "{count} fonction de base de donn\xE9es ou webhook",
+  "{count} database function or webhooks": "{count} fonctions de base de donn\xE9es ou webhooks",
+  "{count} database secret": "{count} secret de base de donn\xE9es",
+  "{count} database secrets": "{count} secrets de base de donn\xE9es",
+  "{count} secret key": "{count} cl\xE9 secr\xE8te",
+  "{count} secret keys": "{count} cl\xE9s secr\xE8tes",
+  "{count} function": "{count} fonction",
+  "{count} functions": "{count} fonctions",
+  "{count} setting": "{count} param\xE8tre",
+  "{count} settings": "{count} param\xE8tres",
+  "{count} backend function": "{count} fonction backend",
+  "{count} backend functions": "{count} fonctions backend",
+  "just now": "\xE0 l\u2019instant",
+  "{count} min ago": "il y a {count} min",
+  "{count} h ago": "il y a {count} h",
+  "yesterday at {time}": "hier \xE0 {time}",
+  AI: "IA",
+  "Apple sign-in": "connexion avec Apple",
+  "{provider} sign-in": "connexion avec {provider}",
+  "its own emails": "emails de l\u2019application",
+  "payments ({provider})": "paiements ({provider})",
+  "scheduled jobs": "t\xE2ches planifi\xE9es",
+  uploads: "envoi de fichiers",
+  "Nothing beyond its data and its site": "Uniquement ses donn\xE9es et son site",
+  emails: "emails",
+  "sign-in emails": "emails de connexion",
+  "{name}: missing": "{name} : manquant",
+  "{name}: wrong access": "{name} : acc\xE8s incorrect",
+  "{name}: {actual} of {expected} rows": "{name} : {actual} lignes sur {expected}",
+  "{name}: {actual} of {expected} files": "{name} : {actual} fichiers sur {expected}",
+  "access rules in {schema}: {actual} of {expected}": "r\xE8gles d\u2019acc\xE8s dans {schema} : {actual} sur {expected}",
+  "protected tables in {schema}: {actual} of {expected}": "tables prot\xE9g\xE9es dans {schema} : {actual} sur {expected}",
+  "triggers in {schema}: {actual} of {expected}": "triggers dans {schema} : {actual} sur {expected}",
+  "links between tables in {schema}: {actual} of {expected}": "liens entre les tables dans {schema} : {actual} sur {expected}",
+  "the app's triggers on sign-ins and files: {actual} of {expected}": "triggers de l\u2019application pour les connexions et les fichiers : {actual} sur {expected}",
+  "{table} for {role}: {privileges}": "{table} pour {role} : {privileges}",
+  Finishing: "Finalisation",
+  "Getting ready": "Pr\xE9paration",
+  "Installing your app's packages": "Installation des d\xE9pendances de votre application",
+  "Building your site": "Construction de votre site",
+  "under a minute so far": "moins d\u2019une minute \xE9coul\xE9e",
+  "{minutes} min so far": "{minutes} min \xE9coul\xE9es",
+  "Your host is building it \xB7 {time}": "Votre h\xE9bergeur pr\xE9pare le site \xB7 {time}",
+  "Waiting for GitHub to start the build": "En attente du lancement du build sur GitHub",
+  "usually about {minutes} min": "en g\xE9n\xE9ral, environ {minutes} min",
+  "the first one takes a few minutes": "le premier build prend quelques minutes",
+  Free: "Gratuit",
+  "About $10 a month, added to your Supabase plan": "Environ 10 $ par mois, en plus de votre forfait Supabase",
+  "Run `clodable move diagnose --fix`.": "Lancez `clodable move diagnose --fix`.",
+  "Restore it on its page in Supabase, then look again.": "R\xE9tablissez-le depuis sa page Supabase, puis relancez la v\xE9rification.",
+  "Check its status in Supabase, then look again in a minute.": "V\xE9rifiez son \xE9tat dans Supabase, puis r\xE9essayez dans une minute.",
+  "Run `clodable move diagnose --fix`: it asks the API to refresh its list of tables.": "Lancez `clodable move diagnose --fix` pour actualiser la liste des tables de l\u2019API.",
+  "Supabase's default": "la destination par d\xE9faut de Supabase",
+  "new people must confirm by email, which Supabase's test mailer rarely sends": "les nouveaux utilisateurs doivent confirmer leur adresse, mais le service email de test de Supabase envoie rarement ce message",
+  never: "jamais",
+  "Copying again from a fresh export usually puts it right.": "Une nouvelle copie \xE0 partir d\u2019un export r\xE9cent r\xE9sout g\xE9n\xE9ralement le probl\xE8me.",
+  "sign-in links go to {url}": "les liens de connexion m\xE8nent \xE0 {url}",
+  "Nothing went to GitHub. It's in an earlier save that hasn't been sent: a developer needs to take that save back.": "Rien n\u2019a \xE9t\xE9 envoy\xE9 sur GitHub. La cl\xE9 se trouve dans un enregistrement pr\xE9c\xE9dent qui n\u2019a pas encore \xE9t\xE9 envoy\xE9 : un d\xE9veloppeur doit annuler cet enregistrement.",
+  "Nothing went live. Ask Claude to fix it, then publish again.": "Rien n\u2019a \xE9t\xE9 mis en ligne. Demandez \xE0 Claude de corriger le probl\xE8me, puis relancez la publication.",
+  "These are dated observations, not a fresh check or proof every feature works. Missing evidence means unknown, not never tested. Earlier-copy observations need checking again after a new copy.": "Ces observations sont dat\xE9es : elles ne constituent ni une nouvelle v\xE9rification ni la preuve que toutes les fonctions marchent. L\u2019absence de preuve signifie que l\u2019\xE9tat est inconnu. Apr\xE8s une nouvelle copie, les observations sur une copie pr\xE9c\xE9dente doivent \xEAtre v\xE9rifi\xE9es \xE0 nouveau.",
+  "private folders waiting: {folders}": "dossiers priv\xE9s en attente : {folders}",
+  "{count} too large for your plan": "Fichiers trop volumineux pour votre forfait : {count}",
+  "{count} failed": "\xC9checs : {count}",
+  "{bucket}: a copied file differs from the original": "{bucket} : un fichier copi\xE9 diff\xE8re de l\u2019original",
+  "AWS access key": "Cl\xE9 d\u2019acc\xE8s AWS",
+  "Google API key": "Cl\xE9 API Google",
+  "Something that looks like a key": "Valeur ressemblant \xE0 une cl\xE9",
+  "OpenAI API key": "Cl\xE9 API OpenAI",
+  "Anthropic API key": "Cl\xE9 API Anthropic",
+  "GitHub token": "Token GitHub",
+  "Private key": "Cl\xE9 priv\xE9e",
+  "SendGrid API key": "Cl\xE9 API SendGrid",
+  "Supabase secret key": "Cl\xE9 secr\xE8te Supabase",
+  "Supabase service_role key": "Cl\xE9 service_role Supabase",
+  "Access token": "Token d\u2019acc\xE8s",
+  "Stripe test key": "Cl\xE9 de test Stripe",
+  "Stripe live secret key": "Cl\xE9 secr\xE8te de production Stripe",
+  "{features}: it runs on Lovable's AI. You paste a key of your own (OpenRouter, Google Gemini or OpenAI), and Claude points it at it.": "IA de Lovable : {features}. Collez votre propre cl\xE9 OpenRouter, Google Gemini ou OpenAI ; Claude connecte ces fonctions \xE0 votre cl\xE9.",
+  "{features}: they run on Lovable's AI. You paste a key of your own (OpenRouter, Google Gemini or OpenAI), and Claude points them at it.": "IA de Lovable : {features}. Collez votre propre cl\xE9 OpenRouter, Google Gemini ou OpenAI ; Claude connecte ces fonctions \xE0 votre cl\xE9.",
+  "They run on Lovable's AI. You paste a key of your own (OpenRouter, Google Gemini or OpenAI), and Claude points them at it.": "Ces fonctions utilisent l\u2019IA de Lovable. Collez votre propre cl\xE9 OpenRouter, Google Gemini ou OpenAI ; Claude les connecte \xE0 votre cl\xE9.",
+  "{features}: sent through Lovable. You connect a free Resend account and add its records to your domain; Clodable gives your app its own key, and Claude switches the sending.": "Emails envoy\xE9s via Lovable : {features}. Connectez un compte Resend gratuit et ajoutez ses enregistrements DNS \xE0 votre domaine. Clodable cr\xE9e une cl\xE9 pour votre application et Claude adapte l\u2019envoi.",
+  "They're sent through Lovable. You connect a free Resend account and add its records to your domain; Clodable gives your app its own key, and Claude switches the sending.": "Ces emails sont envoy\xE9s via Lovable. Connectez un compte Resend gratuit et ajoutez ses enregistrements DNS \xE0 votre domaine. Clodable cr\xE9e une cl\xE9 pour votre application et Claude adapte l\u2019envoi.",
+  "Skipped: {services} stops with Lovable": "\xC9tape ignor\xE9e. Services qui s\u2019arr\xEAteront avec Lovable : {services}",
+  "Skipped: {services} stop with Lovable": "\xC9tape ignor\xE9e. Services qui s\u2019arr\xEAteront avec Lovable : {services}"
+};
+
+// ../core/src/i18n.ts
+var currentLocale = () => resolveLocale(process.env.CLODABLE_LANGUAGE);
+function tr(source, values) {
+  return translate(currentLocale(), core, source, values);
+}
+
 // ../core/src/errors.ts
 var ClodableError = class extends Error {
   code;
@@ -197,8 +816,8 @@ function toErrorInfo(error62) {
   if (error62 instanceof ClodableError) return error62.toJSON();
   return {
     code: "unknown",
-    message: "Something unexpected went wrong.",
-    hint: "Try again. If it keeps happening, share the details with your developer.",
+    message: tr("Something unexpected went wrong."),
+    hint: tr("Try again. If it keeps happening, share the details with your developer."),
     details: messageOf(error62)
   };
 }
@@ -985,8 +1604,8 @@ function unavailable(reason, detail, install2 = false) {
     ok: false,
     error: {
       code: "tools-unavailable",
-      message: "Saving needs Git to work on this computer.",
-      hint: install2 ? "Run `xcode-select --install`, finish Apple's installation, then check again." : "Ask Claude to check Git on this computer, then press Check again.",
+      message: tr("Saving needs Git to work on this computer."),
+      hint: install2 ? tr("Run `xcode-select --install`, finish Apple's installation, then check again.") : tr("Ask Claude to check Git on this computer, then press Check again."),
       details: `Git readiness: ${reason}
 ${detail}`.trim()
     }
@@ -1083,8 +1702,8 @@ var Git = class _Git {
     if (result.exitCode !== 0) {
       throw new ClodableError({
         code: "unknown",
-        message: "Something unexpected went wrong.",
-        hint: "Try again. If it keeps happening, share the details with your developer.",
+        message: tr("Something unexpected went wrong."),
+        hint: tr("Try again. If it keeps happening, share the details with your developer."),
         details: `git ${args.join(" ")}
 ${result.stderr || result.stdout}`.trim()
       });
@@ -1164,14 +1783,16 @@ ${kindTrailer(options.kind)}`
       if (/tell me who you are|user\.email|empty ident/i.test(result.stderr)) {
         throw new ClodableError({
           code: "git-identity",
-          message: "Saving needs to know who you are.",
-          hint: "Type /clodable to open the Clodable panel and connect your GitHub account there. Your changes stay on this computer meanwhile.",
+          message: tr("Saving needs to know who you are."),
+          hint: tr(
+            "Type /clodable to open the Clodable panel and connect your GitHub account there. Your changes stay on this computer meanwhile."
+          ),
           details: result.stderr
         });
       }
       throw new ClodableError({
         code: "unknown",
-        message: "Your changes couldn't be saved.",
+        message: tr("Your changes couldn't be saved."),
         details: result.stderr || result.stdout
       });
     }
@@ -1224,7 +1845,7 @@ ${kindTrailer(options.kind)}`
       if (conflicts.length > 0) return { ok: false, conflicts };
       throw new ClodableError({
         code: "unknown",
-        message: "Your draft couldn't be compared with the live site.",
+        message: tr("Your draft couldn't be compared with the live site."),
         details: result.stderr || result.stdout
       });
     } finally {
@@ -1240,7 +1861,7 @@ ${kindTrailer(options.kind)}`
     if (conflicts.length === 0) {
       throw new ClodableError({
         code: "unknown",
-        message: "Your draft couldn't be brought up to date.",
+        message: tr("Your draft couldn't be brought up to date."),
         details: result.stderr || result.stdout
       });
     }
@@ -1470,7 +2091,7 @@ var NAMES = {
   "private-key": "Private key",
   "sendgrid-api-token": "SendGrid API key"
 };
-var named = (rule) => NAMES[rule] ?? rule.replace(/-/g, " ").replace(/\b(api|aws|gcp|jwt|pat|id|url|ci)\b/g, (w) => w.toUpperCase()).replace(/^./, (c2) => c2.toUpperCase());
+var named = (rule) => NAMES[rule] ? tr(NAMES[rule]) : rule.replace(/-/g, " ").replace(/\b(api|aws|gcp|jwt|pat|id|url|ci)\b/g, (w) => w.toUpperCase()).replace(/^./, (c2) => c2.toUpperCase());
 var MIRRORS = {
   "clodable-stripe-key": "stripe-access-token",
   "clodable-jwt": "jwt",
@@ -1488,21 +2109,26 @@ function classify(finding) {
   };
   if (/^sb_publishable_/.test(secret)) return void 0;
   if (found2.RuleID === "supabase-secret-key" || /^sb_secret_/.test(secret)) {
-    return { ...base, rule: "supabase-secret-key", kind: "Supabase secret key", severity: "block" };
+    return {
+      ...base,
+      rule: "supabase-secret-key",
+      kind: tr("Supabase secret key"),
+      severity: "block"
+    };
   }
   if (found2.RuleID === "jwt") {
     const payload = jwtPayload(secret);
     if (payload?.role === "service_role" || payload?.role === "supabase_admin") {
-      return { ...base, kind: "Supabase service_role key", severity: "block" };
+      return { ...base, kind: tr("Supabase service_role key"), severity: "block" };
     }
     if (payload?.iss === "supabase" || payload?.role === "anon") return void 0;
-    return { ...base, kind: "Access token", severity: "warn" };
+    return { ...base, kind: tr("Access token"), severity: "warn" };
   }
   if (found2.RuleID === "stripe-access-token") {
     const test = /^[sr]k_test_/.test(secret);
     return {
       ...base,
-      kind: test ? "Stripe test key" : "Stripe live secret key",
+      kind: test ? tr("Stripe test key") : tr("Stripe live secret key"),
       severity: test ? "warn" : "block"
     };
   }
@@ -1583,7 +2209,7 @@ function realRoot(root) {
 async function checkBuild(project, config2) {
   const script = config2.app.buildScript;
   if (!project.scripts[script]) {
-    return { id: "build", status: "skipped", summary: "No build step to check" };
+    return { id: "build", status: "skipped", summary: tr("No build step to check") };
   }
   const [command, args] = runScriptCommand(await packageManagerHere(project), script);
   const result = await exec2(command, args, {
@@ -1591,14 +2217,14 @@ async function checkBuild(project, config2) {
     env: { CI: "1", NODE_ENV: "production", FORCE_COLOR: "0" },
     timeout: 10 * 6e4
   });
-  if (result.exitCode === 0) return { id: "build", status: "passed", summary: "It builds" };
+  if (result.exitCode === 0) return { id: "build", status: "passed", summary: tr("It builds") };
   const output2 = `${result.stdout}
 ${result.stderr}`;
   const { excerpt, location } = summarizeBuildOutput(output2, project.root);
   return {
     id: "build",
     status: "failed",
-    summary: location ? `A page doesn't build (${location.file}, line ${location.line})` : "Your app doesn't build",
+    summary: location ? tr("A page doesn't build ({0}, line {1})", { "0": location.file, "1": location.line }) : tr("Your app doesn't build"),
     details: excerpt || output2.slice(-4e3),
     ...location ? { locations: [location] } : {}
   };
@@ -1615,7 +2241,7 @@ async function checkPackages(project) {
     return {
       id: "packages",
       status: "skipped",
-      summary: "Package check not available for this project"
+      summary: tr("Package check not available for this project")
     };
   }
   const result = await exec2(command[0], command[1], { cwd: project.root, timeout: 12e4 });
@@ -1623,10 +2249,10 @@ async function checkPackages(project) {
   try {
     audit = JSON.parse(result.stdout || "{}");
   } catch {
-    return { id: "packages", status: "skipped", summary: "Couldn't check packages (offline?)" };
+    return { id: "packages", status: "skipped", summary: tr("Couldn't check packages (offline?)") };
   }
   if (audit.error || !audit.metadata) {
-    return { id: "packages", status: "skipped", summary: "Couldn't check packages right now" };
+    return { id: "packages", status: "skipped", summary: tr("Couldn't check packages right now") };
   }
   const counts = audit.metadata.vulnerabilities ?? {};
   const critical = counts.critical ?? 0;
@@ -1636,7 +2262,10 @@ async function checkPackages(project) {
     return {
       id: "packages",
       status: "failed",
-      summary: `${critical} package${critical > 1 ? "s have" : " has"} a critical security issue`,
+      summary: tr(
+        critical === 1 ? "{count} package has a critical security issue" : "{count} packages have a critical security issue",
+        { count: critical }
+      ),
       details: names2.join("\n")
     };
   }
@@ -1644,11 +2273,14 @@ async function checkPackages(project) {
     return {
       id: "packages",
       status: "warning",
-      summary: `${high} package${high > 1 ? "s have" : " has"} a known security issue`,
+      summary: tr(
+        high === 1 ? "{count} package has a known security issue" : "{count} packages have a known security issue",
+        { count: high }
+      ),
       details: names2.join("\n")
     };
   }
-  return { id: "packages", status: "passed", summary: "Packages look safe" };
+  return { id: "packages", status: "passed", summary: tr("Packages look safe") };
 }
 async function checkSecrets(project) {
   let findings;
@@ -1658,7 +2290,7 @@ async function checkSecrets(project) {
     return {
       id: "secrets",
       status: "failed",
-      summary: "Couldn't check for secret keys",
+      summary: tr("Couldn't check for secret keys"),
       details: error62 instanceof ScannerUnavailable ? error62.message : String(error62)
     };
   }
@@ -1667,7 +2299,7 @@ async function checkSecrets(project) {
     return {
       id: "secrets",
       status: "failed",
-      summary: blocking.length === 1 ? `A secret key is saved in ${blocking[0].file}` : `${blocking.length} secret keys are saved in your project`,
+      summary: blocking.length === 1 ? tr("A secret key is saved in {0}", { "0": blocking[0].file }) : tr("{0} secret keys are saved in your project", { "0": blocking.length }),
       details: findings.map(describeFinding).join("\n"),
       locations: blocking.map((f) => ({ file: f.file, line: f.line }))
     };
@@ -1676,12 +2308,12 @@ async function checkSecrets(project) {
     return {
       id: "secrets",
       status: "warning",
-      summary: "Something that looks like a key is saved in your project",
+      summary: tr("Something that looks like a key is saved in your project"),
       details: findings.map(describeFinding).join("\n"),
       locations: findings.map((f) => ({ file: f.file, line: f.line }))
     };
   }
-  return { id: "secrets", status: "passed", summary: "No secret keys exposed" };
+  return { id: "secrets", status: "passed", summary: tr("No secret keys exposed") };
 }
 var RUNNING = {
   build: "Checking it builds",
@@ -1691,7 +2323,7 @@ var RUNNING = {
 function checksFailed(failed, hint) {
   return new ClodableError({
     code: "checks-failed",
-    message: failed[0]?.summary ?? "A check failed.",
+    message: failed[0]?.summary ?? tr("A check failed."),
     hint,
     details: failed.map((f) => `${f.summary}
 ${f.details ?? ""}`).join("\n\n").trim(),
@@ -1707,7 +2339,7 @@ async function* runChecks(project, config2) {
   const results = [];
   for (const id of enabled) {
     const stepId = `check:${id}`;
-    yield step(stepId, "running", RUNNING[id]);
+    yield step(stepId, "running", tr(RUNNING[id]));
     const result = id === "build" ? await checkBuild(project, config2) : id === "packages" ? await checkPackages(project) : await checkSecrets(project);
     results.push(result);
     const state = result.status === "passed" ? "done" : result.status === "warning" ? "warning" : result.status === "skipped" ? "skipped" : "failed";
@@ -21479,8 +22111,8 @@ async function loadConfig(root) {
   } catch (error62) {
     throw new ClodableError({
       code: "invalid-config",
-      message: "Clodable's settings file can't be read.",
-      hint: `Ask Claude to check ${CONFIG_PATH} for a typo and fix it.`,
+      message: tr("Clodable's settings file can't be read."),
+      hint: tr("Ask Claude to check {0} for a typo and fix it.", { "0": CONFIG_PATH }),
       details: String(error62),
       files: [CONFIG_PATH]
     });
@@ -21489,8 +22121,8 @@ async function loadConfig(root) {
   if (!parsed.success) {
     throw new ClodableError({
       code: "invalid-config",
-      message: "Clodable's settings file has a value it doesn't understand.",
-      hint: `Ask Claude to check ${CONFIG_PATH} and fix that value.`,
+      message: tr("Clodable's settings file has a value it doesn't understand."),
+      hint: tr("Ask Claude to check {0} and fix that value.", { "0": CONFIG_PATH }),
       details: external_exports.prettifyError(parsed.error),
       files: [CONFIG_PATH]
     });
@@ -22056,8 +22688,8 @@ var SupabaseApi = class _SupabaseApi {
     if (!api) {
       throw new ClodableError({
         code: "supabase-auth",
-        message: "Supabase isn't connected on this computer yet.",
-        hint: "Connect your Supabase account first: it's the first step of the move."
+        message: tr("Supabase isn't connected on this computer yet."),
+        hint: tr("Connect your Supabase account first: it's the first step of the move.")
       });
     }
     return api;
@@ -22085,8 +22717,8 @@ var SupabaseApi = class _SupabaseApi {
         }
         throw new ClodableError({
           code: "offline",
-          message: "Couldn't reach Supabase.",
-          hint: "Check your internet connection, then try again.",
+          message: tr("Couldn't reach Supabase."),
+          hint: tr("Check your internet connection, then try again."),
           details: messageOf(error62)
         });
       }
@@ -22110,8 +22742,10 @@ var SupabaseApi = class _SupabaseApi {
         if (response.status === 404 && method === "GET" && /^\/v1\/projects\/[a-z]+$/.test(path2)) {
           throw new ClodableError({
             code: "not-found",
-            message: "Your new backend isn't available to this Supabase account.",
-            hint: "Open Supabase and check the account and project. It may have been removed or your access may have changed. Your live app hasn't changed."
+            message: tr("Your new backend isn't available to this Supabase account."),
+            hint: tr(
+              "Open Supabase and check the account and project. It may have been removed or your access may have changed. Your live app hasn't changed."
+            )
           });
         }
         throw describeFailure(response.status, text2, permissionFor(method, path2));
@@ -22251,39 +22885,49 @@ function describeFailure(status2, text2, permission) {
   if (status2 === 401) {
     return new ClodableError({
       code: "supabase-auth",
-      message: "Supabase didn't accept your access token.",
-      hint: "It may have expired or been deleted. Connect your Supabase account again in the Clodable panel.",
+      message: tr("Supabase didn't accept your access token."),
+      hint: tr(
+        "It may have expired or been deleted. Connect your Supabase account again in the Clodable panel."
+      ),
       details
     });
   }
   if (/active free projects/i.test(message)) {
     return new ClodableError({
       code: "supabase-limit",
-      message: "You already run 2 free Supabase projects, the most Supabase allows per person across all your organizations.",
-      hint: "Pause one you don't use in Supabase, or pick an organization on a paid plan, then try again.",
+      message: tr(
+        "You already run 2 free Supabase projects, the most Supabase allows per person across all your organizations."
+      ),
+      hint: tr(
+        "Pause one you don't use in Supabase, or pick an organization on a paid plan, then try again."
+      ),
       details
     });
   }
   if (status2 === 402) {
     return new ClodableError({
       code: "supabase-limit",
-      message: "This goes past what your Supabase plan includes.",
-      hint: "Check your plan in Supabase (Organization \u2192 Billing), then try again.",
+      message: tr("This goes past what your Supabase plan includes."),
+      hint: tr("Check your plan in Supabase (Organization \u2192 Billing), then try again."),
       details
     });
   }
   if (status2 === 403) {
     return new ClodableError({
       code: "supabase-auth",
-      message: permission ? `Your Supabase access token is missing a permission: ${permission}.` : "Your Supabase access token isn't allowed to do this.",
-      hint: "Create a new token that has it (or a full-access one: \u201CCreate legacy token\u201D), then connect again. If the permission is there, your role in the organization may not allow it: ask its owner.",
+      message: permission ? tr("Your Supabase access token is missing a permission: {0}.", { "0": permission }) : tr("Your Supabase access token isn't allowed to do this."),
+      hint: tr(
+        "Create a new token that has it (or a full-access one: \u201CCreate legacy token\u201D), then connect again. If the permission is there, your role in the organization may not allow it: ask its owner."
+      ),
       details
     });
   }
   return new ClodableError({
     code: "supabase-failed",
-    message: "Supabase refused the request.",
-    hint: "Try again in a minute. If it keeps happening, share the details with your developer.",
+    message: tr("Supabase refused the request."),
+    hint: tr(
+      "Try again in a minute. If it keeps happening, share the details with your developer."
+    ),
     details
   });
 }
@@ -22294,8 +22938,10 @@ async function connectSupabase(token) {
   if (!/^sbp_[A-Za-z0-9_-]{20,}$/.test(trimmed)) {
     throw new ClodableError({
       code: "supabase-auth",
-      message: "That doesn't look like a Supabase access token.",
-      hint: "It starts with sbp_. Create one in Supabase: Account \u2192 Access Tokens \u2192 Generate new token."
+      message: tr("That doesn't look like a Supabase access token."),
+      hint: tr(
+        "It starts with sbp_. Create one in Supabase: Account \u2192 Access Tokens \u2192 Generate new token."
+      )
     });
   }
   const api = new SupabaseApi(trimmed);
@@ -22350,8 +22996,8 @@ async function homeChoices() {
   };
 }
 function costOf(org) {
-  if (org.plan === "free") return "Free";
-  return "About $10 a month, added to your Supabase plan";
+  if (org.plan === "free") return tr("Free");
+  return tr("About $10 a month, added to your Supabase plan");
 }
 
 // ../core/src/move/postgres.ts
@@ -22612,8 +23258,8 @@ async function tool(name) {
   } catch (error62) {
     throw new ClodableError({
       code: "tools-unavailable",
-      message: error62 instanceof ToolUnavailable ? error62.message : "Couldn't get PostgreSQL's tools, which copying your data needs.",
-      hint: "Check your internet connection, then try again."
+      message: error62 instanceof ToolUnavailable ? error62.message : tr("Couldn't get PostgreSQL's tools, which copying your data needs."),
+      hint: tr("Check your internet connection, then try again.")
     });
   }
 }
@@ -22657,8 +23303,8 @@ async function waitForConnection(target, { attempts = 8, delayMs = 15e3 } = {}) 
   }
   throw new ClodableError({
     code: "copy-failed",
-    message: "Couldn't connect to your new database.",
-    hint: "It can take a few minutes after it's created. Try again shortly.",
+    message: tr("Couldn't connect to your new database."),
+    hint: tr("It can take a few minutes after it's created. Try again shortly."),
     details: last.slice(0, 500)
   });
 }
@@ -22670,8 +23316,10 @@ async function listArchive(backup) {
   if (result.exitCode !== 0) {
     throw new ClodableError({
       code: "export-unreadable",
-      message: "That file isn't a database export Clodable can read.",
-      hint: "Download the export again (from Lovable's email, or More \u2192 Cloud \u2192 Storage), then try again.",
+      message: tr("That file isn't a database export Clodable can read."),
+      hint: tr(
+        "Download the export again (from Lovable's email, or More \u2192 Cloud \u2192 Storage), then try again."
+      ),
       details: result.stderr.trim().slice(0, 500)
     });
   }
@@ -22689,7 +23337,7 @@ async function archiveSql(backup, entries, dir, extra = []) {
   if (result.exitCode !== 0) {
     throw new ClodableError({
       code: "export-unreadable",
-      message: "Couldn't read part of your export.",
+      message: tr("Couldn't read part of your export."),
       details: result.stderr.trim().slice(0, 500)
     });
   }
@@ -22718,7 +23366,7 @@ async function* archiveLines(backup, entries, dir) {
   if (await done !== 0) {
     throw new ClodableError({
       code: "export-unreadable",
-      message: "Couldn't read your export's data.",
+      message: tr("Couldn't read your export's data."),
       details: stderr.trim().slice(0, 500)
     });
   }
@@ -22792,15 +23440,15 @@ async function restorePass(target, backup, entries, options) {
   if (produced !== 0) {
     throw new ClodableError({
       code: "export-unreadable",
-      message: "Couldn't read your export while copying it.",
+      message: tr("Couldn't read your export while copying it."),
       details: producerError.trim().slice(0, 500)
     });
   }
   if (consumed !== 0) {
     throw new ClodableError({
       code: "copy-failed",
-      message: "The connection to your new database dropped during the copy.",
-      hint: "Try again: the copy starts over cleanly on a fresh database.",
+      message: tr("The connection to your new database dropped during the copy."),
+      hint: tr("Try again: the copy starts over cleanly on a fresh database."),
       details: errors.slice(-3).join("\n").slice(0, 500)
     });
   }
@@ -22866,35 +23514,37 @@ async function* createHome(ws, options) {
   const state = await loadMove(ws.root);
   const api = await SupabaseApi.required();
   if (state.home) {
-    yield step("move:create", "running", "Checking your new backend");
+    yield step("move:create", "running", tr("Checking your new backend"));
     const project = await api.project(state.home.ref);
     if (project.status === "INACTIVE" || project.status === "GOING_DOWN") {
       throw new ClodableError({
         code: "move-not-ready",
-        message: "Your new backend is paused.",
-        hint: "Restore it on its page in Supabase, then try this step again. Your live app hasn't changed."
+        message: tr("Your new backend is paused."),
+        hint: tr(
+          "Restore it on its page in Supabase, then try this step again. Your live app hasn't changed."
+        )
       });
     }
     await waitUntilUp(api, state.home.ref);
-    yield step("move:create", "done", "Your new backend is ready", state.home.name);
+    yield step("move:create", "done", tr("Your new backend is ready"), state.home.name);
     return state.home;
   }
-  yield step("move:create", "running", "Creating your new backend");
+  yield step("move:create", "running", tr("Creating your new backend"));
   const organizations = await organizationChoices(api);
   const org = organizations.find((o) => o.slug === options.org) ?? (organizations.length === 1 ? organizations[0] : void 0);
   if (!org) {
     throw new ClodableError({
       code: "move-not-ready",
-      message: "Which Supabase organization should it go in?",
-      hint: `Pick one: ${organizations.map((o) => o.name).join(", ")}.`
+      message: tr("Which Supabase organization should it go in?"),
+      hint: tr("Pick one: {0}.", { "0": organizations.map((o) => o.name).join(", ") })
     });
   }
   const region = options.region ?? (await api.regions(org.slug).catch(() => void 0))?.recommended?.code;
   if (!region) {
     throw new ClodableError({
       code: "move-not-ready",
-      message: "Which part of the world should your backend run in?",
-      hint: "Pick the region closest to your users."
+      message: tr("Which part of the world should your backend run in?"),
+      hint: tr("Pick the region closest to your users.")
     });
   }
   const password2 = newPassword();
@@ -22919,11 +23569,11 @@ async function* createHome(ws, options) {
   yield step(
     "move:create",
     "running",
-    "Creating your new backend",
-    "Starting it up: about 2 minutes"
+    tr("Creating your new backend"),
+    tr("Starting it up: about 2 minutes")
   );
   await waitUntilUp(api, created.ref);
-  yield step("move:create", "done", "Your new backend is ready", home.name);
+  yield step("move:create", "done", tr("Your new backend is ready"), home.name);
   return home;
 }
 async function waitUntilUp(api, ref) {
@@ -22933,8 +23583,8 @@ async function waitUntilUp(api, ref) {
     if (project?.status === "INIT_FAILED") {
       throw new ClodableError({
         code: "supabase-failed",
-        message: "Supabase couldn't start your new backend.",
-        hint: "Delete it in Supabase, then create it again from Clodable."
+        message: tr("Supabase couldn't start your new backend."),
+        hint: tr("Delete it in Supabase, then create it again from Clodable.")
       });
     }
     if (project?.status === "ACTIVE_HEALTHY") {
@@ -22944,8 +23594,8 @@ async function waitUntilUp(api, ref) {
     if (Date.now() - started > 15 * 6e4)
       throw new ClodableError({
         code: "supabase-failed",
-        message: "Your new backend is taking unusually long to start.",
-        hint: "Check it in Supabase, then try this step again: Clodable picks up where it was."
+        message: tr("Your new backend is taking unusually long to start."),
+        hint: tr("Check it in Supabase, then try this step again: Clodable picks up where it was.")
       });
     await new Promise((done) => setTimeout(done, 5e3));
   }
@@ -22980,8 +23630,8 @@ async function homeConnection(api, home) {
     if (!home.createdByClodable) {
       throw new ClodableError({
         code: "move-not-ready",
-        message: "Clodable doesn't have this backend's database password.",
-        hint: "Run the move from the computer that created it."
+        message: tr("Clodable doesn't have this backend's database password."),
+        hint: tr("Run the move from the computer that created it.")
       });
     }
     password2 = newPassword();
@@ -22992,8 +23642,8 @@ async function homeConnection(api, home) {
   if (!pooler) {
     throw new ClodableError({
       code: "supabase-failed",
-      message: "Supabase didn't say how to connect to your new database.",
-      hint: "Try again in a minute."
+      message: tr("Supabase didn't say how to connect to your new database."),
+      hint: tr("Try again in a minute.")
     });
   }
   return {
@@ -23030,24 +23680,26 @@ async function database(ws) {
   if (ws.config.backend === "lovable-cloud") {
     throw new ClodableError({
       code: "invalid-config",
-      message: "Lovable owns this database: it can't be changed from here.",
-      hint: "Moving off Lovable gives your app a database of its own."
+      message: tr("Lovable owns this database: it can't be changed from here."),
+      hint: tr("Moving off Lovable gives your app a database of its own.")
     });
   }
   const ref = ws.config.supabase.projectRef;
   if (ws.config.backend !== "supabase" || !ref) {
     throw new ClodableError({
       code: "invalid-config",
-      message: "This app has no Supabase database Clodable knows of.",
-      hint: "Its Supabase project goes in .clodable/config.json, under supabase.projectRef."
+      message: tr("This app has no Supabase database Clodable knows of."),
+      hint: tr("Its Supabase project goes in .clodable/config.json, under supabase.projectRef.")
     });
   }
   const api = await SupabaseApi.onThisComputer();
   if (!api) {
     throw new ClodableError({
       code: "supabase-auth",
-      message: "Supabase isn't connected on this computer.",
-      hint: "Connect your Supabase account in the Clodable panel: changes to your database go through it."
+      message: tr("Supabase isn't connected on this computer."),
+      hint: tr(
+        "Connect your Supabase account in the Clodable panel: changes to your database go through it."
+      )
     });
   }
   return { api, ref, sql: homeSql(api, ref) };
@@ -23055,7 +23707,7 @@ async function database(ws) {
 function statement(sql) {
   const text2 = (sql ?? "").trim().replace(/;\s*$/, "");
   if (!text2) {
-    throw new ClodableError({ code: "invalid-config", message: "Which query?" });
+    throw new ClodableError({ code: "invalid-config", message: tr("Which query?") });
   }
   return text2;
 }
@@ -23075,8 +23727,10 @@ async function queryDatabase(ws, sql) {
   if (!/^(select|with|values|table)\b/i.test(text2)) {
     throw new ClodableError({
       code: "invalid-config",
-      message: "Only a query that reads goes here.",
-      hint: "To change data: clodable db run. To change the tables: a migration, with clodable db apply."
+      message: tr("Only a query that reads goes here."),
+      hint: tr(
+        "To change data: clodable db run. To change the tables: a migration, with clodable db apply."
+      )
     });
   }
   const { sql: db } = await database(ws);
@@ -23089,8 +23743,10 @@ async function runOnDatabase(ws, sql) {
   if (SCHEMA_CHANGE.test(text2)) {
     throw new ClodableError({
       code: "invalid-config",
-      message: "That changes the tables: it goes in a migration.",
-      hint: "Write it to supabase/migrations/<timestamp>_<what>.sql, then clodable db apply that file."
+      message: tr("That changes the tables: it goes in a migration."),
+      hint: tr(
+        "Write it to supabase/migrations/<timestamp>_<what>.sql, then clodable db apply that file."
+      )
     });
   }
   const { sql: db } = await database(ws);
@@ -23104,14 +23760,14 @@ async function applyMigration(ws, file3) {
   if (!file3 || where.startsWith("..") || where.includes("/") || !match) {
     throw new ClodableError({
       code: "invalid-config",
-      message: "Which migration?",
-      hint: "A file in supabase/migrations/, named <timestamp>_<what>.sql."
+      message: tr("Which migration?"),
+      hint: tr("A file in supabase/migrations/, named <timestamp>_<what>.sql.")
     });
   }
   const version3 = match[1];
   const name = match[2];
   const text2 = await readFile5(path2, "utf8").catch(() => {
-    throw new ClodableError({ code: "not-found", message: `There's no ${file3}.` });
+    throw new ClodableError({ code: "not-found", message: tr("There's no {0}.", { "0": file3 }) });
   });
   const { api, ref, sql: db } = await database(ws);
   const [history2] = await db.rows(
@@ -23178,6 +23834,32 @@ import { join as join13 } from "node:path";
 import { existsSync as existsSync8 } from "node:fs";
 import { readdir as readdir2, readFile as readFile6, stat } from "node:fs/promises";
 import { join as join12 } from "node:path";
+
+// ../core/src/move/words.ts
+var nouns = {
+  table: ["{count} table", "{count} tables"],
+  row: ["{count} row", "{count} rows"],
+  person: ["{count} person", "{count} people"],
+  message: ["{count} message", "{count} messages"],
+  file: ["{count} file", "{count} files"],
+  "file folder": ["{count} file folder", "{count} file folders"],
+  "database function or webhook": [
+    "{count} database function or webhook",
+    "{count} database function or webhooks"
+  ],
+  "database secret": ["{count} database secret", "{count} database secrets"],
+  "secret key": ["{count} secret key", "{count} secret keys"],
+  function: ["{count} function", "{count} functions"],
+  setting: ["{count} setting", "{count} settings"],
+  "backend function": ["{count} backend function", "{count} backend functions"]
+};
+function count(n4, one, many = `${one}s`) {
+  const forms = nouns[one];
+  const number4 = n4.toLocaleString(currentLocale() === "fr" ? "fr-FR" : "en-US");
+  return forms ? tr(forms[n4 === 1 ? 0 : 1], { count: number4 }) : `${number4} ${n4 === 1 ? one : many}`;
+}
+
+// ../core/src/move/assess.ts
 var BUILT_IN_SECRETS = /^(SUPABASE_URL|SUPABASE_ANON_KEY|SUPABASE_SERVICE_ROLE_KEY|SUPABASE_DB_URL|SUPABASE_PUBLISHABLE_KEYS?|SUPABASE_SECRET_KEYS?|SUPABASE_JWKS|LOVABLE_API_KEY)$/;
 var GUIDED_PROVIDERS = /* @__PURE__ */ new Set(["google", "github", "azure", "discord", "slack", "twitter"]);
 var MAX_FILES = 2e3;
@@ -23209,8 +23891,10 @@ async function textFiles(root, dirs) {
   for (const dir of dirs) if (existsSync8(join12(root, dir))) await walk2(dir);
   return out;
 }
-var plural2 = (n4, one, many = `${one}s`) => `${n4} ${n4 === 1 ? one : many}`;
+var plural2 = count;
 function names(list) {
+  if (currentLocale() === "fr")
+    return new Intl.ListFormat("fr", { type: "conjunction" }).format(list);
   const text2 = list.length <= 1 ? list[0] ?? "" : `${list.slice(0, -1).join(", ")} and ${list.at(-1)}`;
   return text2.charAt(0).toUpperCase() + text2.slice(1);
 }
@@ -23226,9 +23910,11 @@ async function assessMove(project, config2, facts) {
   if (project.supabase.used || config2.backend === "lovable-cloud") {
     items.push({
       id: "database",
-      label: "Your data and users",
+      label: tr("Your data and users"),
       by: "clodable",
-      detail: "Copied from Lovable's export into your own Supabase. Your users keep their accounts."
+      detail: tr(
+        "Copied from Lovable's export into your own Supabase. Your users keep their accounts."
+      )
     });
   }
   if (functions.length > 0) {
@@ -23236,7 +23922,7 @@ async function assessMove(project, config2, facts) {
       id: "functions",
       label: plural2(functions.length, "backend function"),
       by: "clodable",
-      detail: "Moved to your Supabase, all together."
+      detail: tr("Moved to your Supabase, all together.")
     });
   }
   const secretNames = /* @__PURE__ */ new Set();
@@ -23252,7 +23938,9 @@ async function assessMove(project, config2, facts) {
       id: "secrets",
       label: plural2(secretNames.size, "secret key"),
       by: "you",
-      detail: `You paste their values into a secure form: ${[...secretNames].sort().join(", ")}.`
+      detail: tr("You paste their values into a secure form: {0}.", {
+        "0": [...secretNames].sort().join(", ")
+      })
     });
   }
   const ai = facts ? facts.ai.length > 0 : project.lovable.usesLovableAi;
@@ -23260,9 +23948,17 @@ async function assessMove(project, config2, facts) {
     const features = facts?.ai.map((f) => f.feature) ?? [];
     items.push({
       id: "lovable-ai",
-      label: features.length === 1 ? "An AI feature" : "AI features",
+      label: features.length === 1 ? tr("An AI feature") : tr("AI features"),
       by: "you",
-      detail: `${features.length > 0 ? `${names(features)}: ${features.length === 1 ? "it runs" : "they run"}` : "They run"} on Lovable's AI. You paste a key of your own (OpenRouter, Google Gemini or OpenAI), and Claude points ${features.length === 1 ? "it" : "them"} at it.`
+      detail: features.length === 1 ? tr(
+        "{features}: it runs on Lovable's AI. You paste a key of your own (OpenRouter, Google Gemini or OpenAI), and Claude points it at it.",
+        { features: names(features) }
+      ) : features.length > 1 ? tr(
+        "{features}: they run on Lovable's AI. You paste a key of your own (OpenRouter, Google Gemini or OpenAI), and Claude points them at it.",
+        { features: names(features) }
+      ) : tr(
+        "They run on Lovable's AI. You paste a key of your own (OpenRouter, Google Gemini or OpenAI), and Claude points them at it."
+      )
     });
   }
   const appEmails = facts ? facts.appEmails.length > 0 : any2([...backendFiles, ...appFiles], /api\.lovable\.dev|x-lovable-signature/);
@@ -23270,18 +23966,25 @@ async function assessMove(project, config2, facts) {
     const sent = facts?.appEmails.map((f) => f.feature) ?? [];
     items.push({
       id: "emails",
-      label: "Emails",
+      label: tr("Emails"),
       by: "you",
-      detail: `${sent.length > 0 ? `${names(sent)}: sent` : "They're sent"} through Lovable. You connect a free Resend account and add its records to your domain; Clodable gives your app its own key, and Claude switches the sending.`
+      detail: sent.length > 0 ? tr(
+        "{features}: sent through Lovable. You connect a free Resend account and add its records to your domain; Clodable gives your app its own key, and Claude switches the sending.",
+        { features: names(sent) }
+      ) : tr(
+        "They're sent through Lovable. You connect a free Resend account and add its records to your domain; Clodable gives your app its own key, and Claude switches the sending."
+      )
     });
   }
   if (facts && facts.connectors.length > 0) {
     const services = [...new Set(facts.connectors.map((c2) => c2.service))];
     items.push({
       id: "connectors",
-      label: `Connected services: ${names(services)}`,
+      label: tr("Connected services: {0}", { "0": names(services) }),
       by: "you",
-      detail: "They go through Lovable's connectors. You connect your own account for each, and Claude switches the code."
+      detail: tr(
+        "They go through Lovable's connectors. You connect your own account for each, and Claude switches the code."
+      )
     });
   }
   const providers = new Set(
@@ -23305,50 +24008,60 @@ async function assessMove(project, config2, facts) {
     const title = (p) => p.charAt(0).toUpperCase() + p.slice(1);
     items.push({
       id: "sign-in",
-      label: `Sign in with ${names2.map(title).join(", ")}`,
+      label: tr("Sign in with {0}", { "0": names2.map(title).join(", ") }),
       by: hard.length > 0 ? "help" : "you",
-      detail: hard.length > 0 ? `${hard.map(title).join(", ")} sign-in needs a developer account with that company. Best done with help.` : names2.includes("google") ? "You create a Google sign-in client, following the steps in the panel, and paste its ID and secret." : "You create your own sign-in credentials with that company: Claude explains how."
+      detail: hard.length > 0 ? tr("{0} sign-in needs a developer account with that company. Best done with help.", {
+        "0": hard.map(title).join(", ")
+      }) : names2.includes("google") ? tr(
+        "You create a Google sign-in client, following the steps in the panel, and paste its ID and secret."
+      ) : tr("You create your own sign-in credentials with that company: Claude explains how.")
     });
   }
   if (facts ? facts.scheduledJobs.length > 0 : any2(migrationFiles, /cron\.schedule\s*\(/)) {
     items.push({
       id: "scheduled-jobs",
-      label: "Scheduled jobs",
+      label: tr("Scheduled jobs"),
       by: "clodable",
-      detail: "Moved, and pointed at your new backend."
+      detail: tr("Moved, and pointed at your new backend.")
     });
   }
   if (facts ? facts.uploads.length > 0 : any2(migrationFiles, /storage\.buckets/) || any2(appFiles, /\.storage\s*\.\s*from\(/)) {
     items.push({
       id: "files",
-      label: "Uploaded files",
+      label: tr("Uploaded files"),
       by: "clodable",
-      detail: "Copied to your Supabase. Their size shows once you've exported your data."
+      detail: tr("Copied to your Supabase. Their size shows once you've exported your data.")
     });
   }
   const payments = facts ? [...new Set(facts.payments.map((p) => p.provider))] : any2([...backendFiles, ...appFiles], /\bstripe\b/i) ? ["Stripe"] : [];
   if (payments.length > 0) {
     items.push({
       id: "payments",
-      label: `Payments (${names(payments)})`,
+      label: tr("Payments ({0})", { "0": names(payments) }),
       by: "you",
-      detail: "When you go live, you change your Stripe webhook's address to your new backend: the panel shows it."
+      detail: tr(
+        "When you go live, you change your Stripe webhook's address to your new backend: the panel shows it."
+      )
     });
   }
   if (config2.hosting === "lovable") {
     items.push({
       id: "hosting",
-      label: "Your website",
+      label: tr("Your website"),
       by: "you",
-      detail: "Moves to Netlify (free to start), and your own domain with it. You create the account, Clodable sets it up."
+      detail: tr(
+        "Moves to Netlify (free to start), and your own domain with it. You create the account, Clodable sets it up."
+      )
     });
   }
   if (project.lovable.generated) {
     items.push({
       id: "lovable-sync",
-      label: "Lovable's link to your GitHub",
+      label: tr("Lovable's link to your GitHub"),
       by: "you",
-      detail: "At the very end, you turn it off in Lovable, before removing Lovable Cloud: one click."
+      detail: tr(
+        "At the very end, you turn it off in Lovable, before removing Lovable Cloud: one click."
+      )
     });
   }
   const involved = /* @__PURE__ */ new Set([
@@ -23380,8 +24093,8 @@ async function callApi(service, method, url2, body) {
   } catch (error62) {
     throw new ClodableError({
       code: "offline",
-      message: `Couldn't reach ${service.name}.`,
-      hint: "Check your internet connection, then try again.",
+      message: tr("Couldn't reach {0}.", { "0": service.name }),
+      hint: tr("Check your internet connection, then try again."),
       details: messageOf(error62)
     });
   }
@@ -23401,8 +24114,10 @@ async function callApi(service, method, url2, body) {
   } catch {
     throw new ClodableError({
       code: service.failed,
-      message: `${service.name} answered in a way Clodable didn't expect.`,
-      hint: "Try again in a minute. If it keeps happening, share the details with your developer.",
+      message: tr("{0} answered in a way Clodable didn't expect.", { "0": service.name }),
+      hint: tr(
+        "Try again in a minute. If it keeps happening, share the details with your developer."
+      ),
       details: `${service.name} answered ${response.status}: ${text2.slice(0, 400)}`
     });
   }
@@ -23422,13 +24137,15 @@ var NetlifyApi = class _NetlifyApi {
       failed: "netlify-failed",
       refused: (status2, _message, details) => status2 === 401 ? new ClodableError({
         code: "netlify-auth",
-        message: "Netlify didn't accept your access token.",
-        hint: "It may have expired or been deleted. Create a new one and connect again.",
+        message: tr("Netlify didn't accept your access token."),
+        hint: tr("It may have expired or been deleted. Create a new one and connect again."),
         details
       }) : new ClodableError({
         code: "netlify-failed",
-        message: status2 === 422 ? "Netlify refused that." : "Netlify refused the request.",
-        hint: "Try again in a minute. If it keeps happening, share the details with your developer.",
+        message: status2 === 422 ? tr("Netlify refused that.") : tr("Netlify refused the request."),
+        hint: tr(
+          "Try again in a minute. If it keeps happening, share the details with your developer."
+        ),
         details
       })
     };
@@ -23442,8 +24159,8 @@ var NetlifyApi = class _NetlifyApi {
     if (!api) {
       throw new ClodableError({
         code: "netlify-auth",
-        message: "Netlify isn't connected on this computer yet.",
-        hint: "Connect your Netlify account in the Clodable panel first."
+        message: tr("Netlify isn't connected on this computer yet."),
+        hint: tr("Connect your Netlify account in the Clodable panel first.")
       });
     }
     return api;
@@ -23596,13 +24313,13 @@ async function setSetting(ws, name, value) {
   if (!name || !/^[A-Z][A-Z0-9_]*$/.test(name)) {
     throw new ClodableError({
       code: "invalid-config",
-      message: name ? `\u201C${name}\u201D isn't a setting name.` : "Which setting?",
-      hint: "Use capitals, digits and underscores, like GREETING."
+      message: name ? tr("\u201C{0}\u201D isn't a setting name.", { "0": name }) : tr("Which setting?"),
+      hint: tr("Use capitals, digits and underscores, like GREETING.")
     });
   }
   const clean2 = value.replace(/\r?\n$/, "");
   if (!clean2.trim()) {
-    throw new ClodableError({ code: "invalid-config", message: "That setting is empty." });
+    throw new ClodableError({ code: "invalid-config", message: tr("That setting is empty.") });
   }
   const values = await localSettings(ws.root);
   values[name] = clean2;
@@ -23675,8 +24392,10 @@ async function connectNetlify(token) {
   if (!/^[A-Za-z0-9_-]{20,}$/.test(trimmed)) {
     throw new ClodableError({
       code: "netlify-auth",
-      message: "That doesn't look like a Netlify access token.",
-      hint: "In Netlify: User settings \u2192 Applications \u2192 Personal access tokens \u2192 New access token."
+      message: tr("That doesn't look like a Netlify access token."),
+      hint: tr(
+        "In Netlify: User settings \u2192 Applications \u2192 Personal access tokens \u2192 New access token."
+      )
     });
   }
   const api = new NetlifyApi(trimmed);
@@ -23811,14 +24530,14 @@ async function* putSiteOnNetlify(ws, options = {}) {
   if (!state.home) {
     throw new ClodableError({
       code: "move-not-ready",
-      message: "Create your new backend first: the site needs it.",
-      hint: "It's one of the first steps of the move."
+      message: tr("Create your new backend first: the site needs it."),
+      hint: tr("It's one of the first steps of the move.")
     });
   }
   const netlify = await NetlifyApi.required();
   const supabase = await SupabaseApi.required();
   const token = await readSecret(NETLIFY_TOKEN);
-  yield step("move:site", "running", "Preparing your website", "Creating the site");
+  yield step("move:site", "running", tr("Preparing your website"), tr("Creating the site"));
   const site = (state.site ? await netlify.site(state.site.id).catch(() => void 0) : void 0) ?? await createNetlifySite(netlify, ws.project.name, options.account);
   const url2 = siteUrl(site);
   await updateMove(ws.root, (s) => {
@@ -23830,7 +24549,12 @@ async function* putSiteOnNetlify(ws, options = {}) {
       account: site.account_slug
     };
   });
-  yield step("move:site", "running", "Preparing your website", "Pointing it at your new backend");
+  yield step(
+    "move:site",
+    "running",
+    tr("Preparing your website"),
+    tr("Pointing it at your new backend")
+  );
   const backend = backendOf(state.home.ref, await homeKeys(supabase, state.home.ref));
   const carried = await setSiteEnv(netlify, site, ws.root, backend);
   if (carried.length > 0) {
@@ -23838,14 +24562,14 @@ async function* putSiteOnNetlify(ws, options = {}) {
       s.siteSettings = withNames(s.siteSettings, carried);
     });
   }
-  yield step("move:site", "running", "Preparing your website", "Setting up Publish");
+  yield step("move:site", "running", tr("Preparing your website"), tr("Setting up Publish"));
   const files = await setUpPublish(ws, site, token);
   const settings2 = await siteSettingsOf(netlify, site.account_slug, site.id, ws.root);
   yield step(
     "move:site",
     "done",
-    "Your website is prepared",
-    "Nothing has been published. Continue the move in the panel."
+    tr("Your website is prepared"),
+    tr("Nothing has been published. Continue the move in the panel.")
   );
   return { site: { name: site.name, url: url2, admin: site.admin_url }, files, settings: settings2 };
 }
@@ -23856,8 +24580,8 @@ async function createNetlifySite(netlify, appName, team) {
   if (!account) {
     throw new ClodableError({
       code: "needs-choice",
-      message: "Which Netlify team should the site go in?",
-      hint: `Pick one: ${accounts.map((a2) => `${a2.name} (${a2.slug})`).join(", ")}.`
+      message: tr("Which Netlify team should the site go in?"),
+      hint: tr("Pick one: {0}.", { "0": accounts.map((a2) => `${a2.name} (${a2.slug})`).join(", ") })
     });
   }
   const base = siteName(appName);
@@ -23870,8 +24594,8 @@ async function createNetlifySite(netlify, appName, team) {
   }
   throw new ClodableError({
     code: "netlify-failed",
-    message: "Netlify didn't accept a name for your site.",
-    hint: "Try again: Clodable picks another name."
+    message: tr("Netlify didn't accept a name for your site."),
+    hint: tr("Try again: Clodable picks another name.")
   });
 }
 async function setSiteEnv(netlify, site, root, backend) {
@@ -23924,7 +24648,7 @@ async function siteSettings(ws) {
   if (!state.site) {
     throw new ClodableError({
       code: "move-not-ready",
-      message: "Prepare your website first."
+      message: tr("Prepare your website first.")
     });
   }
   return siteSettingsOf(await NetlifyApi.required(), state.site.account, state.site.id, ws.root);
@@ -23946,22 +24670,22 @@ var UNKNOWN_BACKEND = `## Database and backend: not confirmed yet
 - Inspect the app's code and Clodable's app_context before making a database or backend change. Explain what you find in the conversation and ask only about what remains uncertain.
 - A Supabase URL alone does not establish whether the project belongs to Lovable Cloud or the builder. An unfamiliar service is not evidence that no backend exists.
 - Record confirmed facts with remember_app. Until ownership and access are established, do not change the database, deploy backend functions or create a replacement service. The preview may already use live data.`;
-function supabaseSection(ref, cli2) {
+function supabaseSection(ref, cli3) {
   return `## Database: live data, handle with care
 ${ref ? `- The app uses Supabase project \`${ref}\`. The preview uses **live data**: real customers, real orders.` : "- If the app uses a database, the preview uses **live data**: real customers, real orders."}
 - You can read and change it, as on Lovable, through Clodable's commands (no key needed; never ask for one):
-  - Read: \`${cli2} db query "select \u2026"\`.
-  - Change the tables (a migration): write \`supabase/migrations/<timestamp>_<what>.sql\`, then \`${cli2} db apply supabase/migrations/<that file>\`. It runs once, in one transaction, and goes in Supabase's migration history.
-  - Change the data (insert, update, delete): \`${cli2} db run "update \u2026"\`. Data that belongs to a person (their notes, their orders) needs their account: look it up with a query first.
+  - Read: \`${cli3} db query "select \u2026"\`.
+  - Change the tables (a migration): write \`supabase/migrations/<timestamp>_<what>.sql\`, then \`${cli3} db apply supabase/migrations/<that file>\`. It runs once, in one transaction, and goes in Supabase's migration history.
+  - Change the data (insert, update, delete): \`${cli3} db run "update \u2026"\`. Data that belongs to a person (their notes, their orders) needs their account: look it up with a query first.
 - **Before any database change**, tell the builder in one plain sentence what will change and ask for confirmation, for example "I'll add a 'phone' column to Customers. This changes your live database. OK?" Wait for a yes.
 - Prefer **additive** changes: add columns and tables, and don't rename or drop them. The live site keeps running the old code until the next Publish, so it must keep working. Clean up only after the builder has published.
 - If something can't be undone (deleting a table or column, mass-deleting rows, turning off row-level security), say so explicitly: "This deletes 214 orders and can't be undone." Wait for an explicit yes.
 - Every schema change is a migration file, so the history stays in the project. Never change the tables any other way.
-- Every new table gets row-level security turned on, with policies for who may read and write it. After every schema change, run \`${cli2} db check\` (Supabase's security advice) and fix what it reports.
+- Every new table gets row-level security turned on, with policies for who may read and write it. After every schema change, run \`${cli3} db check\` (Supabase's security advice) and fix what it reports.
 - **Edge functions** (\`supabase/functions/\`) go live only when the builder publishes. Edit them freely, but never deploy them yourself.`;
 }
 function agentsMd(input2) {
-  const cli2 = input2.cliCommand ?? "npx clodable";
+  const cli3 = input2.cliCommand ?? "npx clodable";
   const stack = input2.appType === "tanstack-start" ? "TanStack Start (React 19, server-side rendering) with Tailwind CSS and shadcn/ui" : input2.appType === "vite-spa" ? "Vite + React + TypeScript, with Tailwind CSS and shadcn/ui" : "a web app";
   return `# Working on ${input2.appName}
 
@@ -23996,10 +24720,10 @@ ${input2.hosting === "lovable" ? `- **Publish** is the builder's decision. They 
 - The preview toolbar at the bottom of the page belongs to Clodable. It's not part of the app. Don't edit or remove it.
 - Requests from the preview arrive as messages that start with "From the preview". Treat them like requests from the builder.
 
-${input2.backend === "lovable-cloud" ? LOVABLE_CLOUD : input2.backend === "none" ? NO_BACKEND : input2.backend === "unknown" ? UNKNOWN_BACKEND : supabaseSection(input2.supabaseRef, cli2)}
+${input2.backend === "lovable-cloud" ? LOVABLE_CLOUD : input2.backend === "none" ? NO_BACKEND : input2.backend === "unknown" ? UNKNOWN_BACKEND : supabaseSection(input2.supabaseRef, cli3)}
 
 ## Clodable commands
-- Run \`${cli2} <command>\` for status, history, restore and other Clodable commands.${input2.cliCommand ? " This is the installed copy. Don't fetch a different version with npx." : ""}
+- Run \`${cli3} <command>\` for status, history, restore and other Clodable commands.${input2.cliCommand ? " This is the installed copy. Don't fetch a different version with npx." : ""}
 
 ## Secrets
 - Never put API keys or passwords in code. Public keys (the Supabase URL and anon key) are fine.
@@ -24348,20 +25072,24 @@ function formatRelative(iso, now = /* @__PURE__ */ new Date()) {
   const then = new Date(iso);
   const diff = now.getTime() - then.getTime();
   if (Number.isNaN(diff)) return "";
-  if (diff < 45e3) return "just now";
-  if (diff < HOUR) return `${Math.max(1, Math.round(diff / MINUTE))} min ago`;
-  if (diff < DAY && then.getDate() === now.getDate()) return `${Math.round(diff / HOUR)} h ago`;
-  if (diff < 2 * DAY) return `yesterday at ${formatClock(then)}`;
+  if (diff < 45e3) return tr("just now");
+  if (diff < HOUR) return tr("{count} min ago", { count: Math.max(1, Math.round(diff / MINUTE)) });
+  if (diff < DAY && then.getDate() === now.getDate())
+    return tr("{count} h ago", { count: Math.round(diff / HOUR) });
+  if (diff < 2 * DAY) return tr("yesterday at {time}", { time: formatClock(then) });
   return formatAbsolute(iso, now);
 }
 function formatClock(date5) {
-  return date5.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  return date5.toLocaleTimeString(currentLocale() === "fr" ? "fr-FR" : "en-US", {
+    hour: "numeric",
+    minute: "2-digit"
+  });
 }
 function formatAbsolute(iso, now = /* @__PURE__ */ new Date()) {
   const date5 = new Date(iso);
   if (Number.isNaN(date5.getTime())) return iso;
   const sameYear = date5.getFullYear() === now.getFullYear();
-  const day = date5.toLocaleDateString("en-US", {
+  const day = date5.toLocaleDateString(currentLocale() === "fr" ? "fr-FR" : "en-US", {
     month: "short",
     day: "numeric",
     ...sameYear ? {} : { year: "numeric" }
@@ -24381,8 +25109,8 @@ async function ensureOnDraft(ws) {
     if (await ws.git.hasChanges()) {
       throw new ClodableError({
         code: "on-live-branch",
-        message: "You have unsaved changes outside your draft.",
-        hint: "Save them first, or switch to your draft manually."
+        message: tr("You have unsaved changes outside your draft."),
+        hint: tr("Save them first, or switch to your draft manually.")
       });
     }
     await ws.git.switchTo(draft);
@@ -24397,8 +25125,8 @@ async function save2(ws, options = {}) {
     if (conflicts.length > 0) {
       throw new ClodableError({
         code: "conflict",
-        message: "Your draft is in the middle of being combined with the live site.",
-        hint: "Ask Claude to finish combining the changes, then save again.",
+        message: tr("Your draft is in the middle of being combined with the live site."),
+        hint: tr("Ask Claude to finish combining the changes, then save again."),
         files: conflicts
       });
     }
@@ -24460,7 +25188,9 @@ async function keepSecretsHere(ws) {
       if (parents.length !== 1 || (await ws.git.unsent(ws.remote, { merges: true })).length > 0) {
         throw secretFound(
           found3,
-          "Nothing went to GitHub. It's in an earlier save that hasn't been sent: a developer needs to take that save back."
+          tr(
+            "Nothing went to GitHub. It's in an earlier save that hasn't been sent: a developer needs to take that save back."
+          )
         );
       }
       await ws.git.resetSoft(parents[0]);
@@ -24475,8 +25205,8 @@ async function keepSecretsHere(ws) {
 function secretFound(found2, hint) {
   return new ClodableError({
     code: "secret-found",
-    message: found2.length === 1 ? `A secret key is in ${found2[0].file}` : `${found2.length} secret keys are in your changes`,
-    hint: hint ?? "Nothing went to GitHub. Ask Claude to move it out of the code, and it saves.",
+    message: found2.length === 1 ? tr("A secret key is in {0}", { "0": found2[0].file }) : tr("{0} secret keys are in your changes", { "0": found2.length }),
+    hint: hint ?? tr("Nothing went to GitHub. Ask Claude to move it out of the code, and it saves."),
     details: found2.map(describeFinding).join("\n"),
     files: found2.map((f) => `${f.file}:${f.line}`)
   });
@@ -24508,8 +25238,8 @@ async function pushWithRetry(ws, branch) {
   }
   throw new ClodableError({
     code: "push-rejected",
-    message: "GitHub didn't accept your changes.",
-    hint: "Check that your GitHub account can write to this repository.",
+    message: tr("GitHub didn't accept your changes."),
+    hint: tr("Check that your GitHub account can write to this repository."),
     details: first.stderr
   });
 }
@@ -24676,7 +25406,7 @@ var BEFORE_RESTORE = "Saved changes before restoring";
 async function restore(ws, sha) {
   const target = await ws.git.revParse(sha);
   if (!target) {
-    throw new ClodableError({ code: "not-found", message: "That version couldn't be found." });
+    throw new ClodableError({ code: "not-found", message: tr("That version couldn't be found.") });
   }
   const [commit] = await ws.git.log(`${target}^!`);
   await ensureOnDraft(ws);
@@ -24760,7 +25490,7 @@ var FakeGitHub = class _FakeGitHub {
     if (existsSync12(this.bareRepo))
       throw new ClodableError({
         code: "already-there",
-        message: "That app name is already in use."
+        message: tr("That app name is already in use.")
       });
     const seed = await mkdtemp5(join17(tmpdir4(), "clodable-new-app-"));
     try {
@@ -24820,7 +25550,10 @@ var FakeGitHub = class _FakeGitHub {
   async merge(number4, input2) {
     const pr = this.pullRequests.find((p) => p.number === number4);
     if (pr?.state !== "open") {
-      throw new ClodableError({ code: "not-found", message: "That draft isn't open any more." });
+      throw new ClodableError({
+        code: "not-found",
+        message: tr("That draft isn't open any more.")
+      });
     }
     const dir = await mkdtemp5(join17(tmpdir4(), "clodable-fake-merge-"));
     try {
@@ -24833,7 +25566,7 @@ var FakeGitHub = class _FakeGitHub {
       if (merged.exitCode !== 0) {
         throw new ClodableError({
           code: "merge-blocked",
-          message: "GitHub couldn't combine your draft with the live site.",
+          message: tr("GitHub couldn't combine your draft with the live site."),
           details: merged.stderr || merged.stdout
         });
       }
@@ -24991,7 +25724,7 @@ var GhCli = class {
     if (result.exitCode !== 0) {
       throw ghError(result, {
         code: "unknown",
-        message: "GitHub didn't accept a request.",
+        message: tr("GitHub didn't accept a request."),
         details: `gh ${args.join(" ")}
 ${result.stderr}
 ${result.stdout}`.trim()
@@ -25018,8 +25751,10 @@ ${result.stdout}`.trim()
     if (result.exitCode !== 0) {
       throw ghError(result, {
         code: "not-found",
-        message: "Couldn't create your private app on GitHub.",
-        hint: "That name may already be in use, or your account may not allow new apps. Your local work is still here. Check GitHub before trying again.",
+        message: tr("Couldn't create your private app on GitHub."),
+        hint: tr(
+          "That name may already be in use, or your account may not allow new apps. Your local work is still here. Check GitHub before trying again."
+        ),
         details: result.stderr
       });
     }
@@ -25046,8 +25781,8 @@ ${result.stdout}`.trim()
       if (result.exitCode !== 0)
         throw new ClodableError({
           code: "gh-auth",
-          message: "Couldn't connect this app to your GitHub account.",
-          hint: "Try Set up saving again.",
+          message: tr("Couldn't connect this app to your GitHub account."),
+          hint: tr("Try Set up saving again."),
           details: result.stderr
         });
     }
@@ -25091,7 +25826,7 @@ ${result.stdout}`.trim()
     if (cloned.exitCode !== 0) {
       throw ghError(cloned, {
         code: "unknown",
-        message: "GitHub didn't accept a request.",
+        message: tr("GitHub didn't accept a request."),
         details: `git clone https://github.com/${repo}.git
 ${cloned.stderr}`.trim()
       });
@@ -25157,7 +25892,7 @@ ${cloned.stderr}`.trim()
     if (!created) {
       throw new ClodableError({
         code: "unknown",
-        message: "The draft's page on GitHub couldn't be created."
+        message: tr("The draft's page on GitHub couldn't be created.")
       });
     }
     return created;
@@ -25174,7 +25909,7 @@ ${cloned.stderr}`.trim()
       if (/no checks reported/i.test(result.stderr)) return { state: "none" };
       const failure2 = ghError(result, {
         code: "unknown",
-        message: "Couldn't read the checks on GitHub.",
+        message: tr("Couldn't read the checks on GitHub."),
         details: result.stderr.trim()
       });
       if (failure2.code !== "unknown") throw failure2;
@@ -25213,8 +25948,10 @@ ${cloned.stderr}`.trim()
     if (!merged.mergeCommit?.oid) {
       throw new ClodableError({
         code: "merge-blocked",
-        message: "GitHub didn't publish your draft.",
-        hint: "Your repository may require something before publishing. Open the draft on GitHub to see why."
+        message: tr("GitHub didn't publish your draft."),
+        hint: tr(
+          "Your repository may require something before publishing. Open the draft on GitHub to see why."
+        )
       });
     }
     return { sha: merged.mergeCommit.oid };
@@ -25227,8 +25964,10 @@ ${cloned.stderr}`.trim()
     if (result.exitCode !== 0) {
       throw ghError(result, {
         code: "unknown",
-        message: `GitHub didn't accept the ${name} secret your site needs to publish.`,
-        hint: "Check you can change this repository's settings on GitHub, then try again.",
+        message: tr("GitHub didn't accept the {0} secret your site needs to publish.", {
+          "0": name
+        }),
+        hint: tr("Check you can change this repository's settings on GitHub, then try again."),
         details: result.stderr.trim().slice(0, 500)
       });
     }
@@ -25312,16 +26051,16 @@ ${result.stdout}`.trim();
   if (/auth login|not logged|authentication/i.test(text2)) {
     return new ClodableError({
       code: "gh-auth",
-      message: "Clodable isn't connected to your GitHub account.",
-      hint: "Type /clodable to open the Clodable panel and connect it there.",
+      message: tr("Clodable isn't connected to your GitHub account."),
+      hint: tr("Type /clodable to open the Clodable panel and connect it there."),
       details: text2
     });
   }
   if (OFFLINE.test(text2)) {
     return new ClodableError({
       code: "offline",
-      message: "GitHub can't be reached right now.",
-      hint: "Check your internet connection and try again.",
+      message: tr("GitHub can't be reached right now."),
+      hint: tr("Check your internet connection and try again."),
       details: text2
     });
   }
@@ -25624,8 +26363,10 @@ async function exportNames(source) {
   if (backups.length !== 1) {
     throw new ClodableError({
       code: "export-unreadable",
-      message: backups.length ? "That zip holds more than one database export." : "That zip doesn't hold a database export.",
-      hint: "Choose the single .backup or .dump file for this app, or download its export again from Lovable."
+      message: backups.length ? tr("That zip holds more than one database export.") : tr("That zip doesn't hold a database export."),
+      hint: tr(
+        "Choose the single .backup or .dump file for this app, or download its export again from Lovable."
+      )
     });
   }
   return [basename4(source), basename4(backups[0].name)];
@@ -25636,8 +26377,10 @@ async function checkExportSource(source, projectUrl2) {
   if (expected && names2.some((name) => projectId(name) && projectId(name) !== expected)) {
     throw new ClodableError({
       code: "export-unreadable",
-      message: "That export is labelled for a different Lovable app.",
-      hint: "Download this app's export, or tell Claude where you saved the correct file. Your saved copy hasn't changed."
+      message: tr("That export is labelled for a different Lovable app."),
+      hint: tr(
+        "Download this app's export, or tell Claude where you saved the correct file. Your saved copy hasn't changed."
+      )
     });
   }
 }
@@ -25677,8 +26420,10 @@ async function takeBackup(source, dir) {
     if (backups.length !== 1) {
       throw new ClodableError({
         code: "export-unreadable",
-        message: backups.length ? "That zip holds more than one database export." : "That zip doesn't hold a database export.",
-        hint: "Choose the single .backup or .dump file for this app, or download its export again from Lovable."
+        message: backups.length ? tr("That zip holds more than one database export.") : tr("That zip doesn't hold a database export."),
+        hint: tr(
+          "Choose the single .backup or .dump file for this app, or download its export again from Lovable."
+        )
       });
     }
     const entry = backups[0];
@@ -25693,8 +26438,10 @@ async function takeBackup(source, dir) {
 }
 var unreadable = (error62) => new ClodableError({
   code: "export-unreadable",
-  message: "Couldn't open that export.",
-  hint: "Download it again (from Lovable's email, or More \u2192 Cloud \u2192 Storage), then try again.",
+  message: tr("Couldn't open that export."),
+  hint: tr(
+    "Download it again (from Lovable's email, or More \u2192 Cloud \u2192 Storage), then try again."
+  ),
   details: messageOf(error62)
 });
 async function readExport(source, dir) {
@@ -25706,8 +26453,8 @@ async function readExport(source, dir) {
   if (toc.entries.length === 0) {
     throw new ClodableError({
       code: "export-unreadable",
-      message: "That export is empty.",
-      hint: "Export your data again in Lovable, then download the new zip."
+      message: tr("That export is empty."),
+      hint: tr("Export your data again in Lovable, then download the new zip.")
     });
   }
   const triggers = managedTriggers(toc);
@@ -25913,6 +26660,150 @@ async function scanRows(backup, entries, dir, summary, sourceRefs) {
   await writeJsonFile(join20(dir, JOBS_FILE), jobs, { private: true });
 }
 
+// ../core/src/move/messages.ts
+function renderCheckMessage(message, locale) {
+  const values = Object.fromEntries(
+    Object.entries(message.values ?? {}).map(([key2, value]) => [
+      key2,
+      typeof value === "object" ? renderCheckMessage(value, locale) : typeof value === "number" ? value.toLocaleString(locale === "fr" ? "fr-FR" : "en-US") : value
+    ])
+  );
+  return translate(locale, core, message.source, values);
+}
+function checkLabel(source, values) {
+  const labelMessage = { source, ...values ? { values } : {} };
+  return { label: renderCheckMessage(labelMessage, "en"), labelMessage };
+}
+function checkDetail(source, values) {
+  const detailMessage = { source, ...values ? { values } : {} };
+  return { detail: renderCheckMessage(detailMessage, "en"), detailMessage };
+}
+function countMessage(n4, one, many = `${one}s`) {
+  return { source: `{count} ${n4 === 1 ? one : many}`, values: { count: n4 } };
+}
+var storedLabels = {
+  tables: ["All {0} and their {1} are there", "{0} didn't copy fully"],
+  people: ["{0} can sign in as before", "{0} of {1} came over"],
+  rules: ["Every access rule is in place", "Some access rules are missing"],
+  links: [
+    "Links between tables and automatic actions are in place",
+    "Some links or automatic actions are missing"
+  ],
+  access: ["Your app can reach its tables as before", "Your app can't reach some of its tables"],
+  counters: ["New rows will save cleanly", "Some counters are behind"],
+  "old-backend": [
+    "The checked database functions and webhooks no longer name the old backend",
+    "{0} still call Lovable Cloud"
+  ],
+  extensions: ["Database extensions are on", "Some database extensions are off"],
+  files: [
+    "Some files are missing",
+    "Some file folders are missing",
+    "All {0} are there",
+    "{0} ready for your files"
+  ],
+  api: [
+    "Your app's API is ready",
+    "Your app's API sees every table",
+    "Your app's API doesn't see some tables yet"
+  ]
+};
+var escapePattern = (text2) => text2.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+function recordedCount(value) {
+  if (/^[\d,]+$/.test(value)) return Number(value.replaceAll(",", ""));
+  const count2 = value.match(/^([\d,]+) (.+)$/);
+  const source = count2 ? `{count} ${count2[2]}` : "";
+  return count2 && Object.hasOwn(core, source) ? { source, values: { count: Number(count2[1].replaceAll(",", "")) } } : value;
+}
+function recordedLabel(check2) {
+  for (const source of storedLabels[check2.id] ?? []) {
+    const keys = [...source.matchAll(/\{(\d+)\}/g)].map((match2) => match2[1]);
+    const pattern = source.split(/\{\d+\}/).map(escapePattern).join("(.+?)");
+    const match = check2.label.match(new RegExp(`^${pattern}$`));
+    if (!match) continue;
+    return {
+      source,
+      values: Object.fromEntries(keys.map((key2, i2) => [key2, recordedCount(match[i2 + 1])]))
+    };
+  }
+  return void 0;
+}
+function presentMoveCheck(check2) {
+  const locale = currentLocale();
+  const message = check2.labelMessage ?? recordedLabel(check2);
+  let detail = check2.detailMessage ? renderCheckMessage(check2.detailMessage, locale) : check2.detail;
+  if (locale === "fr" && detail && !check2.detailMessage) {
+    if (check2.id === "people") {
+      const match = detail.match(
+        /^(.+) sign in without a password \(Google and the like, or invited\)\.$/
+      );
+      if (match)
+        detail = renderCheckMessage(
+          {
+            source: "{0} sign in without a password (Google and the like, or invited).",
+            values: { "0": recordedCount(match[1]) }
+          },
+          locale
+        );
+    }
+    if (check2.id === "access") {
+      detail = detail.split("; ").map((part) => {
+        const match = part.match(/^(.+) for (.+): (.+)$/);
+        return match ? translate(locale, core, "{table} for {role}: {privileges}", {
+          table: match[1],
+          role: match[2],
+          privileges: match[3]
+        }) : part;
+      }).join("; ");
+    }
+    if (["tables", "files", "rules", "links"].includes(check2.id)) {
+      detail = detail.split("; ").map((part) => {
+        const missing = part.match(/^(.+): missing$/);
+        if (missing) return translate(locale, core, "{name}: missing", { name: missing[1] });
+        const wrong = part.match(/^(.+): wrong access$/);
+        if (wrong) return translate(locale, core, "{name}: wrong access", { name: wrong[1] });
+        const counts = part.match(/^(.+): (\d+) of (\d+) (rows|files)$/);
+        if (counts)
+          return translate(
+            locale,
+            core,
+            counts[4] === "rows" ? "{name}: {actual} of {expected} rows" : "{name}: {actual} of {expected} files",
+            {
+              name: counts[1],
+              actual: Number(counts[2]).toLocaleString("fr-FR"),
+              expected: Number(counts[3]).toLocaleString("fr-FR")
+            }
+          );
+        const rules = part.match(
+          /^(access rules|protected tables|triggers|links between tables) in (.+): (\d+) of (\d+)$/
+        );
+        if (rules)
+          return translate(locale, core, `${rules[1]} in {schema}: {actual} of {expected}`, {
+            schema: rules[2],
+            actual: rules[3],
+            expected: rules[4]
+          });
+        const appTriggers = part.match(
+          /^the app's triggers on sign-ins and files: (\d+) of (\d+)$/
+        );
+        if (appTriggers)
+          return translate(
+            locale,
+            core,
+            "the app's triggers on sign-ins and files: {actual} of {expected}",
+            { actual: appTriggers[1], expected: appTriggers[2] }
+          );
+        return part;
+      }).join("; ");
+    }
+  }
+  return {
+    ...check2,
+    ...message ? { label: renderCheckMessage(message, locale) } : {},
+    ...detail ? { detail } : {}
+  };
+}
+
 // ../core/src/move/restore.ts
 import { join as join21 } from "node:path";
 var managed = [...MANAGED_SCHEMAS].map((s) => `'${s}'`).join(", ");
@@ -25971,10 +26862,15 @@ async function* copyExport(target, dir, toc, summary, options = {}) {
     }
   };
   if (options.again) {
-    yield step("move:data", "running", "Copying your data", "Clearing the earlier copy");
+    yield step("move:data", "running", tr("Copying your data"), tr("Clearing the earlier copy"));
     await emptyCopy(target.sql);
   }
-  yield step("move:data", "running", "Copying your data", "Turning on your database's extensions");
+  yield step(
+    "move:data",
+    "running",
+    tr("Copying your data"),
+    tr("Turning on your database's extensions")
+  );
   keep(
     (await restorePass(target.pg, backup, plan.extensions, { dir, name: "1-extensions" })).errors
   );
@@ -25994,7 +26890,7 @@ async function* copyExport(target, dir, toc, summary, options = {}) {
       );
     }
   }
-  yield step("move:data", "running", "Copying your data", "Bringing your people over");
+  yield step("move:data", "running", tr("Copying your data"), tr("Bringing your people over"));
   keep(
     (await restorePass(target.pg, backup, plan.managedData, {
       dir,
@@ -26002,19 +26898,19 @@ async function* copyExport(target, dir, toc, summary, options = {}) {
       dataOnly: true
     })).errors
   );
-  yield step("move:data", "running", "Copying your data", "Copying your tables");
+  yield step("move:data", "running", tr("Copying your data"), tr("Copying your tables"));
   keep(
     (await restorePass(target.pg, backup, plan.app, { dir, name: "3-tables", privileges: true })).errors
   );
-  yield step("move:data", "running", "Copying your data", "Putting the access rules back");
+  yield step("move:data", "running", tr("Copying your data"), tr("Putting the access rules back"));
   keep((await restorePass(target.pg, backup, plan.managedExtras, { dir, name: "4-rules" })).errors);
   yield step(
     "move:data",
     problems.length > 0 ? "warning" : "done",
-    "Copied your data",
-    problems.length > 0 ? `${problems.length} parts didn't copy cleanly` : void 0
+    tr("Copied your data"),
+    problems.length > 0 ? tr("{0} parts didn't copy cleanly", { "0": problems.length }) : void 0
   );
-  yield step("move:fixes", "running", "Getting the copy ready");
+  yield step("move:fixes", "running", tr("Getting the copy ready"));
   const fixes = [];
   const attempt = async (what, work) => {
     try {
@@ -26069,7 +26965,7 @@ async function* copyExport(target, dir, toc, summary, options = {}) {
   yield step(
     "move:fixes",
     "done",
-    "Got the copy ready",
+    tr("Got the copy ready"),
     fixes.length > 0 ? fixes.join(" \xB7 ") : void 0
   );
   return { problems, fixes };
@@ -26218,22 +27114,24 @@ async function setMoveMethod(ws, method) {
   if (method !== "careful" && method !== "quick") {
     throw new ClodableError({
       code: "invalid-config",
-      message: "Careful or quick?",
-      hint: "clodable move method careful (a pause at the end, nothing lost) or quick (in one go)."
+      message: tr("Careful or quick?"),
+      hint: tr(
+        "clodable move method careful (a pause at the end, nothing lost) or quick (in one go)."
+      )
     });
   }
   const state = await loadMove(ws.root);
   if (state.switch?.liveAt) {
     throw new ClodableError({
       code: "move-not-ready",
-      message: "Your app is live on its new home already."
+      message: tr("Your app is live on its new home already.")
     });
   }
   if (method === "quick" && state.switch?.frozenAt) {
     throw new ClodableError({
       code: "move-not-ready",
-      message: "Your live app is paused already: finish the careful way.",
-      hint: "Or undo the pause in Lovable first, with the line the panel shows."
+      message: tr("Your live app is paused already: finish the careful way."),
+      hint: tr("Or undo the pause in Lovable first, with the line the panel shows.")
     });
   }
   await updateMove(ws.root, (s) => {
@@ -26256,8 +27154,8 @@ async function markFrozen(ws) {
   if (!state.site || !state.data?.ok) {
     throw new ClodableError({
       code: "move-not-ready",
-      message: "Get the copy and your site on Netlify ready first.",
-      hint: "The pause should be as short as possible: everything else is done before it."
+      message: tr("Get the copy and your site on Netlify ready first."),
+      hint: tr("The pause should be as short as possible: everything else is done before it.")
     });
   }
   if (state.switch?.frozenAt) return { frozenAt: state.switch.frozenAt };
@@ -26318,29 +27216,29 @@ async function* goLive(ws, options = {}) {
   if (!state.home || !state.site) {
     throw new ClodableError({
       code: "move-not-ready",
-      message: "Prepare your website first.",
-      hint: "Going live points your app and its sign-in at it."
+      message: tr("Prepare your website first."),
+      hint: tr("Going live points your app and its sign-in at it.")
     });
   }
   if (quick && !state.data?.ok) {
     throw new ClodableError({
       code: "move-not-ready",
-      message: "Some things on your new backend need a look first.",
-      hint: "Ask Claude to run clodable move diagnose."
+      message: tr("Some things on your new backend need a look first."),
+      hint: tr("Ask Claude to run clodable move diagnose.")
     });
   }
   if (!quick && !frozenAt) {
     throw new ClodableError({
       code: "move-not-ready",
-      message: "Pause changes on your live app first.",
-      hint: "Going live comes after the pause and the final copy."
+      message: tr("Pause changes on your live app first."),
+      hint: tr("Going live comes after the pause and the final copy.")
     });
   }
   if (!quick && (!state.data?.ok || state.data.at < frozenAt)) {
     throw new ClodableError({
       code: "move-not-ready",
-      message: "Copy your data in for good first: export again from Lovable, then copy it.",
-      hint: "That copy is what keeps everything written before the pause."
+      message: tr("Copy your data in for good first: export again from Lovable, then copy it."),
+      hint: tr("That copy is what keeps everything written before the pause.")
     });
   }
   const supabase = await SupabaseApi.required();
@@ -26348,12 +27246,22 @@ async function* goLive(ws, options = {}) {
   const url2 = state.site.url;
   const emails = Boolean(state.emails?.connectedAt);
   const confirmEmail = emails ? options.confirmEmail ?? true : false;
-  yield step("move:golive", "running", "Switching to your new backend", "Sign-in for real people");
+  yield step(
+    "move:golive",
+    "running",
+    tr("Switching to your new backend"),
+    tr("Sign-in for real people")
+  );
   const signUp = options.signUp ?? true;
   await liveSignIn(supabase, state.home.ref, url2, confirmEmail, signUp);
   let jobs;
   if (quick && state.source) {
-    yield step("move:golive", "running", "Switching to your new backend", "Your scheduled jobs");
+    yield step(
+      "move:golive",
+      "running",
+      tr("Switching to your new backend"),
+      tr("Your scheduled jobs")
+    );
     jobs = await recreateJobs(
       homeSql(supabase, state.home.ref),
       await moveDir(ws.root),
@@ -26366,7 +27274,7 @@ async function* goLive(ws, options = {}) {
       error: messageOf(error62)
     }));
   }
-  yield step("move:golive", "running", "Switching to your new backend", "Your app's files");
+  yield step("move:golive", "running", tr("Switching to your new backend"), tr("Your app's files"));
   const files = [];
   const from = state.source?.ref;
   const backend = backendOf(state.home.ref, keys);
@@ -26403,7 +27311,12 @@ async function* goLive(ws, options = {}) {
       }
     }
   }
-  yield step("move:golive", "running", "Switching to your new backend", "Clodable's settings");
+  yield step(
+    "move:golive",
+    "running",
+    tr("Switching to your new backend"),
+    tr("Clodable's settings")
+  );
   const config2 = {
     ...ws.config,
     backend: "supabase",
@@ -26417,7 +27330,12 @@ async function* goLive(ws, options = {}) {
     s.preview = "live";
     s.switch = { ...s.switch, liveAt: (/* @__PURE__ */ new Date()).toISOString() };
   });
-  yield step("move:golive", "done", "Ready to go live", `Publish to put it live at ${url2}`);
+  yield step(
+    "move:golive",
+    "done",
+    tr("Ready to go live"),
+    tr("Publish to put it live at {0}", { "0": url2 })
+  );
   return { url: url2, files, confirmEmail, signUp, ...jobs ? { jobs } : {} };
 }
 async function markFinished(ws) {
@@ -26425,7 +27343,7 @@ async function markFinished(ws) {
   if (!state.switch?.liveAt) {
     throw new ClodableError({
       code: "move-not-ready",
-      message: "Go live first: Lovable Cloud stays until your app works on its new home."
+      message: tr("Go live first: Lovable Cloud stays until your app works on its new home.")
     });
   }
   const finishedAt = (/* @__PURE__ */ new Date()).toISOString();
@@ -26435,9 +27353,6 @@ async function markFinished(ws) {
   await forgetMoveFiles(ws.root);
   return { finishedAt, exportDeleted: true };
 }
-
-// ../core/src/move/words.ts
-var count = (n4, one, many = `${one}s`) => `${n4.toLocaleString("en-US")} ${n4 === 1 ? one : many}`;
 
 // ../core/src/move/verify.ts
 async function verifyCopy(sql, summary, options = {}) {
@@ -26473,7 +27388,10 @@ async function tablesCheck(sql, summary, exact) {
   return {
     id: "tables",
     ok: wrong === 0,
-    label: wrong === 0 ? `All ${count(tables.length, "table")} and their ${count(rows, "row")} are there` : `${count(wrong, "table")} didn't copy fully`,
+    ...wrong === 0 ? checkLabel("All {0} and their {1} are there", {
+      "0": countMessage(tables.length, "table"),
+      "1": countMessage(rows, "row")
+    }) : checkLabel("{0} didn't copy fully", { "0": countMessage(wrong, "table") }),
     ...wrong > 0 ? {
       detail: [
         ...missing.map((t2) => `${t2}: missing`),
@@ -26493,9 +27411,14 @@ async function peopleCheck(sql, summary, exact) {
   return {
     id: "people",
     ok,
-    label: ok ? `${count(total, "person", "people")} can sign in as before` : `${count(total, "person", "people")} of ${summary.people.total.toLocaleString("en-US")} came over`,
+    ...ok ? checkLabel("{0} can sign in as before", { "0": countMessage(total, "person", "people") }) : checkLabel("{0} of {1} came over", {
+      "0": countMessage(total, "person", "people"),
+      "1": summary.people.total
+    }),
     ...summary.people.withoutPassword > 0 ? {
-      detail: `${count(summary.people.withoutPassword, "person", "people")} sign in without a password (Google and the like, or invited).`
+      ...checkDetail("{0} sign in without a password (Google and the like, or invited).", {
+        "0": countMessage(summary.people.withoutPassword, "person", "people")
+      })
     } : {}
   };
 }
@@ -26530,13 +27453,13 @@ async function structureChecks(sql, summary) {
     {
       id: "rules",
       ok: missingRules.length === 0,
-      label: missingRules.length === 0 ? "Every access rule is in place" : "Some access rules are missing",
+      ...missingRules.length === 0 ? checkLabel("Every access rule is in place") : checkLabel("Some access rules are missing"),
       ...missingRules.length > 0 ? { detail: missingRules.join("; ") } : {}
     },
     {
       id: "links",
       ok: missingLinks.length === 0,
-      label: missingLinks.length === 0 ? "Links between tables and automatic actions are in place" : "Some links or automatic actions are missing",
+      ...missingLinks.length === 0 ? checkLabel("Links between tables and automatic actions are in place") : checkLabel("Some links or automatic actions are missing"),
       ...missingLinks.length > 0 ? { detail: missingLinks.join("; ") } : {}
     }
   ];
@@ -26562,7 +27485,7 @@ async function accessCheck(sql, summary) {
   return {
     id: "access",
     ok: missing.length === 0,
-    label: missing.length === 0 ? "Your app can reach its tables as before" : "Your app can't reach some of its tables",
+    ...missing.length === 0 ? checkLabel("Your app can reach its tables as before") : checkLabel("Your app can't reach some of its tables"),
     ...missing.length > 0 ? { detail: missing.slice(0, 6).join("; ") } : {}
   };
 }
@@ -26571,7 +27494,7 @@ async function countersCheck(sql) {
   return {
     id: "counters",
     ok: behind.length === 0,
-    label: behind.length === 0 ? "New rows will save cleanly" : "Some counters are behind",
+    ...behind.length === 0 ? checkLabel("New rows will save cleanly") : checkLabel("Some counters are behind"),
     ...behind.length > 0 ? { detail: behind.map((r2) => r2.seq).join(", ") } : {}
   };
 }
@@ -26583,7 +27506,9 @@ async function oldBackendCheck(sql, sourceRef) {
   return {
     id: "old-backend",
     ok: naming.length === 0,
-    label: naming.length === 0 ? "The checked database functions and webhooks no longer name the old backend" : `${count(naming.length, "database function or webhook")} still call Lovable Cloud`,
+    ...naming.length === 0 ? checkLabel("The checked database functions and webhooks no longer name the old backend") : checkLabel("{0} still call Lovable Cloud", {
+      "0": countMessage(naming.length, "database function or webhook")
+    }),
     ...naming.length > 0 ? { detail: naming.join(", ") } : {}
   };
 }
@@ -26596,7 +27521,7 @@ async function extensionsCheck(sql, summary) {
   return {
     id: "extensions",
     ok: missing.length === 0,
-    label: missing.length === 0 ? "Database extensions are on" : "Some database extensions are off",
+    ...missing.length === 0 ? checkLabel("Database extensions are on") : checkLabel("Some database extensions are off"),
     ...missing.length > 0 ? { detail: missing.join(", ") } : {}
   };
 }
@@ -26619,7 +27544,9 @@ async function filesCheck(sql, summary, files) {
   return {
     id: "files",
     ok: problems.length === 0,
-    label: problems.length > 0 ? files ? "Some files are missing" : "Some file folders are missing" : files ? `All ${count(total, "file")} are there` : `${count(summary.buckets.length, "file folder")} ready for your files`,
+    ...problems.length > 0 ? files ? checkLabel("Some files are missing") : checkLabel("Some file folders are missing") : files ? checkLabel("All {0} are there", { "0": countMessage(total, "file") }) : checkLabel("{0} ready for your files", {
+      "0": countMessage(summary.buckets.length, "file folder")
+    }),
     ...problems.length > 0 ? { detail: problems.join("; ") } : {}
   };
 }
@@ -26627,13 +27554,15 @@ var API_PRIVILEGES = /* @__PURE__ */ new Set(["SELECT", "INSERT", "UPDATE", "DEL
 
 // ../core/src/move/copy.ts
 async function* importExport(ws, options = {}) {
-  yield step("move:export", "running", "Reading your export");
+  yield step("move:export", "running", tr("Reading your export"));
   const file3 = options.file ?? await findExport(void 0, ws.project.lovable.projectUrl);
   if (!file3) {
     throw new ClodableError({
       code: "export-not-found",
-      message: "Clodable couldn't match an export in Downloads to this app.",
-      hint: "Download this app's export from Lovable, or tell Claude the name and location of its .zip, .backup or .dump file. Clodable won't guess between apps."
+      message: tr("Clodable couldn't match an export in Downloads to this app."),
+      hint: tr(
+        "Download this app's export from Lovable, or tell Claude the name and location of its .zip, .backup or .dump file. Clodable won't guess between apps."
+      )
     });
   }
   await checkExportSource(file3, ws.project.lovable.projectUrl);
@@ -26648,8 +27577,12 @@ async function* importExport(ws, options = {}) {
       if (madeAfterPause(summary, before.switch?.grants, pausedAt) === false) {
         throw new ClodableError({
           code: "move-not-ready",
-          message: "That export was made before the pause: it would miss what people wrote since.",
-          hint: "Check the pause is in place in Lovable, export again, download the new zip, then read it."
+          message: tr(
+            "That export was made before the pause: it would miss what people wrote since."
+          ),
+          hint: tr(
+            "Check the pause is in place in Lovable, export again, download the new zip, then read it."
+          )
         });
       }
     }
@@ -26665,7 +27598,7 @@ async function* importExport(ws, options = {}) {
     s.export = { file: summary.file, importedAt: (/* @__PURE__ */ new Date()).toISOString(), summary };
     if (sourceRef) s.source = { ref: sourceRef };
   });
-  yield step("move:export", "done", "Read your export", describeExport(summary));
+  yield step("move:export", "done", tr("Read your export"), describeExport(summary));
   return summary;
 }
 function describeExport(summary) {
@@ -26687,15 +27620,15 @@ async function* copyData(ws) {
   if (!state.home) {
     throw new ClodableError({
       code: "move-not-ready",
-      message: "Create your new backend first.",
-      hint: "It's the step before this one."
+      message: tr("Create your new backend first."),
+      hint: tr("It's the step before this one.")
     });
   }
   if (!state.export) {
     throw new ClodableError({
       code: "move-not-ready",
-      message: "Export your data from Lovable first.",
-      hint: "It's the step before this one."
+      message: tr("Export your data from Lovable first."),
+      hint: tr("It's the step before this one.")
     });
   }
   const api = await SupabaseApi.required();
@@ -26704,13 +27637,18 @@ async function* copyData(ws) {
   if (!existsSync17(backup)) {
     throw new ClodableError({
       code: "export-not-found",
-      message: "The export Clodable read is gone from this computer.",
-      hint: "Read it again: download the export from Lovable, then run that step again."
+      message: tr("The export Clodable read is gone from this computer."),
+      hint: tr("Read it again: download the export from Lovable, then run that step again.")
     });
   }
   const toc = parseToc(await readFile12(join23(dir, "toc.list"), "utf8"));
   const summary = state.export.summary;
-  yield step("move:data", "running", "Copying your data", "Connecting to your new database");
+  yield step(
+    "move:data",
+    "running",
+    tr("Copying your data"),
+    tr("Connecting to your new database")
+  );
   const pg = await homeConnection(api, state.home);
   await waitForConnection(pg);
   const sql = homeSql(api, state.home.ref);
@@ -26769,7 +27707,7 @@ async function* copyData(ws) {
       (error62) => outcome.problems.push(`sign-in settings: ${messageOf(error62)}`)
     );
   }
-  yield step("move:checks", "running", "Checking everything is there");
+  yield step("move:checks", "running", tr("Checking everything is there"));
   const before = switching && state.switch?.grants ? { ...summary, grants: state.switch.grants } : summary;
   const checks = await copyChecks(api, sql, state.home.ref, before, {
     ...state.source ? { sourceRef: state.source.ref } : {}
@@ -26783,10 +27721,10 @@ async function* copyData(ws) {
   yield step(
     "move:checks",
     ok ? "done" : "warning",
-    ok ? "Everything is there" : "Some things need a look",
-    checks.filter((c2) => !c2.ok).map((c2) => c2.label).join(" \xB7 ") || void 0
+    ok ? tr("Everything is there") : tr("Some things need a look"),
+    checks.filter((c2) => !c2.ok).map((c2) => presentMoveCheck(c2).label).join(" \xB7 ") || void 0
   );
-  return { ok, checks };
+  return { ok, checks: checks.map(presentMoveCheck) };
 }
 async function copyChecks(api, sql, ref, expected, options) {
   const checks = await verifyCopy(sql, expected, options);
@@ -26795,7 +27733,7 @@ async function copyChecks(api, sql, ref, expected, options) {
 }
 async function apiSeesTables(api, sql, ref, summary, { refresh = true } = {}) {
   const tables = Object.keys(summary.rows).filter((t2) => t2.startsWith("public.")).map((t2) => t2.slice("public.".length)).slice(0, 5);
-  if (tables.length === 0) return { id: "api", ok: true, label: "Your app's API is ready" };
+  if (tables.length === 0) return { id: "api", ok: true, ...checkLabel("Your app's API is ready") };
   const { secret } = await homeKeys(api, ref);
   let missing = [];
   for (let attempt = 0; attempt < 6; attempt++) {
@@ -26815,7 +27753,7 @@ async function apiSeesTables(api, sql, ref, summary, { refresh = true } = {}) {
   return {
     id: "api",
     ok: missing.length === 0,
-    label: missing.length === 0 ? "Your app's API sees every table" : "Your app's API doesn't see some tables yet",
+    ...missing.length === 0 ? checkLabel("Your app's API sees every table") : checkLabel("Your app's API doesn't see some tables yet"),
     ...missing.length > 0 ? { detail: missing.join(", ") } : {}
   };
 }
@@ -26824,12 +27762,12 @@ async function* checkCopy(ws) {
   if (!state.home || !state.export) {
     throw new ClodableError({
       code: "move-not-ready",
-      message: "There's no copy to check yet.",
-      hint: "Copy your data first."
+      message: tr("There's no copy to check yet."),
+      hint: tr("Copy your data first.")
     });
   }
   const api = await SupabaseApi.required();
-  yield step("move:checks", "running", "Checking everything is there");
+  yield step("move:checks", "running", tr("Checking everything is there"));
   const sql = homeSql(api, state.home.ref);
   const checks = await copyChecks(api, sql, state.home.ref, state.export.summary, {
     ...state.source ? { sourceRef: state.source.ref } : {},
@@ -26843,9 +27781,9 @@ async function* checkCopy(ws) {
   yield step(
     "move:checks",
     ok ? "done" : "warning",
-    ok ? "Everything is there" : "Some things need a look"
+    ok ? tr("Everything is there") : tr("Some things need a look")
   );
-  return { ok, checks };
+  return { ok, checks: checks.map(presentMoveCheck) };
 }
 
 // ../core/src/move/copy-preview.ts
@@ -26854,7 +27792,7 @@ async function setPreview(ws, target) {
   if (target === "copy" && !state.data) {
     throw new ClodableError({
       code: "move-not-ready",
-      message: "Copy your data first: the preview would show an empty app."
+      message: tr("Copy your data first: the preview would show an empty app.")
     });
   }
   if (state.switch?.liveAt) return;
@@ -26888,8 +27826,8 @@ async function diagnoseCopy(ws, options = {}) {
   if (!state.home) {
     throw new ClodableError({
       code: "move-not-ready",
-      message: "There's no new backend to look at yet.",
-      hint: "Create it first: it's an early step of the move."
+      message: tr("There's no new backend to look at yet."),
+      hint: tr("Create it first: it's an early step of the move.")
     });
   }
   const api = await SupabaseApi.required();
@@ -26900,9 +27838,9 @@ async function diagnoseCopy(ws, options = {}) {
   findings.push({
     id: "running",
     ok: running,
-    label: running ? "Your new backend is running" : project.status === "INACTIVE" || project.status === "GOING_DOWN" ? "Your new backend is paused" : "Your new backend isn't ready yet",
+    label: running ? tr("Your new backend is running") : project.status === "INACTIVE" || project.status === "GOING_DOWN" ? tr("Your new backend is paused") : tr("Your new backend isn't ready yet"),
     ...running ? {} : {
-      fix: project.status === "INACTIVE" || project.status === "GOING_DOWN" ? "Restore it on its page in Supabase, then look again." : "Check its status in Supabase, then look again in a minute."
+      fix: project.status === "INACTIVE" || project.status === "GOING_DOWN" ? tr("Restore it on its page in Supabase, then look again.") : tr("Check its status in Supabase, then look again in a minute.")
     }
   });
   if (!running) return { findings };
@@ -26912,14 +27850,16 @@ async function diagnoseCopy(ws, options = {}) {
       refresh: Boolean(options.fix)
     });
     findings.push({
-      ...check2,
+      ...presentMoveCheck(check2),
       ...verdict(check2.ok, Boolean(options.fix), {
-        fix: "Run `clodable move diagnose --fix`: it asks the API to refresh its list of tables."
+        fix: tr(
+          "Run `clodable move diagnose --fix`: it asks the API to refresh its list of tables."
+        )
       })
     });
   }
   const auth = await api.authConfig(ref);
-  const goesTo = String(auth.site_url ?? "Supabase's default");
+  const goesTo = String(auth.site_url ?? tr("Supabase's default"));
   const site = state.switch?.liveAt ? state.site?.url : void 0;
   if (site) {
     const comesBack = backToSite(auth, site);
@@ -26928,8 +27868,11 @@ async function diagnoseCopy(ws, options = {}) {
     findings.push({
       id: "sign-in",
       ok,
-      label: ok ? "Sign-in links come back to your site" : "Sign-in links don't come back to your site",
-      ...verdict(ok, !comesBack, { detail: `they go to ${goesTo}`, fix: LOOK_AGAIN })
+      label: ok ? tr("Sign-in links come back to your site") : tr("Sign-in links don't come back to your site"),
+      ...verdict(ok, !comesBack, {
+        detail: tr("they go to {0}", { "0": goesTo }),
+        fix: tr(LOOK_AGAIN)
+      })
     });
   } else {
     const comesBack = backToPreview(auth);
@@ -26940,13 +27883,13 @@ async function diagnoseCopy(ws, options = {}) {
     findings.push({
       id: "sign-in",
       ok,
-      label: ok ? "The preview can sign people in on the copy" : "Sign-ins on the copy don't come back to the preview",
+      label: ok ? tr("The preview can sign people in on the copy") : tr("Sign-ins on the copy don't come back to the preview"),
       ...verdict(ok, fixedNow, {
         detail: [
-          comesBack ? "" : `sign-in links go to ${goesTo}`,
-          noEmailWait ? "" : "new people must confirm by email, which Supabase's test mailer rarely sends"
+          comesBack ? "" : tr("sign-in links go to {url}", { url: goesTo }),
+          noEmailWait ? "" : tr("new people must confirm by email, which Supabase's test mailer rarely sends")
         ].filter(Boolean).join("; "),
-        fix: LOOK_AGAIN
+        fix: tr(LOOK_AGAIN)
       })
     });
   }
@@ -26956,8 +27899,11 @@ async function diagnoseCopy(ws, options = {}) {
   findings.push({
     id: "people",
     ok: true,
-    label: `${count(Number(people?.people ?? 0), "person", "people")} on the copy`,
-    detail: `last sign-up ${people?.last_signup?.slice(0, 19) ?? "never"}, last sign-in ${people?.last_sign_in?.slice(0, 19) ?? "never"} (UTC)`
+    label: tr("{0} on the copy", { "0": count(Number(people?.people ?? 0), "person", "people") }),
+    detail: tr("last sign-up {0}, last sign-in {1} (UTC)", {
+      "0": people?.last_signup?.slice(0, 19) ?? tr("never"),
+      "1": people?.last_sign_in?.slice(0, 19) ?? tr("never")
+    })
   });
   if (state.export) {
     const checks = await verifyCopy(sql, state.export.summary, {
@@ -26967,12 +27913,12 @@ async function diagnoseCopy(ws, options = {}) {
     });
     const failing = checks.filter((c2) => !c2.ok);
     if (failing.length === 0) {
-      findings.push({ id: "data", ok: true, label: "Your data's checks pass" });
+      findings.push({ id: "data", ok: true, label: tr("Your data's checks pass") });
     } else {
       findings.push(
         ...failing.map((c2) => ({
-          ...c2,
-          fix: "Copying again from a fresh export usually puts it right."
+          ...presentMoveCheck(c2),
+          fix: tr("Copying again from a fresh export usually puts it right.")
         }))
       );
     }
@@ -26981,14 +27927,16 @@ async function diagnoseCopy(ws, options = {}) {
     findings.push({
       id: "copy-notes",
       ok: true,
-      label: `The copy noted ${count(state.data.problems.length, "message")} from Postgres`,
+      label: tr("The copy noted {0} from Postgres", {
+        "0": count(state.data.problems.length, "message")
+      }),
       detail: state.data.problems.slice(0, 5).join("; ")
     });
   }
   findings.push({
     id: "preview",
     ok: true,
-    label: state.preview === "copy" ? "The preview uses the copy" : "The preview uses your live data (on Lovable Cloud)"
+    label: state.preview === "copy" ? tr("The preview uses the copy") : tr("The preview uses your live data (on Lovable Cloud)")
   });
   return { findings };
 }
@@ -27023,16 +27971,16 @@ async function setDomain(ws, input2) {
   if (!state.site || !state.switch?.liveAt) {
     throw new ClodableError({
       code: "move-not-ready",
-      message: "Go live on your new site first.",
-      hint: "Your domain moves once the app works at its Netlify address."
+      message: tr("Go live on your new site first."),
+      hint: tr("Your domain moves once the app works at its Netlify address.")
     });
   }
   const name = clean(input2 ?? state.domain?.name ?? "");
   if (!isDomainName(name) || name.endsWith(".lovable.app") || name.endsWith(".netlify.app")) {
     throw new ClodableError({
       code: "invalid-config",
-      message: name ? `\u201C${name}\u201D isn't a domain of your own.` : "Which domain?",
-      hint: "The one your app uses, like yourapp.com or app.yourapp.com."
+      message: name ? tr("\u201C{0}\u201D isn't a domain of your own.", { "0": name }) : tr("Which domain?"),
+      hint: tr("The one your app uses, like yourapp.com or app.yourapp.com.")
     });
   }
   const siteHost = new URL(state.site.url).host;
@@ -27081,13 +28029,17 @@ var ResendApi = class _ResendApi {
       failed: "resend-failed",
       refused: (status2, message, details) => status2 === 401 || status2 === 403 ? new ClodableError({
         code: "resend-auth",
-        message: /restricted|sending/i.test(message) ? "That Resend key can only send emails." : "Resend didn't accept that key.",
-        hint: "Create a key with Full access in Resend (API Keys \u2192 Create API Key), then connect again.",
+        message: /restricted|sending/i.test(message) ? tr("That Resend key can only send emails.") : tr("Resend didn't accept that key."),
+        hint: tr(
+          "Create a key with Full access in Resend (API Keys \u2192 Create API Key), then connect again."
+        ),
         details
       }) : new ClodableError({
         code: "resend-failed",
-        message: "Resend refused the request.",
-        hint: "Try again in a minute. If it keeps happening, share the details with your developer.",
+        message: tr("Resend refused the request."),
+        hint: tr(
+          "Try again in a minute. If it keeps happening, share the details with your developer."
+        ),
         details
       })
     };
@@ -27097,8 +28049,8 @@ var ResendApi = class _ResendApi {
     if (!key2) {
       throw new ClodableError({
         code: "resend-auth",
-        message: "Resend isn't connected on this computer yet.",
-        hint: "Connect your Resend account in the Clodable panel first."
+        message: tr("Resend isn't connected on this computer yet."),
+        hint: tr("Connect your Resend account in the Clodable panel first.")
       });
     }
     return new _ResendApi(key2);
@@ -27134,8 +28086,8 @@ async function connectResend(key2) {
   if (!/^re_[A-Za-z0-9_]{10,}$/.test(trimmed)) {
     throw new ClodableError({
       code: "resend-auth",
-      message: "That doesn't look like a Resend key.",
-      hint: "It starts with re_. In Resend: API Keys \u2192 Create API Key, with Full access."
+      message: tr("That doesn't look like a Resend key."),
+      hint: tr("It starts with re_. In Resend: API Keys \u2192 Create API Key, with Full access.")
     });
   }
   const api = new ResendApi(trimmed);
@@ -27161,19 +28113,24 @@ async function* setUpEmails(ws, options = {}) {
   if (!state.home) {
     throw new ClodableError({
       code: "move-not-ready",
-      message: "Create your new backend first: emails are sent from it."
+      message: tr("Create your new backend first: emails are sent from it.")
     });
   }
   const domain2 = (options.domain ?? state.emails?.domain ?? "").trim().toLowerCase();
   if (!isDomainName(domain2)) {
     throw new ClodableError({
       code: "move-not-ready",
-      message: domain2 ? `\u201C${domain2}\u201D isn't a domain name.` : "Which domain should your emails come from?",
-      hint: "A domain you own, like example.com: emails will come from no-reply@ that domain."
+      message: domain2 ? tr("\u201C{0}\u201D isn't a domain name.", { "0": domain2 }) : tr("Which domain should your emails come from?"),
+      hint: tr("A domain you own, like example.com: emails will come from no-reply@ that domain.")
     });
   }
   const resend = await ResendApi.required();
-  yield step("move:emails", "running", "Setting up your emails", `From ${domain2}`);
+  yield step(
+    "move:emails",
+    "running",
+    tr("Setting up your emails"),
+    tr("From {0}", { "0": domain2 })
+  );
   let found2 = (await resend.domains()).find((d) => d.name === domain2);
   if (!found2) found2 = await resend.createDomain(domain2, regionFor(state.home.region));
   let current = await resend.domain(found2.id);
@@ -27204,14 +28161,21 @@ async function* setUpEmails(ws, options = {}) {
     yield step(
       "move:emails",
       "warning",
-      "Your domain needs its email records",
-      `Add the ${records.length} records at your domain's provider, then check again`
+      tr("Your domain needs its email records"),
+      tr("Add the {0} records at your domain's provider, then check again", {
+        "0": records.length
+      })
     );
     return { domain: domain2, sender, status: current.status, records, connected: false };
   }
   const latest = await loadMove(ws.root);
   if (!latest.emails?.connectedAt) {
-    yield step("move:emails", "running", "Setting up your emails", "Connecting Resend to Supabase");
+    yield step(
+      "move:emails",
+      "running",
+      tr("Setting up your emails"),
+      tr("Connecting Resend to Supabase")
+    );
     const sending = await resend.createSendingKey(`Clodable \xB7 ${ws.project.name}`, found2.id);
     const supabase = await SupabaseApi.required();
     await supabase.updateAuthConfig(state.home.ref, {
@@ -27230,7 +28194,12 @@ async function* setUpEmails(ws, options = {}) {
       if (s.switch?.noEmailsAt) delete s.switch.noEmailsAt;
     });
   }
-  yield step("move:emails", "done", "Your emails are ready", `From ${sender}, through Resend`);
+  yield step(
+    "move:emails",
+    "done",
+    tr("Your emails are ready"),
+    tr("From {0}, through Resend", { "0": sender })
+  );
   return { domain: domain2, sender, status: current.status, records, connected: true };
 }
 
@@ -27291,7 +28260,7 @@ async function* copyFiles(target, dir, buckets) {
   const failures = [];
   const notCopied = /* @__PURE__ */ new Set();
   const soFar = () => `${copied.toLocaleString("en-US")} of ${files.length.toLocaleString("en-US")}`;
-  yield step("move:files", "running", "Copying your files", soFar());
+  yield step("move:files", "running", tr("Copying your files"), soFar());
   let lastReport = Date.now();
   let next = 0;
   const worker = async () => {
@@ -27327,11 +28296,16 @@ async function* copyFiles(target, dir, buckets) {
     await Promise.race([all, new Promise((resolve10) => setTimeout(resolve10, 2e3))]);
     if (Date.now() - lastReport >= 2e3 || finished) {
       lastReport = Date.now();
-      yield step("move:files", "running", "Copying your files", soFar());
+      yield step("move:files", "running", tr("Copying your files"), soFar());
     }
   }
   await all;
-  yield step("move:files", "running", "Checking your files", "Comparing them byte for byte");
+  yield step(
+    "move:files",
+    "running",
+    tr("Checking your files"),
+    tr("Comparing them byte for byte")
+  );
   const differences = await checkSample(files, target, isPublic, { waiting: waiting2, notCopied });
   failed += differences.length;
   failures.push(...differences);
@@ -27358,12 +28332,12 @@ async function* copyFiles(target, dir, buckets) {
   yield step(
     "move:files",
     pending ? "warning" : "done",
-    pending ? "Copied most of your files" : "Copied your files",
+    pending ? tr("Copied most of your files") : tr("Copied your files"),
     [
       soFar(),
-      ...outcome.waiting.length > 0 ? [`private folders waiting: ${outcome.waiting.join(", ")}`] : [],
-      ...tooBig > 0 ? [`${tooBig} too large for your plan`] : [],
-      ...failed > 0 ? [`${failed} failed`] : []
+      ...outcome.waiting.length > 0 ? [tr("private folders waiting: {folders}", { folders: outcome.waiting.join(", ") })] : [],
+      ...tooBig > 0 ? [tr("{count} too large for your plan", { count: tooBig })] : [],
+      ...failed > 0 ? [tr("{count} failed", { count: failed })] : []
     ].join(" \xB7 ")
   );
   return outcome;
@@ -27396,7 +28370,7 @@ async function checkSample(files, target, isPublic, skip) {
           download3(target.to, file3, false, target.secretKey)
         ]);
         if (sha2562(before) !== sha2562(after)) {
-          differences.push(`${bucket}: a copied file differs from the original`);
+          differences.push(tr("{bucket}: a copied file differs from the original", { bucket }));
         }
       } catch (error62) {
         differences.push(`${bucket}: ${messageOf(error62)}`);
@@ -27576,7 +28550,7 @@ async function* deployFunctions(api, ref, root) {
   if (functions.length === 0) {
     throw new ClodableError({
       code: "move-not-ready",
-      message: "This app has no backend functions to move."
+      message: tr("This app has no backend functions to move.")
     });
   }
   const deployed = [];
@@ -27586,8 +28560,8 @@ async function* deployFunctions(api, ref, root) {
     yield step(
       "move:functions",
       "running",
-      "Moving your backend functions",
-      `${index + 1} of ${functions.length}: ${fn.name}`
+      tr("Moving your backend functions"),
+      tr("{0} of {1}: {2}", { "0": index + 1, "1": functions.length, "2": fn.name })
     );
     try {
       await uploadFunction(api, ref, root, fn);
@@ -27610,8 +28584,8 @@ async function* deployFunctions(api, ref, root) {
   yield step(
     "move:functions",
     failed.length > 0 ? "failed" : "done",
-    failed.length > 0 ? "Some backend functions didn't move" : "Moved your backend functions",
-    failed.length > 0 ? problems.join(" \xB7 ").slice(0, 500) : `${deployed.length} running`
+    failed.length > 0 ? tr("Some backend functions didn't move") : tr("Moved your backend functions"),
+    failed.length > 0 ? problems.join(" \xB7 ").slice(0, 500) : tr("{0} running", { "0": deployed.length })
   );
   return { deployed, failed, missingSecrets };
 }
@@ -27622,8 +28596,8 @@ async function readyCopy(ws) {
   if (!state.home || !state.export || !state.data) {
     throw new ClodableError({
       code: "move-not-ready",
-      message: "Copy your data first.",
-      hint: "Files, functions and secrets go into the copy, once it exists."
+      message: tr("Copy your data first."),
+      hint: tr("Files, functions and secrets go into the copy, once it exists.")
     });
   }
   return { state, home: state.home, summary: state.export.summary };
@@ -27633,8 +28607,8 @@ async function* copyUploads(ws, options = {}) {
   if (!state.source) {
     throw new ClodableError({
       code: "move-not-ready",
-      message: "Clodable doesn't know which Lovable Cloud backend the files are in.",
-      hint: "Read your export again: it says where your files are."
+      message: tr("Clodable doesn't know which Lovable Cloud backend the files are in."),
+      hint: tr("Read your export again: it says where your files are.")
     });
   }
   const api = await SupabaseApi.required();
@@ -27730,12 +28704,12 @@ async function setVaultValue(ws, name, value) {
   if (!name || !wanted.includes(name)) {
     throw new ClodableError({
       code: "invalid-config",
-      message: name ? `Your database has no secret called \u201C${name}\u201D.` : "Which secret?",
-      ...wanted.length > 0 ? { hint: `It has: ${wanted.join(", ")}.` } : {}
+      message: name ? tr("Your database has no secret called \u201C{0}\u201D.", { "0": name }) : tr("Which secret?"),
+      ...wanted.length > 0 ? { hint: tr("It has: {0}.", { "0": wanted.join(", ") }) } : {}
     });
   }
   if (!value.trim() || !state.home) {
-    throw new ClodableError({ code: "invalid-config", message: "That secret is empty." });
+    throw new ClodableError({ code: "invalid-config", message: tr("That secret is empty.") });
   }
   const api = await SupabaseApi.required();
   await setVaultSecret(homeSql(api, state.home.ref), name, value.replace(/\r?\n$/, ""));
@@ -27746,12 +28720,12 @@ async function setFunctionSecret(ws, name, value) {
   if (!/^[A-Z][A-Z0-9_]*$/.test(name) || name.startsWith("SUPABASE_")) {
     throw new ClodableError({
       code: "invalid-config",
-      message: `\u201C${name}\u201D isn't a secret name Supabase accepts.`,
-      hint: "Use capitals, digits and underscores, not starting with SUPABASE_."
+      message: tr("\u201C{0}\u201D isn't a secret name Supabase accepts.", { "0": name }),
+      hint: tr("Use capitals, digits and underscores, not starting with SUPABASE_.")
     });
   }
   if (!value.trim()) {
-    throw new ClodableError({ code: "invalid-config", message: "That secret is empty." });
+    throw new ClodableError({ code: "invalid-config", message: tr("That secret is empty.") });
   }
   const { home } = await readyCopy(ws);
   const api = await SupabaseApi.required();
@@ -27846,17 +28820,19 @@ async function recordFacts(ws, json3) {
   } catch {
     throw new ClodableError({
       code: "invalid-config",
-      message: "The facts aren't JSON.",
-      hint: "Pipe one JSON object to `move facts --set`, shaped as the move skill shows."
+      message: tr("The facts aren't JSON."),
+      hint: tr("Pipe one JSON object to `move facts --set`, shaped as the move skill shows.")
     });
   }
   const parsed = AppFactsSchema.safeParse(raw);
   if (!parsed.success) {
     throw new ClodableError({
       code: "invalid-config",
-      message: "The facts don't have the expected shape.",
+      message: tr("The facts don't have the expected shape."),
       details: parsed.error.issues.slice(0, 5).map((i2) => `${i2.path.join(".") || "(top)"}: ${i2.message}`).join("; "),
-      hint: "Fields: ai, signIn {email, google, apple, other}, appEmails, connectors, payments, scheduledJobs, uploads, notes."
+      hint: tr(
+        "Fields: ai, signIn {email, google, apple, other}, appEmails, connectors, payments, scheduledJobs, uploads, notes."
+      )
     });
   }
   const facts = { ...parsed.data, at: (/* @__PURE__ */ new Date()).toISOString() };
@@ -27867,17 +28843,19 @@ async function recordFacts(ws, json3) {
 }
 function factsSummary(facts) {
   const parts = [
-    ...facts.ai.length > 0 ? ["AI"] : [],
-    ...facts.signIn.google ? ["Google sign-in"] : [],
-    ...facts.signIn.apple ? ["Apple sign-in"] : [],
-    ...facts.signIn.other.map((p) => `${p} sign-in`),
-    ...facts.appEmails.length > 0 ? ["its own emails"] : [],
+    ...facts.ai.length > 0 ? [tr("AI")] : [],
+    ...facts.signIn.google ? [tr("Google sign-in")] : [],
+    ...facts.signIn.apple ? [tr("Apple sign-in")] : [],
+    ...facts.signIn.other.map((p) => tr("{provider} sign-in", { provider: p })),
+    ...facts.appEmails.length > 0 ? [tr("its own emails")] : [],
     ...[...new Set(facts.connectors.map((c2) => c2.service))],
-    ...[...new Set(facts.payments.map((p) => p.provider))].map((p) => `payments (${p})`),
-    ...facts.scheduledJobs.length > 0 ? ["scheduled jobs"] : [],
-    ...facts.uploads.length > 0 ? ["uploads"] : []
+    ...[...new Set(facts.payments.map((p) => p.provider))].map(
+      (p) => tr("payments ({provider})", { provider: p })
+    ),
+    ...facts.scheduledJobs.length > 0 ? [tr("scheduled jobs")] : [],
+    ...facts.uploads.length > 0 ? [tr("uploads")] : []
   ];
-  return parts.length > 0 ? parts.join(" \xB7 ") : "Nothing beyond its data and its site";
+  return parts.length > 0 ? parts.join(" \xB7 ") : tr("Nothing beyond its data and its site");
 }
 
 // ../core/src/move/google.ts
@@ -27903,16 +28881,22 @@ async function setGoogleSignIn(ws, clientId, secret) {
   if (!/^[\w-]+\.apps\.googleusercontent\.com$/.test(id)) {
     throw new ClodableError({
       code: "invalid-config",
-      message: "That doesn't look like a Google client ID.",
-      hint: "It ends with .apps.googleusercontent.com."
+      message: tr("That doesn't look like a Google client ID."),
+      hint: tr("It ends with .apps.googleusercontent.com.")
     });
   }
   if (secret.trim().length < 10) {
-    throw new ClodableError({ code: "invalid-config", message: "That client secret is empty." });
+    throw new ClodableError({
+      code: "invalid-config",
+      message: tr("That client secret is empty.")
+    });
   }
   const state = await loadMove(ws.root);
   if (!state.home) {
-    throw new ClodableError({ code: "move-not-ready", message: "Create your new backend first." });
+    throw new ClodableError({
+      code: "move-not-ready",
+      message: tr("Create your new backend first.")
+    });
   }
   const api = await SupabaseApi.required();
   await api.updateAuthConfig(state.home.ref, {
@@ -27960,7 +28944,9 @@ function rehearsalSummary(state) {
       ...observation,
       scope: copy && observation.copy.ref === copy.ref && observation.copy.dataAt === copy.dataAt ? "current-copy" : "earlier-copy"
     })),
-    limit: "These are dated observations, not a fresh check or proof every feature works. Missing evidence means unknown, not never tested. Earlier-copy observations need checking again after a new copy."
+    limit: tr(
+      "These are dated observations, not a fresh check or proof every feature works. Missing evidence means unknown, not never tested. Earlier-copy observations need checking again after a new copy."
+    )
   };
 }
 async function readRehearsal(ws) {
@@ -27977,8 +28963,10 @@ async function recordRehearsal(ws, json3) {
   if (!parsed.success)
     throw new ClodableError({
       code: "invalid-config",
-      message: "The rehearsal notes don't have the expected shape.",
-      hint: "Include the copy identity from move rehearsal and dated feature observations, with their result, method and evidence. Never include keys or people's data."
+      message: tr("The rehearsal notes don't have the expected shape."),
+      hint: tr(
+        "Include the copy identity from move rehearsal and dated feature observations, with their result, method and evidence. Never include keys or people's data."
+      )
     });
   const input2 = parsed.data;
   const now = (/* @__PURE__ */ new Date()).toISOString();
@@ -27987,8 +28975,10 @@ async function recordRehearsal(ws, json3) {
     if (!copy || copy.ref !== input2.copy.ref || copy.dataAt !== input2.copy.dataAt) {
       throw new ClodableError({
         code: "move-not-ready",
-        message: "These notes don't match the current copy.",
-        hint: "Read the current rehearsal record and check which copy was actually tested. Don't relabel old checks as new ones."
+        message: tr("These notes don't match the current copy."),
+        hint: tr(
+          "Read the current rehearsal record and check which copy was actually tested. Don't relabel old checks as new ones."
+        )
       });
     }
     if (input2.observations.some(
@@ -27996,8 +28986,8 @@ async function recordRehearsal(ws, json3) {
     )) {
       throw new ClodableError({
         code: "invalid-config",
-        message: "A check's date is outside this copy's lifetime.",
-        hint: "Use the date the check actually happened, after this copy was made."
+        message: tr("A check's date is outside this copy's lifetime."),
+        hint: tr("Use the date the check actually happened, after this copy was made.")
       });
     }
     const entries = [...s.rehearsal ?? []];
@@ -28067,10 +29057,10 @@ function usesLovableServices(status2) {
 }
 function servicesLeft(status2, emailsConnected, emailsSkipped = false) {
   return [
-    ...status2.ai && !status2.aiSwitched ? ["AI"] : [],
+    ...status2.ai && !status2.aiSwitched ? [tr("AI")] : [],
     // Without emails of their own (skipped), the app's own emails stop with Lovable: nothing to do.
-    ...status2.emails && !status2.emailsSwitched && !emailsSkipped ? ["emails"] : [],
-    ...status2.hook && emailsConnected && !status2.hookOn ? ["sign-in emails"] : [],
+    ...status2.emails && !status2.emailsSwitched && !emailsSkipped ? [tr("emails")] : [],
+    ...status2.hook && emailsConnected && !status2.hookOn ? [tr("sign-in emails")] : [],
     ...status2.connectors
   ];
 }
@@ -28096,8 +29086,8 @@ async function setAiProvider(ws, provider, key2) {
   if (!provider || !(provider in AI_PROVIDERS)) {
     throw new ClodableError({
       code: "invalid-config",
-      message: "Which AI provider?",
-      hint: `One of: ${Object.keys(AI_PROVIDERS).join(", ")}.`
+      message: tr("Which AI provider?"),
+      hint: tr("One of: {0}.", { "0": Object.keys(AI_PROVIDERS).join(", ") })
     });
   }
   const chosen = AI_PROVIDERS[provider];
@@ -28105,8 +29095,8 @@ async function setAiProvider(ws, provider, key2) {
   if (value.length < 20) {
     throw new ClodableError({
       code: "invalid-config",
-      message: `That doesn't look like a ${chosen.name} key.`,
-      hint: "Paste the whole key, as the provider shows it once."
+      message: tr("That doesn't look like a {0} key.", { "0": chosen.name }),
+      hint: tr("Paste the whole key, as the provider shows it once.")
     });
   }
   await setSetting(ws, "AI_API_URL", chosen.url);
@@ -28125,7 +29115,7 @@ async function provisionAppEmails(ws) {
   if (!state.emails?.connectedAt || !state.emails.domainId) {
     throw new ClodableError({
       code: "move-not-ready",
-      message: "Set up your emails first: your app's own emails go out the same way."
+      message: tr("Set up your emails first: your app's own emails go out the same way.")
     });
   }
   const resend = await ResendApi.required();
@@ -28148,15 +29138,20 @@ async function provisionAppEmails(ws) {
 async function enableEmailHook(ws) {
   const state = await loadMove(ws.root);
   if (!state.home) {
-    throw new ClodableError({ code: "move-not-ready", message: "Create your new backend first." });
+    throw new ClodableError({
+      code: "move-not-ready",
+      message: tr("Create your new backend first.")
+    });
   }
   const api = await SupabaseApi.required();
   const deployed = (await api.functions(state.home.ref)).find((f) => f.slug === "auth-email-hook");
   if (deployed?.status !== "ACTIVE") {
     throw new ClodableError({
       code: "move-not-ready",
-      message: "Move your backend functions first: the sign-in emails come from auth-email-hook.",
-      hint: "clodable move functions"
+      message: tr(
+        "Move your backend functions first: the sign-in emails come from auth-email-hook."
+      ),
+      hint: tr("clodable move functions")
     });
   }
   const secret = `v1,whsec_${randomBytes2(32).toString("base64")}`;
@@ -28224,16 +29219,16 @@ function moveSteps(state, around) {
   add(
     {
       id: "facts",
-      title: "Look at your app",
+      title: tr("Look at your app"),
       ...state.facts ? { detail: factsSummary(state.facts) } : {}
     },
     Boolean(state.facts)
   );
-  const onThisComputer = { detail: "Connected on this computer" };
+  const onThisComputer = { detail: tr("Connected on this computer") };
   add(
     {
       id: "connect",
-      title: "Connect your Supabase account",
+      title: tr("Connect your Supabase account"),
       ...around.supabase ? onThisComputer : {}
     },
     around.supabase
@@ -28241,7 +29236,7 @@ function moveSteps(state, around) {
   add(
     {
       id: "create",
-      title: "Create your new backend",
+      title: tr("Create your new backend"),
       ...state.home ? { detail: `${state.home.name} \xB7 ${state.home.region}` } : {}
     },
     Boolean(state.home)
@@ -28249,7 +29244,7 @@ function moveSteps(state, around) {
   add(
     {
       id: "export",
-      title: "Export your data from Lovable",
+      title: tr("Export your data from Lovable"),
       ...state.export ? { detail: describeExport(state.export.summary) } : {}
     },
     Boolean(state.export)
@@ -28259,9 +29254,9 @@ function moveSteps(state, around) {
   add(
     {
       id: "copy",
-      title: "Copy it into your new backend",
+      title: tr("Copy it into your new backend"),
       ...state.data ? {
-        detail: !state.data.ok ? "Some things need a look" : vaultOpen ? `${count(vaultLeft.length, "database secret")} to add` : "Everything is there"
+        detail: !state.data.ok ? tr("Some things need a look") : vaultOpen ? tr("{0} to add", { "0": count(vaultLeft.length, "database secret") }) : tr("Everything is there")
       } : {}
     },
     Boolean(state.data?.ok) && !vaultOpen,
@@ -28272,8 +29267,11 @@ function moveSteps(state, around) {
     add(
       {
         id: "files",
-        title: "Copy your uploaded files",
-        detail: state.files ? `${state.files.copied.toLocaleString("en-US")} of ${state.files.total.toLocaleString("en-US")} copied` : `${count(fileCount, "file")}`
+        title: tr("Copy your uploaded files"),
+        detail: state.files ? tr("{0} of {1} copied", {
+          "0": state.files.copied.toLocaleString("en-US"),
+          "1": state.files.total.toLocaleString("en-US")
+        }) : `${count(fileCount, "file")}`
       },
       Boolean(state.files && state.files.copied >= state.files.total),
       Boolean(state.files && state.files.copied < state.files.total)
@@ -28287,9 +29285,9 @@ function moveSteps(state, around) {
     add(
       {
         id: "functions",
-        title: "Move your backend functions",
+        title: tr("Move your backend functions"),
         ...state.functions ? {
-          detail: secretsOpen ? `${count(secretsLeft.length, "secret key")} to add` : count(state.functions.deployed.length, "function")
+          detail: secretsOpen ? tr("{0} to add", { "0": count(secretsLeft.length, "secret key") }) : count(state.functions.deployed.length, "function")
         } : {}
       },
       Boolean(state.functions && state.functions.failed.length === 0) && !secretsOpen,
@@ -28302,8 +29300,8 @@ function moveSteps(state, around) {
     add(
       {
         id: "try",
-        title: "Try your app on the copy",
-        detail: onNewBackend ? "The preview uses your new backend" : "The preview still uses Lovable Cloud"
+        title: tr("Try your app on the copy"),
+        detail: onNewBackend ? tr("The preview uses your new backend") : tr("The preview still uses Lovable Cloud")
       },
       onNewBackend
     );
@@ -28311,7 +29309,7 @@ function moveSteps(state, around) {
   add(
     {
       id: "netlify",
-      title: "Connect your Netlify account",
+      title: tr("Connect your Netlify account"),
       ...around.netlify ? onThisComputer : {}
     },
     around.netlify
@@ -28321,9 +29319,9 @@ function moveSteps(state, around) {
   add(
     {
       id: "site",
-      title: "Prepare your website",
+      title: tr("Prepare your website"),
       ...state.site ? {
-        detail: settingsOpen ? `${count(settingsLeft.length, "setting")} to add` : state.site.url
+        detail: settingsOpen ? tr("{0} to add", { "0": count(settingsLeft.length, "setting") }) : state.site.url
       } : {}
     },
     Boolean(state.site) && !settingsOpen
@@ -28338,8 +29336,8 @@ function moveSteps(state, around) {
   add(
     {
       id: "emails",
-      title: "Set up emails for your users",
-      ...state.emails?.connectedAt ? { detail: `From ${state.emails.sender}` } : state.switch?.noEmailsAt ? { detail: "Skipped for now: no password-reset emails" } : state.emails ? { detail: `${state.emails.domain}: waiting for its records` } : {}
+      title: tr("Set up emails for your users"),
+      ...state.emails?.connectedAt ? { detail: tr("From {0}", { "0": state.emails.sender }) } : state.switch?.noEmailsAt ? { detail: tr("Skipped for now: no password-reset emails") } : state.emails ? { detail: tr("{0}: waiting for its records", { "0": state.emails.domain }) } : {}
     },
     Boolean(state.emails?.connectedAt || state.switch?.noEmailsAt),
     Boolean(state.emails && !state.emails.connectedAt && !state.switch?.noEmailsAt)
@@ -28349,9 +29347,12 @@ function moveSteps(state, around) {
     add(
       {
         id: "services",
-        title: "Switch off Lovable's services",
+        title: tr("Switch off Lovable's services"),
         ...skipped ? {
-          detail: `Skipped: ${servicesToDo.join(", ")} ${servicesToDo.length === 1 ? "stops" : "stop"} with Lovable`
+          detail: tr(
+            servicesToDo.length === 1 ? "Skipped: {services} stops with Lovable" : "Skipped: {services} stop with Lovable",
+            { services: servicesToDo.join(", ") }
+          )
         } : servicesToDo.length > 0 ? { detail: servicesToDo.join(" \xB7 ") } : {}
       },
       servicesToDo.length === 0 || skipped
@@ -28361,8 +29362,8 @@ function moveSteps(state, around) {
     add(
       {
         id: "google",
-        title: "Google sign-in",
-        ...google.skipped && !google.configured ? { detail: "Skipped: it stays off on your new site" } : google.configured && !google.brokerOnly ? { detail: "On your new backend" } : {}
+        title: tr("Google sign-in"),
+        ...google.skipped && !google.configured ? { detail: tr("Skipped: it stays off on your new site") } : google.configured && !google.brokerOnly ? { detail: tr("On your new backend") } : {}
       },
       google.configured && !google.brokerOnly || google.skipped && !google.configured
     );
@@ -28371,8 +29372,8 @@ function moveSteps(state, around) {
     add(
       {
         id: "freeze",
-        title: "Pause changes on your live app",
-        ...frozenAt ? { detail: `Since ${frozenAt.slice(11, 16)} UTC` } : {}
+        title: tr("Pause changes on your live app"),
+        ...frozenAt ? { detail: tr("Since {0} UTC", { "0": frozenAt.slice(11, 16) }) } : {}
       },
       Boolean(frozenAt)
     );
@@ -28380,14 +29381,14 @@ function moveSteps(state, around) {
     add(
       {
         id: "final-export",
-        title: "Export your data again",
+        title: tr("Export your data again"),
         ...finalExport && state.export ? { detail: describeExport(state.export.summary) } : {}
       },
       finalExport
     );
     const finalCopy = Boolean(frozenAt && state.data && state.data.at > frozenAt);
     add(
-      { id: "final-copy", title: "Copy it in for good" },
+      { id: "final-copy", title: tr("Copy it in for good") },
       Boolean(finalCopy && state.data?.ok),
       Boolean(finalCopy && !state.data?.ok)
     );
@@ -28395,10 +29396,10 @@ function moveSteps(state, around) {
   add(
     {
       id: "golive",
-      title: "Go live on your new backend and site",
+      title: tr("Go live on your new backend and site"),
       // Switched: Publish puts it live; once a Publish has, where it is.
       ...state.switch?.liveAt ? {
-        detail: state.site?.liveAt && state.site.liveAt > state.switch.liveAt ? `Live at ${state.site.url}` : "Publish puts it live"
+        detail: state.site?.liveAt && state.site.liveAt > state.switch.liveAt ? tr("Live at {0}", { "0": state.site.url }) : tr("Publish puts it live")
       } : {}
     },
     Boolean(state.switch?.liveAt)
@@ -28407,13 +29408,13 @@ function moveSteps(state, around) {
   add(
     {
       id: "domain",
-      title: "Your app's address",
-      ...domain2?.readyAt && domain2.name ? { detail: domain2.name } : domain2?.skipped && state.site ? { detail: new URL(state.site.url).host } : domain2?.name ? { detail: `${domain2.name}: waiting for its records` } : {}
+      title: tr("Your app's address"),
+      ...domain2?.readyAt && domain2.name ? { detail: domain2.name } : domain2?.skipped && state.site ? { detail: new URL(state.site.url).host } : domain2?.name ? { detail: tr("{0}: waiting for its records", { "0": domain2.name }) } : {}
     },
     Boolean(domain2?.readyAt || domain2?.skipped),
     Boolean(domain2?.name && !domain2.readyAt)
   );
-  add({ id: "lovable", title: "Finish in Lovable" }, Boolean(state.switch?.finishedAt));
+  add({ id: "lovable", title: tr("Finish in Lovable") }, Boolean(state.switch?.finishedAt));
   return {
     steps,
     method,
@@ -28465,10 +29466,14 @@ async function moveProgress(ws) {
     ...state.checks ? {
       checksAt: state.checks.at,
       checks: state.checks.items.map(
-        (item) => item.id === "old-backend" && item.ok ? {
-          ...item,
-          label: "The checked database functions and webhooks no longer name the old backend"
-        } : item
+        (item) => presentMoveCheck(
+          item.id === "old-backend" && item.ok ? {
+            ...item,
+            label: tr(
+              "The checked database functions and webhooks no longer name the old backend"
+            )
+          } : item
+        )
       )
     } : {},
     ...state.files ? {
@@ -28536,7 +29541,7 @@ async function* prepareNewApp(root, options, github = new GhCli(root)) {
   if (!/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,99}$/.test(options.name) || /\.git$/i.test(options.name)) {
     throw new ClodableError({
       code: "invalid-config",
-      message: "Give your app a short name using letters, numbers or dashes."
+      message: tr("Give your app a short name using letters, numbers or dashes.")
     });
   }
   const git = new Git(root);
@@ -28545,16 +29550,18 @@ async function* prepareNewApp(root, options, github = new GhCli(root)) {
   if (viewer.login !== options.account) {
     throw new ClodableError({
       code: "gh-auth",
-      message: "The connected GitHub account has changed.",
-      hint: "Open Set up saving again and check the account before continuing."
+      message: tr("The connected GitHub account has changed."),
+      hint: tr("Open Set up saving again and check the account before continuing.")
     });
   }
   const project = await detectProject(root);
   if (project.appType === "unknown") {
     throw new ClodableError({
       code: "invalid-config",
-      message: "Your local app needs a little preparation before saving.",
-      hint: "Ask Claude to prepare this prototype for Clodable, keeping your design and content."
+      message: tr("Your local app needs a little preparation before saving."),
+      hint: tr(
+        "Ask Claude to prepare this prototype for Clodable, keeping your design and content."
+      )
     });
   }
   let pending = await pendingNewApp(root);
@@ -28562,8 +29569,11 @@ async function* prepareNewApp(root, options, github = new GhCli(root)) {
     if (pending.destination)
       throw new ClodableError({
         code: "invalid-config",
-        message: "Saving was already started for a different app name or account.",
-        hint: `Continue with ${pending.account}/${pending.name}. Your local work is still here.`
+        message: tr("Saving was already started for a different app name or account."),
+        hint: tr("Continue with {0}/{1}. Your local work is still here.", {
+          "0": pending.account,
+          "1": pending.name
+        })
       });
     pending = { ...options };
     await writeJsonFile(join26(root, PENDING), pending);
@@ -28572,8 +29582,8 @@ async function* prepareNewApp(root, options, github = new GhCli(root)) {
     if (!pending || await realpath2(await git.root()) !== await realpath2(root)) {
       throw new ClodableError({
         code: "already-there",
-        message: "This folder already belongs to an app.",
-        hint: "Open Clodable to set up that app. Start a new idea in an empty folder."
+        message: tr("This folder already belongs to an app."),
+        hint: tr("Open Clodable to set up that app. Start a new idea in an empty folder.")
       });
     }
   } else {
@@ -28591,14 +29601,16 @@ async function* prepareNewApp(root, options, github = new GhCli(root)) {
 # Local app files
 ${missing.join("\n")}
 `);
-  yield step("setup:app", "running", "Checking your local app before saving");
+  yield step("setup:app", "running", tr("Checking your local app before saving"));
   await git.stageAll();
   const secrets = (await scanStaged(root)).filter((f) => f.severity === "block");
   if (secrets.length) {
     throw new ClodableError({
       code: "secret-found",
-      message: "A secret key needs to stay out of your app's code.",
-      hint: "Ask Claude to move it out, then try Set up saving again. Nothing was sent to GitHub.",
+      message: tr("A secret key needs to stay out of your app's code."),
+      hint: tr(
+        "Ask Claude to move it out, then try Set up saving again. Nothing was sent to GitHub."
+      ),
       files: secrets.map((f) => f.file)
     });
   }
@@ -28606,12 +29618,12 @@ ${missing.join("\n")}
     if (!github.createPrivateRepository)
       throw new ClodableError({
         code: "unknown",
-        message: "This GitHub connection can't create a new app."
+        message: tr("This GitHub connection can't create a new app.")
       });
     yield step(
       "setup:app",
       "running",
-      "Creating your private app on GitHub",
+      tr("Creating your private app on GitHub"),
       `${options.account}/${options.name}`
     );
     pending.destination = await github.createPrivateRepository(options.name);
@@ -28621,16 +29633,16 @@ ${missing.join("\n")}
   if (!repo.isPrivate || repo.owner !== options.account || repo.name !== options.name) {
     throw new ClodableError({
       code: "gh-auth",
-      message: "GitHub returned a different app than the one you approved.",
-      hint: "Nothing was sent. Check your GitHub account before continuing."
+      message: tr("GitHub returned a different app than the one you approved."),
+      hint: tr("Nothing was sent. Check your GitHub account before continuing.")
     });
   }
   const remote = await git.remoteUrl("origin");
   if (remote && remote !== cloneUrl)
     throw new ClodableError({
       code: "already-there",
-      message: "This folder is connected to a different app.",
-      hint: "Your files are unchanged. Ask Claude to check the connection before saving."
+      message: tr("This folder is connected to a different app."),
+      hint: tr("Your files are unchanged. Ask Claude to check the connection before saving.")
     });
   if (!remote) await git.ok(["remote", "add", "origin", cloneUrl]);
   if (github instanceof GhCli) await github.configureCredentials();
@@ -28639,7 +29651,7 @@ ${missing.join("\n")}
     await git.ok(["symbolic-ref", "HEAD", `refs/heads/${repo.defaultBranch}`]);
     await git.ok(["reset", "--mixed", `origin/${repo.defaultBranch}`]);
   }
-  yield step("setup:app", "done", "Your private app is ready for its first save");
+  yield step("setup:app", "done", tr("Your private app is ready for its first save"));
   return { root, liveBranch: repo.defaultBranch };
 }
 
@@ -28671,7 +29683,7 @@ async function reconnectSite(ws) {
   if (!known) {
     throw new ClodableError({
       code: "not-set-up",
-      message: "This app has no Netlify site to reconnect."
+      message: tr("This app has no Netlify site to reconnect.")
     });
   }
   const api = await NetlifyApi.required();
@@ -28679,7 +29691,7 @@ async function reconnectSite(ws) {
   if (site.id !== known.siteId || site.account_slug !== known.account) {
     throw new ClodableError({
       code: "netlify-auth",
-      message: "This connection doesn't match your app's hosting account."
+      message: tr("This connection doesn't match your app's hosting account.")
     });
   }
   await ws.github.setSecret("NETLIFY_AUTH_TOKEN", await readSecret(NETLIFY_TOKEN));
@@ -28690,13 +29702,13 @@ async function* putSiteOnline(ws, options = {}) {
   if (move.site || move.home) {
     throw new ClodableError({
       code: "already-there",
-      message: "Your move off Lovable puts your site on Netlify.",
-      hint: "Go on with the move: its website step does this, pointed at your new backend."
+      message: tr("Your move off Lovable puts your site on Netlify."),
+      hint: tr("Go on with the move: its website step does this, pointed at your new backend.")
     });
   }
   const netlify = await NetlifyApi.required();
   const token = await readSecret(NETLIFY_TOKEN);
-  yield step("site", "running", "Setting up hosting", "Creating your site on Netlify");
+  yield step("site", "running", tr("Setting up hosting"), tr("Creating your site on Netlify"));
   const known = ws.config.netlify ? await netlify.site(ws.config.netlify.siteId) : void 0;
   const site = known ?? await createNetlifySite(netlify, ws.project.name, options.team);
   const url2 = siteUrl(site);
@@ -28710,7 +29722,7 @@ async function* putSiteOnline(ws, options = {}) {
     ...ws.config,
     netlify: { siteId: site.id, ...online }
   });
-  yield step("site", "running", "Setting up hosting", "Giving it your app's settings");
+  yield step("site", "running", tr("Setting up hosting"), tr("Giving it your app's settings"));
   const backend = await ownBackend(ws.config);
   const carried = await setSiteEnv(netlify, site, ws.root, backend?.keys);
   if (carried.length > 0) {
@@ -28720,7 +29732,7 @@ async function* putSiteOnline(ws, options = {}) {
     });
   }
   if (backend) await liveSignIn(backend.api, backend.keys.ref, url2);
-  yield step("site", "running", "Setting up hosting", "Setting up Publish");
+  yield step("site", "running", tr("Setting up hosting"), tr("Setting up Publish"));
   const files = await setUpPublish(ws, site, token);
   const config2 = {
     ...ws.config,
@@ -28731,7 +29743,12 @@ async function* putSiteOnline(ws, options = {}) {
   await saveConfig(ws.root, config2);
   await applyKit(ws.root, await planKit(await detectProject(ws.root), config2));
   const settings2 = await siteSettingsOf(netlify, site.account_slug, site.id, ws.root);
-  yield step("site", "done", "Your site is ready", `Publish to put it online at ${url2}`);
+  yield step(
+    "site",
+    "done",
+    tr("Your site is ready"),
+    tr("Publish to put it online at {0}", { "0": url2 })
+  );
   return { site: online, files, settings: settings2 };
 }
 async function ownBackend(config2) {
@@ -28746,18 +29763,20 @@ async function* createBackend(ws, options = {}) {
   if (ws.config.backend === "lovable-cloud") {
     throw new ClodableError({
       code: "already-there",
-      message: "Your app's data is on Lovable Cloud.",
-      hint: "Moving off Lovable gives your app its own Supabase, with your data and your people."
+      message: tr("Your app's data is on Lovable Cloud."),
+      hint: tr(
+        "Moving off Lovable gives your app its own Supabase, with your data and your people."
+      )
     });
   }
   if (ws.config.backend === "supabase" && ws.config.supabase.projectRef) {
     throw new ClodableError({
       code: "already-there",
-      message: "Your app already has its own backend on Supabase."
+      message: tr("Your app already has its own backend on Supabase.")
     });
   }
   const api = await SupabaseApi.required();
-  yield step("backend", "running", "Creating your backend");
+  yield step("backend", "running", tr("Creating your backend"));
   const earlier = ws.config.supabase.projectRef;
   const started = earlier ? await api.project(earlier) : void 0;
   let ref;
@@ -28769,16 +29788,19 @@ async function* createBackend(ws, options = {}) {
     if (org.plan === "free" && org.freeLeft === 0) {
       throw new ClodableError({
         code: "supabase-limit",
-        message: "Your Supabase account already runs its 2 free projects.",
-        hint: `Pause one in Supabase (${freeProjects.map((p) => p.name).join(", ")}), or pick an organization on a paid plan, then try again.`
+        message: tr("Your Supabase account already runs its 2 free projects."),
+        hint: tr(
+          "Pause one in Supabase ({0}), or pick an organization on a paid plan, then try again.",
+          { "0": freeProjects.map((p) => p.name).join(", ") }
+        )
       });
     }
     const region = options.region ?? (await api.regions(org.slug).catch(() => void 0))?.recommended?.code;
     if (!region) {
       throw new ClodableError({
         code: "needs-choice",
-        message: "Which part of the world should your backend run in?",
-        hint: "Pick the region closest to the people who use your app."
+        message: tr("Which part of the world should your backend run in?"),
+        hint: tr("Pick the region closest to the people who use your app.")
       });
     }
     const password2 = newPassword();
@@ -28795,10 +29817,15 @@ async function* createBackend(ws, options = {}) {
       supabase: { ...ws.config.supabase, projectRef: ref }
     });
   }
-  yield step("backend", "running", "Creating your backend", "Starting it up: about 2 minutes");
+  yield step(
+    "backend",
+    "running",
+    tr("Creating your backend"),
+    tr("Starting it up: about 2 minutes")
+  );
   await waitUntilUp(api, ref);
   const project = await api.project(ref);
-  yield step("backend", "running", "Creating your backend", "Connecting your app to it");
+  yield step("backend", "running", tr("Creating your backend"), tr("Connecting your app to it"));
   const backend = backendOf(ref, await homeKeys(api, ref));
   const files = [];
   const envPath = join27(ws.root, ENV_FILE);
@@ -28834,7 +29861,7 @@ async function* createBackend(ws, options = {}) {
   };
   await saveConfig(ws.root, config2);
   await applyKit(ws.root, await planKit(await detectProject(ws.root), config2));
-  yield step("backend", "done", "Your backend is ready", project.name);
+  yield step("backend", "done", tr("Your backend is ready"), project.name);
   return {
     ref,
     name: project.name,
@@ -28849,8 +29876,10 @@ function pickOrganization(organizations, slug) {
   if (!org) {
     throw new ClodableError({
       code: "needs-choice",
-      message: "Which Supabase organization should your backend go in?",
-      hint: `Pick one: ${organizations.map((o) => `${o.name} (${costOf(o)})`).join(", ")}.`
+      message: tr("Which Supabase organization should your backend go in?"),
+      hint: tr("Pick one: {0}.", {
+        "0": organizations.map((o) => `${o.name} (${costOf(o)})`).join(", ")
+      })
     });
   }
   return org;
@@ -28896,7 +29925,7 @@ async function* deployChangedFunctions(ws, sha) {
   yield step(
     "functions",
     "running",
-    `Updating ${names2.length} backend function${names2.length > 1 ? "s" : ""}`
+    tr("Updating {0} backend function{1}", { "0": names2.length, "1": names2.length > 1 ? "s" : "" })
   );
   const api = ref ? await SupabaseApi.onThisComputer() : void 0;
   if (ref && api) yield* deployThroughApi(api, ref, ws.root, names2, outcome);
@@ -28904,14 +29933,19 @@ async function* deployChangedFunctions(ws, sha) {
     yield* deployThroughCli(ref, ws.root, names2, outcome);
   } else {
     outcome.pending = names2;
-    yield step("functions", "warning", "Backend functions need one more step", names2.join(", "));
+    yield step(
+      "functions",
+      "warning",
+      tr("Backend functions need one more step"),
+      names2.join(", ")
+    );
     return outcome;
   }
   const state = outcome.failed.length > 0 || outcome.pending.length > 0 ? "warning" : "done";
   yield step(
     "functions",
     state,
-    state === "done" ? "Backend functions updated" : "Some backend functions need attention",
+    state === "done" ? tr("Backend functions updated") : tr("Some backend functions need attention"),
     [...outcome.pending, ...outcome.failed].join(", ") || void 0
   );
   return outcome;
@@ -28929,7 +29963,7 @@ async function* deployThroughApi(api, ref, root, names2, outcome) {
         outcome.pending.push(name);
       } else {
         outcome.failed.push(name);
-        yield log("warn", `Function ${name}: ${messageOf(error62)}`);
+        yield log("warn", tr("Function {0}: {1}", { "0": name, "1": messageOf(error62) }));
       }
     }
   }
@@ -28944,7 +29978,13 @@ async function* deployThroughCli(ref, root, names2, outcome) {
     else if (/login|access token|unauthorized/i.test(result.stderr)) outcome.pending.push(name);
     else {
       outcome.failed.push(name);
-      yield log("warn", `Function ${name}: ${result.stderr.trim().split("\n").pop() ?? "failed"}`);
+      yield log(
+        "warn",
+        tr("Function {0}: {1}", {
+          "0": name,
+          "1": result.stderr.trim().split("\n").pop() ?? "failed"
+        })
+      );
     }
   }
 }
@@ -28979,10 +30019,12 @@ var BUILD_STEPS = [
 ];
 function buildLine(progress, elapsedMs) {
   const minutes = Math.floor(elapsedMs / 6e4);
-  const soFar = minutes < 1 ? "under a minute so far" : `${minutes} min so far`;
-  if (!progress) return `Your host is building it \xB7 ${soFar}`;
-  const doing = progress.step ? BUILD_STEPS.find(([pattern]) => pattern.test(progress.step))?.[1] ?? "Building your site" : "Waiting for GitHub to start the build";
-  const usual = progress.lastSeconds ? `usually about ${Math.max(1, Math.round(progress.lastSeconds / 60))} min` : "the first one takes a few minutes";
+  const soFar = minutes < 1 ? tr("under a minute so far") : tr("{minutes} min so far", { minutes });
+  if (!progress) return tr("Your host is building it \xB7 {time}", { time: soFar });
+  const doing = progress.step ? tr(BUILD_STEPS.find(([pattern]) => pattern.test(progress.step))?.[1] ?? "Building your site") : tr("Waiting for GitHub to start the build");
+  const usual = progress.lastSeconds ? tr("usually about {minutes} min", {
+    minutes: Math.max(1, Math.round(progress.lastSeconds / 60))
+  }) : tr("the first one takes a few minutes");
   return `${doing} \xB7 ${soFar} \xB7 ${usual}`;
 }
 async function* waitForCiIfAny(ws, prNumber, o) {
@@ -29001,35 +30043,35 @@ async function* waitForCi(ws, prNumber, o) {
         await o.sleep(Math.min(o.poll, 3e3));
         continue;
       }
-      if (announced) yield step("ci", "done", "Your project's checks passed");
+      if (announced) yield step("ci", "done", tr("Your project's checks passed"));
       return;
     }
     if (summary.state === "success") {
-      yield step("ci", "done", "Your project's checks passed");
+      yield step("ci", "done", tr("Your project's checks passed"));
       return;
     }
     if (summary.state === "failure") {
       const names2 = summary.failed.map((f) => f.name).join(", ");
-      yield step("ci", "failed", `A check failed: ${names2}`);
+      yield step("ci", "failed", tr("A check failed: {0}", { "0": names2 }));
       throw new ClodableError({
         code: "ci-failed",
-        message: `Your project's own checks didn't pass (${names2}).`,
-        hint: "Nothing went live. Ask Claude to look at the failing check and fix it.",
+        message: tr("Your project's own checks didn't pass ({0}).", { "0": names2 }),
+        hint: tr("Nothing went live. Ask Claude to look at the failing check and fix it."),
         details: summary.failed.map((f) => `${f.name}${f.url ? `: ${f.url}` : ""}`).join("\n")
       });
     }
     yield step(
       "ci",
       "running",
-      "Waiting for your project's checks",
-      `${summary.done} of ${summary.total} finished`
+      tr("Waiting for your project's checks"),
+      tr("{0} of {1} finished", { "0": summary.done, "1": summary.total })
     );
     announced = true;
     if (o.now().getTime() > deadline) {
       throw new ClodableError({
         code: "ci-failed",
-        message: "Your project's checks are taking too long.",
-        hint: "Nothing went live. Try publishing again in a few minutes."
+        message: tr("Your project's checks are taking too long."),
+        hint: tr("Nothing went live. Try publishing again in a few minutes.")
       });
     }
     await o.sleep(o.poll);
@@ -29067,21 +30109,21 @@ async function* waitForDeploy(ws, sha, o, ignoredDeploymentIds = []) {
     yield step(
       "deploy",
       "done",
-      "Published on GitHub",
-      "To put it live, click Publish, then Publish changes, in Lovable"
+      tr("Published on GitHub"),
+      tr("To put it live, click Publish, then Publish changes, in Lovable")
     );
     const moving = (await loadMove(ws.root)).site;
     const site = moving ? yield* followSite(ws, sha, o, moving.url, ignoredDeploymentIds) : void 0;
     return { state: "lovable", ...url2 ? { url: url2 } : {}, ...site ? { site } : {} };
   }
-  yield step("deploy", "running", "Going live");
+  yield step("deploy", "running", tr("Going live"));
   const end = yield* followDeployment(
     ws,
     sha,
     o,
     {
       id: "deploy",
-      title: "Going live",
+      title: tr("Going live"),
       unreportedAfterMs: 75e3
     },
     ignoredDeploymentIds
@@ -29090,15 +30132,17 @@ async function* waitForDeploy(ws, sha, o, ignoredDeploymentIds = []) {
   switch (end.state) {
     case "success": {
       const url2 = end.deployment.url ?? ws.config.liveUrl;
-      yield step("deploy", "done", "You're live", url2);
+      yield step("deploy", "done", tr("You're live"), url2);
       return { state: "live", ...url2 ? { url: url2 } : {} };
     }
     case "failed":
-      yield step("deploy", "failed", "Your host couldn't put it live");
+      yield step("deploy", "failed", tr("Your host couldn't put it live"));
       throw new ClodableError({
         code: "deploy-failed",
-        message: "Your changes are saved, but your host couldn't put them live.",
-        hint: "Your previous version is still live. Fix the hosting problem, then retry Publish; no new app change is needed.",
+        message: tr("Your changes are saved, but your host couldn't put them live."),
+        hint: tr(
+          "Your previous version is still live. Fix the hosting problem, then retry Publish; no new app change is needed."
+        ),
         ...end.deployment.logUrl ? { details: end.deployment.logUrl } : {}
       });
     case "unreported": {
@@ -29106,43 +30150,48 @@ async function* waitForDeploy(ws, sha, o, ignoredDeploymentIds = []) {
         yield step(
           "deploy",
           "done",
-          "Published on GitHub",
-          "No host puts it online from there yet"
+          tr("Published on GitHub"),
+          tr("No host puts it online from there yet")
         );
         return { state: "unknown", noHost: true };
       }
-      yield step("deploy", "done", "Published", "Your host will put it live in a moment");
+      yield step("deploy", "done", tr("Published"), tr("Your host will put it live in a moment"));
       return { state: "unknown", ...liveUrl };
     }
     case "late":
-      yield step("deploy", "warning", "Still going live", "Your host is taking longer than usual");
+      yield step(
+        "deploy",
+        "warning",
+        tr("Still going live"),
+        tr("Your host is taking longer than usual")
+      );
       return { state: "pending", ...liveUrl };
   }
 }
 async function* followSite(ws, sha, o, url2, ignoredDeploymentIds = []) {
-  yield step("move:site", "running", "Updating your site on Netlify");
+  yield step("move:site", "running", tr("Updating your site on Netlify"));
   const end = yield* followDeployment(
     ws,
     sha,
     o,
     {
       id: "move:site",
-      title: "Updating your site on Netlify",
+      title: tr("Updating your site on Netlify"),
       unreportedAfterMs: 12e4
     },
     ignoredDeploymentIds
   );
   if (end.state === "success") {
     const siteUrl2 = end.deployment.url ?? url2;
-    yield step("move:site", "done", "Your site on Netlify is up to date", siteUrl2);
+    yield step("move:site", "done", tr("Your site on Netlify is up to date"), siteUrl2);
     return { url: siteUrl2, state: "live" };
   }
   if (end.state === "failed") {
     const { logUrl } = end.deployment;
-    yield step("move:site", "warning", "Your site on Netlify didn't update", logUrl);
+    yield step("move:site", "warning", tr("Your site on Netlify didn't update"), logUrl);
     return { url: url2, state: "failed", ...logUrl ? { logUrl } : {} };
   }
-  yield step("move:site", "warning", "Your site on Netlify is still updating", url2);
+  yield step("move:site", "warning", tr("Your site on Netlify is still updating"), url2);
   return { url: url2, state: "pending" };
 }
 
@@ -29176,7 +30225,7 @@ async function* publish(ws, options = {}) {
       return yield* retryPublish(ws, pending2, branch2, wait2);
     }
   }
-  yield step("save", "running", "Saving your latest changes");
+  yield step("save", "running", tr("Saving your latest changes"));
   let saved;
   try {
     saved = await save2(ws, { message: options.message ?? LAST_TOUCHES });
@@ -29187,56 +30236,58 @@ async function* publish(ws, options = {}) {
     throw error62;
   }
   if (saved.unscanned) {
-    yield step("save", "failed", "Couldn't check your changes for secret keys");
+    yield step("save", "failed", tr("Couldn't check your changes for secret keys"));
     throw new ClodableError({
       code: "checks-failed",
-      message: "Couldn't check your changes for secret keys, so nothing was sent.",
-      hint: "Check your internet connection and try again. Nothing went live.",
+      message: tr("Couldn't check your changes for secret keys, so nothing was sent."),
+      hint: tr("Check your internet connection and try again. Nothing went live."),
       details: saved.unscanned
     });
   }
   if (saved.offline || !saved.pushed) {
-    yield step("save", "failed", "Couldn't reach GitHub");
+    yield step("save", "failed", tr("Couldn't reach GitHub"));
     throw new ClodableError({
       code: "offline",
-      message: "Your changes are saved on this computer, but GitHub can't be reached to publish them.",
-      hint: "Check your internet connection and try again."
+      message: tr(
+        "Your changes are saved on this computer, but GitHub can't be reached to publish them."
+      ),
+      hint: tr("Check your internet connection and try again.")
     });
   }
   const branch = saved.branch;
   if (branch === ws.liveBranch) {
     throw new ClodableError({
       code: "on-live-branch",
-      message: "You're working directly on the live version.",
-      hint: "Ask Claude to move your work onto your draft, then publish again."
+      message: tr("You're working directly on the live version."),
+      hint: tr("Ask Claude to move your work onto your draft, then publish again.")
     });
   }
   yield step(
     "save",
     "done",
-    saved.saved ? "Saved your latest changes" : "Everything was already saved"
+    saved.saved ? tr("Saved your latest changes") : tr("Everything was already saved")
   );
-  yield step("sync", "running", "Catching up with your live site");
+  yield step("sync", "running", tr("Catching up with your live site"));
   await ws.git.fetch(ws.remote, ws.liveBranch);
   const behind = await ws.git.count(`HEAD..${ws.liveRef}`, { noMerges: true });
   if (behind > 0) {
     const compared = await ws.git.checkMerge(ws.liveRef);
     if (!compared.ok) {
-      yield step("sync", "failed", "Your draft and the live site changed the same thing");
+      yield step("sync", "failed", tr("Your draft and the live site changed the same thing"));
       throw new ClodableError({
         code: "conflict",
-        message: "Your draft and the live site both changed the same thing.",
-        hint: "Ask Claude to review both versions with you. Your preview is unchanged.",
+        message: tr("Your draft and the live site both changed the same thing."),
+        hint: tr("Ask Claude to review both versions with you. Your preview is unchanged."),
         files: compared.conflicts
       });
     }
     const merged = await ws.git.merge(ws.liveRef, "Caught up with the live site");
     if (!merged.ok) {
-      yield step("sync", "failed", "Your draft and the live site changed the same thing");
+      yield step("sync", "failed", tr("Your draft and the live site changed the same thing"));
       throw new ClodableError({
         code: "conflict",
-        message: "Your draft and the live site both changed the same thing.",
-        hint: "Ask Claude to combine them. It knows what to do. Then publish again.",
+        message: tr("Your draft and the live site both changed the same thing."),
+        hint: tr("Ask Claude to combine them. It knows what to do. Then publish again."),
         files: merged.conflicts
       });
     }
@@ -29244,18 +30295,18 @@ async function* publish(ws, options = {}) {
     if (!pushed.ok) {
       throw new ClodableError({
         code: "push-rejected",
-        message: "GitHub didn't accept the update.",
+        message: tr("GitHub didn't accept the update."),
         details: pushed.stderr
       });
     }
     yield step(
       "sync",
       "done",
-      "Up to date with your live site",
-      `${behind} live update${behind > 1 ? "s" : ""} brought in`
+      tr("Up to date with your live site"),
+      tr("{0} live update{1} brought in", { "0": behind, "1": behind > 1 ? "s" : "" })
     );
   } else {
-    yield step("sync", "done", "Already up to date with your live site");
+    yield step("sync", "done", tr("Already up to date with your live site"));
   }
   const saves = await ws.git.log(`${ws.liveRef}..HEAD`, { noMerges: true, limit: 200 });
   if (saves.length === 0 || await sameAsLive(ws, { clodablesToo: true })) {
@@ -29276,14 +30327,16 @@ async function* publish(ws, options = {}) {
     }
     throw new ClodableError({
       code: "nothing-to-publish",
-      message: "There's no new app change to publish.",
-      hint: "This does not confirm which version visitors see. Ask Claude to check the hosting status if your site looks out of date."
+      message: tr("There's no new app change to publish."),
+      hint: tr(
+        "This does not confirm which version visitors see. Ask Claude to check the hosting status if your site looks out of date."
+      )
     });
   }
   if (options.skipChecks) {
-    yield step("checks", "skipped", "Checks skipped");
+    yield step("checks", "skipped", tr("Checks skipped"));
   } else {
-    yield step("checks", "running", "Checking everything works");
+    yield step("checks", "running", tr("Checking everything works"));
     const results = yield* runChecks(ws.project, ws.config);
     const failed = results.filter((r2) => r2.status === "failed");
     for (const warning of results.filter((r2) => r2.status === "warning"))
@@ -29292,28 +30345,31 @@ async function* publish(ws, options = {}) {
       yield step(
         "checks",
         "failed",
-        failed.length === 1 ? "Checks found a problem" : `Checks found ${failed.length} problems`
+        failed.length === 1 ? tr("Checks found a problem") : tr("Checks found {0} problems", { "0": failed.length })
       );
-      throw checksFailed(failed, "Nothing went live. Ask Claude to fix it, then publish again.");
+      throw checksFailed(
+        failed,
+        tr("Nothing went live. Ask Claude to fix it, then publish again.")
+      );
     }
     yield step(
       "checks",
       warnings.length > 0 ? "warning" : "done",
-      warnings.length > 0 ? "Checks passed, with a note" : "Everything checks out"
+      warnings.length > 0 ? tr("Checks passed, with a note") : tr("Everything checks out")
     );
   }
-  yield step("pull-request", "running", "Preparing your draft on GitHub");
+  yield step("pull-request", "running", tr("Preparing your draft on GitHub"));
   const pr = await ensurePullRequest(ws, branch);
   if (!pr)
     throw new ClodableError({
       code: "nothing-to-publish",
-      message: "There's nothing new to publish."
+      message: tr("There's nothing new to publish.")
     });
   const title = publishTitle(saves);
   await ws.github.updatePullRequest(pr.number, { title });
-  yield step("pull-request", "done", "Draft ready on GitHub");
+  yield step("pull-request", "done", tr("Draft ready on GitHub"));
   yield* waitForCiIfAny(ws, pr.number, wait2);
-  yield step("merge", "running", "Publishing");
+  yield step("merge", "running", tr("Publishing"));
   const body = [
     ...saves.slice().reverse().map((c2) => `- ${c2.subject}`),
     "",
@@ -29330,7 +30386,7 @@ async function* publish(ws, options = {}) {
     state: "pending"
   };
   await ws.updateState({ pendingPublish: pending });
-  yield step("merge", "done", "Ready for your host");
+  yield step("merge", "done", tr("Ready for your host"));
   return yield* finishPublish(ws, pending, branch, wait2, warnings);
 }
 async function* retryPublish(ws, pending, branch, wait2) {
@@ -29340,7 +30396,7 @@ async function* retryPublish(ws, pending, branch, wait2) {
   if (latest?.state !== "success") {
     const ownedSite = ws.config.netlify ?? (await loadMove(ws.root)).site;
     if (ownedSite && ws.github.retryDeployment) {
-      yield step("deploy", "running", "Retrying the same version");
+      yield step("deploy", "running", tr("Retrying the same version"));
       const retry = await ws.github.retryDeployment(pending.sha);
       if (retry === "started") {
         pending = {
@@ -29352,8 +30408,10 @@ async function* retryPublish(ws, pending, branch, wait2) {
       } else if (!retry && (latest?.state === "failure" || latest?.state === "error" || !latest)) {
         throw new ClodableError({
           code: "deploy-failed",
-          message: "This version couldn't be retried automatically.",
-          hint: "Ask Claude to check the hosting report. Keep the app unchanged; don't make an edit to trigger publishing."
+          message: tr("This version couldn't be retried automatically."),
+          hint: tr(
+            "Ask Claude to check the hosting report. Keep the app unchanged; don't make an edit to trigger publishing."
+          )
         });
       }
     }
@@ -29370,7 +30428,7 @@ async function* finishPublish(ws, pending, branch, wait2, warnings) {
     throw error62;
   }
   const functions = yield* deployChangedFunctions(ws, sha);
-  yield step("fresh-draft", "running", "Starting a fresh draft");
+  yield step("fresh-draft", "running", tr("Starting a fresh draft"));
   await ws.git.fetch(ws.remote, ws.liveBranch);
   await ws.git.switchTo(branch, { reset: true, startPoint: ws.liveRef });
   await ws.git.deleteRemoteBranch(branch, ws.remote);
@@ -29388,7 +30446,7 @@ async function* finishPublish(ws, pending, branch, wait2, warnings) {
     pullRequest: void 0,
     pendingPublish: deployed.state === "live" || deployed.state === "lovable" && (!deployed.site || deployed.site.state === "live") || deployed.noHost ? void 0 : { ...pending, state: deployed.site?.state === "failed" ? "failed" : "pending" }
   });
-  yield step("fresh-draft", "done", "Fresh draft ready");
+  yield step("fresh-draft", "done", tr("Fresh draft ready"));
   if (deployed.site?.state === "live" || deployed.state === "live" && (await loadMove(ws.root)).site) {
     await updateMove(ws.root, (s) => {
       if (s.site) s.site.liveAt = at;
@@ -29417,11 +30475,11 @@ function lovableLink(ws, state) {
 }
 async function* undoPublish(ws, options = {}) {
   const wait2 = timing(options);
-  yield step("revert", "running", "Undoing your last publish");
+  yield step("revert", "running", tr("Undoing your last publish"));
   await ws.git.fetch(ws.remote, ws.liveBranch);
   const [target] = options.sha ? await ws.git.log(`${options.sha}^!`) : await ws.git.log(ws.liveRef, { firstParent: true, limit: 1 });
   if (!target)
-    throw new ClodableError({ code: "not-found", message: "There's no publish to undo yet." });
+    throw new ClodableError({ code: "not-found", message: tr("There's no publish to undo yet.") });
   const dir = await mkdtemp8(join30(tmpdir5(), "clodable-undo-"));
   const branch = `undo/${target.sha.slice(0, 7)}`;
   try {
@@ -29429,11 +30487,13 @@ async function* undoPublish(ws, options = {}) {
     const reverted = await side.run(["revert", "--no-edit", "--no-commit", target.sha]);
     if (reverted.exitCode !== 0) {
       await side.run(["revert", "--abort"]);
-      yield step("revert", "failed", "This publish can't be undone automatically");
+      yield step("revert", "failed", tr("This publish can't be undone automatically"));
       throw new ClodableError({
         code: "conflict",
-        message: "Newer changes on your live site touch the same lines, so this can't be undone automatically.",
-        hint: "Ask Claude to undo it by hand. It can see exactly what changed."
+        message: tr(
+          "Newer changes on your live site touch the same lines, so this can't be undone automatically."
+        ),
+        hint: tr("Ask Claude to undo it by hand. It can see exactly what changed.")
       });
     }
     const undone = await side.run(["diff", "--cached", "--name-only", "HEAD"]);
@@ -29451,7 +30511,7 @@ async function* undoPublish(ws, options = {}) {
     if (!pushed.ok) {
       throw new ClodableError({
         code: pushed.offline ? "offline" : "push-rejected",
-        message: "GitHub didn't accept the undo.",
+        message: tr("GitHub didn't accept the undo."),
         details: pushed.stderr
       });
     }
@@ -29461,16 +30521,16 @@ async function* undoPublish(ws, options = {}) {
       title: undoTitle,
       body: `Undoes the publish \u201C${target.subject}\u201D, requested with Clodable.`
     });
-    yield step("revert", "done", "Prepared the undo");
+    yield step("revert", "done", tr("Prepared the undo"));
     yield* waitForCiIfAny(ws, created.number, wait2);
-    yield step("merge", "running", "Putting the previous version back");
+    yield step("merge", "running", tr("Putting the previous version back"));
     const { sha } = await ws.github.merge(created.number, {
       subject: undoTitle,
       body: `Reverts ${target.sha}.
 
 ${kindTrailer("undo")}`
     });
-    yield step("merge", "done", "Previous version restored");
+    yield step("merge", "done", tr("Previous version restored"));
     const deployed = yield* waitForDeploy(ws, sha, wait2);
     await ws.git.deleteRemoteBranch(branch, ws.remote);
     await ws.git.fetch(ws.remote, ws.liveBranch);
@@ -29529,16 +30589,18 @@ var Workspace = class _Workspace {
     if (!await probe.isRepo()) {
       throw new ClodableError({
         code: "not-a-repo",
-        message: "This folder isn't connected to GitHub yet.",
-        hint: "Type /clodable to open the Clodable panel and set this folder up there."
+        message: tr("This folder isn't connected to GitHub yet."),
+        hint: tr("Type /clodable to open the Clodable panel and set this folder up there.")
       });
     }
     const root = await probe.root();
     if (options.requireSetup !== false && !isSetUp(root)) {
       throw new ClodableError({
         code: "not-set-up",
-        message: "Clodable isn't set up in this project.",
-        hint: "Type /clodable to open the Clodable panel and set it up here. Until then, Clodable leaves this project alone."
+        message: tr("Clodable isn't set up in this project."),
+        hint: tr(
+          "Type /clodable to open the Clodable panel and set it up here. Until then, Clodable leaves this project alone."
+        )
       });
     }
     const git = new Git(root);
@@ -29812,11 +30874,11 @@ var Command = class {
   examples;
   helpCallback;
   globalCommand;
-  constructor(rawName, description, config2 = {}, cli2) {
+  constructor(rawName, description, config2 = {}, cli3) {
     this.rawName = rawName;
     this.description = description;
     this.config = config2;
-    this.cli = cli2;
+    this.cli = cli3;
     this.options = [];
     this.aliasNames = [];
     this.name = removeBrackets(rawName);
@@ -29973,8 +31035,8 @@ ${section.body}` : section.body;
   }
 };
 var GlobalCommand = class extends Command {
-  constructor(cli2) {
-    super("@@global@@", "", {}, cli2);
+  constructor(cli3) {
+    super("@@global@@", "", {}, cli3);
   }
 };
 var CAC = class extends EventTarget {
@@ -31210,6 +32272,331 @@ ${f}
 };
 var i = `${styleText2("gray", S_BAR)}  `;
 
+// ../i18n/src/cli.ts
+var cli = {
+  "Nothing was given.": "Aucune valeur n\u2019a \xE9t\xE9 fournie.",
+  "Pipe the value in (never as an argument), or run this in a terminal to type it.": "Transmettez la valeur sur l\u2019entr\xE9e standard, jamais comme argument, ou lancez la commande dans un terminal pour la saisir.",
+  "Print one JSON event per line (for programs)": "Afficher un \xE9v\xE9nement JSON par ligne, pour les programmes",
+  "Run in another folder": "Ex\xE9cuter dans un autre dossier",
+  "Run your app with the preview tools (what Claude Desktop's preview starts)": "Lancer votre application avec les outils d\u2019aper\xE7u de Claude Desktop",
+  "Port (Claude Desktop passes PORT automatically)": "Port : Claude Desktop transmet PORT automatiquement",
+  "Host to listen on": "Adresse d\u2019\xE9coute",
+  "Run without the preview tools": "Lancer sans les outils d\u2019aper\xE7u",
+  "Save your changes to your draft on GitHub": "Enregistrer vos modifications dans votre brouillon sur GitHub",
+  "What changed, in your words": "D\xE9crire vos modifications avec vos mots",
+  "Where you stand: saved, not live yet, live": "Votre situation : enregistr\xE9, en attente de publication, en ligne",
+  "Check GitHub for the latest live version first": "V\xE9rifier d\u2019abord la derni\xE8re version en ligne sur GitHub",
+  "Check your app and put your draft live": "V\xE9rifier votre application et publier votre brouillon",
+  "Describe any last unsaved changes": "D\xE9crire les derni\xE8res modifications non enregistr\xE9es",
+  "Developers only: skip the checks": "R\xE9serv\xE9 aux d\xE9veloppeurs : ignorer les v\xE9rifications",
+  "Put the previous version live again": "Remettre la version pr\xE9c\xE9dente en ligne",
+  "Don't ask for confirmation": "Ne pas demander de confirmation",
+  "Undo a specific publish": "Annuler une publication pr\xE9cise",
+  "Bring back an earlier version of your draft (as a new save)": "R\xE9tablir une version ant\xE9rieure de votre brouillon dans un nouvel enregistrement",
+  "Your saves and publishes": "Vos enregistrements et publications",
+  "How many publishes to show": "Nombre de publications \xE0 afficher",
+  "Run the publish checks without publishing": "Ex\xE9cuter les v\xE9rifications de publication sans publier",
+  "Bring your app home: connect GitHub, add Clodable's files": "Connecter GitHub et ajouter les fichiers de Clodable \xE0 votre application",
+  "The GitHub repository of your app": "Le d\xE9p\xF4t GitHub de votre application",
+  "Set up saving for a local prototype in a new private GitHub app": "Configurer l\u2019enregistrement d\u2019un prototype local dans une nouvelle app priv\xE9e sur GitHub",
+  "The connected GitHub account approved for the new app": "Le compte GitHub connect\xE9 et approuv\xE9 pour la nouvelle app",
+  "Don't ask questions": "Ne pas poser de questions",
+  "Publish the setup right away": "Publier la configuration imm\xE9diatement",
+  "Where the data lives: lovable-cloud, supabase or none": "Emplacement des donn\xE9es : lovable-cloud, supabase ou none",
+  "Where the site is live: lovable, github or none (not online yet)": "H\xE9bergement du site : lovable, github ou none, s\u2019il n\u2019est pas encore en ligne",
+  "Check that everything Clodable needs is in place": "V\xE9rifier que tout est pr\xEAt pour Clodable",
+  "Read or change where your app runs: backend (lovable-cloud, supabase, none), hosting (lovable, github, none)": "Lire ou modifier l\u2019h\xE9bergement : backend (lovable-cloud, supabase, none), hosting (lovable, github, none)",
+  "The settings your app's server code reads (process.env), on this computer and on your site": "Les param\xE8tres lus par le code serveur de votre application, via process.env, sur cet ordinateur et sur votre site",
+  "Set one of your app's settings, its value piped in": "D\xE9finir un param\xE8tre de votre application en transmettant sa valeur sur l\u2019entr\xE9e standard",
+  'Your app\'s Supabase database: query "select \u2026" (reads), run "update \u2026" (changes data), apply <migration file>, check (Supabase\'s security advice)': 'Votre base Supabase : query "select \u2026" pour lire, run "update \u2026" pour modifier, apply <migration file> pour les tables, check pour les conseils de s\xE9curit\xE9',
+  "Connect supabase or netlify on this computer, the token piped in (for a new backend or site)": "Connecter supabase ou netlify sur cet ordinateur, avec le token transmis sur l\u2019entr\xE9e standard",
+  "Your app's site: status, create hosting, or reconnect publishing": "Votre site : consulter son \xE9tat, cr\xE9er son h\xE9bergement ou reconnecter la publication",
+  "create: the Netlify team the site goes in": "create : l\u2019\xE9quipe Netlify qui h\xE9bergera le site",
+  "Your app's backend: the choices, or create: a new one on your own Supabase": "Votre backend : consulter les options ou cr\xE9er un backend sur votre propre Supabase",
+  "create: the Supabase organization": "create : l\u2019organisation Supabase",
+  "create: where it runs (eu-central-1\u2026)": "create : sa r\xE9gion (eu-central-1\u2026)",
+  "create: the project's name": "create : le nom du projet",
+  "export: the zip Lovable gave (else the newest in Downloads)": "export : le zip fourni par Lovable, sinon le plus r\xE9cent dans T\xE9l\xE9chargements",
+  "files: read Lovable Cloud's service key from stdin, for private folders": "files : lire la cl\xE9 de service Lovable Cloud depuis l\u2019entr\xE9e standard, pour les dossiers priv\xE9s",
+  "diagnose: apply Clodable's own fixes on the copy": "diagnose : appliquer les corrections de Clodable \xE0 la copie",
+  "site: the Netlify team the site goes in": "site : l\u2019\xE9quipe Netlify qui h\xE9bergera le site",
+  "emails: the domain emails come from": "emails : le domaine d\u2019envoi des emails",
+  "emails: the sender address (no-reply@ the domain by default)": "emails : l\u2019adresse d\u2019envoi, no-reply@ sur le domaine par d\xE9faut",
+  "emails: go live without emails of your own for now; domain: keep the Netlify address; settings, secrets, vault: go on without the ones left": "emails : continuer sans vos propres emails ; domain : garder l\u2019adresse Netlify ; settings, secrets, vault : continuer sans les \xE9l\xE9ments restants",
+  "emails: send sign-in emails through the app's own templates (auth-email-hook)": "emails : envoyer les emails de connexion avec les mod\xE8les de votre application (auth-email-hook)",
+  "facts/rehearsal: record app facts or dated copy checks (JSON on stdin)": "facts/rehearsal : enregistrer les informations de l\u2019application ou les tests dat\xE9s de la copie, en JSON sur l\u2019entr\xE9e standard",
+  "golive: whether anyone may sign up (no: only invited people)": "golive : autoriser les inscriptions, sinon seulement les personnes invit\xE9es",
+  "golive: whether new people confirm their email first": "golive : demander aux nouveaux utilisateurs de confirmer leur email",
+  "Show (or add) the files Clodable keeps in your project": "Afficher ou ajouter les fichiers g\xE9r\xE9s par Clodable dans votre projet",
+  "Write them": "\xC9crire les fichiers",
+  "Refresh only the installed runtime and its instructions": "Actualiser uniquement le programme install\xE9 et ses instructions",
+  "Your live site's address": "L\u2019adresse de votre site en ligne",
+  "Requests from the preview toolbar (for front ends)": "Requ\xEAtes de la barre d\u2019aper\xE7u, pour les interfaces",
+  "Mark one as handled": "Marquer une requ\xEAte comme trait\xE9e",
+  "Take the waiting requests for this conversation, if it's the one its person used last": "Prendre les requ\xEAtes en attente pour cette conversation, si c\u2019est la derni\xE8re utilis\xE9e",
+  "{0}{1} rows": "{0}{1} lignes",
+  "{0} Supabase sees nothing to fix.": "{0} Supabase ne d\xE9tecte rien \xE0 corriger.",
+  "{0} Done.": "{0} Termin\xE9.",
+  "{0} Applied {1}.": "{0} {1} appliqu\xE9.",
+  "Already applied: {0}.": "D\xE9j\xE0 appliqu\xE9 : {0}.",
+  "There's no \u201C{0}\u201D for the database.": "\xAB {0} \xBB n\u2019est pas une commande de base de donn\xE9es.",
+  'clodable db query "select \u2026", clodable db run "update \u2026", or clodable db apply supabase/migrations/<file>.sql': 'clodable db query "select \u2026", clodable db run "update \u2026", ou clodable db apply supabase/migrations/<file>.sql',
+  "There's no setting called \u201C{0}\u201D.": "Aucun param\xE8tre ne s\u2019appelle \xAB {0} \xBB.",
+  "Use backend or hosting.": "Utilisez backend ou hosting.",
+  "\u201C{0}\u201D isn't a value for {1}.": "\xAB {0} \xBB n\u2019est pas une valeur accept\xE9e pour {1}.",
+  "Use one of: {0}.": "Valeurs possibles : {0}.",
+  "A simple move: Clodable does nearly everything, and you click a few buttons.": "Un transfert simple : Clodable s\u2019occupe de presque tout ; quelques clics suffisent de votre c\xF4t\xE9.",
+  "A move with a few steps for you, each one guided.": "Un transfert avec quelques \xE9tapes guid\xE9es \xE0 r\xE9aliser de votre c\xF4t\xE9.",
+  "A move where some parts are best done with someone technical.": "Certaines \xE9tapes de ce transfert demandent l\u2019aide d\u2019une personne technique.",
+  "move off Lovable": "quitter Lovable",
+  "Pipe the facts in, as one JSON object.": "Transmettez les informations dans un seul objet JSON sur l\u2019entr\xE9e standard.",
+  "{0} Recorded: {1}": "{0} Enregistr\xE9 : {1}",
+  "what your app uses": "ce que votre application utilise",
+  "Not checked yet.": "Pas encore v\xE9rifi\xE9.",
+  "Clodable's scan, for Claude to check:": "Analyse de Clodable, \xE0 v\xE9rifier par Claude :",
+  "Checks on your copy": "V\xE9rifications de votre copie",
+  "Your Supabase access token (create one at {0})": "Votre token d\u2019acc\xE8s Supabase, \xE0 cr\xE9er sur {0}",
+  "{0} Supabase is connected on this computer.": "{0} Supabase est connect\xE9 sur cet ordinateur.",
+  "  {0} \xB7 {1} plan": "  {0} \xB7 forfait {1}",
+  "Suggested region: {0}": "R\xE9gion sugg\xE9r\xE9e : {0}",
+  "your new backend": "votre nouveau backend",
+  "Lovable Cloud's service key": "Cl\xE9 de service Lovable Cloud",
+  "Which secret?": "Quel secret ?",
+  "clodable move secret RESEND_API_KEY, with the value piped in.": "clodable move secret RESEND_API_KEY, avec la valeur transmise sur l\u2019entr\xE9e standard.",
+  "The value of {0}": "La valeur de {0}",
+  "{0} Saved in your new backend.": "{0} Enregistr\xE9 dans votre nouveau backend.",
+  "{0} Saved in your new backend's vault.": "{0} Enregistr\xE9 dans le coffre de votre nouveau backend.",
+  "Preview which backend?": "Quel backend voulez-vous utiliser dans l\u2019aper\xE7u ?",
+  "clodable move preview copy, or clodable move preview live.": "clodable move preview copy, ou clodable move preview live.",
+  "{0} The preview now uses your new backend.": "{0} L\u2019aper\xE7u utilise maintenant votre nouveau backend.",
+  "{0} The preview uses your live backend again.": "{0} L\u2019aper\xE7u utilise \xE0 nouveau votre backend en ligne.",
+  "Your Netlify access token (create one at {0})": "Votre token d\u2019acc\xE8s Netlify, \xE0 cr\xE9er sur {0}",
+  "{0} Netlify is connected on this computer.": "{0} Netlify est connect\xE9 sur cet ordinateur.",
+  "  Added: {0}": "  Ajout\xE9 : {0}",
+  "  Settings your app reads, to fill in: {0}": "  Param\xE8tres utilis\xE9s par votre application, \xE0 renseigner : {0}",
+  "  Lovable's own, for later: {0}": "  Param\xE8tres de Lovable, pour plus tard : {0}",
+  "Which setting?": "Quel param\xE8tre ?",
+  "clodable move setting GREETING, with the value piped in.": "clodable move setting GREETING, avec la valeur transmise sur l\u2019entr\xE9e standard.",
+  "{0} Saved on your Netlify site.": "{0} Enregistr\xE9 sur votre site Netlify.",
+  "Your Resend key, with Full access ({0})": "Votre cl\xE9 Resend avec Full access ({0})",
+  "{0} Resend is connected on this computer.": "{0} Resend est connect\xE9 sur cet ordinateur.",
+  "{0} Sign-in emails go out through your app's own templates.": "{0} Les emails de connexion utilisent les mod\xE8les de votre application.",
+  "{0} Going live without emails: no confirmations, no password resets.": "{0} Mise en ligne sans emails : aucune confirmation ni r\xE9initialisation de mot de passe.",
+  "Add these records at {0}'s DNS provider:": "Ajoutez ces enregistrements chez le fournisseur DNS de {0} :",
+  "AI: Lovable's AI gateway \u2192 your own provider (AI_API_URL, AI_API_KEY)": "IA : passerelle de Lovable \u2192 votre propre fournisseur (AI_API_URL, AI_API_KEY)",
+  "Emails: Lovable's email API \u2192 Resend (RESEND_API_KEY, EMAIL_FROM)": "Emails : API de Lovable \u2192 Resend (RESEND_API_KEY, EMAIL_FROM)",
+  "Sign-in emails: your own templates (auth-email-hook)": "Emails de connexion : vos propres mod\xE8les (auth-email-hook)",
+  "{0} {1}, through Lovable's connectors": "{0} {1}, via les connecteurs de Lovable",
+  "Your {0} key": "Votre cl\xE9 {0}",
+  "{0} Saved for your preview, your site and your backend functions: {1}": "{0} Enregistr\xE9 pour l\u2019aper\xE7u, le site et les fonctions backend : {1}",
+  "{0} Your app has its own Resend key (RESEND_API_KEY), sending from {1}.": "{0} Votre application poss\xE8de sa propre cl\xE9 Resend (RESEND_API_KEY) et envoie depuis {1}.",
+  "Your Google client secret": "Votre secret client Google",
+  "{0} Google sign-in stays off on your new site.": "{0} La connexion Google reste d\xE9sactiv\xE9e sur votre nouveau site.",
+  "{0} Google sign-in is on in your new backend.": "{0} La connexion Google est activ\xE9e sur votre nouveau backend.",
+  "Paste this in Lovable (More \u2192 Cloud \u2192 SQL editor) to pause changes on your live app:": "Collez ceci dans Lovable, via More \u2192 Cloud \u2192 SQL editor, pour mettre en pause les modifications de votre application en ligne :",
+  "To undo the pause:": "Pour annuler la pause :",
+  "{0} Paused. Next: export from Lovable once more, then copy it in.": "{0} En pause. Exportez \xE0 nouveau depuis Lovable, puis copiez les donn\xE9es.",
+  "  Updated: {0}": "  Mis \xE0 jour : {0}",
+  "  Started {0} scheduled job(s)": "  T\xE2ches planifi\xE9es d\xE9marr\xE9es : {0}",
+  "Publish to put it live at {0}.": "Publiez pour mettre le site en ligne \xE0 l\u2019adresse {0}.",
+  "{0} Your app keeps its Netlify address.": "{0} Votre application conserve son adresse Netlify.",
+  "{0} {1} points to your site. Sign-in links use it now.": "{0} {1} pointe vers votre site. Les liens de connexion utilisent maintenant cette adresse.",
+  "At {0}'s provider, replace the records that point to Lovable with:": "Chez le fournisseur de {0}, remplacez les enregistrements pointant vers Lovable par :",
+  "{0} Your app is off Lovable. Clodable deleted its copy of your export from this computer.": "{0} Votre application a quitt\xE9 Lovable. Clodable a supprim\xE9 sa copie de l\u2019export de cet ordinateur.",
+  "{0} Removed the export and the move's files from this computer.": "{0} L\u2019export et les fichiers du transfert ont \xE9t\xE9 supprim\xE9s de cet ordinateur.",
+  "{0} Supabase is disconnected here. Delete the token in Supabase too: {1}": "{0} Supabase est d\xE9connect\xE9 ici. Supprimez aussi le token dans Supabase : {1}",
+  "There's no move step called \u201C{0}\u201D.": "Aucune \xE9tape du transfert ne s\u2019appelle \xAB {0} \xBB.",
+  "Clodable can't connect \u201C{0}\u201D.": "Clodable ne peut pas connecter \xAB {0} \xBB.",
+  "Use supabase or netlify.": "Utilisez supabase ou netlify.",
+  "{0} Your app's publishing connection is updated. You can retry Publish.": "{0} La connexion de publication de votre application est \xE0 jour. Vous pouvez relancer la publication.",
+  "\u201C{0}\u201D isn't something site does.": "\xAB {0} \xBB n\u2019est pas une op\xE9ration de site.",
+  "Use clodable site to see where it stands, or clodable site create.": "Utilisez clodable site pour voir son \xE9tat, ou clodable site create.",
+  "{0} Your site: {1}": "{0} Votre site : {1}",
+  "Your site isn't online with Clodable yet.": "Votre site n\u2019est pas encore en ligne avec Clodable.",
+  "Netlify isn't connected on this computer.": "Netlify n\u2019est pas connect\xE9 sur cet ordinateur.",
+  "\u201C{0}\u201D isn't something backend does.": "\xAB {0} \xBB n\u2019est pas une op\xE9ration de backend.",
+  "Use clodable backend to see your choices, or clodable backend create.": "Utilisez clodable backend pour voir les options, ou clodable backend create.",
+  "Supabase isn't connected on this computer.": "Supabase n\u2019est pas connect\xE9 sur cet ordinateur.",
+  publishing: "publication",
+  "publishing {0}": "publication de {0}",
+  "{0} {1}. Your host is still putting it live{2}": "{0} {1}. Votre h\xE9bergeur est encore en train de le mettre en ligne{2}",
+  "{0} Backend functions to update: {1}. Ask Claude to put them live.": "{0} Fonctions backend \xE0 mettre \xE0 jour : {1}. Demandez \xE0 Claude de les mettre en ligne.",
+  "Changed your mind?  clodable undo": "Vous avez chang\xE9 d\u2019avis ?  clodable undo",
+  "Undo \u201C{0}\u201D? The previous version goes live again.": "Annuler \xAB {0} \xBB ? La version pr\xE9c\xE9dente sera remise en ligne.",
+  "Nothing changed.": "Rien n\u2019a chang\xE9.",
+  "Database changes aren't undone. Only the app's pages and code are.": "Les modifications de la base de donn\xE9es ne sont pas annul\xE9es. Seuls les pages et le code de l\u2019application le sont.",
+  "undoing your last publish": "annulation de votre derni\xE8re publication",
+  "{0} {1}. \u201C{2}\u201D is no longer live.{3}": "{0} {1}. \xAB {2} \xBB n\u2019est plus en ligne.{3}",
+  "{0} Your draft overlaps with what was undone. Ask Claude to combine them: {1}": "{0} Votre brouillon touche aussi les \xE9l\xE9ments annul\xE9s. Demandez \xE0 Claude de les combiner : {1}",
+  "checking your app": "v\xE9rification de votre application",
+  "{0} Saved {1}. The preview restarts with it.": "{0} {1} enregistr\xE9. L\u2019aper\xE7u red\xE9marre avec cette valeur.",
+  "Saving setup": "Configuration de l\u2019enregistrement",
+  "Your app on GitHub": "Votre application sur GitHub",
+  "a stand-in for GitHub on this computer": "un substitut local \xE0 GitHub sur cet ordinateur",
+  "Run `clodable setup` in an empty folder to bring your app in from GitHub": "Lancez `clodable setup` dans un dossier vide pour importer votre application depuis GitHub",
+  "Node.js": "Node.js",
+  "Install Node.js 22 or newer from https://nodejs.org": "Installez Node.js 22 ou une version plus r\xE9cente depuis https://nodejs.org",
+  Git: "Git",
+  "Run `xcode-select --install`, then try again": "Lancez `xcode-select --install`, puis r\xE9essayez",
+  "Install Git from https://git-scm.com/downloads": "Installez Git depuis https://git-scm.com/downloads",
+  "Secret-key check": "V\xE9rification des cl\xE9s secr\xE8tes",
+  "gitleaks (yours)": "gitleaks, votre installation",
+  "gitleaks {0}": "gitleaks {0}",
+  "Check your internet connection. Until it works, saves stay on this computer.": "V\xE9rifiez votre connexion internet. En attendant, les enregistrements restent sur cet ordinateur.",
+  "GitHub CLI": "GitHub CLI",
+  "{0}, Clodable's own": "{0}, install\xE9 par Clodable",
+  "Check your internet connection: Clodable downloads it. Or install it from https://cli.github.com": "V\xE9rifiez votre connexion internet : Clodable le t\xE9l\xE9charge. Vous pouvez aussi l\u2019installer depuis https://cli.github.com",
+  "GitHub account": "Compte GitHub",
+  "Run `gh auth login --web` to connect your account": "Lancez `gh auth login --web` pour connecter votre compte",
+  App: "App",
+  "App dependencies": "D\xE9pendances de l\u2019application",
+  "Run `{0} install`": "Lancez `{0} install`",
+  "Clodable in this project": "Clodable dans ce projet",
+  "{0} file(s) missing": "Fichiers manquants : {0}",
+  "Run `clodable kit --apply`": "Lancez `clodable kit --apply`",
+  Database: "Base de donn\xE9es",
+  "On Lovable Cloud: Lovable owns it, so Claude can't change it from here": "Sur Lovable Cloud : elle appartient \xE0 Lovable, Claude ne peut donc pas la modifier ici",
+  "Move off Lovable, in the Clodable panel, to make it yours": "Quittez Lovable depuis le panneau Clodable pour avoir votre propre base",
+  "Supabase project {0}": "Projet Supabase {0}",
+  "Supabase (project not found in code)": "Supabase, projet introuvable dans le code",
+  None: "Aucune",
+  Lovable: "Lovable",
+  "Changes made in Lovable come here too, through GitHub": "Les modifications faites dans Lovable arrivent aussi ici, via GitHub",
+  "Lovable still pushes changes straight to your live site": "Lovable modifie encore directement votre site en ligne",
+  "In Lovable: More \u2192 Settings \u2192 Git \u2192 GitHub \u2192 Disconnect": "Dans Lovable : More \u2192 Settings \u2192 Git \u2192 GitHub \u2192 Disconnect",
+  "Lovable AI": "IA Lovable",
+  "Your app uses Lovable's AI; the move switches it to your own key": "Votre application utilise l\u2019IA de Lovable ; le transfert la fera utiliser votre propre cl\xE9",
+  "Claude can switch it to an AI key of your own": "Claude peut adapter l\u2019application \xE0 votre propre cl\xE9 d\u2019IA",
+  doctor: "diagnostic",
+  "Nothing written yet. Run with --apply to add these files.": "Rien n\u2019a encore \xE9t\xE9 \xE9crit. Lancez avec --apply pour ajouter ces fichiers.",
+  "repo kit added": "fichiers Clodable ajout\xE9s",
+  "repo kit": "fichiers Clodable",
+  "Where does your app's data live?": "O\xF9 sont les donn\xE9es de votre application ?",
+  "On Lovable Cloud": "Sur Lovable Cloud",
+  "you see it under Cloud in Lovable": "elles sont visibles sous Cloud dans Lovable",
+  "In my own Supabase project": "Dans mon propre projet Supabase",
+  "you can open it at supabase.com": "vous pouvez l\u2019ouvrir sur supabase.com",
+  "Where is your site live?": "O\xF9 votre site est-il en ligne ?",
+  "On Lovable": "Sur Lovable",
+  "you click Publish in Lovable": "vous cliquez sur Publish dans Lovable",
+  "Elsewhere (Netlify, Vercel\u2026)": "Ailleurs : Netlify, Vercel\u2026",
+  "it updates when GitHub changes": "il est mis \xE0 jour quand GitHub change",
+  "Not online yet": "Pas encore en ligne",
+  "Clodable can put it on your own Netlify": "Clodable peut le mettre sur votre propre Netlify",
+  "A few tools are needed first.": "Quelques outils sont n\xE9cessaires avant de commencer.",
+  "Which app should Clodable open?": "Quelle app Clodable doit-il ouvrir ?",
+  "Setup cancelled.": "Configuration annul\xE9e.",
+  "Run `clodable setup --repo owner/name`.": "Lancez `clodable setup --repo owner/name`.",
+  "Bringing in {0}": "Importation de {0}",
+  "Couldn't bring in {0}": "Impossible d\u2019importer {0}",
+  "Couldn't bring in {0}.": "Impossible d\u2019importer {0}.",
+  "Brought in {0}": "{0} import\xE9",
+  "let's bring your app home": "installons votre application chez vous",
+  "Choose the account for your new private app in Set up saving. Publishing comes later.": "Choisissez le compte de votre nouvelle app priv\xE9e dans Configurer l\u2019enregistrement. La publication viendra ensuite.",
+  "Clodable adds a few plain files to your project:": "Clodable ajoute quelques fichiers \xE0 votre projet :",
+  "Add them?": "Les ajouter ?",
+  "Setup cancelled. Nothing was changed.": "Configuration annul\xE9e. Rien n\u2019a \xE9t\xE9 modifi\xE9.",
+  "Installing your app's packages": "Installation des d\xE9pendances de votre application",
+  "a minute or two": "une ou deux minutes",
+  "Installed your app's packages": "D\xE9pendances de votre application install\xE9es",
+  "Your app's packages didn't install": "Les d\xE9pendances de votre application n\u2019ont pas \xE9t\xE9 install\xE9es",
+  "ask Claude to install them": "demandez \xE0 Claude de les installer",
+  "Saving it to your draft on GitHub": "Enregistrement dans votre brouillon sur GitHub",
+  "Set up Clodable": "Configurer Clodable",
+  "Nothing new to save": "Rien de nouveau \xE0 enregistrer",
+  "Saved to your draft on GitHub": "Enregistr\xE9 dans votre brouillon sur GitHub",
+  "Saved on this computer": "Enregistr\xE9 sur cet ordinateur",
+  "it goes to GitHub once it's checked for secret keys": "l\u2019envoi \xE0 GitHub suivra la v\xE9rification des cl\xE9s secr\xE8tes",
+  "it goes to GitHub once you're online": "l\u2019envoi \xE0 GitHub se fera au retour de la connexion",
+  "  1. Open Claude Desktop \u2192 Code, and choose this folder: {0}": "  1. Ouvrez Claude Desktop \u2192 Code et choisissez ce dossier : {0}",
+  "  2. The preview starts by itself. Ask for any change, in your own words.": "  2. L\u2019aper\xE7u d\xE9marre automatiquement. Demandez une modification avec vos mots.",
+  "  3. When you're happy, click Publish.": "  3. Quand le r\xE9sultat vous convient, cliquez sur Publier.",
+  "Publish the setup now? It only adds Clodable's files. Your site looks the same.": "Publier la configuration maintenant ? Seuls les fichiers de Clodable sont ajout\xE9s. L\u2019applicationarence du site reste la m\xEAme.",
+  "{0} Everything is already saved": "{0} Tout est d\xE9j\xE0 enregistr\xE9",
+  "{0} Saved on this computer. It goes to GitHub once it's been checked for secret keys.": "{0} Enregistr\xE9 sur cet ordinateur. L\u2019envoi \xE0 GitHub suivra la v\xE9rification des cl\xE9s secr\xE8tes.",
+  "{0} Saved on this computer. It goes up to GitHub when you're back online.": "{0} Enregistr\xE9 sur cet ordinateur. L\u2019envoi \xE0 GitHub se fera au retour de la connexion.",
+  "{0} Saved {1}": "{0} Enregistr\xE9 {1}",
+  "{0} Worth a look: {1}": "{0} \xC0 v\xE9rifier : {1}",
+  "{0} Your draft also changed on another computer, and both changed the same thing.": "{0} Votre brouillon a aussi \xE9t\xE9 modifi\xE9 sur un autre ordinateur, et les deux ont chang\xE9 le m\xEAme \xE9l\xE9ment.",
+  Draft: "Brouillon",
+  "{0}{1} changed since the last save": "{0}Depuis le dernier enregistrement : {1}",
+  Unsaved: "Non enregistr\xE9",
+  Attention: "Attention",
+  "{0}{1}, brought in when you publish": "{0}\xC0 r\xE9cup\xE9rer lors de la publication : {1}",
+  "Live site": "Site en ligne",
+  Live: "En ligne",
+  "On GitHub": "Sur GitHub",
+  history: "historique",
+  "Your draft": "Votre brouillon",
+  "  Nothing waiting to go live.": "  Rien en attente de publication.",
+  "  Same as your live site: nothing to publish.": "  Identique \xE0 votre site en ligne : rien \xE0 publier.",
+  Published: "Publi\xE9",
+  "Bring back any version:  clodable restore <code>": "R\xE9tablir une version :  clodable restore <code>",
+  "{0} Your app already looks like this version: nothing changed": "{0} Votre application correspond d\xE9j\xE0 \xE0 cette version : rien n\u2019a chang\xE9",
+  "{0} Restored {1}": "{0} Version r\xE9tablie {1}",
+  "  It goes up to GitHub when you're back online.": "  L\u2019envoi \xE0 GitHub se fera au retour de la connexion.",
+  "The inbox is empty.": "Aucune requ\xEAte en attente.",
+  "{count} change": "{count} modification",
+  "{count} changes": "{count} modifications",
+  "{count} file": "{count} fichier",
+  "{count} files": "{count} fichiers",
+  "{count} newer publish": "{count} publication plus r\xE9cente",
+  "{count} newer publishes": "{count} publications plus r\xE9centes",
+  "{changes} not live yet": "\xC0 publier : {changes}",
+  "nothing waiting to go live": "rien \xE0 publier",
+  "\u2026 and {count} more": "\u2026 et {count} de plus",
+  "Combining with the live site:": "Fusion avec le site en ligne :",
+  "published {when}": "publi\xE9 {when}",
+  "not published with Clodable yet": "pas encore publi\xE9 avec Clodable",
+  "\xB7 saved as a new version, nothing was erased": "\xB7 enregistr\xE9 dans une nouvelle version, rien n\u2019a \xE9t\xE9 effac\xE9",
+  "Fix: {message}": "\xC0 corriger : {message}",
+  "Edited text on {path}": "Texte modifi\xE9 sur {path}",
+  "Request on {path}: {request}": "Demande sur {path} : {request}",
+  "You're live": "En ligne",
+  Undone: "Annul\xE9",
+  "Ready to publish": "Pr\xEAt \xE0 publier",
+  "your last publish": "votre derni\xE8re publication",
+  "Ask Claude to fix it.": "Demandez \xE0 Claude de corriger le probl\xE8me.",
+  "Run again with CLODABLE_VERBOSE=1 for the details.": "Relancez avec CLODABLE_VERBOSE=1 pour afficher les d\xE9tails.",
+  "TanStack Start app": "Application TanStack Start",
+  "Vite + React app": "Application Vite + React",
+  "Unknown app type": "Type d\u2019application inconnu",
+  "{type}, made with Lovable": "{type}, cr\xE9\xE9e avec Lovable",
+  "Your app's AI features do not work: they call Lovable's AI, which your app no longer has": "Les fonctions d\u2019IA de votre application ne fonctionnent pas : elles utilisent l\u2019IA de Lovable, qui n\u2019est plus disponible.",
+  "These features do not work: {features}. They call Lovable's AI, which your app no longer has": "Ces fonctions ne fonctionnent pas : {features}. Elles utilisent l\u2019IA de Lovable, qui n\u2019est plus disponible.",
+  "installing your app's packages (first time only)\u2026": "installation des packages de votre application (uniquement au premier d\xE9marrage)\u2026",
+  "Your app's packages couldn't be installed.": "Impossible d\u2019installer les packages de votre application.",
+  "your app is running": "votre application fonctionne",
+  " on your new backend (a copy of your data)": " sur votre nouveau backend (une copie de vos donn\xE9es)",
+  "Preview tools: Edit text (\u2325\u21E7E) \xB7 Point & ask (\u2325\u21E7A). Only you see them.": "Outils de l\u2019aper\xE7u : Modifier le texte (\u2325\u21E7E) \xB7 S\xE9lectionner et demander (\u2325\u21E7A). Vous seul les voyez.",
+  "Your app couldn't start.": "Votre application n\u2019a pas pu d\xE9marrer.",
+  "\xB7 goes online at your next Publish": "\xB7 mise en ligne \xE0 la prochaine publication",
+  "on this computer": "sur cet ordinateur",
+  "not on this computer": "absent de cet ordinateur",
+  " \xB7 on your site": " \xB7 sur votre site",
+  " \xB7 not on your site": " \xB7 absent de votre site",
+  "(Lovable's own)": "(param\xE8tre de Lovable)",
+  "Checking your tools": "V\xE9rification de vos outils",
+  "A few tools are needed first": "Quelques outils sont n\xE9cessaires pour continuer",
+  "Your tools are ready": "Vos outils sont pr\xEAts",
+  "Adding Clodable's files": "Ajout des fichiers Clodable",
+  "Added Clodable's files": "Fichiers Clodable ajout\xE9s",
+  "Your app is ready.": "Votre application est pr\xEAte.",
+  " \xB7 fixed just now": " \xB7 corrig\xE9 \xE0 l\u2019instant",
+  "In one go: no pause, no last export.": "En une fois : sans pause ni dernier export.",
+  "Carefully: a short pause at the end, nothing lost.": "Avec pr\xE9caution : une courte pause \xE0 la fin, aucune donn\xE9e perdue.",
+  "Move off Lovable, step by step: {steps}": "Quitter Lovable, \xE9tape par \xE9tape : {steps}",
+  "Your app's AI features don't work: they call Lovable's AI, which your app no longer has": "Les fonctions d\u2019IA de votre application ne fonctionnent pas : elles utilisent l\u2019IA de Lovable, qui n\u2019est plus disponible.",
+  "{features} doesn't work: it calls Lovable's AI, which your app no longer has": "Cette fonction ne fonctionne pas : {features}. Elle utilise l\u2019IA de Lovable, qui n\u2019est plus disponible.",
+  "{features} don't work: they call Lovable's AI, which your app no longer has": "Ces fonctions ne fonctionnent pas : {features}. Elles utilisent l\u2019IA de Lovable, qui n\u2019est plus disponible."
+};
+
+// src/i18n.ts
+var currentLocale2 = () => resolveLocale(process.env.CLODABLE_LANGUAGE);
+function tr2(source, values) {
+  return translate(currentLocale2(), cli, source, values);
+}
+
 // src/ui.ts
 var import_picocolors = __toESM(require_picocolors(), 1);
 var color = import_picocolors.default.isColorSupported;
@@ -31333,7 +32720,7 @@ ${ash(indent(error62.details, 4))}
 `);
         else if (error62.details)
           out.write(`
-    ${ash("Run again with CLODABLE_VERBOSE=1 for the details.")}
+    ${ash(tr2("Run again with CLODABLE_VERBOSE=1 for the details."))}
 `);
         out.write("\n");
       }
@@ -31402,8 +32789,8 @@ async function secretInput(ctx2, message, options = {}) {
   }
   throw new ClodableError({
     code: "invalid-config",
-    message: "Nothing was given.",
-    hint: "Pipe the value in (never as an argument), or run this in a terminal to type it."
+    message: tr2("Nothing was given."),
+    hint: tr2("Pipe the value in (never as an argument), or run this in a terminal to type it.")
   });
 }
 
@@ -31420,7 +32807,9 @@ async function dbCommand(ctx2, options) {
         async () => queryDatabase(await ctx2.workspace(), await sqlInput(options.arg)),
         (data) => {
           for (const row of data.rows) ctx2.out.line(JSON.stringify(row));
-          ctx2.out.line(ash(`${data.rows.length}${data.truncated ? "+" : ""} rows`));
+          ctx2.out.line(
+            ash(tr2("{0}{1} rows", { "0": data.rows.length, "1": data.truncated ? "+" : "" }))
+          );
         }
       );
     case "check":
@@ -31429,7 +32818,7 @@ async function dbCommand(ctx2, options) {
         async () => checkDatabase(await ctx2.workspace()),
         (data) => {
           if (data.findings.length === 0)
-            ctx2.out.line(`${celadon("\u2713")} Supabase sees nothing to fix.`);
+            ctx2.out.line(tr2("{0} Supabase sees nothing to fix.", { "0": celadon("\u2713") }));
           for (const f of data.findings) {
             ctx2.out.line(
               `${f.level === "error" ? "\u2715" : "!"} ${f.title}${f.detail ? ash(` \xB7 ${f.detail}`) : ""}`
@@ -31441,22 +32830,24 @@ async function dbCommand(ctx2, options) {
       return run(
         ctx2,
         async () => runOnDatabase(await ctx2.workspace(), await sqlInput(options.arg)),
-        () => ctx2.out.line(`${celadon("\u2713")} Done.`)
+        () => ctx2.out.line(tr2("{0} Done.", { "0": celadon("\u2713") }))
       );
     case "apply":
       return run(
         ctx2,
         async () => applyMigration(await ctx2.workspace(), options.arg),
         (data) => ctx2.out.line(
-          data.applied ? `${celadon("\u2713")} Applied ${data.name.replace(/_/g, " ")}.` : ash(`Already applied: ${data.name.replace(/_/g, " ")}.`)
+          data.applied ? tr2("{0} Applied {1}.", { "0": celadon("\u2713"), "1": data.name.replace(/_/g, " ") }) : ash(tr2("Already applied: {0}.", { "0": data.name.replace(/_/g, " ") }))
         )
       );
     default:
       return run(ctx2, async () => {
         throw new ClodableError({
           code: "invalid-config",
-          message: `There's no \u201C${options.action ?? ""}\u201D for the database.`,
-          hint: 'clodable db query "select \u2026", clodable db run "update \u2026", or clodable db apply supabase/migrations/<file>.sql'
+          message: tr2("There's no \u201C{0}\u201D for the database.", { "0": options.action ?? "" }),
+          hint: tr2(
+            'clodable db query "select \u2026", clodable db run "update \u2026", or clodable db apply supabase/migrations/<file>.sql'
+          )
         });
       });
   }
@@ -32151,6 +33542,7 @@ var PREFIX = "/__clodable/";
 var ROUTES = {
   toolbar: `${PREFIX}toolbar.js`,
   health: `${PREFIX}health`,
+  locale: `${PREFIX}locale`,
   frame: `${PREFIX}frame`,
   probe: `${PREFIX}text/probe`,
   text: `${PREFIX}text`,
@@ -48224,7 +49616,7 @@ import { readFile as readFile18 } from "node:fs/promises";
 import { fileURLToPath as fileURLToPath2 } from "node:url";
 var cached2;
 async function toolbarSource() {
-  if (true) return '"use strict";(()=>{var H="data-cl-src";function Q(o){let e=o.match(/^(.+):(\\d+):(\\d+)$/);if(e)return{file:e[1],line:Number(e[2]),column:Number(e[3])}}var b="/__clodable/",u={toolbar:`${b}toolbar.js`,health:`${b}health`,frame:`${b}frame`,probe:`${b}text/probe`,text:`${b}text`,inbox:`${b}inbox`,originalLine:`${b}original-line`,buildError:`${b}build-error`},M="__clodable_frame",ee={phone:{width:390,height:844},tablet:{width:820,height:1180}};function D(o,e,t){return{message:o.trim().split(`\n`)[0].slice(0,300),stack:e.slice(0,4e3),kind:"build",...t?{source:t}:{}}}var $=()=>typeof __CLODABLE__>"u"?void 0:__CLODABLE__,ye=()=>$()?.token??"",te;function ie(){te=window.fetch.bind(window)}async function x(o,e){let t=await(te??fetch)(o,{method:"POST",headers:{"content-type":"application/json","x-clodable-token":ye()},body:JSON.stringify(e)});if(!t.ok)throw new Error(`Clodable ${o}: ${t.status}`);return await t.json()}var N=()=>{try{let o=sessionStorage.getItem("clodable:conversation");return o?{conversation:o}:{}}catch{return{}}},F=()=>({url:location.href,path:location.pathname+location.search,title:document.title}),m={probe:(o,e)=>x(u.probe,{src:o,text:e}),edit:(o,e,t)=>x(u.text,{src:o,before:e,after:t,page:F(),...N()}),ask:(o,e,t)=>x(u.inbox,{kind:"ask",page:F(),request:o,element:e,...t?{source:t}:{},...N()}),fix:(o,e)=>x(u.inbox,{kind:"fix",page:F(),error:o,console:e,...N()}),originalLine:o=>x(u.originalLine,o).then(e=>e.line),buildError:o=>x(u.buildError,{since:o}).then(e=>e.error)};var z={light:{paper:"#FBF8F3",bisque:"#F4EEE6",slip:"#E7DED2",slipStrong:"#D3C6B6",ink:"#1F1A16",ash:"#6B6158",clay:"#B9502B",clayHover:"#A44322",clayText:"#A2441F",onClay:"#FFFFFF",claySoft:"#F7E4DA",celadon:"#2B7354",celadonSoft:"#E1F0E8",cobalt:"#2D5BA6",cobaltSoft:"#E3EBF7",ochre:"#8F6210",ochreSoft:"#F7ECD4",oxide:"#B1281E",oxideSoft:"#F9E1DE",focus:"#2D5BA6",scrim:"rgba(31, 26, 22, 0.32)"},dark:{paper:"#15110E",bisque:"#1E1915",slip:"#352D27",slipStrong:"#4A4038",ink:"#F3EEE7",ash:"#A79D92",clay:"#E5764F",clayHover:"#EE8A66",clayText:"#F08F6B",onClay:"#1F1A16",claySoft:"#3A2419",celadon:"#6CC59E",celadonSoft:"#16342A",cobalt:"#8AB0F0",cobaltSoft:"#18263D",ochre:"#E6B356",ochreSoft:"#3A2C12",oxide:"#F27B70",oxideSoft:"#3E1A17",focus:"#8AB0F0",scrim:"rgba(0, 0, 0, 0.5)"}};var _={sm:"6px",md:"10px",lg:"14px",xl:"20px",pill:"999px"},w={ui:\'ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text", "Segoe UI", system-ui, "Helvetica Neue", Arial, sans-serif\',mono:\'ui-monospace, "SF Mono", "Cascadia Code", "JetBrains Mono", Menlo, Consolas, monospace\',display:\'"Fraunces", "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, ui-serif, serif\'};var I={light:{sm:"0 1px 2px rgba(60, 38, 20, 0.08)",md:"0 1px 2px rgba(60, 38, 20, 0.06), 0 6px 16px -4px rgba(60, 38, 20, 0.14)",lg:"0 2px 4px rgba(60, 38, 20, 0.06), 0 18px 40px -12px rgba(60, 38, 20, 0.28)"},dark:{sm:"0 1px 2px rgba(0, 0, 0, 0.4)",md:"0 1px 2px rgba(0, 0, 0, 0.4), 0 6px 16px -4px rgba(0, 0, 0, 0.5)",lg:"0 2px 4px rgba(0, 0, 0, 0.4), 0 18px 40px -12px rgba(0, 0, 0, 0.7)"}},f={fast:"120ms",base:"180ms",slow:"260ms",easeOut:"cubic-bezier(0.2, 0.8, 0.2, 1)",easeInOut:"cubic-bezier(0.65, 0, 0.35, 1)",spring:"cubic-bezier(0.34, 1.4, 0.64, 1)"},B={toolbar:2147483e3,toast:2147483100,overlay:2147483200};var we=o=>o.replace(/[A-Z]/g,e=>`-${e.toLowerCase()}`);function k(o){let e=Object.entries(z[o]).map(([i,r])=>`--cl-${we(i)}: ${r};`).join(" "),t=Object.entries(I[o]).map(([i,r])=>`--cl-shadow-${i}: ${r};`).join(" ");return`${e} ${t} color-scheme: ${o};`}var oe=[...Object.entries(_).map(([o,e])=>`--cl-radius-${o}: ${e};`),`--cl-font-ui: ${w.ui};`,`--cl-font-mono: ${w.mono};`,`--cl-font-display: ${w.display};`,`--cl-fast: ${f.fast};`,`--cl-base: ${f.base};`,`--cl-slow: ${f.slow};`,`--cl-ease-out: ${f.easeOut};`,`--cl-ease-in-out: ${f.easeInOut};`,`--cl-spring: ${f.spring};`].join(" ");function K(o={}){let e=o.selector??":root",t=o.scheme??"auto";if(t!=="auto")return`${e} { ${oe} ${k(t)} }`;let i=r=>e===":host"?`:host([data-theme="${r}"]) { ${k(r)} }`:`${e}[data-theme="${r}"] { ${k(r)} }`;return[`${e} { ${oe} ${k("light")} }`,`@media (prefers-color-scheme: dark) { ${e} { ${k("dark")} } }`,i("light"),i("dark")].join(`\n`)}var d=(...o)=>o,ne={check:d("M4.5 10.5l3.5 3.5 7.5-8"),close:d("M5.5 5.5l9 9M14.5 5.5l-9 9"),publish:d("M10 13.5v-7","M7 9.5l3-3 3 3",{circle:[10,10,7]}),undo:d("M7.5 5.5 4 9l3.5 3.5","M4.5 9h7.25a3.75 3.75 0 0 1 0 7.5H10"),restore:d("M3.5 10a6.5 6.5 0 1 0 1.9-4.6","M3.5 3.5v3h3","M10 6.75V10l2.5 1.5"),external:d("M8.5 5.5h-3a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-3","M11.5 4.5h4v4","M15.5 4.5 9.5 10.5"),phone:d("M8 2.5h4a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2v-11a2 2 0 0 1 2-2z","M9 15h2"),tablet:d("M6 3h8a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z","M9 14.5h2"),desktop:d("M3.5 4.5h13a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1h-13a1 1 0 0 1-1-1v-8a1 1 0 0 1 1-1z","M7.5 17.5h5","M10 14.5v3"),text:d("M3.5 6V4.5h9V6","M8 4.5v11","M6 15.5h4","M15 8.5v8","M13.5 8.5h3","M13.5 16.5h3"),select:d("M4.5 3.5l10.5 4.6-4.4 1.6-1.6 4.4z","M10.6 9.7l4.4 4.4"),minimize:d("M5 10h10"),alert:d("M10 3.8 17.2 16.2H2.8z","M10 8.5v3.5","M10 14.25v.01"),info:d({circle:[10,10,7]},"M10 9.25v4.5","M10 6.5v.01"),globe:d({circle:[10,10,7]},"M3 10h14","M10 3c1.9 2 2.9 4.4 2.9 7s-1 5-2.9 7c-1.9-2-2.9-4.4-2.9-7s1-5 2.9-7z"),database:d("M4 5.5C4 4.1 6.7 3 10 3s6 1.1 6 2.5S13.3 8 10 8 4 6.9 4 5.5z","M4 5.5v9C4 15.9 6.7 17 10 17s6-1.1 6-2.5v-9","M4 10c0 1.4 2.7 2.5 6 2.5s6-1.1 6-2.5"),refresh:d("M15.5 8a6 6 0 0 0-10.4-1.6L4 8","M4 4.5V8h3.5","M4.5 12a6 6 0 0 0 10.4 1.6L16 12","M16 15.5V12h-3.5"),grip:d({circle:[7.5,6,1.1],fill:!0},{circle:[12.5,6,1.1],fill:!0},{circle:[7.5,10,1.1],fill:!0},{circle:[12.5,10,1.1],fill:!0},{circle:[7.5,14,1.1],fill:!0},{circle:[12.5,14,1.1],fill:!0}),more:d({circle:[5,10,1.25],fill:!0},{circle:[10,10,1.25],fill:!0},{circle:[15,10,1.25],fill:!0}),chevronDown:d("M6 8l4 4 4-4"),chevronUp:d("M6 12l4-4 4 4"),arrowRight:d("M4.5 10h11","M11 5.5l4.5 4.5-4.5 4.5"),copy:d("M7.5 7.5h7a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1h-7a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1z","M4.5 12.5h-.25a.75.75 0 0 1-.75-.75v-7.5a.75.75 0 0 1 .75-.75h7.5a.75.75 0 0 1 .75.75v.25")},re=o=>o.replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;");function q(o,e={}){let t=e.size??20,i=e.strokeWidth??1.6,r=e.label?`role="img" aria-label="${re(e.label)}"`:\'aria-hidden="true" focusable="false"\',n=e.className?` class="${re(e.className)}"`:"",s=ne[o].map(l=>{if(typeof l=="string")return`<path d="${l}"/>`;let[p,h,c]=l.circle;return l.fill?`<circle cx="${p}" cy="${h}" r="${c}" fill="currentColor" stroke="none"/>`:`<circle cx="${p}" cy="${h}" r="${c}"/>`}).join("");return`<svg${n} xmlns="http://www.w3.org/2000/svg" width="${t}" height="${t}" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="${i}" stroke-linecap="round" stroke-linejoin="round" ${r}>${s}</svg>`}var ae=[".........ooo....",".......oobbbo...","......obbbbbo...","....oobbbbbbo...","...obbbbbbbbbo..","..obbbbbbbbbbbo.",".obbbbbbbbbbbbo.",".obbeebbbbeebbo.","obbbeebbbbeebbbo","obbbbbbeebbbbbbo","obbbbbbbbbbbbbbo","oobbbbbbbbbbbbbo","..obbbbbbbbbbbo.","..oobbbooobbboo.","....obo...obo...","....ooo...ooo..."],se={outline:"#3B1A10",clay:"#E88858",eyes:"#2A140C"};function ke(o){let e={o:o.outline,b:o.clay,e:o.eyes},t={};return ae.forEach((i,r)=>{for(let n=0;n<i.length;){let s=i[n],l=1;for(;i[n+l]===s;)l++;e[s]&&(t[s]=`${t[s]??""}M${n} ${r}h${l}v1h-${l}z`),n+=l}}),Object.entries(t).map(([i,r])=>`<path fill="${e[i]}" d="${r}"/>`).join("")}function j(o={}){let e=o.size??32,t=o.label?`role="img" aria-label="${o.label.replace(/"/g,"&quot;")}"`:\'aria-hidden="true" focusable="false"\';return`<svg xmlns="http://www.w3.org/2000/svg" width="${e}" height="${e}" viewBox="0 0 16 16" shape-rendering="crispEdges" ${t}>${ke({...se,...o.colors})}</svg>`}function a(o,e={},...t){let i=document.createElement(o);for(let[r,n]of Object.entries(e))n==null||n===!1||(r==="class"?i.className=String(n):r==="style"?typeof n=="string"?i.setAttribute("style",n):Object.assign(i.style,n):r==="dataset"?Object.assign(i.dataset,n):r.startsWith("on")&&typeof n=="function"?i.addEventListener(r.slice(2).toLowerCase(),n):n===!0?i.setAttribute(r,""):i.setAttribute(r,String(n)));return Ee(i,t),i}function Ee(o,e){for(let t of e)t==null||t===!1||o.appendChild(typeof t=="object"?t:document.createTextNode(String(t)))}function g(o,e=18){let t=document.createElement("span");return t.className="ic",t.innerHTML=q(o,{size:e,strokeWidth:e<=16?1.7:1.6}),t}var L=[],le=[],X;function U(o){X?X(o):le.push(o)}var ce="Part of the app didn\'t load",de=new RegExp(`^${ce}$|Failed to fetch dynamically imported module|error loading dynamically imported module|Importing a module script failed`,"i"),Y="clodable:fixing";function Se(){try{return Date.now()-Number(sessionStorage.getItem(Y)??0)<12e4}catch{return!1}}function T(o){try{o?sessionStorage.setItem(Y,String(Date.now())):sessionStorage.removeItem(Y)}catch{}}function pe(){addEventListener("error",e=>{let t=e.target;!(t instanceof HTMLScriptElement)||t.hasAttribute("data-clodable-toolbar")||t.src&&new URL(t.src,location.href).origin!==location.origin||U({message:ce,kind:"build"})},!0),addEventListener("error",e=>{let t=e.error;U({message:t?.message??e.message,...t?.stack?{stack:t.stack}:{},kind:"runtime"})}),addEventListener("unhandledrejection",e=>{let t=e.reason,i=typeof t=="string"?t:t?.message??"A background task failed";U({message:i,...typeof t=="object"&&t?.stack?{stack:t.stack}:{},kind:"promise"})});let o=console.error.bind(console);console.error=(...e)=>{L.push(e.map(t=>t instanceof Error?t.message:String(t)).join(" ").slice(0,400)),L.length>8&&L.shift(),o(...e)}}async function Ce(){try{return(await import(`${location.origin}/@vite/client`)).createHotContext?.(u.toolbar)}catch{return}}var Me=[/ResizeObserver loop/i,/Script error\\.?$/i,/__clodable/];function $e(o){if(o)for(let e of o.split(`\n`)){let t=e.match(/https?:\\/\\/[^/]+\\/(src\\/[^?:)\\s]+)(?:\\?[^:)]*)?:(\\d+):(\\d+)/);if(t)return{file:t[1],line:Number(t[2]),column:Number(t[3])}}}function V(){return((document.getElementById("root")??document.body).innerText??"").trim().length===0}var W=o=>o.split("/").pop()??o,v=o=>a("strong",{},o);function Te(o){let e=o.source&&W(o.source.file),t=o.message.match(/Failed to resolve import "([^"]+)" from "([^"]+)"/);if(t){let r=t[1],n=t[2];if(/^(\\.|\\/|@\\/|~\\/)/.test(r)){let s=r.replace(/^(@|~)\\//,"").replace(/^(\\.\\.?\\/)+/,"");return[v(W(n))," refers to ",v(s),", a file that doesn\\u2019t exist."]}return[v(W(n))," uses ",v(r),", a package that isn\\u2019t installed."]}let i=o.message.match(/^(?:\\w*Error: )?([\\w$]+) is not defined$|Can\'t find variable: ([\\w$]+)/);if(i){let r=i[1]??i[2];return[e?v(e):"This page"," refers to ",v(r),", which doesn\\u2019t exist."]}return de.test(o.message)?["Part of the app\\u2019s code didn\\u2019t load."]:o.kind==="build"?e?[v(e),` has a mistake on line ${o.source.line}.`]:["A mistake in the code stops it from loading."]:e?["The problem starts in ",v(e),`, line ${o.source.line}.`]:["Something in the code went wrong."]}function Le(o){let e=o.source?`${o.source.file}:${o.source.line}`:"",t=[];for(let i of(o.stack??"").split(`\n`))!i.trim()||i.endsWith(o.message)||o.source&&i.endsWith(o.source.file)||t.push(i.replace(/https?:\\/\\/[^/\\s]+\\/(@fs\\/)?/g,"").replace(/\\?[^:)\\s]*(?=:\\d)/g,""));return{where:e,frame:t.slice(0,24).join(`\n`)}}function Ae(o){let e=o.err;if(!e)return;let t=e.loc?.file??e.id??"",i=t.match(/(src\\/[^?:]+)/);return D(e.message??"The app couldn\'t be built",`${t}\n${e.message??""}\n${e.stack??""}`,i?{file:i[1],line:e.loc?.line??1}:void 0)}function Re(){let o=document.querySelector("vite-error-overlay");if(!o)return;let e=o.shadowRoot?.querySelector(".message-body")?.textContent??"The app couldn\'t be built",t=o.shadowRoot?.querySelector(".file")?.textContent??"",i=t.match(/(src\\/[^:]+):(\\d+)/);return D(e,`${t}\n${e}`,i?{file:i[1],line:Number(i[2])}:void 0)}function Oe(o,e,t){return e?"Claude is fixing it\\u2026":o.kind==="build"?"Your app can\\u2019t load":t?"This page can\\u2019t load":"Something broke on this page"}var A=class{constructor(e,t,i){this.layer=e;this.dockSlot=t;this.toast=i}layer;dockSlot;toast;card;current;dismissed=new Set;detailsOpen=!1;updateStarted=0;start(){X=t=>this.capture(t);let e=le.splice(0);for(let t of e)this.capture(t);!e.length&&V()&&m.buildError(performance.timeOrigin).then(t=>{t&&!this.current&&this.show(t)},()=>{}),setTimeout(()=>{this.current||T(!1)},3e3),Ce().then(t=>{t?.on("vite:error",i=>{let r=Ae(i);r&&this.capture(r)}),t?.on("vite:beforeUpdate",()=>{this.updateStarted=Date.now()}),t?.on("vite:afterUpdate",()=>{this.afterUpdate()})}),new MutationObserver(()=>{let t=Re();t&&this.capture(t)}).observe(document.documentElement,{childList:!0})}async afterUpdate(){if(this.current){if(V()||this.current.kind==="build"){let e=await m.buildError(this.updateStarted).catch(()=>null);e?this.show(e):location.reload();return}T(!1),this.dismiss(!1)}}capture(e){if(!(!e.message||Me.some(t=>t.test(e.message)))){if(de.test(e.message)){m.buildError(performance.timeOrigin).then(t=>this.show(t??e),()=>this.show(e));return}this.show(e)}}show(e){if(this.dismissed.has(e.message))return;let t=e.source?void 0:$e(e.stack);if(t){let i=r=>this.show({...e,source:{file:t.file,line:r??t.line}});m.originalLine(t).then(i,()=>i(null));return}this.current=e,setTimeout(()=>this.render(),60)}render(e=Se()){let t=this.current;if(!t)return;let i=t.kind==="build"||V(),r=!!this.card?.isConnected,n=this.layer.getRootNode(),s=!!this.card?.contains(n.activeElement);this.card?.remove();let{more:l,details:p}=this.detailsToggle(t),h=a("button",{class:"close","aria-label":"Dismiss",onclick:()=>this.dismiss()},g("close",16)),c=a("div",{class:`error ${i?"screen":"note"}${e?" working":""}${r?" still":""}`,role:"alert","aria-labelledby":"cl-err-title","aria-describedby":"cl-err-why"},a("div",{class:"error-body"},a("div",{class:"head"},a("span",{class:e?"spinner":"dot","aria-hidden":"true"}),a("h3",{id:"cl-err-title"},Oe(t,e,i)),i?null:h),a("p",{class:"why",id:"cl-err-why"},...e?["The preview updates by itself when it\\u2019s fixed."]:Te(t)),e?null:a("div",{class:"actions"},a("button",{class:"btn primary",onclick:()=>this.fix()},"Try to fix"),l),e?null:p),i?h:null);this.card=c,i?this.layer.append(c):this.dockSlot.prepend(c),s&&(c.querySelector(".btn.primary")??h).focus()}detailsToggle(e){let{where:t,frame:i}=Le(e),r=a("div",{class:"details",id:"cl-err-details",hidden:!this.detailsOpen},t?a("p",{class:"where"},t):null,a("p",{class:"raw"},e.message),i?a("pre",{class:"frame"},i):null),n=a("span",{},this.detailsOpen?"Hide details":"Show details"),s=a("button",{class:"btn ghost more","aria-expanded":String(this.detailsOpen),"aria-controls":"cl-err-details",onclick:()=>{this.detailsOpen=!this.detailsOpen,r.hidden=!this.detailsOpen,n.textContent=this.detailsOpen?"Hide details":"Show details",s.setAttribute("aria-expanded",String(this.detailsOpen))}},n,g("chevronDown",16));return{more:s,details:r}}async fix(){let e=this.current;if(e){T(!0),this.render(!0);try{await m.fix(e,[...L])}catch{T(!1),this.toast("Couldn\'t reach Claude. Is Clodable running?","warn"),this.render(!1)}}}dismiss(e=!0){this.current&&e&&this.dismissed.add(this.current.message),this.current=void 0,this.card?.remove(),this.card=void 0}};function y(o){let e=o?.closest(`[${H}]`),t=e?.getAttribute(H);return e&&t?{el:e,src:t}:void 0}function G(o){let e=o.tagName.toLowerCase(),t=o.getAttribute("role");if(/^h[1-6]$/.test(e))return"heading";if(e==="button"||t==="button")return"button";if(e==="a"){let r=o.getAttribute("class")??"";return/\\brounded/.test(r)&&/\\b(bg-|border)/.test(r)&&/\\b(px-|h-\\d)/.test(r)?"button":"link"}if(e==="img"||e==="picture"||e==="video")return"image";if(e==="svg")return"icon";if(["input","textarea","select"].includes(e))return"input";if(["ul","ol","li","dl"].includes(e))return"list";if(e==="nav"||e==="header"||e==="footer")return"nav";if(["section","main","article","aside"].includes(e))return"section";if(["p","span","label","strong","em","small","blockquote","figcaption"].includes(e))return"text";let i=o.getAttribute("class")??"";return/\\bcard\\b|rounded-(lg|xl|2xl)/.test(i)&&o.children.length>1?"card":o.children.length===0&&o.textContent?.trim()?"text":o.children.length>2?"section":"element"}var Pe={heading:"Heading",text:"Text",button:"Button",link:"Link",image:"Image",input:"Field",list:"List",section:"Section",nav:"Navigation",card:"Card",icon:"Icon",element:"Element"};function E(o){let e=G(o);if(e==="nav"){let t=o.tagName.toLowerCase();return t==="header"?"Header":t==="footer"?"Footer":"Navigation"}return Pe[e]}function R(o,e=42){let i=(o.getAttribute("alt")??o.getAttribute("aria-label")??o.textContent??"").replace(/\\s+/g," ").trim();return i?i.length>e?`${i.slice(0,e-1).trimEnd()}\\u2026`:i:""}function he(o){let e=o.tagName.toLowerCase(),t=(o.getAttribute("class")??"").split(/\\s+/).slice(0,8).join(" "),i=R(o,80);return`${E(o)} <${e}${t?` class="${t}"`:""}>${i?` \\u201C${i}\\u201D`:""}`}var ue={heading:["Rewrite it","Make it bigger","Change the font"],text:["Rewrite it","Make it shorter","Change the color"],button:["Change the label","Make it stand out","Change what it does"],link:["Change where it goes","Change the text","Style it as a button"],image:["Replace the image","Make it rounder","Make it bigger"],input:["Change the placeholder","Make it required","Change the label"],list:["Add an item","Change the layout","Reorder it"],section:["Change the layout","Add something here","Change the background"],nav:["Add a link","Change the logo","Make it sticky"],card:["Change the layout","Add a picture","Make it stand out"],icon:["Use a different icon","Make it bigger","Change the color"],element:["Change the style","Move it","Remove it"]};var S=class{constructor(e){this.layer=e;this.box=a("div",{class:"hl",style:"opacity:0"}),this.chip=a("div",{class:"chip",style:"opacity:0"}),e.append(this.box,this.chip)}layer;box;chip;target;frame=0;lines=[];perLine=!1;show(e,t,i,r={}){this.target=e,this.perLine=!!r.perLine,this.box.className=`hl ${t}`,this.box.style.opacity="1";for(let n of this.lines)n.className=`hl ${t}`;i?(this.chip.className=`chip ${t.startsWith("ask")?"ask":t==="locked"?"locked":""}`,this.chip.replaceChildren(...i.icon?[g(i.icon,14)]:[],a("span",{},i.strong),...i.muted?[a("span",{class:"muted"},i.muted)]:[]),this.chip.style.opacity="1"):this.chip.style.opacity="0",this.place(),this.frame||this.loop()}fadeOut(e,t){this.show(e,t),this.box.addEventListener("animationend",()=>this.hide(),{once:!0})}hide(){this.target=void 0,this.box.style.opacity="0",this.chip.style.opacity="0";for(let e of this.lines)e.remove();this.lines=[],cancelAnimationFrame(this.frame),this.frame=0}loop=()=>{this.place(),this.frame=this.target?requestAnimationFrame(this.loop):0};place(){let e=this.target?.getBoundingClientRect();if(!e)return;if(this.perLine&&this.target){let i=Array.from(this.target.getClientRects()).filter(r=>r.width>0&&r.height>0);if(i.length>1){for(;this.lines.length<i.length-1;){let n=a("div",{class:this.box.className});this.layer.append(n),this.lines.push(n)}for(;this.lines.length>i.length-1;)this.lines.pop()?.remove();let r=[this.box,...this.lines];i.forEach((n,s)=>{Object.assign(r[s].style,{top:`${n.top}px`,left:`${n.left}px`,width:`${n.width}px`,height:`${n.height}px`,opacity:"1"})});return}}Object.assign(this.box.style,{top:`${e.top}px`,left:`${e.left}px`,width:`${e.width}px`,height:`${e.height}px`});let t=e.top-30<4?e.bottom+8:e.top-30;Object.assign(this.chip.style,{top:`${t}px`,left:`${Math.max(6,Math.min(e.left-3,innerWidth-200))}px`})}};function J(o,e,t=10){let{width:i,height:r}=o.getBoundingClientRect(),s=e.bottom+t+r<innerHeight-70?e.bottom+t:Math.max(8,e.top-t-r),l=Math.min(Math.max(8,e.left),innerWidth-i-8);o.style.top=`${s}px`,o.style.left=`${l}px`}var O=class{el;constructor(){this.el=a("div",{class:"toasts",role:"status","aria-live":"polite"})}show(e,t={}){let i=a("div",{class:`toast ${t.tone==="warn"?"warn":""}`},g(t.tone==="warn"?"alert":"check",16),e);for(this.el.append(i);this.el.children.length>3;)this.el.firstElementChild?.remove();setTimeout(()=>{i.classList.add("leaving"),setTimeout(()=>i.remove(),260)},t.ms??2600)}};var ge=`\n${K({selector:":host"})}\n:host {\n  all: initial;\n  position: fixed;\n  inset: 0;\n  pointer-events: none;\n  z-index: ${B.toolbar};\n  font: 13px/18px var(--cl-font-ui);\n  color: var(--cl-ink);\n  -webkit-font-smoothing: antialiased;\n  -moz-osx-font-smoothing: grayscale;\n  --dock-bg: color-mix(in oklab, var(--cl-paper) 88%, transparent);\n  --dock-border: color-mix(in oklab, var(--cl-slip-strong) 70%, transparent);\n}\n* { box-sizing: border-box; }\n.ic { display: inline-flex; width: 18px; height: 18px; flex: none; }\n.ic svg { display: block; }\nbutton { font: inherit; color: inherit; background: none; border: 0; margin: 0; padding: 0; cursor: pointer; }\nbutton:focus-visible, [tabindex]:focus-visible, textarea:focus-visible {\n  outline: 2px solid var(--cl-focus);\n  outline-offset: 2px;\n}\n.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }\n\n/* \\u2500\\u2500 Dock \\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500 */\n.dock-wrap {\n  /* No transform here: it would trap the fixed-position pebble inside this box. */\n  position: fixed; left: 0; right: 0; bottom: 14px;\n  display: flex; flex-direction: column; align-items: center; gap: 8px;\n  pointer-events: none;\n}\n.dock {\n  pointer-events: auto;\n  display: flex; align-items: center; gap: 2px;\n  height: 46px; padding: 0 5px;\n  background: var(--dock-bg);\n  -webkit-backdrop-filter: blur(18px) saturate(1.5);\n  backdrop-filter: blur(18px) saturate(1.5);\n  border: 1px solid var(--dock-border);\n  border-radius: var(--cl-radius-pill);\n  box-shadow: var(--cl-shadow-lg);\n  animation: rise var(--cl-slow) var(--cl-spring) both;\n}\n@keyframes rise { from { opacity: 0; transform: translateY(10px) scale(.97); } }\n.sep { width: 1px; height: 22px; background: var(--cl-slip); margin: 0 5px; flex: none; }\n.backend { padding: 0 6px 0 2px; color: var(--cl-ash); font-size: 12px; font-weight: 500; white-space: nowrap; }\n.brand {\n  width: 36px; height: 36px; border-radius: 50%;\n  display: grid; place-items: center;\n  transition: transform var(--cl-fast) var(--cl-ease-out), background var(--cl-fast);\n}\n/* The clod hops; turning or scaling it would blur its pixels. */\n.brand:hover { background: var(--cl-bisque); transform: translateY(-1px); }\n.brand[aria-expanded="true"] { background: var(--cl-bisque); }\n.tool {\n  height: 36px; padding: 0 12px 0 10px;\n  display: inline-flex; align-items: center; gap: 7px;\n  border-radius: var(--cl-radius-pill);\n  color: var(--cl-ink); font-weight: 500; letter-spacing: -0.005em;\n  transition: background var(--cl-fast), color var(--cl-fast);\n  white-space: nowrap;\n}\n.tool:hover { background: var(--cl-bisque); }\n.tool[aria-pressed="true"] { background: var(--cl-clay-soft); color: var(--cl-clay-text); }\n.tool .key {\n  font: 500 10.5px/16px var(--cl-font-ui); color: var(--cl-ash);\n  padding: 0 5px; border-radius: 5px; background: var(--cl-bisque); margin-left: 2px;\n}\n.tool[aria-pressed="true"] .key { background: color-mix(in oklab, var(--cl-clay) 14%, transparent); color: var(--cl-clay-text); }\n.icon-btn {\n  width: 36px; height: 36px; border-radius: 50%;\n  display: grid; place-items: center; color: var(--cl-ash);\n  transition: background var(--cl-fast), color var(--cl-fast);\n}\n.icon-btn:hover { background: var(--cl-bisque); color: var(--cl-ink); }\n\n/* Device switcher: a segmented control with a sliding thumb. */\n.devices { position: relative; display: flex; align-items: center; height: 36px; padding: 3px; border-radius: var(--cl-radius-pill); background: var(--cl-bisque); }\n.devices .thumb {\n  position: absolute; top: 3px; left: 3px; width: 34px; height: 30px; border-radius: var(--cl-radius-pill);\n  background: var(--cl-paper); box-shadow: var(--cl-shadow-sm), 0 0 0 1px var(--cl-slip);\n  transition: transform var(--cl-base) var(--cl-ease-out);\n}\n.devices button { position: relative; width: 34px; height: 30px; border-radius: var(--cl-radius-pill); display: grid; place-items: center; color: var(--cl-ash); transition: color var(--cl-fast); }\n.devices button:hover { color: var(--cl-ink); }\n.devices button[aria-checked="true"] { color: var(--cl-ink); }\n\n/* Keep the editing tools named even in Desktop\'s narrow preview. */\n@media (max-width: 560px) {\n  .dock { height: auto; min-height: 46px; max-width: calc(100vw - 24px); padding: 5px; flex-wrap: wrap; justify-content: center; border-radius: 18px; }\n  .dock .sep { display: none; }\n  .dock .devices { order: 1; }\n  .tool { padding: 0 8px; }\n  .dock-wrap { bottom: 10px; }\n}\n\n/* Minimized: a single clod in the corner. */\n.pebble {\n  pointer-events: auto;\n  position: fixed; right: 16px; bottom: 16px;\n  width: 44px; height: 44px; border-radius: 50%;\n  display: grid; place-items: center;\n  background: var(--dock-bg);\n  -webkit-backdrop-filter: blur(18px) saturate(1.5);\n  backdrop-filter: blur(18px) saturate(1.5);\n  border: 1px solid var(--dock-border);\n  box-shadow: var(--cl-shadow-md);\n  animation: rise var(--cl-slow) var(--cl-spring) both;\n  transition: transform var(--cl-fast) var(--cl-ease-out);\n}\n.pebble:hover { transform: translateY(-2px); }\n.pebble.labelled {\n  width: auto; min-width: 44px; max-width: calc(100vw - 32px); padding: 0 12px;\n  display: flex; gap: 7px; border-radius: var(--cl-radius-pill);\n  white-space: nowrap; font-size: 12px; font-weight: 500;\n}\n\n/* \\u2500\\u2500 Hint above the dock \\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500 */\n.hint {\n  pointer-events: auto;\n  display: inline-flex; align-items: center; gap: 8px;\n  height: 30px; padding: 0 12px 0 10px;\n  background: var(--cl-ink); color: var(--cl-paper);\n  border-radius: var(--cl-radius-pill);\n  font-size: 12px; font-weight: 500;\n  box-shadow: var(--cl-shadow-md);\n  animation: rise var(--cl-base) var(--cl-ease-out) both;\n}\n.hint .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--cl-clay); box-shadow: 0 0 0 0 var(--cl-clay); animation: pulse 1.8s var(--cl-ease-out) infinite; }\n.hint.ask .dot { background: var(--cl-cobalt); }\n.hint kbd { font: 500 11px/16px var(--cl-font-ui); padding: 0 5px; border-radius: 4px; background: color-mix(in oklab, var(--cl-paper) 16%, transparent); }\n@keyframes pulse { 0% { box-shadow: 0 0 0 0 color-mix(in oklab, var(--cl-clay) 60%, transparent); } 70% { box-shadow: 0 0 0 7px transparent; } 100% { box-shadow: 0 0 0 0 transparent; } }\n\n/* \\u2500\\u2500 Menu \\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500 */\n.menu {\n  pointer-events: auto;\n  position: fixed; min-width: 248px; padding: 6px;\n  background: var(--cl-paper); border: 1px solid var(--cl-slip); border-radius: var(--cl-radius-lg);\n  box-shadow: var(--cl-shadow-lg);\n  animation: pop var(--cl-base) var(--cl-ease-out) both;\n  transform-origin: bottom left;\n}\n@keyframes pop { from { opacity: 0; transform: translateY(6px) scale(.98); } }\n.menu .head { display: flex; align-items: center; gap: 10px; padding: 8px 8px 10px; }\n.menu .head b { font: 600 14px/18px var(--cl-font-display); letter-spacing: -0.01em; }\n.menu .head span { display: block; color: var(--cl-ash); font-size: 12px; }\n.menu hr { border: 0; border-top: 1px solid var(--cl-slip); margin: 4px 2px; }\n.menu-item {\n  width: 100%; display: flex; align-items: center; gap: 10px;\n  padding: 7px 8px; border-radius: var(--cl-radius-md); text-align: left; color: var(--cl-ink);\n}\n.menu-item:hover, .menu-item:focus-visible { background: var(--cl-bisque); outline: none; }\n.menu-item .ic { color: var(--cl-ash); }\n.menu-item .shortcut { margin-left: auto; color: var(--cl-ash); font-size: 11.5px; }\n\n/* \\u2500\\u2500 Highlights \\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500 */\n.hl {\n  position: fixed; pointer-events: none;\n  border-radius: 6px;\n  transition: top 70ms linear, left 70ms linear, width 70ms linear, height 70ms linear, opacity var(--cl-fast);\n}\n.hl.edit-hover { outline: 1.5px dashed var(--cl-clay); outline-offset: 3px; background: color-mix(in oklab, var(--cl-clay) 5%, transparent); }\n.hl.editing { outline: 2px solid var(--cl-clay); outline-offset: 3px; box-shadow: 0 0 0 6px color-mix(in oklab, var(--cl-clay) 16%, transparent); }\n.hl.ask-hover { outline: 1.5px solid var(--cl-cobalt); outline-offset: 2px; background: color-mix(in oklab, var(--cl-cobalt) 7%, transparent); }\n.hl.saved { outline: 2px solid var(--cl-celadon); outline-offset: 3px; background: color-mix(in oklab, var(--cl-celadon) 12%, transparent); animation: fade 900ms var(--cl-ease-out) forwards; }\n.hl.locked { outline: 1.5px dashed var(--cl-ash); outline-offset: 3px; }\n@keyframes fade { 60% { opacity: 1; } to { opacity: 0; } }\n.chip {\n  position: fixed; pointer-events: none;\n  display: inline-flex; align-items: center; gap: 5px;\n  height: 22px; padding: 0 8px 0 6px; border-radius: var(--cl-radius-pill);\n  font-size: 11.5px; font-weight: 600; white-space: nowrap; max-width: 320px; overflow: hidden; text-overflow: ellipsis;\n  /* on-clay reads on every chip fill (clay, cobalt, ash), in both schemes: see design\'s contrast test. */\n  color: var(--cl-on-clay); background: var(--cl-clay);\n  box-shadow: var(--cl-shadow-sm);\n}\n.chip.ask { background: var(--cl-cobalt); }\n.chip.locked { background: var(--cl-ash); }\n.chip .ic { width: 14px; height: 14px; }\n.chip .muted { font-weight: 500; opacity: .85; overflow: hidden; text-overflow: ellipsis; }\n\n/* \\u2500\\u2500 Popovers: edit bar, composer, notices \\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500 */\n.pop {\n  pointer-events: auto;\n  position: fixed;\n  background: var(--cl-paper); color: var(--cl-ink);\n  border: 1px solid var(--cl-slip); border-radius: var(--cl-radius-lg);\n  box-shadow: var(--cl-shadow-lg);\n  animation: pop var(--cl-base) var(--cl-ease-out) both;\n}\n.editbar { display: flex; align-items: center; gap: 6px; padding: 5px; border-radius: var(--cl-radius-pill); }\n.editbar .note { color: var(--cl-ash); font-size: 12px; padding: 0 6px 0 8px; white-space: nowrap; }\n.btn {\n  height: 30px; padding: 0 12px; border-radius: var(--cl-radius-pill);\n  display: inline-flex; align-items: center; gap: 6px;\n  font-weight: 600; font-size: 12.5px; white-space: nowrap;\n  transition: background var(--cl-fast), color var(--cl-fast), transform var(--cl-fast);\n}\n.btn:active { transform: translateY(1px); }\n.btn.primary { background: var(--cl-clay); color: var(--cl-on-clay); }\n.btn.primary:hover { background: var(--cl-clay-hover); }\n.btn.primary[disabled] { opacity: .55; cursor: default; }\n.btn.ghost { color: var(--cl-ink); }\n.btn.ghost:hover { background: var(--cl-bisque); }\n.btn .kbd { font-weight: 500; opacity: .75; font-size: 11px; }\n.spinner { width: 14px; height: 14px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; animation: spin .7s linear infinite; }\n@keyframes spin { to { transform: rotate(360deg); } }\n\n.composer { width: 340px; padding: 12px; }\n.composer .target { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; color: var(--cl-ash); font-size: 12px; min-width: 0; }\n.composer .target .badge { flex: none; display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px 0 6px; border-radius: var(--cl-radius-pill); color: var(--cl-cobalt); background: var(--cl-cobalt-soft); font-weight: 600; }\n.composer .target .what { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }\n.composer textarea {\n  width: 100%; min-height: 64px; max-height: 160px; resize: none;\n  font: 14px/20px var(--cl-font-ui); color: var(--cl-ink);\n  padding: 10px 12px; border-radius: var(--cl-radius-md);\n  border: 1px solid var(--cl-slip-strong); background: var(--cl-paper);\n  transition: border-color var(--cl-fast), box-shadow var(--cl-fast);\n}\n.composer textarea::placeholder { color: var(--cl-ash); }\n.composer textarea:focus { outline: none; border-color: var(--cl-cobalt); box-shadow: 0 0 0 3px color-mix(in oklab, var(--cl-cobalt) 20%, transparent); }\n.suggestions { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 2px; }\n.suggestion {\n  height: 26px; padding: 0 10px; border-radius: var(--cl-radius-pill);\n  border: 1px solid var(--cl-slip); color: var(--cl-ink); font-size: 12px;\n  transition: background var(--cl-fast), border-color var(--cl-fast);\n}\n.suggestion:hover { background: var(--cl-bisque); border-color: var(--cl-slip-strong); }\n.actions { display: flex; justify-content: flex-end; align-items: center; gap: 6px; margin-top: 12px; }\n.actions .left { margin-right: auto; color: var(--cl-ash); font-size: 11.5px; }\n\n.notice { width: 300px; padding: 14px; }\n.notice h3 { margin: 0 0 4px; font: 600 14px/19px var(--cl-font-ui); }\n.notice p { margin: 0; color: var(--cl-ash); font-size: 12.5px; line-height: 18px; }\n\n/* \\u2500\\u2500 Errors \\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500 */\n/* The app can\'t show anything: a quiet sheet over the page, and the story in plain words. */\n.error.screen {\n  pointer-events: auto;\n  position: fixed; inset: 0;\n  display: grid; place-items: center;\n  padding: 32px 24px 112px;\n  overflow: auto;\n  background: color-mix(in oklab, var(--cl-paper) 94%, transparent);\n  -webkit-backdrop-filter: blur(12px) saturate(1.2);\n  backdrop-filter: blur(12px) saturate(1.2);\n  animation: sheet var(--cl-base) var(--cl-ease-out) both;\n}\n@keyframes sheet { from { opacity: 0; } }\n.error.screen .error-body { width: min(440px, 100%); animation: rise var(--cl-slow) var(--cl-ease-out) both; }\n/* Something broke, but the page still works: a small note above the dock. */\n.error.note {\n  pointer-events: auto;\n  width: min(400px, calc(100vw - 24px));\n  padding: 14px 14px 14px 16px;\n  background: var(--cl-paper); border: 1px solid var(--cl-slip); border-radius: var(--cl-radius-lg);\n  box-shadow: var(--cl-shadow-md);\n  animation: rise var(--cl-slow) var(--cl-spring) both;\n}\n.error.still, .error.still .error-body { animation: none; }\n.error .head { display: flex; align-items: center; gap: 10px; }\n.error .dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--cl-oxide); }\n.error .spinner { flex: none; width: 12px; height: 12px; margin: 0 -2px; border-width: 1.75px; color: var(--cl-clay); }\n.error h3 { flex: 1; margin: 0; font: 600 14px/20px var(--cl-font-ui); letter-spacing: -0.01em; }\n.error .close {\n  flex: none; width: 28px; height: 28px; margin: -4px -6px -4px 0; border-radius: 50%;\n  display: grid; place-items: center; color: var(--cl-ash);\n  transition: background var(--cl-fast), color var(--cl-fast);\n}\n.error .close:hover { background: var(--cl-bisque); color: var(--cl-ink); }\n.error .why { margin: 4px 0 0 18px; color: var(--cl-ash); font-size: 13px; line-height: 19px; text-wrap: balance; }\n.error .why strong { color: var(--cl-ink); font-weight: 600; }\n.error .actions { justify-content: flex-start; gap: 4px; margin: 12px 0 0 18px; }\n.error .more { padding: 0 8px 0 12px; gap: 4px; color: var(--cl-ash); }\n.error .more:hover { color: var(--cl-ink); }\n.error .more .ic { transition: transform var(--cl-base) var(--cl-ease-out); }\n.error .more[aria-expanded="true"] .ic { transform: rotate(180deg); }\n.error .details {\n  margin: 14px 0 0 18px; padding: 10px 12px; max-height: 220px; overflow: auto;\n  background: var(--cl-bisque); border: 1px solid var(--cl-slip); border-radius: var(--cl-radius-md);\n  font: 11.5px/17px var(--cl-font-mono); color: var(--cl-ink); user-select: text;\n}\n.error .details[hidden] { display: none; }\n.error .details p { margin: 0; word-break: break-word; }\n.error .details .where { color: var(--cl-ash); }\n.error .details .frame { margin: 8px 0 0; padding-top: 8px; border-top: 1px solid var(--cl-slip); font: inherit; color: var(--cl-ash); white-space: pre; overflow-x: auto; }\n.error.screen h3 { font-size: 22px; line-height: 28px; letter-spacing: -0.02em; }\n.error.screen .close { position: absolute; top: 14px; right: 14px; width: 32px; height: 32px; margin: 0; }\n.error.screen .why { margin-top: 6px; font-size: 14.5px; line-height: 22px; }\n.error.screen .actions { margin-top: 20px; }\n.error.screen .btn { height: 34px; font-size: 13px; }\n.error.screen .btn.primary { padding: 0 16px; }\n\n/* \\u2500\\u2500 Toasts \\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500 */\n.toasts { display: flex; flex-direction: column; align-items: center; gap: 6px; pointer-events: none; }\n.toast {\n  pointer-events: auto;\n  display: inline-flex; align-items: center; gap: 8px;\n  height: 34px; padding: 0 14px 0 10px;\n  background: var(--cl-ink); color: var(--cl-paper);\n  border-radius: var(--cl-radius-pill);\n  font-size: 12.5px; font-weight: 500;\n  box-shadow: var(--cl-shadow-md);\n  animation: rise var(--cl-base) var(--cl-ease-out) both;\n}\n.toast .ic { color: var(--cl-celadon); }\n.toast.warn .ic { color: var(--cl-ochre); }\n.toast.leaving { animation: leave var(--cl-base) var(--cl-ease-in-out) forwards; }\n@keyframes leave { to { opacity: 0; transform: translateY(6px); } }\n\n/* \\u2500\\u2500 Device bar (frame page) \\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500 */\n.devicebar { position: fixed; top: 14px; left: 50%; transform: translateX(-50%); pointer-events: auto; }\n.devicebar .size { padding: 0 6px 0 12px; color: var(--cl-ash); font: 500 12px/18px var(--cl-font-ui); font-variant-numeric: tabular-nums; white-space: nowrap; }\n\n@media (prefers-reduced-motion: reduce) {\n  *, *::before, *::after { animation-duration: 1ms !important; animation-iteration-count: 1 !important; transition-duration: 1ms !important; }\n}\n`;var me="clodable:toolbar:v2",He=new RegExp(`[?&]${M}=1`),C={dynamic:"This text is filled in automatically, from your data or a list in your code, so it can\'t be typed over here.",notFound:"The page changed while you were editing. Try once more.",ambiguous:"That exact text appears twice here, so Claude should change it."},P=class{constructor(e){this.surface=e;let t=new URLSearchParams(location.search);this.device=e==="outer"?t.get("device")??"phone":"desktop";try{this.minimized=JSON.parse(localStorage.getItem(me)??"{}").minimized!==!1}catch{this.minimized=!0}}surface;host;shadow;layer;dockWrap;hintSlot;errorSlot;dockSlot;toasts=new O;hover;active;popover;mode="idle";minimized=!0;shortViewport=innerHeight<=420;expandedInShortViewport=!1;editing;device;mount(){this.host=document.createElement("clodable-toolbar"),this.host.setAttribute("data-clodable",""),this.shadow=this.host.attachShadow({mode:"open"}),this.shadow.append(a("style",{},ge)),this.layer=a("div"),this.hintSlot=a("div"),this.errorSlot=a("div"),this.dockSlot=a("div"),this.dockWrap=a("div",{class:"dock-wrap"},this.toasts.el,this.errorSlot,this.hintSlot,this.dockSlot),this.shadow.append(this.layer,this.dockWrap),this.hover=new S(this.layer),this.active=new S(this.layer),document.body.append(this.host),new MutationObserver(()=>{this.host.isConnected||document.body.append(this.host)}).observe(document.body,{childList:!0}),this.render(),this.surface!=="outer"&&(new A(this.layer,this.errorSlot,(e,t)=>this.toasts.show(e,t?{tone:t}:{})).start(),this.listen()),this.surface==="inner"&&this.reportRoutes(),this.surface==="outer"&&this.followRoutes()}render(){let e=this.shadow.activeElement?.dataset.key;if(this.draw(),!e)return;let t=i=>this.shadow.querySelector(`[data-key="${i}"]`);(t(e)??t("pebble")??t("hide"))?.focus()}draw(){this.surface==="outer"?this.drawDeviceBar():this.collapsed?this.drawPebble():this.drawDock()}get collapsed(){return this.minimized||this.shortViewport&&!this.expandedInShortViewport&&this.mode==="idle"}drawDeviceBar(){this.dockSlot.replaceChildren();let e=new URLSearchParams(location.search),{width:t,height:i}=ee[this.device==="tablet"?"tablet":"phone"],r=e.get("landscape")==="1"?`${i} \\xD7 ${t}`:`${t} \\xD7 ${i}`,n=a("div",{class:"dock",role:"toolbar","aria-label":"Device preview"},this.deviceSwitch(),a("span",{class:"size","aria-label":`Screen size ${r}`},r),a("span",{class:"sep","aria-hidden":"true"}),a("button",{class:"icon-btn","aria-label":"Rotate",title:"Rotate",onclick:()=>this.rotate()},g("refresh")));be(n,this.shadow),this.layer.replaceChildren(this.hover.box,this.hover.chip,this.active.box,this.active.chip,a("div",{class:"devicebar"},n))}drawPebble(){let e=$()?.backend==="copy";this.hintSlot.replaceChildren(),this.dockSlot.replaceChildren(a("button",{class:"pebble labelled","data-key":"pebble","aria-label":"Show Clodable tools",...e?{"aria-description":"This preview uses a copy of your data."}:{},title:"Show Clodable tools (\\u2325\\u21E7H)",onclick:()=>this.setMinimized(!1)},this.mark(24),a("span",{},e?"Copy \\xB7 Tools":"Tools")))}drawDock(){let e=(n,s,l,p)=>a("button",{class:"tool","data-key":n,"aria-pressed":String(this.mode===n),title:`${l} (${p})`,onclick:()=>this.setMode(this.mode===n?"idle":n)},g(s),a("span",{class:"label"},l)),t=a("button",{class:"brand","data-key":"menu","aria-label":"Clodable menu","aria-haspopup":"menu","aria-expanded":"false",onclick:n=>this.toggleMenu(n.currentTarget)},this.mark(24)),i=$()?.backend==="copy",r=a("div",{class:"dock",role:"toolbar","aria-label":"Clodable preview tools"},t,...i?[a("span",{class:"backend",title:"This preview uses your new backend, a copy of your data. Your live app is untouched."},"Copy")]:[],a("span",{class:"sep","aria-hidden":"true"}),e("edit","text","Edit text","\\u2325\\u21E7E"),e("ask","select","Point & ask","\\u2325\\u21E7A"),...this.surface==="app"?[a("span",{class:"sep","aria-hidden":"true"}),this.deviceSwitch()]:[],a("span",{class:"sep","aria-hidden":"true"}),a("button",{class:"icon-btn","data-key":"hide","aria-label":"Hide Clodable tools",title:"Hide (\\u2325\\u21E7H)",onclick:()=>this.setMinimized(!0)},g("minimize")));be(r,this.shadow),this.dockSlot.replaceChildren(r),this.renderHint()}mark(e){let t=a("span",{"aria-hidden":"true",style:"display:grid"});return t.innerHTML=j({size:e}),t}deviceSwitch(){let e=[["desktop","desktop","Full width"],["tablet","tablet","Tablet"],["phone","phone","Phone"]],t=e.findIndex(([i])=>i===this.device);return a("div",{class:"devices",role:"radiogroup","aria-label":"Preview size"},a("span",{class:"thumb","aria-hidden":"true",style:`transform: translateX(${t*100}%)`}),...e.map(([i,r,n])=>a("button",{role:"radio","aria-checked":String(this.device===i),"aria-label":n,title:n,onclick:()=>this.setDevice(i)},g(r))))}renderHint(){if(this.mode==="idle"||this.minimized){this.hintSlot.replaceChildren();return}let e=this.mode==="edit"?"Click any text to change it":"Click anything to ask Claude about it";this.hintSlot.replaceChildren(a("div",{class:`hint ${this.mode==="ask"?"ask":""}`,role:"status"},a("span",{class:"dot"}),e,a("kbd",{},"Esc")))}setMode(e){this.editing&&this.finishEdit(!1),this.closePopover(),this.mode=e,e!=="idle"&&(this.minimized=!1),this.hover.hide(),document.documentElement.style.cursor="",this.render()}setMinimized(e){this.minimized=e,this.expandedInShortViewport=!e;try{localStorage.setItem(me,JSON.stringify({minimized:e}))}catch{}e?this.setMode("idle"):this.render()}setDevice(e){let t=this.surface==="outer"?new URLSearchParams(location.search).get("path")??"/":location.pathname+location.search;if(e==="desktop"){this.surface==="outer"&&(location.href=t);return}let i=`${u.frame}?device=${e}&path=${encodeURIComponent(t)}`;location.href=i}rotate(){let e=new URLSearchParams(location.search);e.set("landscape",e.get("landscape")==="1"?"0":"1"),location.search=e.toString()}isOurs(e){return e instanceof Node&&(e===this.host||this.host.contains(e)||this.shadow.contains(e))}listen(){addEventListener("resize",()=>{let t=innerHeight<=420;t!==this.shortViewport&&(this.shortViewport=t,this.expandedInShortViewport=!1,this.closePopover(),this.render())});let e=0;addEventListener("pointermove",t=>{this.mode==="idle"||this.editing||this.popover||(cancelAnimationFrame(e),e=requestAnimationFrame(()=>this.onHover(t.clientX,t.clientY,t.target)))},{capture:!0,passive:!0});for(let t of["pointerdown","mousedown","pointerup","mouseup","click","dblclick","submit"])addEventListener(t,i=>this.onPointer(i),{capture:!0});addEventListener("keydown",t=>this.onKey(t),{capture:!0}),addEventListener("scroll",()=>this.closePopoverIfDetached(),{capture:!0,passive:!0})}onPointer(e){if(!(this.mode==="idle"||this.isOurs(e.target))&&!(this.editing&&e.target instanceof Node&&this.editing.editable.contains(e.target))&&(e.preventDefault(),e.stopPropagation(),e.stopImmediatePropagation(),e.type==="click")){if(this.editing){this.finishEdit(!0);return}if(this.popover){this.closePopover();return}this.mode==="edit"?this.startEdit(e.clientX,e.clientY):this.mode==="ask"&&this.openComposer(e.clientX,e.clientY)}}onHover(e,t,i){if(this.popover||this.editing||this.mode==="idle")return;if(this.isOurs(i)){this.hover.hide();return}if(this.mode==="edit"){let s=fe(e,t,this.host),l=s&&y(s.el);s&&l?(this.hover.show(s.el,"edit-hover",{icon:"text",strong:"Edit text"}),document.documentElement.style.cursor="text"):(this.hover.hide(),document.documentElement.style.cursor="");return}let r=Z(e,t,this.host),n=r&&y(r);if(r&&n){let s=R(r,32);this.hover.show(r,"ask-hover",{strong:E(r),...s?{muted:`\\xB7 ${s}`}:{}}),document.documentElement.style.cursor="pointer"}else this.hover.hide(),document.documentElement.style.cursor=""}onKey(e){let t=Fe(e.target)&&!this.isOurs(e.target);if(e.altKey&&e.shiftKey&&!e.metaKey&&!e.ctrlKey){let r={KeyE:()=>this.setMode(this.mode==="edit"?"idle":"edit"),KeyA:()=>this.setMode(this.mode==="ask"?"idle":"ask"),KeyH:()=>this.setMinimized(!this.collapsed)}[e.code];if(r&&!(t&&!this.editing)){e.preventDefault(),e.stopPropagation(),r();return}}e.key==="Escape"&&(this.editing?(e.preventDefault(),e.stopPropagation(),this.finishEdit(!1)):this.popover?(e.preventDefault(),this.closePopover()):this.mode!=="idle"&&(e.preventDefault(),this.setMode("idle")))}async startEdit(e,t){let i=fe(e,t,this.host),r=i&&y(i.el);if(!i||!r)return;let n=i.node.textContent??"",s;try{s=await m.probe(r.src,n)}catch{this.toasts.show("Couldn\'t reach Clodable. Is the preview still running?",{tone:"warn"});return}if(!s.editable){this.showLocked(i.el,n,s.reason);return}this.hover.hide();let{editable:l,restore:p}=ze(i.el,i.node),h=a("div",{class:"pop editbar",role:"group","aria-label":"Editing text"},a("span",{class:"note"},"Editing text"),a("button",{class:"btn ghost",onclick:()=>this.finishEdit(!1)},"Cancel"),a("button",{class:"btn primary",onclick:()=>this.finishEdit(!0)},"Save",a("span",{class:"kbd"},"\\u23CE")));this.layer.append(h),this.editing={el:i.el,restore:p,editable:l,node:i.node,src:r.src,before:n,bar:h,saving:!1},this.active.show(l,"editing",void 0,{perLine:l!==i.el}),l.addEventListener("keydown",this.onEditKey),l.addEventListener("focusout",this.onEditBlur),l.focus({preventScroll:!0}),_e(e,t,l);let c=()=>{this.editing&&(J(h,this.editing.el.getBoundingClientRect(),12),requestAnimationFrame(c))};c()}onEditKey=e=>{e.key==="Enter"&&!e.shiftKey&&(e.preventDefault(),this.finishEdit(!0))};onEditBlur=e=>{this.isOurs(e.relatedTarget)||setTimeout(()=>{this.editing&&!this.editing.saving&&document.activeElement!==this.editing.editable&&this.finishEdit(!0)},0)};async finishEdit(e){let t=this.editing;if(!t||t.saving)return;let i=(t.editable.textContent??"").replace(/\\s+/g," ").trim(),r=e&&i&&i!==t.before.replace(/\\s+/g," ").trim();if(t.editable.removeEventListener("keydown",this.onEditKey),t.editable.removeEventListener("focusout",this.onEditBlur),!r){t.restore(),t.node.textContent=t.before,this.endEdit();return}t.saving=!0,t.bar.replaceChildren(a("span",{class:"note"},a("span",{class:"spinner",style:"display:inline-block;vertical-align:-3px;margin-right:8px"}),"Saving\\u2026"));try{let n=await m.edit(t.src,t.before,i);if(t.restore(),n.ok)t.node.textContent=Ne(t.before,i),this.active.fadeOut(t.el,"saved"),this.toasts.show("Text updated \\xB7 saved to your draft");else{t.node.textContent=t.before,this.active.hide();let{reason:s}=n;this.toasts.show(s==="dynamic"?C.dynamic:s==="ambiguous"?C.ambiguous:C.notFound,{tone:"warn",ms:4200})}}catch{t.restore(),t.node.textContent=t.before,this.toasts.show("Couldn\'t save that change. Try again.",{tone:"warn"})}this.endEdit(!1)}endEdit(e=!0){this.editing?.bar.remove(),this.editing=void 0,e&&this.active.hide()}showLocked(e,t,i){this.closePopover(),this.hover.show(e,"locked",{icon:"info",strong:"Not editable here"});let r=a("button",{class:"btn primary",onclick:()=>this.openComposerFor(e,`Change \\u201C${De(t)}\\u201D to `)},"Ask Claude"),n=a("div",{class:"pop notice",role:"dialog","aria-label":"This text can\'t be edited here"},a("h3",{},"Claude can change this one for you"),a("p",{},i==="ambiguous"?C.ambiguous:C.dynamic),a("div",{class:"actions"},a("button",{class:"btn ghost",onclick:()=>this.closePopover()},"Close"),r));this.openPopover(n,e.getBoundingClientRect()),r.focus({preventScroll:!0})}openComposer(e,t){let i=Z(e,t,this.host);i&&y(i)&&this.openComposerFor(i)}openComposerFor(e,t=""){this.closePopover();let i=y(e);this.hover.show(e,"ask-hover");let r=G(e),n=a("textarea",{rows:"3",placeholder:"What should change? For example: make it bigger and bolder","aria-label":"What should change?"});n.value=t;let s=a("button",{class:"btn primary",onclick:()=>l()},"Send to Claude"),l=async()=>{let c=n.value.trim();if(!c){n.focus();return}s.setAttribute("disabled","");try{let xe=i?Q(i.src):void 0;await m.ask(c,he(e),xe),this.closePopover(),this.setMode("idle"),this.toasts.show("Sent to Claude")}catch{s.removeAttribute("disabled"),this.toasts.show("Couldn\'t reach Claude. Is Clodable running?",{tone:"warn"})}};n.addEventListener("keydown",c=>{c.key==="Enter"&&!c.shiftKey&&(c.preventDefault(),l())});let p=R(e,48),h=a("div",{class:"pop composer",role:"dialog","aria-label":`Ask Claude about this ${E(e).toLowerCase()}`},a("div",{class:"target"},a("span",{class:"badge"},g("select",14),E(e)),p?a("span",{class:"what"},`\\u201C${p}\\u201D`):null),n,a("div",{class:"suggestions"},...ue[r].map(c=>a("button",{class:"suggestion",onclick:()=>{n.value=c,n.focus()}},c))),a("div",{class:"actions"},a("span",{class:"left"},"\\u23CE to send"),a("button",{class:"btn ghost",onclick:()=>this.closePopover()},"Cancel"),s));this.openPopover(h,e.getBoundingClientRect()),n.focus({preventScroll:!0}),n.setSelectionRange(n.value.length,n.value.length)}openPopover(e,t){this.closePopover(!1),this.popover=e,this.layer.append(e),J(e,t)}closePopover(e=!0){let t=this.popover?.classList.contains("menu")&&this.popover.contains(this.shadow.activeElement);this.popover?.remove(),this.popover=void 0,e&&this.hover.hide();let i=this.shadow?.querySelector(\'.brand[aria-expanded="true"]\');i?.setAttribute("aria-expanded","false"),t&&i?.focus()}closePopoverIfDetached(){this.popover?.classList.contains("menu")||this.popover&&!this.editing&&this.closePopover()}toggleMenu(e){if(this.popover?.classList.contains("menu")){this.closePopover();return}let t=(n,s,l,p)=>a("button",{class:"menu-item",role:"menuitem",onclick:()=>{this.closePopover(),p()}},g(n),s,a("span",{class:"shortcut"},l)),i=a("div",{class:"menu",role:"menu","aria-label":"Clodable"},a("div",{class:"head"},this.mark(28),a("div",{},a("b",{},"Clodable"),a("span",{},"Only you see these tools. Visitors never do."))),a("hr"),t("text","Edit text","\\u2325\\u21E7E",()=>this.setMode("edit")),t("select","Point & ask Claude","\\u2325\\u21E7A",()=>this.setMode("ask")),...this.surface==="app"?[t("phone","Phone preview","",()=>this.setDevice("phone"))]:[],a("hr"),t("minimize","Hide these tools","\\u2325\\u21E7H",()=>this.setMinimized(!0)));ve(i,this.shadow,"ArrowUp","ArrowDown"),this.popover=i,this.layer.append(i),e.setAttribute("aria-expanded","true");let r=e.getBoundingClientRect();i.style.left=`${Math.max(8,r.left-6)}px`,i.style.top=`${r.top-i.getBoundingClientRect().height-10}px`,i.querySelector(".menu-item")?.focus()}reportRoutes(){let e=()=>parent.postMessage({type:"clodable:route",path:location.pathname+location.search.replace(He,"")},location.origin);for(let t of["pushState","replaceState"]){let i=history[t].bind(history);history[t]=((...r)=>{i(...r),e()})}addEventListener("popstate",e)}followRoutes(){addEventListener("message",e=>{if(e.origin!==location.origin||e.data?.type!=="clodable:route")return;let t=new URLSearchParams(location.search);t.set("path",e.data.path||"/"),history.replaceState(null,"",`${location.pathname}?${t.toString()}`)})}};function be(o,e){ve(o,e,"ArrowLeft","ArrowRight");let t=Array.from(o.querySelectorAll("button"));for(let[i,r]of t.entries())r.tabIndex=i===0?0:-1,r.addEventListener("focus",()=>{for(let n of t)n.tabIndex=-1;r.tabIndex=0})}function ve(o,e,t,i){o.addEventListener("keydown",r=>{let n=Array.from(o.querySelectorAll("button")),s=n.indexOf(e.activeElement);if(s<0)return;let p={[t]:s-1,[i]:s+1,Home:0,End:n.length-1}[r.key];p!==void 0&&(r.preventDefault(),n[(p+n.length)%n.length]?.focus())})}var De=o=>{let e=o.replace(/\\s+/g," ").trim();return e.length>60?`${e.slice(0,59)}\\u2026`:e};function Ne(o,e){let t=o.match(/^\\s*/)?.[0]??"",i=o.match(/\\s*$/)?.[0]??"";return`${t}${e}${i}`}function Fe(o){return o instanceof HTMLElement&&(o.isContentEditable||["INPUT","TEXTAREA","SELECT"].includes(o.tagName))}function Z(o,e,t){let i=document.elementFromPoint(o,e);if(!(!i||i===t||i===document.documentElement||i===document.body))return i}function fe(o,e,t){let i=document,r=null,n=document.caretPositionFromPoint?.(o,e);if(n?r=n.offsetNode:r=i.caretRangeFromPoint?.(o,e)?.startContainer??null,r&&r.nodeType===Node.TEXT_NODE&&r.textContent?.trim()&&r.parentElement&&!t.contains(r)){let p=document.createRange();if(p.selectNodeContents(r),Array.from(p.getClientRects()).some(c=>o>=c.left-3&&o<=c.right+3&&e>=c.top-3&&e<=c.bottom+3))return{el:r.parentElement,node:r}}let s=Z(o,e,t);if(!s)return;let l=Array.from(s.childNodes).find(p=>p.nodeType===Node.TEXT_NODE&&!!p.textContent?.trim());return l&&s instanceof HTMLElement?{el:s,node:l}:void 0}function ze(o,e){let t=Array.from(o.childNodes).filter(r=>!(r.nodeType===Node.TEXT_NODE&&!r.textContent?.trim()));if(t.length===1&&t[0]===e){let r=o.getAttribute("contenteditable"),n=Array.from(o.childNodes);return o.setAttribute("contenteditable","plaintext-only"),o.setAttribute("spellcheck","true"),{editable:o,restore:()=>{r===null?o.removeAttribute("contenteditable"):o.setAttribute("contenteditable",r),o.removeAttribute("spellcheck"),o.replaceChildren(...n)}}}let i=document.createElement("span");return i.setAttribute("contenteditable","plaintext-only"),i.setAttribute("data-clodable-editing",""),i.style.outline="none",e.replaceWith(i),i.textContent=e.textContent,{editable:i,restore:()=>{i.replaceWith(e)}}}function _e(o,e,t){let i=getSelection();if(!i)return;let r=document,n=document.caretPositionFromPoint?.(o,e),s=document.createRange();if(n&&t.contains(n.offsetNode))s.setStart(n.offsetNode,n.offset);else{let l=r.caretRangeFromPoint?.(o,e);l&&t.contains(l.startContainer)?s.setStart(l.startContainer,l.startOffset):s.selectNodeContents(t)}s.collapse(!0),i.removeAllRanges(),i.addRange(s)}function Ie(){if(window.__CLODABLE_MOUNTED__)return;Object.defineProperty(window,"__CLODABLE_MOUNTED__",{value:!0}),ie(),pe();let o=location.pathname===u.frame?"outer":new URLSearchParams(location.search).has(M)?"inner":"app",e=()=>setTimeout(()=>new P(o).mount(),0);document.readyState==="complete"?e():addEventListener("load",e,{once:!0})}Ie();})();\n';
+  if (true) return '"use strict";(()=>{var _="data-cl-src";function ae(i){let e=i.match(/^(.+):(\\d+):(\\d+)$/);if(e)return{file:e[1],line:Number(e[2]),column:Number(e[3])}}var b="/__clodable/",u={toolbar:`${b}toolbar.js`,health:`${b}health`,locale:`${b}locale`,frame:`${b}frame`,probe:`${b}text/probe`,text:`${b}text`,inbox:`${b}inbox`,originalLine:`${b}original-line`,buildError:`${b}build-error`},A="__clodable_frame",B={phone:{width:390,height:844},tablet:{width:820,height:1180}};function q(i,e,t){return{message:i.trim().split(`\n`)[0].slice(0,300),stack:e.slice(0,4e3),kind:"build",...t?{source:t}:{}}}var R=()=>typeof __CLODABLE__>"u"?void 0:__CLODABLE__,Oe=()=>R()?.token??"",se;function le(){se=window.fetch.bind(window)}async function x(i,e){let t=await(se??fetch)(i,{method:"POST",headers:{"content-type":"application/json","x-clodable-token":Oe()},body:JSON.stringify(e)});if(!t.ok)throw new Error(`Clodable ${i}: ${t.status}`);return await t.json()}var j=()=>{try{let i=sessionStorage.getItem("clodable:conversation");return i?{conversation:i}:{}}catch{return{}}},V=()=>({url:location.href,path:location.pathname+location.search,title:document.title}),f={locale:i=>x(u.locale,{conversation:i}),probe:(i,e)=>x(u.probe,{src:i,text:e}),edit:(i,e,t)=>x(u.text,{src:i,before:e,after:t,page:V(),...j()}),ask:(i,e,t)=>x(u.inbox,{kind:"ask",page:V(),request:i,element:e,...t?{source:t}:{},...j()}),fix:(i,e)=>x(u.inbox,{kind:"fix",page:V(),error:i,console:e,...j()}),originalLine:i=>x(u.originalLine,i).then(e=>e.line),buildError:i=>x(u.buildError,{since:i}).then(e=>e.error)};var U={light:{paper:"#FBF8F3",bisque:"#F4EEE6",slip:"#E7DED2",slipStrong:"#D3C6B6",ink:"#1F1A16",ash:"#6B6158",clay:"#B9502B",clayHover:"#A44322",clayText:"#A2441F",onClay:"#FFFFFF",claySoft:"#F7E4DA",celadon:"#2B7354",celadonSoft:"#E1F0E8",cobalt:"#2D5BA6",cobaltSoft:"#E3EBF7",ochre:"#8F6210",ochreSoft:"#F7ECD4",oxide:"#B1281E",oxideSoft:"#F9E1DE",focus:"#2D5BA6",scrim:"rgba(31, 26, 22, 0.32)"},dark:{paper:"#15110E",bisque:"#1E1915",slip:"#352D27",slipStrong:"#4A4038",ink:"#F3EEE7",ash:"#A79D92",clay:"#E5764F",clayHover:"#EE8A66",clayText:"#F08F6B",onClay:"#1F1A16",claySoft:"#3A2419",celadon:"#6CC59E",celadonSoft:"#16342A",cobalt:"#8AB0F0",cobaltSoft:"#18263D",ochre:"#E6B356",ochreSoft:"#3A2C12",oxide:"#F27B70",oxideSoft:"#3E1A17",focus:"#8AB0F0",scrim:"rgba(0, 0, 0, 0.5)"}};var K={sm:"6px",md:"10px",lg:"14px",xl:"20px",pill:"999px"},k={ui:\'ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text", "Segoe UI", system-ui, "Helvetica Neue", Arial, sans-serif\',mono:\'ui-monospace, "SF Mono", "Cascadia Code", "JetBrains Mono", Menlo, Consolas, monospace\',display:\'"Fraunces", "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, ui-serif, serif\'};var W={light:{sm:"0 1px 2px rgba(60, 38, 20, 0.08)",md:"0 1px 2px rgba(60, 38, 20, 0.06), 0 6px 16px -4px rgba(60, 38, 20, 0.14)",lg:"0 2px 4px rgba(60, 38, 20, 0.06), 0 18px 40px -12px rgba(60, 38, 20, 0.28)"},dark:{sm:"0 1px 2px rgba(0, 0, 0, 0.4)",md:"0 1px 2px rgba(0, 0, 0, 0.4), 0 6px 16px -4px rgba(0, 0, 0, 0.5)",lg:"0 2px 4px rgba(0, 0, 0, 0.4), 0 18px 40px -12px rgba(0, 0, 0, 0.7)"}},v={fast:"120ms",base:"180ms",slow:"260ms",easeOut:"cubic-bezier(0.2, 0.8, 0.2, 1)",easeInOut:"cubic-bezier(0.65, 0, 0.35, 1)",spring:"cubic-bezier(0.34, 1.4, 0.64, 1)"},Y={toolbar:2147483e3,toast:2147483100,overlay:2147483200};var He=i=>i.replace(/[A-Z]/g,e=>`-${e.toLowerCase()}`);function E(i){let e=Object.entries(U[i]).map(([o,r])=>`--cl-${He(o)}: ${r};`).join(" "),t=Object.entries(W[i]).map(([o,r])=>`--cl-shadow-${o}: ${r};`).join(" ");return`${e} ${t} color-scheme: ${i};`}var ce=[...Object.entries(K).map(([i,e])=>`--cl-radius-${i}: ${e};`),`--cl-font-ui: ${k.ui};`,`--cl-font-mono: ${k.mono};`,`--cl-font-display: ${k.display};`,`--cl-fast: ${v.fast};`,`--cl-base: ${v.base};`,`--cl-slow: ${v.slow};`,`--cl-ease-out: ${v.easeOut};`,`--cl-ease-in-out: ${v.easeInOut};`,`--cl-spring: ${v.spring};`].join(" ");function X(i={}){let e=i.selector??":root",t=i.scheme??"auto";if(t!=="auto")return`${e} { ${ce} ${E(t)} }`;let o=r=>e===":host"?`:host([data-theme="${r}"]) { ${E(r)} }`:`${e}[data-theme="${r}"] { ${E(r)} }`;return[`${e} { ${ce} ${E("light")} }`,`@media (prefers-color-scheme: dark) { ${e} { ${E("dark")} } }`,o("light"),o("dark")].join(`\n`)}var h=(...i)=>i,pe={check:h("M4.5 10.5l3.5 3.5 7.5-8"),close:h("M5.5 5.5l9 9M14.5 5.5l-9 9"),publish:h("M10 13.5v-7","M7 9.5l3-3 3 3",{circle:[10,10,7]}),undo:h("M7.5 5.5 4 9l3.5 3.5","M4.5 9h7.25a3.75 3.75 0 0 1 0 7.5H10"),restore:h("M3.5 10a6.5 6.5 0 1 0 1.9-4.6","M3.5 3.5v3h3","M10 6.75V10l2.5 1.5"),external:h("M8.5 5.5h-3a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-3","M11.5 4.5h4v4","M15.5 4.5 9.5 10.5"),phone:h("M8 2.5h4a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2v-11a2 2 0 0 1 2-2z","M9 15h2"),tablet:h("M6 3h8a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z","M9 14.5h2"),desktop:h("M3.5 4.5h13a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1h-13a1 1 0 0 1-1-1v-8a1 1 0 0 1 1-1z","M7.5 17.5h5","M10 14.5v3"),text:h("M3.5 6V4.5h9V6","M8 4.5v11","M6 15.5h4","M15 8.5v8","M13.5 8.5h3","M13.5 16.5h3"),select:h("M4.5 3.5l10.5 4.6-4.4 1.6-1.6 4.4z","M10.6 9.7l4.4 4.4"),minimize:h("M5 10h10"),alert:h("M10 3.8 17.2 16.2H2.8z","M10 8.5v3.5","M10 14.25v.01"),info:h({circle:[10,10,7]},"M10 9.25v4.5","M10 6.5v.01"),globe:h({circle:[10,10,7]},"M3 10h14","M10 3c1.9 2 2.9 4.4 2.9 7s-1 5-2.9 7c-1.9-2-2.9-4.4-2.9-7s1-5 2.9-7z"),database:h("M4 5.5C4 4.1 6.7 3 10 3s6 1.1 6 2.5S13.3 8 10 8 4 6.9 4 5.5z","M4 5.5v9C4 15.9 6.7 17 10 17s6-1.1 6-2.5v-9","M4 10c0 1.4 2.7 2.5 6 2.5s6-1.1 6-2.5"),refresh:h("M15.5 8a6 6 0 0 0-10.4-1.6L4 8","M4 4.5V8h3.5","M4.5 12a6 6 0 0 0 10.4 1.6L16 12","M16 15.5V12h-3.5"),grip:h({circle:[7.5,6,1.1],fill:!0},{circle:[12.5,6,1.1],fill:!0},{circle:[7.5,10,1.1],fill:!0},{circle:[12.5,10,1.1],fill:!0},{circle:[7.5,14,1.1],fill:!0},{circle:[12.5,14,1.1],fill:!0}),more:h({circle:[5,10,1.25],fill:!0},{circle:[10,10,1.25],fill:!0},{circle:[15,10,1.25],fill:!0}),chevronDown:h("M6 8l4 4 4-4"),chevronUp:h("M6 12l4-4 4 4"),arrowRight:h("M4.5 10h11","M11 5.5l4.5 4.5-4.5 4.5"),copy:h("M7.5 7.5h7a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1h-7a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1z","M4.5 12.5h-.25a.75.75 0 0 1-.75-.75v-7.5a.75.75 0 0 1 .75-.75h7.5a.75.75 0 0 1 .75.75v.25")},de=i=>i.replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;");function G(i,e={}){let t=e.size??20,o=e.strokeWidth??1.6,r=e.label?`role="img" aria-label="${de(e.label)}"`:\'aria-hidden="true" focusable="false"\',n=e.className?` class="${de(e.className)}"`:"",l=pe[i].map(c=>{if(typeof c=="string")return`<path d="${c}"/>`;let[d,g,p]=c.circle;return c.fill?`<circle cx="${d}" cy="${g}" r="${p}" fill="currentColor" stroke="none"/>`:`<circle cx="${d}" cy="${g}" r="${p}"/>`}).join("");return`<svg${n} xmlns="http://www.w3.org/2000/svg" width="${t}" height="${t}" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="${o}" stroke-linecap="round" stroke-linejoin="round" ${r}>${l}</svg>`}var he=[".........ooo....",".......oobbbo...","......obbbbbo...","....oobbbbbbo...","...obbbbbbbbbo..","..obbbbbbbbbbbo.",".obbbbbbbbbbbbo.",".obbeebbbbeebbo.","obbbeebbbbeebbbo","obbbbbbeebbbbbbo","obbbbbbbbbbbbbbo","oobbbbbbbbbbbbbo","..obbbbbbbbbbbo.","..oobbbooobbboo.","....obo...obo...","....ooo...ooo..."],ue={outline:"#3B1A10",clay:"#E88858",eyes:"#2A140C"};function ze(i){let e={o:i.outline,b:i.clay,e:i.eyes},t={};return he.forEach((o,r)=>{for(let n=0;n<o.length;){let l=o[n],c=1;for(;o[n+c]===l;)c++;e[l]&&(t[l]=`${t[l]??""}M${n} ${r}h${c}v1h-${c}z`),n+=c}}),Object.entries(t).map(([o,r])=>`<path fill="${e[o]}" d="${r}"/>`).join("")}function J(i={}){let e=i.size??32,t=i.label?`role="img" aria-label="${i.label.replace(/"/g,"&quot;")}"`:\'aria-hidden="true" focusable="false"\';return`<svg xmlns="http://www.w3.org/2000/svg" width="${e}" height="${e}" viewBox="0 0 16 16" shape-rendering="crispEdges" ${t}>${ze({...ue,...i.colors})}</svg>`}function a(i,e={},...t){let o=document.createElement(i);for(let[r,n]of Object.entries(e))n==null||n===!1||(r==="class"?o.className=String(n):r==="style"?typeof n=="string"?o.setAttribute("style",n):Object.assign(o.style,n):r==="dataset"?Object.assign(o.dataset,n):r.startsWith("on")&&typeof n=="function"?o.addEventListener(r.slice(2).toLowerCase(),n):n===!0?o.setAttribute(r,""):o.setAttribute(r,String(n)));return De(o,t),o}function De(i,e){for(let t of e)t==null||t===!1||i.appendChild(typeof t=="object"?t:document.createTextNode(String(t)))}function m(i,e=18){let t=document.createElement("span");return t.className="ic",t.innerHTML=G(i,{size:e,strokeWidth:e<=16?1.7:1.6}),t}var Fe={en:["english","anglais"],fr:["french","fran\\xE7ais","francais"]};function Q(i){if(typeof i!="string")return"en";let e=i.trim().toLowerCase();for(let[t,o]of Object.entries(Fe))if(e===t||o.some(r=>r===e)||new RegExp(`^${t}[-_][a-z0-9]+(?:[-_][a-z0-9]+)*$`).test(e))return t;return"en"}function ge(i,e,t,o={}){return(i==="fr"&&Object.hasOwn(e,t)?e[t]:t).replace(/\\{([\\w]+)\\}/g,(n,l)=>Object.hasOwn(o,l)?String(o[l]):n)}var me={"Device preview":"Aper\\xE7u par appareil","Screen size {size}":"Taille de l\\u2019\\xE9cran : {size}",Rotate:"Faire pivoter","Show Clodable tools":"Afficher les outils Clodable","This preview uses a copy of your data.":"Cet aper\\xE7u utilise une copie de vos donn\\xE9es.","Show Clodable tools (\\u2325\\u21E7H)":"Afficher les outils Clodable (\\u2325\\u21E7H)","Copy \\xB7 Tools":"Copie \\xB7 Outils",Tools:"Outils","Clodable menu":"Menu Clodable","Clodable preview tools":"Outils de l\\u2019aper\\xE7u Clodable","This preview uses your new backend, a copy of your data. Your live app is untouched.":"Cet aper\\xE7u utilise votre nouveau backend, avec une copie de vos donn\\xE9es. Votre application en ligne reste inchang\\xE9e.",Copy:"Copie","Edit text":"Modifier le texte","Point & ask":"S\\xE9lectionner et demander","Hide Clodable tools":"Masquer les outils Clodable","Hide (\\u2325\\u21E7H)":"Masquer (\\u2325\\u21E7H)","Full width":"Pleine largeur",Tablet:"Tablette",Phone:"T\\xE9l\\xE9phone","Preview size":"Taille de l\\u2019aper\\xE7u","Click any text to change it":"Cliquez sur un texte pour le modifier","Click anything to ask Claude about it":"Cliquez sur un \\xE9l\\xE9ment pour demander une modification \\xE0 Claude",Esc:"\\xC9chap","Couldn\'t reach Clodable. Is the preview still running?":"Clodable ne r\\xE9pond pas. L\\u2019aper\\xE7u est-il toujours ouvert ?","Editing text":"Modification du texte",Cancel:"Annuler",Save:"Enregistrer","Saving\\u2026":"Enregistrement\\u2026","Text updated \\xB7 saved to your draft":"Texte modifi\\xE9 \\xB7 enregistr\\xE9 dans votre brouillon","Couldn\'t save that change. Try again.":"Impossible d\\u2019enregistrer cette modification. R\\xE9essayez.","Not editable here":"Non modifiable ici","Change \\u201C{text}\\u201D to ":"Remplace \\xAB {text} \\xBB par ","Ask Claude":"Demander \\xE0 Claude","This text can\'t be edited here":"Ce texte ne peut pas \\xEAtre modifi\\xE9 ici","Claude can change this one for you":"Claude peut modifier ce texte pour vous",Close:"Fermer","What should change? For example: make it bigger and bolder":"Que voulez-vous modifier ? Par exemple : agrandir et mettre en gras","What should change?":"Que voulez-vous modifier ?","Send to Claude":"Envoyer \\xE0 Claude","Sent to Claude":"Envoy\\xE9 \\xE0 Claude","Couldn\'t reach Claude. Is Clodable running?":"Claude ne r\\xE9pond pas. Clodable est-il ouvert ?","Ask Claude about this {element}":"Demander une modification \\xE0 Claude : {element}","\\u23CE to send":"\\u23CE pour envoyer","Only you see these tools. Visitors never do.":"Ces outils sont visibles uniquement par vous, jamais par vos visiteurs.","Point & ask Claude":"S\\xE9lectionner et demander \\xE0 Claude","Phone preview":"Aper\\xE7u sur t\\xE9l\\xE9phone","Hide these tools":"Masquer ces outils","This text is filled in automatically, from your data or a list in your code, so it can\'t be typed over here.":"Ce texte vient de vos donn\\xE9es ou d\\u2019une liste dans le code. Vous ne pouvez pas le modifier directement ici.","The page changed while you were editing. Try once more.":"La page a chang\\xE9 pendant votre modification. R\\xE9essayez.","That exact text appears twice here, so Claude should change it.":"Ce texte appara\\xEEt deux fois ici. Demandez \\xE0 Claude de le modifier.",Heading:"Titre",Text:"Texte",Button:"Bouton",Link:"Lien",Image:"Image",Field:"Champ",List:"Liste",Section:"Section",Navigation:"Navigation",Card:"Carte",Icon:"Ic\\xF4ne",Element:"\\xC9l\\xE9ment",Header:"En-t\\xEAte",Footer:"Pied de page","Rewrite it":"Reformule ce texte","Make it bigger":"Agrandis cet \\xE9l\\xE9ment","Change the font":"Change la police","Make it shorter":"Raccourcis ce texte","Change the color":"Change la couleur","Change the label":"Change le libell\\xE9","Make it stand out":"Mets cet \\xE9l\\xE9ment en valeur","Change what it does":"Change son action","Change where it goes":"Change la destination du lien","Change the text":"Change le texte","Style it as a button":"Donne-lui l\\u2019apparence d\\u2019un bouton","Replace the image":"Remplace l\\u2019image","Make it rounder":"Arrondis les coins","Change the placeholder":"Change le texte indicatif","Make it required":"Rends ce champ obligatoire","Add an item":"Ajoute un \\xE9l\\xE9ment","Change the layout":"Change la disposition","Reorder it":"Change l\\u2019ordre","Add something here":"Ajoute quelque chose ici","Change the background":"Change le fond","Add a link":"Ajoute un lien","Change the logo":"Change le logo","Make it sticky":"Garde cet \\xE9l\\xE9ment visible pendant le d\\xE9filement","Add a picture":"Ajoute une image","Use a different icon":"Change l\\u2019ic\\xF4ne","Change the style":"Change le style","Move it":"D\\xE9place cet \\xE9l\\xE9ment","Remove it":"Supprime cet \\xE9l\\xE9ment","{from} refers to {file}, a file that doesn\\u2019t exist.":"{from} fait r\\xE9f\\xE9rence \\xE0 {file}, un fichier introuvable.","{from} uses {package}, a package that isn\\u2019t installed.":"{from} utilise {package}, un package qui n\\u2019est pas install\\xE9.","{page} refers to {name}, which doesn\\u2019t exist.":"{page} fait r\\xE9f\\xE9rence \\xE0 {name}, qui n\\u2019existe pas.","This page":"Cette page","Part of the app\\u2019s code didn\\u2019t load.":"Une partie du code de l\\u2019application n\\u2019a pas pu se charger.","{file} has a mistake on line {line}.":"{file} contient une erreur \\xE0 la ligne {line}.","A mistake in the code stops it from loading.":"Une erreur dans le code emp\\xEAche le chargement.","The problem starts in {file}, line {line}.":"Le probl\\xE8me vient de {file}, \\xE0 la ligne {line}.","Something in the code went wrong.":"Une erreur s\\u2019est produite dans le code.","Claude is fixing it\\u2026":"Claude corrige le probl\\xE8me\\u2026","Your app can\\u2019t load":"Votre application ne peut pas se charger","This page can\\u2019t load":"Cette page ne peut pas se charger","Something broke on this page":"Un probl\\xE8me est survenu sur cette page",Dismiss:"Fermer","The preview updates by itself when it\\u2019s fixed.":"L\\u2019aper\\xE7u se met \\xE0 jour d\\xE8s que le probl\\xE8me est corrig\\xE9.","Try to fix":"Demander une correction","Hide details":"Masquer les d\\xE9tails","Show details":"Afficher les d\\xE9tails","{device} preview":"Aper\\xE7u sur {device}","{device} preview, {width} by {height}":"Aper\\xE7u sur {device}, {width} sur {height}","Your app at {width} pixels wide":"Votre application sur {width} pixels de large"};var C="clodable:locale";function S(){try{return Q(sessionStorage.getItem(C))}catch{return"en"}}function s(i,e){return ge(S(),me,i,e)}function P(i){addEventListener("clodable:locale",i),addEventListener("storage",e=>{(e.key===C||e.key===null)&&i()})}var fe=!1,be=0;async function ve(){try{let i=sessionStorage.getItem("clodable:conversation");if(!i||!/^[\\w-]{1,64}$/.test(i))return;let e=sessionStorage.getItem(C),t=++be,o=await f.locale(i);if(t!==be||sessionStorage.getItem("clodable:conversation")!==i||sessionStorage.getItem(C)!==e||typeof o.locale!="string")return;let r=Q(o.locale);if(r===e)return;sessionStorage.setItem(C,r),dispatchEvent(new CustomEvent("clodable:locale"))}catch{}}function xe(){fe||(fe=!0,addEventListener("focus",()=>{ve()}),ve())}var H=[],ye=[],te;function Z(i){te?te(i):ye.push(i)}var ke="Part of the app didn\'t load",Ee=new RegExp(`^${ke}$|Failed to fetch dynamically imported module|error loading dynamically imported module|Importing a module script failed`,"i"),ie="clodable:fixing";function Ne(){try{return Date.now()-Number(sessionStorage.getItem(ie)??0)<12e4}catch{return!1}}function O(i){try{i?sessionStorage.setItem(ie,String(Date.now())):sessionStorage.removeItem(ie)}catch{}}function Ce(){addEventListener("error",e=>{let t=e.target;!(t instanceof HTMLScriptElement)||t.hasAttribute("data-clodable-toolbar")||t.src&&new URL(t.src,location.href).origin!==location.origin||Z({message:ke,kind:"build"})},!0),addEventListener("error",e=>{let t=e.error;Z({message:t?.message??e.message,...t?.stack?{stack:t.stack}:{},kind:"runtime"})}),addEventListener("unhandledrejection",e=>{let t=e.reason,o=typeof t=="string"?t:t?.message??"A background task failed";Z({message:o,...typeof t=="object"&&t?.stack?{stack:t.stack}:{},kind:"promise"})});let i=console.error.bind(console);console.error=(...e)=>{H.push(e.map(t=>t instanceof Error?t.message:String(t)).join(" ").slice(0,400)),H.length>8&&H.shift(),i(...e)}}async function Ie(){try{return(await import(`${location.origin}/@vite/client`)).createHotContext?.(u.toolbar)}catch{return}}var _e=[/ResizeObserver loop/i,/Script error\\.?$/i,/__clodable/];function Be(i){if(i)for(let e of i.split(`\n`)){let t=e.match(/https?:\\/\\/[^/]+\\/(src\\/[^?:)\\s]+)(?:\\?[^:)]*)?:(\\d+):(\\d+)/);if(t)return{file:t[1],line:Number(t[2]),column:Number(t[3])}}}function ee(){return((document.getElementById("root")??document.body).innerText??"").trim().length===0}var we=i=>i.split("/").pop()??i,w=i=>a("strong",{},i);function M(i,e={}){return s(i).split(/(\\{\\w+\\})/g).filter(Boolean).map(t=>e[t.slice(1,-1)]??t)}function qe(i){let e=i.source&&we(i.source.file),t=i.message.match(/Failed to resolve import "([^"]+)" from "([^"]+)"/);if(t){let r=t[1],n=w(we(t[2]));if(/^(\\.|\\/|@\\/|~\\/)/.test(r)){let l=r.replace(/^(@|~)\\//,"").replace(/^(\\.\\.?\\/)+/,"");return M("{from} refers to {file}, a file that doesn\\u2019t exist.",{from:n,file:w(l)})}return M("{from} uses {package}, a package that isn\\u2019t installed.",{from:n,package:w(r)})}let o=i.message.match(/^(?:\\w*Error: )?([\\w$]+) is not defined$|Can\'t find variable: ([\\w$]+)/);return o?M("{page} refers to {name}, which doesn\\u2019t exist.",{page:e?w(e):s("This page"),name:w(o[1]??o[2])}):Ee.test(i.message)?[s("Part of the app\\u2019s code didn\\u2019t load.")]:i.kind==="build"?e?M("{file} has a mistake on line {line}.",{file:w(e),line:String(i.source.line)}):[s("A mistake in the code stops it from loading.")]:e?M("The problem starts in {file}, line {line}.",{file:w(e),line:String(i.source.line)}):[s("Something in the code went wrong.")]}function je(i){let e=i.source?`${i.source.file}:${i.source.line}`:"",t=[];for(let o of(i.stack??"").split(`\n`))!o.trim()||o.endsWith(i.message)||i.source&&o.endsWith(i.source.file)||t.push(o.replace(/https?:\\/\\/[^/\\s]+\\/(@fs\\/)?/g,"").replace(/\\?[^:)\\s]*(?=:\\d)/g,""));return{where:e,frame:t.slice(0,24).join(`\n`)}}function Ve(i){let e=i.err;if(!e)return;let t=e.loc?.file??e.id??"",o=t.match(/(src\\/[^?:]+)/);return q(e.message??"The app couldn\'t be built",`${t}\n${e.message??""}\n${e.stack??""}`,o?{file:o[1],line:e.loc?.line??1}:void 0)}function Ue(){let i=document.querySelector("vite-error-overlay");if(!i)return;let e=i.shadowRoot?.querySelector(".message-body")?.textContent??"The app couldn\'t be built",t=i.shadowRoot?.querySelector(".file")?.textContent??"",o=t.match(/(src\\/[^:]+):(\\d+)/);return q(e,`${t}\n${e}`,o?{file:o[1],line:Number(o[2])}:void 0)}function Ke(i,e,t){return e?s("Claude is fixing it\\u2026"):i.kind==="build"?s("Your app can\\u2019t load"):t?s("This page can\\u2019t load"):s("Something broke on this page")}var z=class{constructor(e,t,o){this.layer=e;this.dockSlot=t;this.toast=o}layer;dockSlot;toast;card;current;dismissed=new Set;detailsOpen=!1;updateStarted=0;start(){te=t=>this.capture(t),P(()=>{this.card?.isConnected&&this.render()});let e=ye.splice(0);for(let t of e)this.capture(t);!e.length&&ee()&&f.buildError(performance.timeOrigin).then(t=>{t&&!this.current&&this.show(t)},()=>{}),setTimeout(()=>{this.current||O(!1)},3e3),Ie().then(t=>{t?.on("vite:error",o=>{let r=Ve(o);r&&this.capture(r)}),t?.on("vite:beforeUpdate",()=>{this.updateStarted=Date.now()}),t?.on("vite:afterUpdate",()=>{this.afterUpdate()})}),new MutationObserver(()=>{let t=Ue();t&&this.capture(t)}).observe(document.documentElement,{childList:!0})}async afterUpdate(){if(this.current){if(ee()||this.current.kind==="build"){let e=await f.buildError(this.updateStarted).catch(()=>null);e?this.show(e):location.reload();return}O(!1),this.dismiss(!1)}}capture(e){if(!(!e.message||_e.some(t=>t.test(e.message)))){if(Ee.test(e.message)){f.buildError(performance.timeOrigin).then(t=>this.show(t??e),()=>this.show(e));return}this.show(e)}}show(e){if(this.dismissed.has(e.message))return;let t=e.source?void 0:Be(e.stack);if(t){let o=r=>this.show({...e,source:{file:t.file,line:r??t.line}});f.originalLine(t).then(o,()=>o(null));return}this.current=e,setTimeout(()=>this.render(),60)}render(e=Ne()){let t=this.current;if(!t)return;let o=t.kind==="build"||ee(),r=!!this.card?.isConnected,n=this.layer.getRootNode(),l=!!this.card?.contains(n.activeElement);this.card?.remove();let{more:c,details:d}=this.detailsToggle(t),g=a("button",{class:"close","aria-label":s("Dismiss"),onclick:()=>this.dismiss()},m("close",16)),p=a("div",{class:`error ${o?"screen":"note"}${e?" working":""}${r?" still":""}`,role:"alert","aria-labelledby":"cl-err-title","aria-describedby":"cl-err-why"},a("div",{class:"error-body"},a("div",{class:"head"},a("span",{class:e?"spinner":"dot","aria-hidden":"true"}),a("h3",{id:"cl-err-title"},Ke(t,e,o)),o?null:g),a("p",{class:"why",id:"cl-err-why"},...e?[s("The preview updates by itself when it\\u2019s fixed.")]:qe(t)),e?null:a("div",{class:"actions"},a("button",{class:"btn primary",onclick:()=>this.fix()},s("Try to fix")),c),e?null:d),o?g:null);this.card=p,o?this.layer.append(p):this.dockSlot.prepend(p),l&&(p.querySelector(".btn.primary")??g).focus()}detailsToggle(e){let{where:t,frame:o}=je(e),r=a("div",{class:"details",id:"cl-err-details",hidden:!this.detailsOpen},t?a("p",{class:"where"},t):null,a("p",{class:"raw"},e.message),o?a("pre",{class:"frame"},o):null),n=a("span",{},this.detailsOpen?s("Hide details"):s("Show details")),l=a("button",{class:"btn ghost more","aria-expanded":String(this.detailsOpen),"aria-controls":"cl-err-details",onclick:()=>{this.detailsOpen=!this.detailsOpen,r.hidden=!this.detailsOpen,n.textContent=this.detailsOpen?s("Hide details"):s("Show details"),l.setAttribute("aria-expanded",String(this.detailsOpen))}},n,m("chevronDown",16));return{more:l,details:r}}async fix(){let e=this.current;if(e){O(!0),this.render(!0);try{await f.fix(e,[...H])}catch{O(!1),this.toast(s("Couldn\'t reach Claude. Is Clodable running?"),"warn"),this.render(!1)}}}dismiss(e=!0){this.current&&e&&this.dismissed.add(this.current.message),this.current=void 0,this.card?.remove(),this.card=void 0}};function y(i){let e=i?.closest(`[${_}]`),t=e?.getAttribute(_);return e&&t?{el:e,src:t}:void 0}function oe(i){let e=i.tagName.toLowerCase(),t=i.getAttribute("role");if(/^h[1-6]$/.test(e))return"heading";if(e==="button"||t==="button")return"button";if(e==="a"){let r=i.getAttribute("class")??"";return/\\brounded/.test(r)&&/\\b(bg-|border)/.test(r)&&/\\b(px-|h-\\d)/.test(r)?"button":"link"}if(e==="img"||e==="picture"||e==="video")return"image";if(e==="svg")return"icon";if(["input","textarea","select"].includes(e))return"input";if(["ul","ol","li","dl"].includes(e))return"list";if(e==="nav"||e==="header"||e==="footer")return"nav";if(["section","main","article","aside"].includes(e))return"section";if(["p","span","label","strong","em","small","blockquote","figcaption"].includes(e))return"text";let o=i.getAttribute("class")??"";return/\\bcard\\b|rounded-(lg|xl|2xl)/.test(o)&&i.children.length>1?"card":i.children.length===0&&i.textContent?.trim()?"text":i.children.length>2?"section":"element"}var We={heading:"Heading",text:"Text",button:"Button",link:"Link",image:"Image",input:"Field",list:"List",section:"Section",nav:"Navigation",card:"Card",icon:"Icon",element:"Element"};function Se(i){let e=oe(i);if(e==="nav"){let t=i.tagName.toLowerCase();return t==="header"?"Header":t==="footer"?"Footer":"Navigation"}return We[e]}function D(i){return s(Se(i))}function F(i,e=42){let o=(i.getAttribute("alt")??i.getAttribute("aria-label")??i.textContent??"").replace(/\\s+/g," ").trim();return o?o.length>e?`${o.slice(0,e-1).trimEnd()}\\u2026`:o:""}function Me(i){let e=i.tagName.toLowerCase(),t=(i.getAttribute("class")??"").split(/\\s+/).slice(0,8).join(" "),o=F(i,80);return`${Se(i)} <${e}${t?` class="${t}"`:""}>${o?` \\u201C${o}\\u201D`:""}`}var Te={heading:["Rewrite it","Make it bigger","Change the font"],text:["Rewrite it","Make it shorter","Change the color"],button:["Change the label","Make it stand out","Change what it does"],link:["Change where it goes","Change the text","Style it as a button"],image:["Replace the image","Make it rounder","Make it bigger"],input:["Change the placeholder","Make it required","Change the label"],list:["Add an item","Change the layout","Reorder it"],section:["Change the layout","Add something here","Change the background"],nav:["Add a link","Change the logo","Make it sticky"],card:["Change the layout","Add a picture","Make it stand out"],icon:["Use a different icon","Make it bigger","Change the color"],element:["Change the style","Move it","Remove it"]};var T=class{constructor(e){this.layer=e;this.box=a("div",{class:"hl",style:"opacity:0"}),this.chip=a("div",{class:"chip",style:"opacity:0"}),e.append(this.box,this.chip)}layer;box;chip;target;frame=0;lines=[];perLine=!1;show(e,t,o,r={}){this.target=e,this.perLine=!!r.perLine,this.box.className=`hl ${t}`,this.box.style.opacity="1";for(let n of this.lines)n.className=`hl ${t}`;o?(this.chip.className=`chip ${t.startsWith("ask")?"ask":t==="locked"?"locked":""}`,this.chip.replaceChildren(...o.icon?[m(o.icon,14)]:[],a("span",{},o.strong),...o.muted?[a("span",{class:"muted"},o.muted)]:[]),this.chip.style.opacity="1"):this.chip.style.opacity="0",this.place(),this.frame||this.loop()}fadeOut(e,t){this.show(e,t),this.box.addEventListener("animationend",()=>this.hide(),{once:!0})}hide(){this.target=void 0,this.box.style.opacity="0",this.chip.style.opacity="0";for(let e of this.lines)e.remove();this.lines=[],cancelAnimationFrame(this.frame),this.frame=0}loop=()=>{this.place(),this.frame=this.target?requestAnimationFrame(this.loop):0};place(){let e=this.target?.getBoundingClientRect();if(!e)return;if(this.perLine&&this.target){let o=Array.from(this.target.getClientRects()).filter(r=>r.width>0&&r.height>0);if(o.length>1){for(;this.lines.length<o.length-1;){let n=a("div",{class:this.box.className});this.layer.append(n),this.lines.push(n)}for(;this.lines.length>o.length-1;)this.lines.pop()?.remove();let r=[this.box,...this.lines];o.forEach((n,l)=>{Object.assign(r[l].style,{top:`${n.top}px`,left:`${n.left}px`,width:`${n.width}px`,height:`${n.height}px`,opacity:"1"})});return}}Object.assign(this.box.style,{top:`${e.top}px`,left:`${e.left}px`,width:`${e.width}px`,height:`${e.height}px`});let t=e.top-30<4?e.bottom+8:e.top-30;Object.assign(this.chip.style,{top:`${t}px`,left:`${Math.max(6,Math.min(e.left-3,innerWidth-200))}px`})}};function re(i,e,t=10){let{width:o,height:r}=i.getBoundingClientRect(),l=e.bottom+t+r<innerHeight-70?e.bottom+t:Math.max(8,e.top-t-r),c=Math.min(Math.max(8,e.left),innerWidth-o-8);i.style.top=`${l}px`,i.style.left=`${c}px`}var N=class{el;constructor(){this.el=a("div",{class:"toasts",role:"status","aria-live":"polite"})}show(e,t={}){let o=a("div",{class:`toast ${t.tone==="warn"?"warn":""}`},m(t.tone==="warn"?"alert":"check",16),e);for(this.el.append(o);this.el.children.length>3;)this.el.firstElementChild?.remove();setTimeout(()=>{o.classList.add("leaving"),setTimeout(()=>o.remove(),260)},t.ms??2600)}};var Le=`\n${X({selector:":host"})}\n:host {\n  all: initial;\n  position: fixed;\n  inset: 0;\n  pointer-events: none;\n  z-index: ${Y.toolbar};\n  font: 13px/18px var(--cl-font-ui);\n  color: var(--cl-ink);\n  -webkit-font-smoothing: antialiased;\n  -moz-osx-font-smoothing: grayscale;\n  --dock-bg: color-mix(in oklab, var(--cl-paper) 88%, transparent);\n  --dock-border: color-mix(in oklab, var(--cl-slip-strong) 70%, transparent);\n}\n* { box-sizing: border-box; }\n.ic { display: inline-flex; width: 18px; height: 18px; flex: none; }\n.ic svg { display: block; }\nbutton { font: inherit; color: inherit; background: none; border: 0; margin: 0; padding: 0; cursor: pointer; }\nbutton:focus-visible, [tabindex]:focus-visible, textarea:focus-visible {\n  outline: 2px solid var(--cl-focus);\n  outline-offset: 2px;\n}\n.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }\n\n/* \\u2500\\u2500 Dock \\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500 */\n.dock-wrap {\n  /* No transform here: it would trap the fixed-position pebble inside this box. */\n  position: fixed; left: 0; right: 0; bottom: 14px;\n  display: flex; flex-direction: column; align-items: center; gap: 8px;\n  pointer-events: none;\n}\n.dock {\n  pointer-events: auto;\n  display: flex; align-items: center; gap: 2px;\n  height: 46px; padding: 0 5px;\n  background: var(--dock-bg);\n  -webkit-backdrop-filter: blur(18px) saturate(1.5);\n  backdrop-filter: blur(18px) saturate(1.5);\n  border: 1px solid var(--dock-border);\n  border-radius: var(--cl-radius-pill);\n  box-shadow: var(--cl-shadow-lg);\n  animation: rise var(--cl-slow) var(--cl-spring) both;\n}\n@keyframes rise { from { opacity: 0; transform: translateY(10px) scale(.97); } }\n.sep { width: 1px; height: 22px; background: var(--cl-slip); margin: 0 5px; flex: none; }\n.backend { padding: 0 6px 0 2px; color: var(--cl-ash); font-size: 12px; font-weight: 500; white-space: nowrap; }\n.brand {\n  width: 36px; height: 36px; border-radius: 50%;\n  display: grid; place-items: center;\n  transition: transform var(--cl-fast) var(--cl-ease-out), background var(--cl-fast);\n}\n/* The clod hops; turning or scaling it would blur its pixels. */\n.brand:hover { background: var(--cl-bisque); transform: translateY(-1px); }\n.brand[aria-expanded="true"] { background: var(--cl-bisque); }\n.tool {\n  height: 36px; padding: 0 12px 0 10px;\n  display: inline-flex; align-items: center; gap: 7px;\n  border-radius: var(--cl-radius-pill);\n  color: var(--cl-ink); font-weight: 500; letter-spacing: -0.005em;\n  transition: background var(--cl-fast), color var(--cl-fast);\n  white-space: nowrap;\n}\n.tool:hover { background: var(--cl-bisque); }\n.tool[aria-pressed="true"] { background: var(--cl-clay-soft); color: var(--cl-clay-text); }\n.tool .key {\n  font: 500 10.5px/16px var(--cl-font-ui); color: var(--cl-ash);\n  padding: 0 5px; border-radius: 5px; background: var(--cl-bisque); margin-left: 2px;\n}\n.tool[aria-pressed="true"] .key { background: color-mix(in oklab, var(--cl-clay) 14%, transparent); color: var(--cl-clay-text); }\n.icon-btn {\n  width: 36px; height: 36px; border-radius: 50%;\n  display: grid; place-items: center; color: var(--cl-ash);\n  transition: background var(--cl-fast), color var(--cl-fast);\n}\n.icon-btn:hover { background: var(--cl-bisque); color: var(--cl-ink); }\n\n/* Device switcher: a segmented control with a sliding thumb. */\n.devices { position: relative; display: flex; align-items: center; height: 36px; padding: 3px; border-radius: var(--cl-radius-pill); background: var(--cl-bisque); }\n.devices .thumb {\n  position: absolute; top: 3px; left: 3px; width: 34px; height: 30px; border-radius: var(--cl-radius-pill);\n  background: var(--cl-paper); box-shadow: var(--cl-shadow-sm), 0 0 0 1px var(--cl-slip);\n  transition: transform var(--cl-base) var(--cl-ease-out);\n}\n.devices button { position: relative; width: 34px; height: 30px; border-radius: var(--cl-radius-pill); display: grid; place-items: center; color: var(--cl-ash); transition: color var(--cl-fast); }\n.devices button:hover { color: var(--cl-ink); }\n.devices button[aria-checked="true"] { color: var(--cl-ink); }\n\n/* Keep the editing tools named even in Desktop\'s narrow preview. */\n@media (max-width: 560px) {\n  .dock { height: auto; min-height: 46px; max-width: calc(100vw - 24px); padding: 5px; flex-wrap: wrap; justify-content: center; border-radius: 18px; }\n  .dock .sep { display: none; }\n  .dock .devices { order: 1; }\n  .tool { padding: 0 8px; }\n  .dock-wrap { bottom: 10px; }\n}\n\n/* Minimized: a single clod in the corner. */\n.pebble {\n  pointer-events: auto;\n  position: fixed; right: 16px; bottom: 16px;\n  width: 44px; height: 44px; border-radius: 50%;\n  display: grid; place-items: center;\n  background: var(--dock-bg);\n  -webkit-backdrop-filter: blur(18px) saturate(1.5);\n  backdrop-filter: blur(18px) saturate(1.5);\n  border: 1px solid var(--dock-border);\n  box-shadow: var(--cl-shadow-md);\n  animation: rise var(--cl-slow) var(--cl-spring) both;\n  transition: transform var(--cl-fast) var(--cl-ease-out);\n}\n.pebble:hover { transform: translateY(-2px); }\n.pebble.labelled {\n  width: auto; min-width: 44px; max-width: calc(100vw - 32px); padding: 0 12px;\n  display: flex; gap: 7px; border-radius: var(--cl-radius-pill);\n  white-space: nowrap; font-size: 12px; font-weight: 500;\n}\n\n/* \\u2500\\u2500 Hint above the dock \\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500 */\n.hint {\n  pointer-events: auto;\n  display: inline-flex; align-items: center; gap: 8px;\n  min-height: 30px; max-width: calc(100vw - 24px); padding: 5px 12px 5px 10px;\n  background: var(--cl-ink); color: var(--cl-paper);\n  border-radius: var(--cl-radius-pill);\n  font-size: 12px; font-weight: 500;\n  box-shadow: var(--cl-shadow-md);\n  animation: rise var(--cl-base) var(--cl-ease-out) both;\n}\n.hint .dot { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--cl-clay); box-shadow: 0 0 0 0 var(--cl-clay); animation: pulse 1.8s var(--cl-ease-out) infinite; }\n.hint.ask .dot { background: var(--cl-cobalt); }\n.hint kbd { font: 500 11px/16px var(--cl-font-ui); padding: 0 5px; border-radius: 4px; background: color-mix(in oklab, var(--cl-paper) 16%, transparent); }\n@keyframes pulse { 0% { box-shadow: 0 0 0 0 color-mix(in oklab, var(--cl-clay) 60%, transparent); } 70% { box-shadow: 0 0 0 7px transparent; } 100% { box-shadow: 0 0 0 0 transparent; } }\n\n/* \\u2500\\u2500 Menu \\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500 */\n.menu {\n  pointer-events: auto;\n  position: fixed; min-width: 248px; max-width: calc(100vw - 24px); padding: 6px;\n  background: var(--cl-paper); border: 1px solid var(--cl-slip); border-radius: var(--cl-radius-lg);\n  box-shadow: var(--cl-shadow-lg);\n  animation: pop var(--cl-base) var(--cl-ease-out) both;\n  transform-origin: bottom left;\n}\n@keyframes pop { from { opacity: 0; transform: translateY(6px) scale(.98); } }\n.menu .head { display: flex; align-items: center; gap: 10px; padding: 8px 8px 10px; }\n.menu .head b { font: 600 14px/18px var(--cl-font-display); letter-spacing: -0.01em; }\n.menu .head span { display: block; color: var(--cl-ash); font-size: 12px; }\n.menu hr { border: 0; border-top: 1px solid var(--cl-slip); margin: 4px 2px; }\n.menu-item {\n  width: 100%; display: flex; align-items: center; gap: 10px;\n  padding: 7px 8px; border-radius: var(--cl-radius-md); text-align: left; color: var(--cl-ink);\n}\n.menu-item:hover, .menu-item:focus-visible { background: var(--cl-bisque); outline: none; }\n.menu-item .ic { color: var(--cl-ash); }\n.menu-item .shortcut { margin-left: auto; color: var(--cl-ash); font-size: 11.5px; }\n\n/* \\u2500\\u2500 Highlights \\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500 */\n.hl {\n  position: fixed; pointer-events: none;\n  border-radius: 6px;\n  transition: top 70ms linear, left 70ms linear, width 70ms linear, height 70ms linear, opacity var(--cl-fast);\n}\n.hl.edit-hover { outline: 1.5px dashed var(--cl-clay); outline-offset: 3px; background: color-mix(in oklab, var(--cl-clay) 5%, transparent); }\n.hl.editing { outline: 2px solid var(--cl-clay); outline-offset: 3px; box-shadow: 0 0 0 6px color-mix(in oklab, var(--cl-clay) 16%, transparent); }\n.hl.ask-hover { outline: 1.5px solid var(--cl-cobalt); outline-offset: 2px; background: color-mix(in oklab, var(--cl-cobalt) 7%, transparent); }\n.hl.saved { outline: 2px solid var(--cl-celadon); outline-offset: 3px; background: color-mix(in oklab, var(--cl-celadon) 12%, transparent); animation: fade 900ms var(--cl-ease-out) forwards; }\n.hl.locked { outline: 1.5px dashed var(--cl-ash); outline-offset: 3px; }\n@keyframes fade { 60% { opacity: 1; } to { opacity: 0; } }\n.chip {\n  position: fixed; pointer-events: none;\n  display: inline-flex; align-items: center; gap: 5px;\n  height: 22px; padding: 0 8px 0 6px; border-radius: var(--cl-radius-pill);\n  font-size: 11.5px; font-weight: 600; white-space: nowrap; max-width: 320px; overflow: hidden; text-overflow: ellipsis;\n  /* on-clay reads on every chip fill (clay, cobalt, ash), in both schemes: see design\'s contrast test. */\n  color: var(--cl-on-clay); background: var(--cl-clay);\n  box-shadow: var(--cl-shadow-sm);\n}\n.chip.ask { background: var(--cl-cobalt); }\n.chip.locked { background: var(--cl-ash); }\n.chip .ic { width: 14px; height: 14px; }\n.chip .muted { font-weight: 500; opacity: .85; overflow: hidden; text-overflow: ellipsis; }\n\n/* \\u2500\\u2500 Popovers: edit bar, composer, notices \\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500 */\n.pop {\n  max-width: calc(100vw - 24px);\n  pointer-events: auto;\n  position: fixed;\n  background: var(--cl-paper); color: var(--cl-ink);\n  border: 1px solid var(--cl-slip); border-radius: var(--cl-radius-lg);\n  box-shadow: var(--cl-shadow-lg);\n  animation: pop var(--cl-base) var(--cl-ease-out) both;\n}\n.editbar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 5px; border-radius: var(--cl-radius-pill); }\n.editbar .note { color: var(--cl-ash); font-size: 12px; padding: 0 6px 0 8px; white-space: nowrap; }\n.btn {\n  height: 30px; padding: 0 12px; border-radius: var(--cl-radius-pill);\n  display: inline-flex; align-items: center; gap: 6px;\n  font-weight: 600; font-size: 12.5px; white-space: nowrap;\n  transition: background var(--cl-fast), color var(--cl-fast), transform var(--cl-fast);\n}\n.btn:active { transform: translateY(1px); }\n.btn.primary { background: var(--cl-clay); color: var(--cl-on-clay); }\n.btn.primary:hover { background: var(--cl-clay-hover); }\n.btn.primary[disabled] { opacity: .55; cursor: default; }\n.btn.ghost { color: var(--cl-ink); }\n.btn.ghost:hover { background: var(--cl-bisque); }\n.btn .kbd { font-weight: 500; opacity: .75; font-size: 11px; }\n.spinner { width: 14px; height: 14px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; animation: spin .7s linear infinite; }\n@keyframes spin { to { transform: rotate(360deg); } }\n\n.composer { width: 340px; padding: 12px; }\n.composer .target { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; color: var(--cl-ash); font-size: 12px; min-width: 0; }\n.composer .target .badge { flex: none; display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px 0 6px; border-radius: var(--cl-radius-pill); color: var(--cl-cobalt); background: var(--cl-cobalt-soft); font-weight: 600; }\n.composer .target .what { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }\n.composer textarea {\n  width: 100%; min-height: 64px; max-height: 160px; resize: none;\n  font: 14px/20px var(--cl-font-ui); color: var(--cl-ink);\n  padding: 10px 12px; border-radius: var(--cl-radius-md);\n  border: 1px solid var(--cl-slip-strong); background: var(--cl-paper);\n  transition: border-color var(--cl-fast), box-shadow var(--cl-fast);\n}\n.composer textarea::placeholder { color: var(--cl-ash); }\n.composer textarea:focus { outline: none; border-color: var(--cl-cobalt); box-shadow: 0 0 0 3px color-mix(in oklab, var(--cl-cobalt) 20%, transparent); }\n.suggestions { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 2px; }\n.suggestion {\n  min-height: 26px; padding: 4px 10px; border-radius: var(--cl-radius-pill);\n  border: 1px solid var(--cl-slip); color: var(--cl-ink); font-size: 12px;\n  transition: background var(--cl-fast), border-color var(--cl-fast);\n}\n.suggestion:hover { background: var(--cl-bisque); border-color: var(--cl-slip-strong); }\n.actions { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 6px; margin-top: 12px; }\n.actions .left { margin-right: auto; color: var(--cl-ash); font-size: 11.5px; }\n\n.notice { width: 300px; padding: 14px; }\n.notice h3 { margin: 0 0 4px; font: 600 14px/19px var(--cl-font-ui); }\n.notice p { margin: 0; color: var(--cl-ash); font-size: 12.5px; line-height: 18px; }\n\n/* \\u2500\\u2500 Errors \\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500 */\n/* The app can\'t show anything: a quiet sheet over the page, and the story in plain words. */\n.error.screen {\n  pointer-events: auto;\n  position: fixed; inset: 0;\n  display: grid; place-items: center;\n  padding: 32px 24px 112px;\n  overflow: auto;\n  background: color-mix(in oklab, var(--cl-paper) 94%, transparent);\n  -webkit-backdrop-filter: blur(12px) saturate(1.2);\n  backdrop-filter: blur(12px) saturate(1.2);\n  animation: sheet var(--cl-base) var(--cl-ease-out) both;\n}\n@keyframes sheet { from { opacity: 0; } }\n.error.screen .error-body { width: min(440px, 100%); animation: rise var(--cl-slow) var(--cl-ease-out) both; }\n/* Something broke, but the page still works: a small note above the dock. */\n.error.note {\n  pointer-events: auto;\n  width: min(400px, calc(100vw - 24px));\n  padding: 14px 14px 14px 16px;\n  background: var(--cl-paper); border: 1px solid var(--cl-slip); border-radius: var(--cl-radius-lg);\n  box-shadow: var(--cl-shadow-md);\n  animation: rise var(--cl-slow) var(--cl-spring) both;\n}\n.error.still, .error.still .error-body { animation: none; }\n.error .head { display: flex; align-items: center; gap: 10px; }\n.error .dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--cl-oxide); }\n.error .spinner { flex: none; width: 12px; height: 12px; margin: 0 -2px; border-width: 1.75px; color: var(--cl-clay); }\n.error h3 { flex: 1; margin: 0; font: 600 14px/20px var(--cl-font-ui); letter-spacing: -0.01em; }\n.error .close {\n  flex: none; width: 28px; height: 28px; margin: -4px -6px -4px 0; border-radius: 50%;\n  display: grid; place-items: center; color: var(--cl-ash);\n  transition: background var(--cl-fast), color var(--cl-fast);\n}\n.error .close:hover { background: var(--cl-bisque); color: var(--cl-ink); }\n.error .why { margin: 4px 0 0 18px; color: var(--cl-ash); font-size: 13px; line-height: 19px; text-wrap: balance; }\n.error .why strong { color: var(--cl-ink); font-weight: 600; }\n.error .actions { justify-content: flex-start; gap: 4px; margin: 12px 0 0 18px; }\n.error .more { padding: 0 8px 0 12px; gap: 4px; color: var(--cl-ash); }\n.error .more:hover { color: var(--cl-ink); }\n.error .more .ic { transition: transform var(--cl-base) var(--cl-ease-out); }\n.error .more[aria-expanded="true"] .ic { transform: rotate(180deg); }\n.error .details {\n  margin: 14px 0 0 18px; padding: 10px 12px; max-height: 220px; overflow: auto;\n  background: var(--cl-bisque); border: 1px solid var(--cl-slip); border-radius: var(--cl-radius-md);\n  font: 11.5px/17px var(--cl-font-mono); color: var(--cl-ink); user-select: text;\n}\n.error .details[hidden] { display: none; }\n.error .details p { margin: 0; word-break: break-word; }\n.error .details .where { color: var(--cl-ash); }\n.error .details .frame { margin: 8px 0 0; padding-top: 8px; border-top: 1px solid var(--cl-slip); font: inherit; color: var(--cl-ash); white-space: pre; overflow-x: auto; }\n.error.screen h3 { font-size: 22px; line-height: 28px; letter-spacing: -0.02em; }\n.error.screen .close { position: absolute; top: 14px; right: 14px; width: 32px; height: 32px; margin: 0; }\n.error.screen .why { margin-top: 6px; font-size: 14.5px; line-height: 22px; }\n.error.screen .actions { margin-top: 20px; }\n.error.screen .btn { height: 34px; font-size: 13px; }\n.error.screen .btn.primary { padding: 0 16px; }\n\n/* \\u2500\\u2500 Toasts \\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500 */\n.toasts { display: flex; flex-direction: column; align-items: center; gap: 6px; pointer-events: none; }\n.toast {\n  pointer-events: auto;\n  display: inline-flex; align-items: center; gap: 8px;\n  min-height: 34px; max-width: calc(100vw - 24px); padding: 6px 14px 6px 10px;\n  background: var(--cl-ink); color: var(--cl-paper);\n  border-radius: var(--cl-radius-pill);\n  font-size: 12.5px; font-weight: 500;\n  box-shadow: var(--cl-shadow-md);\n  animation: rise var(--cl-base) var(--cl-ease-out) both;\n}\n.toast .ic { color: var(--cl-celadon); }\n.toast.warn .ic { color: var(--cl-ochre); }\n.toast.leaving { animation: leave var(--cl-base) var(--cl-ease-in-out) forwards; }\n@keyframes leave { to { opacity: 0; transform: translateY(6px); } }\n\n/* \\u2500\\u2500 Device bar (frame page) \\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500 */\n.devicebar { position: fixed; top: 14px; left: 50%; transform: translateX(-50%); pointer-events: auto; }\n.devicebar .size { padding: 0 6px 0 12px; color: var(--cl-ash); font: 500 12px/18px var(--cl-font-ui); font-variant-numeric: tabular-nums; white-space: nowrap; }\n\n@media (prefers-reduced-motion: reduce) {\n  *, *::before, *::after { animation-duration: 1ms !important; animation-iteration-count: 1 !important; transition-duration: 1ms !important; }\n}\n`;var $e="clodable:toolbar:v2",Ye=new RegExp(`[?&]${A}=1`),L={dynamic:"This text is filled in automatically, from your data or a list in your code, so it can\'t be typed over here.",notFound:"The page changed while you were editing. Try once more.",ambiguous:"That exact text appears twice here, so Claude should change it."},I=class{constructor(e){this.surface=e;let t=new URLSearchParams(location.search);this.device=e==="outer"?t.get("device")??"phone":"desktop";try{this.minimized=JSON.parse(localStorage.getItem($e)??"{}").minimized!==!1}catch{this.minimized=!0}}surface;host;shadow;layer;dockWrap;hintSlot;errorSlot;dockSlot;toasts=new N;hover;active;popover;mode="idle";minimized=!0;shortViewport=innerHeight<=420;expandedInShortViewport=!1;editing;device;mount(){this.host=document.createElement("clodable-toolbar"),this.host.setAttribute("data-clodable",""),this.shadow=this.host.attachShadow({mode:"open"}),this.shadow.append(a("style",{},Le)),this.layer=a("div"),this.hintSlot=a("div"),this.errorSlot=a("div"),this.dockSlot=a("div"),this.dockWrap=a("div",{class:"dock-wrap"},this.toasts.el,this.errorSlot,this.hintSlot,this.dockSlot),this.shadow.append(this.layer,this.dockWrap),this.hover=new T(this.layer),this.active=new T(this.layer),document.body.append(this.host),new MutationObserver(()=>{this.host.isConnected||document.body.append(this.host)}).observe(document.body,{childList:!0}),this.render(),P(()=>{this.host.isConnected&&this.render()}),xe(),this.surface!=="outer"&&(new z(this.layer,this.errorSlot,(e,t)=>this.toasts.show(e,t?{tone:t}:{})).start(),this.listen()),this.surface==="inner"&&this.reportRoutes(),this.surface==="outer"&&this.followRoutes()}render(){this.host.lang=S(),this.surface==="outer"&&this.localizeFrame();let e=this.shadow.activeElement?.dataset.key;if(this.draw(),!e)return;let t=o=>this.shadow.querySelector(`[data-key="${o}"]`);(t(e)??t("pebble")??t("hide"))?.focus()}draw(){this.surface==="outer"?this.drawDeviceBar():this.collapsed?this.drawPebble():this.drawDock()}get collapsed(){return this.minimized||this.shortViewport&&!this.expandedInShortViewport&&this.mode==="idle"}localizeFrame(){let e=document.querySelector("iframe.screen"),t=document.querySelector(".device");if(!e||!t)return;let o=B[this.device==="tablet"?"tablet":"phone"],r=new URLSearchParams(location.search).get("landscape")==="1",n=r?o.height:o.width,l=r?o.width:o.height,c=this.device==="tablet"?s("Tablet"):s("Phone"),d=S()==="fr"?c.toLowerCase():c;document.documentElement.lang=S(),document.title=s("{device} preview",{device:d}),t.setAttribute("aria-label",s("{device} preview, {width} by {height}",{device:d,width:n,height:l})),e.title=s("Your app at {width} pixels wide",{width:n})}drawDeviceBar(){this.dockSlot.replaceChildren();let e=new URLSearchParams(location.search),{width:t,height:o}=B[this.device==="tablet"?"tablet":"phone"],r=e.get("landscape")==="1"?`${o} \\xD7 ${t}`:`${t} \\xD7 ${o}`,n=a("div",{class:"dock",role:"toolbar","aria-label":s("Device preview")},this.deviceSwitch(),a("span",{class:"size","aria-label":s("Screen size {size}",{size:r})},r),a("span",{class:"sep","aria-hidden":"true"}),a("button",{class:"icon-btn","aria-label":s("Rotate"),title:s("Rotate"),onclick:()=>this.rotate()},m("refresh")));Ae(n,this.shadow),this.layer.replaceChildren(this.hover.box,this.hover.chip,this.active.box,this.active.chip,a("div",{class:"devicebar"},n))}drawPebble(){let e=R()?.backend==="copy";this.hintSlot.replaceChildren(),this.dockSlot.replaceChildren(a("button",{class:"pebble labelled","data-key":"pebble","aria-label":s("Show Clodable tools"),...e?{"aria-description":s("This preview uses a copy of your data.")}:{},title:s("Show Clodable tools (\\u2325\\u21E7H)"),onclick:()=>this.setMinimized(!1)},this.mark(24),a("span",{},e?s("Copy \\xB7 Tools"):s("Tools"))))}drawDock(){let e=(n,l,c,d)=>a("button",{class:"tool","data-key":n,"aria-pressed":String(this.mode===n),title:`${c} (${d})`,onclick:()=>this.setMode(this.mode===n?"idle":n)},m(l),a("span",{class:"label"},c)),t=a("button",{class:"brand","data-key":"menu","aria-label":s("Clodable menu"),"aria-haspopup":"menu","aria-expanded":"false",onclick:n=>this.toggleMenu(n.currentTarget)},this.mark(24)),o=R()?.backend==="copy",r=a("div",{class:"dock",role:"toolbar","aria-label":s("Clodable preview tools")},t,...o?[a("span",{class:"backend",title:s("This preview uses your new backend, a copy of your data. Your live app is untouched.")},s("Copy"))]:[],a("span",{class:"sep","aria-hidden":"true"}),e("edit","text",s("Edit text"),"\\u2325\\u21E7E"),e("ask","select",s("Point & ask"),"\\u2325\\u21E7A"),...this.surface==="app"?[a("span",{class:"sep","aria-hidden":"true"}),this.deviceSwitch()]:[],a("span",{class:"sep","aria-hidden":"true"}),a("button",{class:"icon-btn","data-key":"hide","aria-label":s("Hide Clodable tools"),title:s("Hide (\\u2325\\u21E7H)"),onclick:()=>this.setMinimized(!0)},m("minimize")));Ae(r,this.shadow),this.dockSlot.replaceChildren(r),this.renderHint()}mark(e){let t=a("span",{"aria-hidden":"true",style:"display:grid"});return t.innerHTML=J({size:e}),t}deviceSwitch(){let e=[["desktop","desktop",s("Full width")],["tablet","tablet",s("Tablet")],["phone","phone",s("Phone")]],t=e.findIndex(([o])=>o===this.device);return a("div",{class:"devices",role:"radiogroup","aria-label":s("Preview size")},a("span",{class:"thumb","aria-hidden":"true",style:`transform: translateX(${t*100}%)`}),...e.map(([o,r,n])=>a("button",{role:"radio","aria-checked":String(this.device===o),"aria-label":n,title:n,onclick:()=>this.setDevice(o)},m(r))))}renderHint(){if(this.mode==="idle"||this.minimized){this.hintSlot.replaceChildren();return}let e=this.mode==="edit"?s("Click any text to change it"):s("Click anything to ask Claude about it");this.hintSlot.replaceChildren(a("div",{class:`hint ${this.mode==="ask"?"ask":""}`,role:"status"},a("span",{class:"dot"}),e,a("kbd",{},s("Esc"))))}setMode(e){this.editing&&this.finishEdit(!1),this.closePopover(),this.mode=e,e!=="idle"&&(this.minimized=!1),this.hover.hide(),document.documentElement.style.cursor="",this.render()}setMinimized(e){this.minimized=e,this.expandedInShortViewport=!e;try{localStorage.setItem($e,JSON.stringify({minimized:e}))}catch{}e?this.setMode("idle"):this.render()}setDevice(e){let t=this.surface==="outer"?new URLSearchParams(location.search).get("path")??"/":location.pathname+location.search;if(e==="desktop"){this.surface==="outer"&&(location.href=t);return}let o=`${u.frame}?device=${e}&path=${encodeURIComponent(t)}`;location.href=o}rotate(){let e=new URLSearchParams(location.search);e.set("landscape",e.get("landscape")==="1"?"0":"1"),location.search=e.toString()}isOurs(e){return e instanceof Node&&(e===this.host||this.host.contains(e)||this.shadow.contains(e))}listen(){addEventListener("resize",()=>{let t=innerHeight<=420;t!==this.shortViewport&&(this.shortViewport=t,this.expandedInShortViewport=!1,this.closePopover(),this.render())});let e=0;addEventListener("pointermove",t=>{this.mode==="idle"||this.editing||this.popover||(cancelAnimationFrame(e),e=requestAnimationFrame(()=>this.onHover(t.clientX,t.clientY,t.target)))},{capture:!0,passive:!0});for(let t of["pointerdown","mousedown","pointerup","mouseup","click","dblclick","submit"])addEventListener(t,o=>this.onPointer(o),{capture:!0});addEventListener("keydown",t=>this.onKey(t),{capture:!0}),addEventListener("scroll",()=>this.closePopoverIfDetached(),{capture:!0,passive:!0})}onPointer(e){if(!(this.mode==="idle"||this.isOurs(e.target))&&!(this.editing&&e.target instanceof Node&&this.editing.editable.contains(e.target))&&(e.preventDefault(),e.stopPropagation(),e.stopImmediatePropagation(),e.type==="click")){if(this.editing){this.finishEdit(!0);return}if(this.popover){this.closePopover();return}this.mode==="edit"?this.startEdit(e.clientX,e.clientY):this.mode==="ask"&&this.openComposer(e.clientX,e.clientY)}}onHover(e,t,o){if(this.popover||this.editing||this.mode==="idle")return;if(this.isOurs(o)){this.hover.hide();return}if(this.mode==="edit"){let l=Re(e,t,this.host),c=l&&y(l.el);l&&c?(this.hover.show(l.el,"edit-hover",{icon:"text",strong:s("Edit text")}),document.documentElement.style.cursor="text"):(this.hover.hide(),document.documentElement.style.cursor="");return}let r=ne(e,t,this.host),n=r&&y(r);if(r&&n){let l=F(r,32);this.hover.show(r,"ask-hover",{strong:D(r),...l?{muted:`\\xB7 ${l}`}:{}}),document.documentElement.style.cursor="pointer"}else this.hover.hide(),document.documentElement.style.cursor=""}onKey(e){let t=Je(e.target)&&!this.isOurs(e.target);if(e.altKey&&e.shiftKey&&!e.metaKey&&!e.ctrlKey){let r={KeyE:()=>this.setMode(this.mode==="edit"?"idle":"edit"),KeyA:()=>this.setMode(this.mode==="ask"?"idle":"ask"),KeyH:()=>this.setMinimized(!this.collapsed)}[e.code];if(r&&!(t&&!this.editing)){e.preventDefault(),e.stopPropagation(),r();return}}e.key==="Escape"&&(this.editing?(e.preventDefault(),e.stopPropagation(),this.finishEdit(!1)):this.popover?(e.preventDefault(),this.closePopover()):this.mode!=="idle"&&(e.preventDefault(),this.setMode("idle")))}async startEdit(e,t){let o=Re(e,t,this.host),r=o&&y(o.el);if(!o||!r)return;let n=o.node.textContent??"",l;try{l=await f.probe(r.src,n)}catch{this.toasts.show(s("Couldn\'t reach Clodable. Is the preview still running?"),{tone:"warn"});return}if(!l.editable){this.showLocked(o.el,n,l.reason);return}this.hover.hide();let{editable:c,restore:d}=Qe(o.el,o.node),g=a("div",{class:"pop editbar",role:"group","aria-label":s("Editing text")},a("span",{class:"note"},s("Editing text")),a("button",{class:"btn ghost",onclick:()=>this.finishEdit(!1)},s("Cancel")),a("button",{class:"btn primary",onclick:()=>this.finishEdit(!0)},s("Save"),a("span",{class:"kbd"},"\\u23CE")));this.layer.append(g),this.editing={el:o.el,restore:d,editable:c,node:o.node,src:r.src,before:n,bar:g,saving:!1},this.active.show(c,"editing",void 0,{perLine:c!==o.el}),c.addEventListener("keydown",this.onEditKey),c.addEventListener("focusout",this.onEditBlur),c.focus({preventScroll:!0}),Ze(e,t,c);let p=()=>{this.editing&&(re(g,this.editing.el.getBoundingClientRect(),12),requestAnimationFrame(p))};p()}onEditKey=e=>{e.key==="Enter"&&!e.shiftKey&&(e.preventDefault(),this.finishEdit(!0))};onEditBlur=e=>{this.isOurs(e.relatedTarget)||setTimeout(()=>{this.editing&&!this.editing.saving&&document.activeElement!==this.editing.editable&&this.finishEdit(!0)},0)};async finishEdit(e){let t=this.editing;if(!t||t.saving)return;let o=(t.editable.textContent??"").replace(/\\s+/g," ").trim(),r=e&&o&&o!==t.before.replace(/\\s+/g," ").trim();if(t.editable.removeEventListener("keydown",this.onEditKey),t.editable.removeEventListener("focusout",this.onEditBlur),!r){t.restore(),t.node.textContent=t.before,this.endEdit();return}t.saving=!0,t.bar.replaceChildren(a("span",{class:"note"},a("span",{class:"spinner",style:"display:inline-block;vertical-align:-3px;margin-right:8px"}),s("Saving\\u2026")));try{let n=await f.edit(t.src,t.before,o);if(t.restore(),n.ok)t.node.textContent=Ge(t.before,o),this.active.fadeOut(t.el,"saved"),this.toasts.show(s("Text updated \\xB7 saved to your draft"));else{t.node.textContent=t.before,this.active.hide();let{reason:l}=n;this.toasts.show(l==="dynamic"?s(L.dynamic):l==="ambiguous"?s(L.ambiguous):s(L.notFound),{tone:"warn",ms:4200})}}catch{t.restore(),t.node.textContent=t.before,this.toasts.show(s("Couldn\'t save that change. Try again."),{tone:"warn"})}this.endEdit(!1)}endEdit(e=!0){this.editing?.bar.remove(),this.editing=void 0,e&&this.active.hide()}showLocked(e,t,o){this.closePopover(),this.hover.show(e,"locked",{icon:"info",strong:s("Not editable here")});let r=a("button",{class:"btn primary",onclick:()=>this.openComposerFor(e,s("Change \\u201C{text}\\u201D to ",{text:Xe(t)}))},s("Ask Claude")),n=a("div",{class:"pop notice",role:"dialog","aria-label":s("This text can\'t be edited here")},a("h3",{},s("Claude can change this one for you")),a("p",{},o==="ambiguous"?s(L.ambiguous):s(L.dynamic)),a("div",{class:"actions"},a("button",{class:"btn ghost",onclick:()=>this.closePopover()},s("Close")),r));this.openPopover(n,e.getBoundingClientRect()),r.focus({preventScroll:!0})}openComposer(e,t){let o=ne(e,t,this.host);o&&y(o)&&this.openComposerFor(o)}openComposerFor(e,t=""){this.closePopover();let o=y(e);this.hover.show(e,"ask-hover");let r=oe(e),n=a("textarea",{rows:"3",placeholder:s("What should change? For example: make it bigger and bolder"),"aria-label":s("What should change?")});n.value=t;let l=a("button",{class:"btn primary",onclick:()=>c()},s("Send to Claude")),c=async()=>{let p=n.value.trim();if(!p){n.focus();return}l.setAttribute("disabled","");try{let $=o?ae(o.src):void 0;await f.ask(p,Me(e),$),this.closePopover(),this.setMode("idle"),this.toasts.show(s("Sent to Claude"))}catch{l.removeAttribute("disabled"),this.toasts.show(s("Couldn\'t reach Claude. Is Clodable running?"),{tone:"warn"})}};n.addEventListener("keydown",p=>{p.key==="Enter"&&!p.shiftKey&&(p.preventDefault(),c())});let d=F(e,48),g=a("div",{class:"pop composer",role:"dialog","aria-label":s("Ask Claude about this {element}",{element:D(e).toLowerCase()})},a("div",{class:"target"},a("span",{class:"badge"},m("select",14),D(e)),d?a("span",{class:"what"},`\\u201C${d}\\u201D`):null),n,a("div",{class:"suggestions"},...Te[r].map(p=>{let $=s(p);return a("button",{class:"suggestion",onclick:()=>{n.value=$,n.focus()}},$)})),a("div",{class:"actions"},a("span",{class:"left"},s("\\u23CE to send")),a("button",{class:"btn ghost",onclick:()=>this.closePopover()},s("Cancel")),l));this.openPopover(g,e.getBoundingClientRect()),n.focus({preventScroll:!0}),n.setSelectionRange(n.value.length,n.value.length)}openPopover(e,t){this.closePopover(!1),this.popover=e,this.layer.append(e),re(e,t)}closePopover(e=!0){let t=this.popover?.classList.contains("menu")&&this.popover.contains(this.shadow.activeElement);this.popover?.remove(),this.popover=void 0,e&&this.hover.hide();let o=this.shadow?.querySelector(\'.brand[aria-expanded="true"]\');o?.setAttribute("aria-expanded","false"),t&&o?.focus()}closePopoverIfDetached(){this.popover?.classList.contains("menu")||this.popover&&!this.editing&&this.closePopover()}toggleMenu(e){if(this.popover?.classList.contains("menu")){this.closePopover();return}let t=(n,l,c,d)=>a("button",{class:"menu-item",role:"menuitem",onclick:()=>{this.closePopover(),d()}},m(n),l,a("span",{class:"shortcut"},c)),o=a("div",{class:"menu",role:"menu","aria-label":"Clodable"},a("div",{class:"head"},this.mark(28),a("div",{},a("b",{},"Clodable"),a("span",{},s("Only you see these tools. Visitors never do.")))),a("hr"),t("text",s("Edit text"),"\\u2325\\u21E7E",()=>this.setMode("edit")),t("select",s("Point & ask Claude"),"\\u2325\\u21E7A",()=>this.setMode("ask")),...this.surface==="app"?[t("phone",s("Phone preview"),"",()=>this.setDevice("phone"))]:[],a("hr"),t("minimize",s("Hide these tools"),"\\u2325\\u21E7H",()=>this.setMinimized(!0)));Pe(o,this.shadow,"ArrowUp","ArrowDown"),this.popover=o,this.layer.append(o),e.setAttribute("aria-expanded","true");let r=e.getBoundingClientRect();o.style.left=`${Math.max(8,r.left-6)}px`,o.style.top=`${r.top-o.getBoundingClientRect().height-10}px`,o.querySelector(".menu-item")?.focus()}reportRoutes(){let e=()=>parent.postMessage({type:"clodable:route",path:location.pathname+location.search.replace(Ye,"")},location.origin);for(let t of["pushState","replaceState"]){let o=history[t].bind(history);history[t]=((...r)=>{o(...r),e()})}addEventListener("popstate",e)}followRoutes(){addEventListener("message",e=>{if(e.origin!==location.origin||e.data?.type!=="clodable:route")return;let t=new URLSearchParams(location.search);t.set("path",e.data.path||"/"),history.replaceState(null,"",`${location.pathname}?${t.toString()}`)})}};function Ae(i,e){Pe(i,e,"ArrowLeft","ArrowRight");let t=Array.from(i.querySelectorAll("button"));for(let[o,r]of t.entries())r.tabIndex=o===0?0:-1,r.addEventListener("focus",()=>{for(let n of t)n.tabIndex=-1;r.tabIndex=0})}function Pe(i,e,t,o){i.addEventListener("keydown",r=>{let n=Array.from(i.querySelectorAll("button")),l=n.indexOf(e.activeElement);if(l<0)return;let d={[t]:l-1,[o]:l+1,Home:0,End:n.length-1}[r.key];d!==void 0&&(r.preventDefault(),n[(d+n.length)%n.length]?.focus())})}var Xe=i=>{let e=i.replace(/\\s+/g," ").trim();return e.length>60?`${e.slice(0,59)}\\u2026`:e};function Ge(i,e){let t=i.match(/^\\s*/)?.[0]??"",o=i.match(/\\s*$/)?.[0]??"";return`${t}${e}${o}`}function Je(i){return i instanceof HTMLElement&&(i.isContentEditable||["INPUT","TEXTAREA","SELECT"].includes(i.tagName))}function ne(i,e,t){let o=document.elementFromPoint(i,e);if(!(!o||o===t||o===document.documentElement||o===document.body))return o}function Re(i,e,t){let o=document,r=null,n=document.caretPositionFromPoint?.(i,e);if(n?r=n.offsetNode:r=o.caretRangeFromPoint?.(i,e)?.startContainer??null,r&&r.nodeType===Node.TEXT_NODE&&r.textContent?.trim()&&r.parentElement&&!t.contains(r)){let d=document.createRange();if(d.selectNodeContents(r),Array.from(d.getClientRects()).some(p=>i>=p.left-3&&i<=p.right+3&&e>=p.top-3&&e<=p.bottom+3))return{el:r.parentElement,node:r}}let l=ne(i,e,t);if(!l)return;let c=Array.from(l.childNodes).find(d=>d.nodeType===Node.TEXT_NODE&&!!d.textContent?.trim());return c&&l instanceof HTMLElement?{el:l,node:c}:void 0}function Qe(i,e){let t=Array.from(i.childNodes).filter(r=>!(r.nodeType===Node.TEXT_NODE&&!r.textContent?.trim()));if(t.length===1&&t[0]===e){let r=i.getAttribute("contenteditable"),n=Array.from(i.childNodes);return i.setAttribute("contenteditable","plaintext-only"),i.setAttribute("spellcheck","true"),{editable:i,restore:()=>{r===null?i.removeAttribute("contenteditable"):i.setAttribute("contenteditable",r),i.removeAttribute("spellcheck"),i.replaceChildren(...n)}}}let o=document.createElement("span");return o.setAttribute("contenteditable","plaintext-only"),o.setAttribute("data-clodable-editing",""),o.style.outline="none",e.replaceWith(o),o.textContent=e.textContent,{editable:o,restore:()=>{o.replaceWith(e)}}}function Ze(i,e,t){let o=getSelection();if(!o)return;let r=document,n=document.caretPositionFromPoint?.(i,e),l=document.createRange();if(n&&t.contains(n.offsetNode))l.setStart(n.offsetNode,n.offset);else{let c=r.caretRangeFromPoint?.(i,e);c&&t.contains(c.startContainer)?l.setStart(c.startContainer,c.startOffset):l.selectNodeContents(t)}l.collapse(!0),o.removeAllRanges(),o.addRange(l)}function et(){if(window.__CLODABLE_MOUNTED__)return;Object.defineProperty(window,"__CLODABLE_MOUNTED__",{value:!0}),le(),Ce();let i=location.pathname===u.frame?"outer":new URLSearchParams(location.search).has(A)?"inner":"app",e=()=>setTimeout(()=>new I(i).mount(),0);document.readyState==="complete"?e():addEventListener("load",e,{once:!0})}et();})();\n';
   const live = Boolean(process.env.CLODABLE_TOOLBAR_DEV);
   if (cached2 && !live) return cached2;
   const dist = fileURLToPath2(new URL("../dist/toolbar.js", import.meta.url));
@@ -48404,6 +49796,17 @@ ${await toolbarSource()}
     const { at: _at, ...error62 } = lastBuildError;
     return { error: error62 };
   }
+  async function conversationLocale(id) {
+    try {
+      const marker = JSON.parse(
+        await readFile19(resolve7(root, ".clodable", "local", `session-${id}.json`), "utf8")
+      );
+      if (!marker || typeof marker !== "object" || !("locale" in marker)) return null;
+      return resolveLocale(marker.locale);
+    } catch {
+      return null;
+    }
+  }
   async function handle(req, res, next) {
     const url2 = new URL(req.url ?? "/", "http://localhost");
     const path2 = url2.pathname;
@@ -48427,6 +49830,13 @@ ${await toolbarSource()}
       return send(res, 400, { error: "bad-request" });
     }
     switch (path2) {
+      case ROUTES.locale: {
+        if (!body || typeof body !== "object" || Array.isArray(body))
+          return send(res, 400, { error: "bad-request" });
+        const id = conversationOf(body).conversation;
+        if (!id) return send(res, 400, { error: "bad-request" });
+        return send(res, 200, { locale: await conversationLocale(id) });
+      }
       case ROUTES.probe:
       case ROUTES.text:
         return send(res, 200, await textEdit(body, path2 === ROUTES.probe));
@@ -48695,14 +50105,14 @@ async function devCommand(ctx2, options) {
     const pm = detectPackageManager(root);
     process.stdout.write(
       `
-  ${clay("\u25CF")} ${import_picocolors2.default.bold("clodable")} ${ash("\xB7")} installing your app's packages (first time only)\u2026
+  ${clay("\u25CF")} ${import_picocolors2.default.bold("clodable")} ${ash("\xB7")} ${tr2("installing your app's packages (first time only)\u2026")}
 `
     );
     const installed = await exec2(pm, ["install"], { cwd: root, timeout: 15 * 6e4 });
     if (installed.exitCode !== 0) {
       process.stderr.write(
         `
-  ${oxide("\u2715")} ${import_picocolors2.default.bold("Your app's packages couldn't be installed.")}
+  ${oxide("\u2715")} ${import_picocolors2.default.bold(tr2("Your app's packages couldn't be installed."))}
 
     ${installed.stderr.trim().split("\n").slice(-6).join("\n    ")}
 
@@ -48738,7 +50148,7 @@ async function devCommand(ctx2, options) {
     });
     process.stdout.write(
       `
-  ${clay("\u25CF")} ${import_picocolors2.default.bold("clodable")} ${ash("\xB7")} your app is running${server.backend === "copy" ? ash(" on your new backend (a copy of your data)") : ""}
+  ${clay("\u25CF")} ${import_picocolors2.default.bold("clodable")} ${ash("\xB7")} ${tr2("your app is running")}${server.backend === "copy" ? ash(tr2(" on your new backend (a copy of your data)")) : ""}
 
 `
     );
@@ -48746,7 +50156,7 @@ async function devCommand(ctx2, options) {
 `);
     process.stdout.write(
       `
-  ${ash("Preview tools: Edit text (\u2325\u21E7E) \xB7 Point & ask (\u2325\u21E7A). Only you see them.")}
+  ${ash(tr2("Preview tools: Edit text (\u2325\u21E7E) \xB7 Point & ask (\u2325\u21E7A). Only you see them."))}
 
 `
     );
@@ -48758,7 +50168,7 @@ async function devCommand(ctx2, options) {
   } catch (error62) {
     process.stderr.write(
       `
-  ${oxide("\u2715")} ${import_picocolors2.default.bold("Your app couldn't start.")}
+  ${oxide("\u2715")} ${import_picocolors2.default.bold(tr2("Your app couldn't start."))}
 
     ${messageOf(error62)}
 
@@ -48783,8 +50193,8 @@ async function configCommand(ctx2, options) {
       if (!(options.key in SETTINGS)) {
         throw new ClodableError({
           code: "invalid-config",
-          message: `There's no setting called \u201C${options.key}\u201D.`,
-          hint: "Use backend or hosting."
+          message: tr2("There's no setting called \u201C{0}\u201D.", { "0": options.key }),
+          hint: tr2("Use backend or hosting.")
         });
       }
       const key2 = options.key;
@@ -48793,8 +50203,8 @@ async function configCommand(ctx2, options) {
       if (!allowed.includes(options.value)) {
         throw new ClodableError({
           code: "invalid-config",
-          message: `\u201C${options.value}\u201D isn't a value for ${key2}.`,
-          hint: `Use one of: ${allowed.join(", ")}.`
+          message: tr2("\u201C{0}\u201D isn't a value for {1}.", { "0": options.value, "1": key2 }),
+          hint: tr2("Use one of: {0}.", { "0": allowed.join(", ") })
         });
       }
       const config2 = { ...ws.config, [key2]: options.value };
@@ -48816,7 +50226,7 @@ var LEVEL = {
 };
 var MARK = { done: celadon("\u2713"), next: clay("\u25CF"), later: ash("\xB7"), attention: ochre("!") };
 function renderProgress(ctx2, progress) {
-  ctx2.out.header("move off Lovable");
+  ctx2.out.header(tr2("move off Lovable"));
   for (const step2 of progress.steps) {
     ctx2.out.line(`${MARK[step2.state]} ${step2.title}${step2.detail ? ash(` \xB7 ${step2.detail}`) : ""}`);
   }
@@ -48850,8 +50260,8 @@ var STEPS = {
         return assessMove(ws.project, ws.config, (await loadMove(ws.root)).facts);
       },
       (assessment) => {
-        ctx2.out.header("move off Lovable");
-        ctx2.out.line(LEVEL[assessment.level]);
+        ctx2.out.header(tr2("move off Lovable"));
+        ctx2.out.line(tr2(LEVEL[assessment.level]));
         ctx2.out.line("");
         const mark = { clodable: celadon("\u2713"), you: clay("\u25CF"), help: ochre("!") };
         const who = { clodable: "Clodable", you: "You", help: "Help" };
@@ -48871,21 +50281,23 @@ var STEPS = {
         if (!json3) {
           throw new ClodableError({
             code: "invalid-config",
-            message: "Nothing was given.",
-            hint: "Pipe the facts in, as one JSON object."
+            message: tr2("Nothing was given."),
+            hint: tr2("Pipe the facts in, as one JSON object.")
           });
         }
         return recordFacts(await ctx2.workspace(), json3);
       },
-      (facts) => ctx2.out.line(`${celadon("\u2713")} Recorded: ${factsSummary(facts)}`)
+      (facts) => ctx2.out.line(
+        tr2("{0} Recorded: {1}", { "0": celadon("\u2713"), "1": factsSummary(facts) })
+      )
     ) : run(
       ctx2,
       async () => moveFacts(await ctx2.workspace()),
       ({ hints, facts }) => {
-        ctx2.out.header("what your app uses");
-        ctx2.out.line(facts ? factsSummary(facts) : ash("Not checked yet."));
+        ctx2.out.header(tr2("what your app uses"));
+        ctx2.out.line(facts ? factsSummary(facts) : ash(tr2("Not checked yet.")));
         ctx2.out.line("");
-        ctx2.out.line(ash("Clodable's scan, for Claude to check:"));
+        ctx2.out.line(ash(tr2("Clodable's scan, for Claude to check:")));
         ctx2.out.line(JSON.stringify(hints, null, 2));
       }
     )
@@ -48906,7 +50318,7 @@ var STEPS = {
         return options.set ? recordRehearsal(ws, await readStdin() ?? "") : readRehearsal(ws);
       },
       (record2) => {
-        ctx2.out.header("Checks on your copy");
+        ctx2.out.header(tr2("Checks on your copy"));
         for (const observation of record2.observations) {
           ctx2.out.line(
             `${observation.feature}: ${observation.result} (${observation.observedAt}, ${observation.method}, ${observation.scope})`
@@ -48924,13 +50336,16 @@ var STEPS = {
       async () => {
         await ctx2.workspace();
         return connectSupabase(
-          await secretInput(ctx2, `Your Supabase access token (create one at ${TOKENS_PAGE})`)
+          await secretInput(
+            ctx2,
+            tr2("Your Supabase access token (create one at {0})", { "0": TOKENS_PAGE })
+          )
         );
       },
       (data) => {
-        ctx2.out.line(`${celadon("\u2713")} Supabase is connected on this computer.`);
+        ctx2.out.line(tr2("{0} Supabase is connected on this computer.", { "0": celadon("\u2713") }));
         for (const org of data.organizations) {
-          ctx2.out.line(ash(`  ${org.name} \xB7 ${org.plan} plan`));
+          ctx2.out.line(ash(tr2("  {0} \xB7 {1} plan", { "0": org.name, "1": org.plan })));
         }
       }
     )
@@ -48950,7 +50365,8 @@ var STEPS = {
         for (const org of choices.organizations) {
           ctx2.out.line(`${org.name} ${ash(`(${org.slug}) \xB7 ${org.cost}`)}`);
         }
-        if (choices.region) ctx2.out.line(ash(`Suggested region: ${choices.region.name}`));
+        if (choices.region)
+          ctx2.out.line(ash(tr2("Suggested region: {0}", { "0": choices.region.name })));
       }
     )
   },
@@ -48994,11 +50410,11 @@ var STEPS = {
       ctx2,
       async () => diagnoseCopy(await ctx2.workspace(), { fix: Boolean(options.fix) }),
       (result) => {
-        ctx2.out.header("your new backend");
+        ctx2.out.header(tr2("your new backend"));
         for (const finding of result.findings) {
           const mark = finding.fixed || finding.ok ? celadon("\u2713") : ochre("!");
           ctx2.out.line(
-            `${mark} ${finding.label}${finding.fixed ? ash(" \xB7 fixed just now") : ""}`
+            `${mark} ${finding.label}${finding.fixed ? ash(tr2(" \xB7 fixed just now")) : ""}`
           );
           if (finding.detail) ctx2.out.line(ash(`  ${finding.detail}`));
           if (finding.fix) ctx2.out.line(ash(`  \u2192 ${finding.fix}`));
@@ -49009,7 +50425,7 @@ var STEPS = {
   files: {
     run: (ctx2, options) => run(ctx2, async () => {
       const ws = await ctx2.workspace();
-      const sourceKey = options.private ? await secretInput(ctx2, "Lovable Cloud's service key") : void 0;
+      const sourceKey = options.private ? await secretInput(ctx2, tr2("Lovable Cloud's service key")) : void 0;
       return drive(ctx2, copyUploads(ws, sourceKey ? { sourceKey } : {}));
     })
   },
@@ -49025,12 +50441,16 @@ var STEPS = {
         const ws = await ctx2.workspace();
         const name = argument(
           options,
-          "Which secret?",
-          "clodable move secret RESEND_API_KEY, with the value piped in."
+          tr2("Which secret?"),
+          tr2("clodable move secret RESEND_API_KEY, with the value piped in.")
         );
-        return setFunctionSecret(ws, name, await secretInput(ctx2, `The value of ${name}`));
+        return setFunctionSecret(
+          ws,
+          name,
+          await secretInput(ctx2, tr2("The value of {0}", { "0": name }))
+        );
       },
-      () => ctx2.out.line(`${celadon("\u2713")} Saved in your new backend.`)
+      () => ctx2.out.line(tr2("{0} Saved in your new backend.", { "0": celadon("\u2713") }))
     )
   },
   vault: { run: leftovers("vault", vaultStatus) },
@@ -49040,10 +50460,13 @@ var STEPS = {
       ctx2,
       async () => {
         const ws = await ctx2.workspace();
-        const value = await secretInput(ctx2, `The value of ${options.arg ?? "the secret"}`);
+        const value = await secretInput(
+          ctx2,
+          tr2("The value of {0}", { "0": options.arg ?? "the secret" })
+        );
         return setVaultValue(ws, options.arg, value);
       },
-      () => ctx2.out.line(`${celadon("\u2713")} Saved in your new backend's vault.`)
+      () => ctx2.out.line(tr2("{0} Saved in your new backend's vault.", { "0": celadon("\u2713") }))
     )
   },
   preview: {
@@ -49056,15 +50479,15 @@ var STEPS = {
         if (target !== "copy" && target !== "live") {
           throw new ClodableError({
             code: "invalid-config",
-            message: "Preview which backend?",
-            hint: "clodable move preview copy, or clodable move preview live."
+            message: tr2("Preview which backend?"),
+            hint: tr2("clodable move preview copy, or clodable move preview live.")
           });
         }
         await setPreview(ws, target);
         return { preview: target };
       },
       (data) => ctx2.out.line(
-        data.preview === "copy" ? `${celadon("\u2713")} The preview now uses your new backend.` : `${celadon("\u2713")} The preview uses your live backend again.`
+        data.preview === "copy" ? tr2("{0} The preview now uses your new backend.", { "0": celadon("\u2713") }) : tr2("{0} The preview uses your live backend again.", { "0": celadon("\u2713") })
       )
     )
   },
@@ -49076,12 +50499,12 @@ var STEPS = {
         return connectNetlify(
           await secretInput(
             ctx2,
-            `Your Netlify access token (create one at ${NETLIFY_TOKENS_PAGE})`
+            tr2("Your Netlify access token (create one at {0})", { "0": NETLIFY_TOKENS_PAGE })
           )
         );
       },
       (data) => {
-        ctx2.out.line(`${celadon("\u2713")} Netlify is connected on this computer.`);
+        ctx2.out.line(tr2("{0} Netlify is connected on this computer.", { "0": celadon("\u2713") }));
         for (const account of data.accounts) {
           ctx2.out.line(ash(`  ${account.name} (${account.slug})`));
         }
@@ -49115,13 +50538,20 @@ var STEPS = {
       ),
       (outcome) => {
         ctx2.out.line(ash(`  ${outcome.site.url}`));
-        if (outcome.files.length > 0) ctx2.out.line(ash(`  Added: ${outcome.files.join(", ")}`));
+        if (outcome.files.length > 0)
+          ctx2.out.line(ash(tr2("  Added: {0}", { "0": outcome.files.join(", ") })));
         const missing = outcome.settings.wanted.filter((n4) => !outcome.settings.set.includes(n4));
         if (missing.length > 0) {
-          ctx2.out.line(ash(`  Settings your app reads, to fill in: ${missing.join(", ")}`));
+          ctx2.out.line(
+            ash(tr2("  Settings your app reads, to fill in: {0}", { "0": missing.join(", ") }))
+          );
         }
         if (outcome.settings.lovable.length > 0) {
-          ctx2.out.line(ash(`  Lovable's own, for later: ${outcome.settings.lovable.join(", ")}`));
+          ctx2.out.line(
+            ash(
+              tr2("  Lovable's own, for later: {0}", { "0": outcome.settings.lovable.join(", ") })
+            )
+          );
         }
       }
     )
@@ -49141,13 +50571,13 @@ var STEPS = {
         const ws = await ctx2.workspace();
         const name = argument(
           options,
-          "Which setting?",
-          "clodable move setting GREETING, with the value piped in."
+          tr2("Which setting?"),
+          tr2("clodable move setting GREETING, with the value piped in.")
         );
-        await setSetting(ws, name, await secretInput(ctx2, `The value of ${name}`));
+        await setSetting(ws, name, await secretInput(ctx2, tr2("The value of {0}", { "0": name })));
         return siteSettings(ws);
       },
-      () => ctx2.out.line(`${celadon("\u2713")} Saved on your Netlify site.`)
+      () => ctx2.out.line(tr2("{0} Saved on your Netlify site.", { "0": celadon("\u2713") }))
     )
   },
   method: {
@@ -49156,7 +50586,7 @@ var STEPS = {
       ctx2,
       async () => setMoveMethod(await ctx2.workspace(), options.arg),
       (data) => ctx2.out.line(
-        `${celadon("\u2713")} ${data.method === "quick" ? "In one go: no pause, no last export." : "Carefully: a short pause at the end, nothing lost."}`
+        `${celadon("\u2713")} ${data.method === "quick" ? tr2("In one go: no pause, no last export.") : tr2("Carefully: a short pause at the end, nothing lost.")}`
       )
     )
   },
@@ -49166,10 +50596,13 @@ var STEPS = {
       async () => {
         await ctx2.workspace();
         return connectResend(
-          await secretInput(ctx2, `Your Resend key, with Full access (${RESEND_KEYS_PAGE})`)
+          await secretInput(
+            ctx2,
+            tr2("Your Resend key, with Full access ({0})", { "0": RESEND_KEYS_PAGE })
+          )
         );
       },
-      () => ctx2.out.line(`${celadon("\u2713")} Resend is connected on this computer.`)
+      () => ctx2.out.line(tr2("{0} Resend is connected on this computer.", { "0": celadon("\u2713") }))
     )
   },
   emails: {
@@ -49196,18 +50629,24 @@ var STEPS = {
       },
       (outcome) => {
         if ("hook" in outcome) {
-          ctx2.out.line(`${celadon("\u2713")} Sign-in emails go out through your app's own templates.`);
+          ctx2.out.line(
+            tr2("{0} Sign-in emails go out through your app's own templates.", {
+              "0": celadon("\u2713")
+            })
+          );
           return;
         }
         if ("skipped" in outcome) {
           ctx2.out.line(
-            `${celadon("\u2713")} Going live without emails: no confirmations, no password resets.`
+            tr2("{0} Going live without emails: no confirmations, no password resets.", {
+              "0": celadon("\u2713")
+            })
           );
           return;
         }
         if (outcome.connected) return;
         ctx2.out.line("");
-        ctx2.out.line(`Add these records at ${outcome.domain}'s DNS provider:`);
+        ctx2.out.line(tr2("Add these records at {0}'s DNS provider:", { "0": outcome.domain }));
         for (const r2 of outcome.records) {
           const priority = r2.priority !== void 0 ? ash(`  (priority ${r2.priority})`) : "";
           ctx2.out.line(`  ${r2.type.padEnd(5)} ${r2.name.padEnd(22)} ${r2.value}${priority}`);
@@ -49226,20 +50665,22 @@ var STEPS = {
         line(
           status2.ai,
           status2.aiSwitched,
-          "AI: Lovable's AI gateway \u2192 your own provider (AI_API_URL, AI_API_KEY)"
+          tr2("AI: Lovable's AI gateway \u2192 your own provider (AI_API_URL, AI_API_KEY)")
         );
         line(
           status2.emails,
           status2.emailsSwitched,
-          "Emails: Lovable's email API \u2192 Resend (RESEND_API_KEY, EMAIL_FROM)"
+          tr2("Emails: Lovable's email API \u2192 Resend (RESEND_API_KEY, EMAIL_FROM)")
         );
         line(
           status2.hook,
           status2.hookOn,
-          "Sign-in emails: your own templates (auth-email-hook)"
+          tr2("Sign-in emails: your own templates (auth-email-hook)")
         );
         for (const name of status2.connectors) {
-          ctx2.out.line(`${clay("\u25CF")} ${name}, through Lovable's connectors`);
+          ctx2.out.line(
+            tr2("{0} {1}, through Lovable's connectors", { "0": clay("\u25CF"), "1": name })
+          );
         }
       }
     )
@@ -49250,11 +50691,17 @@ var STEPS = {
       ctx2,
       async () => {
         const ws = await ctx2.workspace();
-        const key2 = await secretInput(ctx2, `Your ${options.arg ?? "AI provider"} key`);
+        const key2 = await secretInput(
+          ctx2,
+          tr2("Your {0} key", { "0": options.arg ?? "AI provider" })
+        );
         return setAiProvider(ws, options.arg, key2);
       },
       (data) => ctx2.out.line(
-        `${celadon("\u2713")} Saved for your preview, your site and your backend functions: ${data.url}`
+        tr2("{0} Saved for your preview, your site and your backend functions: {1}", {
+          "0": celadon("\u2713"),
+          "1": data.url
+        })
       )
     )
   },
@@ -49263,7 +50710,10 @@ var STEPS = {
       ctx2,
       async () => provisionAppEmails(await ctx2.workspace()),
       (data) => ctx2.out.line(
-        `${celadon("\u2713")} Your app has its own Resend key (RESEND_API_KEY), sending from ${data.sender}.`
+        tr2("{0} Your app has its own Resend key (RESEND_API_KEY), sending from {1}.", {
+          "0": celadon("\u2713"),
+          "1": data.sender
+        })
       )
     )
   },
@@ -49274,11 +50724,11 @@ var STEPS = {
       async () => {
         const ws = await ctx2.workspace();
         if (options.skip) return skipGoogle(ws);
-        const secret = await secretInput(ctx2, "Your Google client secret");
+        const secret = await secretInput(ctx2, tr2("Your Google client secret"));
         return setGoogleSignIn(ws, options.arg, secret);
       },
       (data) => ctx2.out.line(
-        "skipped" in data ? `${celadon("\u2713")} Google sign-in stays off on your new site.` : `${celadon("\u2713")} Google sign-in is on in your new backend.`
+        "skipped" in data ? tr2("{0} Google sign-in stays off on your new site.", { "0": celadon("\u2713") }) : tr2("{0} Google sign-in is on in your new backend.", { "0": celadon("\u2713") })
       )
     )
   },
@@ -49288,11 +50738,13 @@ var STEPS = {
       async () => switchPlan(await ctx2.workspace()),
       (plan) => {
         ctx2.out.line(
-          "Paste this in Lovable (More \u2192 Cloud \u2192 SQL editor) to pause changes on your live app:"
+          tr2(
+            "Paste this in Lovable (More \u2192 Cloud \u2192 SQL editor) to pause changes on your live app:"
+          )
         );
         ctx2.out.line(plan.freeze);
         ctx2.out.line("");
-        ctx2.out.line(ash("To undo the pause:"));
+        ctx2.out.line(ash(tr2("To undo the pause:")));
         ctx2.out.line(ash(plan.undo));
       }
     )
@@ -49302,7 +50754,9 @@ var STEPS = {
       ctx2,
       async () => markFrozen(await ctx2.workspace()),
       () => ctx2.out.line(
-        `${celadon("\u2713")} Paused. Next: export from Lovable once more, then copy it in.`
+        tr2("{0} Paused. Next: export from Lovable once more, then copy it in.", {
+          "0": celadon("\u2713")
+        })
       )
     )
   },
@@ -49317,11 +50771,12 @@ var STEPS = {
         })
       ),
       (outcome) => {
-        if (outcome.files.length > 0) ctx2.out.line(ash(`  Updated: ${outcome.files.join(", ")}`));
+        if (outcome.files.length > 0)
+          ctx2.out.line(ash(tr2("  Updated: {0}", { "0": outcome.files.join(", ") })));
         if (outcome.jobs?.created) {
-          ctx2.out.line(ash(`  Started ${outcome.jobs.created} scheduled job(s)`));
+          ctx2.out.line(ash(tr2("  Started {0} scheduled job(s)", { "0": outcome.jobs.created })));
         }
-        ctx2.out.line(`Publish to put it live at ${outcome.url}.`);
+        ctx2.out.line(tr2("Publish to put it live at {0}.", { "0": outcome.url }));
       }
     )
   },
@@ -49335,17 +50790,22 @@ var STEPS = {
       },
       (outcome) => {
         if ("skipped" in outcome) {
-          ctx2.out.line(`${celadon("\u2713")} Your app keeps its Netlify address.`);
+          ctx2.out.line(tr2("{0} Your app keeps its Netlify address.", { "0": celadon("\u2713") }));
           return;
         }
         if (outcome.ready) {
           ctx2.out.line(
-            `${celadon("\u2713")} ${outcome.name} points to your site. Sign-in links use it now.`
+            tr2("{0} {1} points to your site. Sign-in links use it now.", {
+              "0": celadon("\u2713"),
+              "1": outcome.name
+            })
           );
           return;
         }
         ctx2.out.line(
-          `At ${outcome.name}'s provider, replace the records that point to Lovable with:`
+          tr2("At {0}'s provider, replace the records that point to Lovable with:", {
+            "0": outcome.name
+          })
         );
         for (const r2 of outcome.records) {
           ctx2.out.line(`  ${r2.type.padEnd(5)} ${r2.name.padEnd(6)} ${r2.value}`);
@@ -49358,7 +50818,10 @@ var STEPS = {
       ctx2,
       async () => markFinished(await ctx2.workspace()),
       () => ctx2.out.line(
-        `${celadon("\u2713")} Your app is off Lovable. Clodable deleted its copy of your export from this computer.`
+        tr2(
+          "{0} Your app is off Lovable. Clodable deleted its copy of your export from this computer.",
+          { "0": celadon("\u2713") }
+        )
       )
     )
   },
@@ -49370,7 +50833,9 @@ var STEPS = {
         return { forgotten: true };
       },
       () => ctx2.out.line(
-        `${celadon("\u2713")} Removed the export and the move's files from this computer.`
+        tr2("{0} Removed the export and the move's files from this computer.", {
+          "0": celadon("\u2713")
+        })
       )
     )
   },
@@ -49382,21 +50847,26 @@ var STEPS = {
         return { disconnected: true };
       },
       () => ctx2.out.line(
-        `${celadon("\u2713")} Supabase is disconnected here. Delete the token in Supabase too: ${TOKENS_PAGE}`
+        tr2("{0} Supabase is disconnected here. Delete the token in Supabase too: {1}", {
+          "0": celadon("\u2713"),
+          "1": TOKENS_PAGE
+        })
       )
     )
   }
 };
 var COMMANDS = STEPS;
 var MOVE_STEPS = Object.keys(COMMANDS);
-var MOVE_HELP = `Move off Lovable, step by step: ${MOVE_STEPS.map((name) => COMMANDS[name].usage ?? name).join(", ")}`;
+var moveHelp = () => tr2("Move off Lovable, step by step: {steps}", {
+  steps: MOVE_STEPS.map((name) => COMMANDS[name].usage ?? name).join(", ")
+});
 async function moveCommand(ctx2, options) {
   if (!Object.hasOwn(COMMANDS, options.step)) {
     return run(ctx2, async () => {
       throw new ClodableError({
         code: "not-found",
-        message: `There's no move step called \u201C${options.step}\u201D.`,
-        hint: `Use one of: ${MOVE_STEPS.join(", ")}.`
+        message: tr2("There's no move step called \u201C{0}\u201D.", { "0": options.step }),
+        hint: tr2("Use one of: {0}.", { "0": MOVE_STEPS.join(", ") })
       });
     });
   }
@@ -49411,12 +50881,16 @@ async function connectCommand(ctx2, service) {
       async () => {
         await ctx2.workspace();
         return connectSupabase(
-          await secretInput(ctx2, `Your Supabase access token (create one at ${TOKENS_PAGE})`)
+          await secretInput(
+            ctx2,
+            tr2("Your Supabase access token (create one at {0})", { "0": TOKENS_PAGE })
+          )
         );
       },
       (data) => {
-        ctx2.out.line(`${celadon("\u2713")} Supabase is connected on this computer.`);
-        for (const org of data.organizations) ctx2.out.line(ash(`  ${org.name} \xB7 ${org.plan} plan`));
+        ctx2.out.line(tr2("{0} Supabase is connected on this computer.", { "0": celadon("\u2713") }));
+        for (const org of data.organizations)
+          ctx2.out.line(ash(tr2("  {0} \xB7 {1} plan", { "0": org.name, "1": org.plan })));
       }
     );
     return;
@@ -49429,12 +50903,12 @@ async function connectCommand(ctx2, service) {
         return connectNetlify(
           await secretInput(
             ctx2,
-            `Your Netlify access token (create one at ${NETLIFY_TOKENS_PAGE})`
+            tr2("Your Netlify access token (create one at {0})", { "0": NETLIFY_TOKENS_PAGE })
           )
         );
       },
       (data) => {
-        ctx2.out.line(`${celadon("\u2713")} Netlify is connected on this computer.`);
+        ctx2.out.line(tr2("{0} Netlify is connected on this computer.", { "0": celadon("\u2713") }));
         for (const account of data.accounts)
           ctx2.out.line(ash(`  ${account.name} (${account.slug})`));
       }
@@ -49444,8 +50918,8 @@ async function connectCommand(ctx2, service) {
   await run(ctx2, async () => {
     throw new ClodableError({
       code: "invalid-config",
-      message: `Clodable can't connect \u201C${service}\u201D.`,
-      hint: "Use supabase or netlify."
+      message: tr2("Clodable can't connect \u201C{0}\u201D.", { "0": service }),
+      hint: tr2("Use supabase or netlify.")
     });
   });
 }
@@ -49456,7 +50930,9 @@ async function siteCommand(ctx2, options) {
       async () => reconnectSite(await ctx2.workspace()),
       () => {
         ctx2.out.line(
-          `${celadon("\u2713")} Your app's publishing connection is updated. You can retry Publish.`
+          tr2("{0} Your app's publishing connection is updated. You can retry Publish.", {
+            "0": celadon("\u2713")
+          })
         );
       }
     );
@@ -49470,11 +50946,16 @@ async function siteCommand(ctx2, options) {
         putSiteOnline(await ctx2.workspace(), options.team ? { team: options.team } : {})
       ),
       (outcome) => {
-        ctx2.out.line(`  ${link(outcome.site.url)} ${ash("\xB7 goes online at your next Publish")}`);
-        if (outcome.files.length > 0) ctx2.out.line(ash(`  Added: ${outcome.files.join(", ")}`));
+        ctx2.out.line(
+          `  ${link(outcome.site.url)} ${ash(tr2("\xB7 goes online at your next Publish"))}`
+        );
+        if (outcome.files.length > 0)
+          ctx2.out.line(ash(tr2("  Added: {0}", { "0": outcome.files.join(", ") })));
         const missing = outcome.settings.wanted.filter((n4) => !outcome.settings.set.includes(n4));
         if (missing.length > 0) {
-          ctx2.out.line(ash(`  Settings your app reads, to fill in: ${missing.join(", ")}`));
+          ctx2.out.line(
+            ash(tr2("  Settings your app reads, to fill in: {0}", { "0": missing.join(", ") }))
+          );
         }
       }
     );
@@ -49486,16 +50967,17 @@ async function siteCommand(ctx2, options) {
       if (options.action) {
         throw new ClodableError({
           code: "invalid-config",
-          message: `\u201C${options.action}\u201D isn't something site does.`,
-          hint: "Use clodable site to see where it stands, or clodable site create."
+          message: tr2("\u201C{0}\u201D isn't something site does.", { "0": options.action }),
+          hint: tr2("Use clodable site to see where it stands, or clodable site create.")
         });
       }
       return siteChoices(await ctx2.workspace());
     },
     (choices) => {
-      if (choices.site) ctx2.out.line(`${celadon("\u25CF")} Your site: ${link(choices.site.url)}`);
-      else ctx2.out.line(ash("Your site isn't online with Clodable yet."));
-      if (!choices.connected) ctx2.out.line(ash("Netlify isn't connected on this computer."));
+      if (choices.site)
+        ctx2.out.line(tr2("{0} Your site: {1}", { "0": celadon("\u25CF"), "1": link(choices.site.url) }));
+      else ctx2.out.line(ash(tr2("Your site isn't online with Clodable yet.")));
+      if (!choices.connected) ctx2.out.line(ash(tr2("Netlify isn't connected on this computer.")));
       for (const team of choices.teams) ctx2.out.line(`${team.name} ${ash(`(${team.slug})`)}`);
     }
   );
@@ -49524,8 +51006,8 @@ async function backendCommand(ctx2, options) {
       if (options.action) {
         throw new ClodableError({
           code: "invalid-config",
-          message: `\u201C${options.action}\u201D isn't something backend does.`,
-          hint: "Use clodable backend to see your choices, or clodable backend create."
+          message: tr2("\u201C{0}\u201D isn't something backend does.", { "0": options.action }),
+          hint: tr2("Use clodable backend to see your choices, or clodable backend create.")
         });
       }
       await ctx2.workspace();
@@ -49533,13 +51015,14 @@ async function backendCommand(ctx2, options) {
     },
     (choices) => {
       if (!choices.connected) {
-        ctx2.out.line(ash("Supabase isn't connected on this computer."));
+        ctx2.out.line(ash(tr2("Supabase isn't connected on this computer.")));
         return;
       }
       for (const org of choices.organizations ?? []) {
         ctx2.out.line(`${org.name} ${ash(`(${org.slug}) \xB7 ${choices.costs?.[org.slug] ?? ""}`)}`);
       }
-      if (choices.region) ctx2.out.line(ash(`Suggested region: ${choices.region.name}`));
+      if (choices.region)
+        ctx2.out.line(ash(tr2("Suggested region: {0}", { "0": choices.region.name })));
     }
   );
 }
@@ -49548,7 +51031,9 @@ async function backendCommand(ctx2, options) {
 var import_picocolors3 = __toESM(require_picocolors(), 1);
 async function publishCommand(ctx2, options) {
   const ws = await ctx2.workspace().catch((e) => e);
-  ctx2.out.header(ws instanceof Error ? "publishing" : `publishing ${ws.project.name}`);
+  ctx2.out.header(
+    ws instanceof Error ? tr2("publishing") : tr2("publishing {0}", { "0": ws.project.name })
+  );
   await run(
     ctx2,
     async () => {
@@ -49566,26 +51051,33 @@ async function publishCommand(ctx2, options) {
       out.line();
       if (result.deploy === "live") {
         out.line(
-          `${celadon("\u25CF")} ${import_picocolors3.default.bold("You're live")}${result.url ? `  ${link(result.url)}` : ""}`
+          `${celadon("\u25CF")} ${import_picocolors3.default.bold(tr2("You're live"))}${result.url ? `  ${link(result.url)}` : ""}`
         );
       } else if (result.deploy === "pending") {
         out.line(
-          `${ochre("\u25CF")} ${import_picocolors3.default.bold("Published")}. Your host is still putting it live${result.url ? `: ${link(result.url)}` : "."}`
+          tr2("{0} {1}. Your host is still putting it live{2}", {
+            "0": ochre("\u25CF"),
+            "1": import_picocolors3.default.bold(tr2("Published")),
+            "2": result.url ? `: ${link(result.url)}` : "."
+          })
         );
       } else {
         out.line(
-          `${celadon("\u25CF")} ${import_picocolors3.default.bold("Published")}${result.url ? `  ${link(result.url)}` : ""}`
+          `${celadon("\u25CF")} ${import_picocolors3.default.bold(tr2("Published"))}${result.url ? `  ${link(result.url)}` : ""}`
         );
       }
       out.line(ash(`  \u201C${result.title}\u201D`));
       for (const warning of result.warnings) out.line(`${ochre("!")} ${warning}`);
       if (result.functions.pending.length > 0) {
         out.line(
-          `${ochre("!")} Backend functions to update: ${result.functions.pending.join(", ")}. Ask Claude to put them live.`
+          tr2("{0} Backend functions to update: {1}. Ask Claude to put them live.", {
+            "0": ochre("!"),
+            "1": result.functions.pending.join(", ")
+          })
         );
       }
       out.line();
-      out.line(ash("Changed your mind?  clodable undo"));
+      out.line(ash(tr2("Changed your mind?  clodable undo")));
       out.line();
     }
   );
@@ -49596,15 +51088,17 @@ async function undoCommand(ctx2, options) {
     await ws.git.fetch(ws.remote, ws.liveBranch);
     const [last] = await ws.git.log(ws.liveRef, { firstParent: true, limit: 1 });
     const ok = await confirm({
-      message: `Undo \u201C${last?.subject ?? "your last publish"}\u201D? The previous version goes live again.`
+      message: tr2("Undo \u201C{0}\u201D? The previous version goes live again.", {
+        "0": last?.subject ?? tr2("your last publish")
+      })
     });
     if (isCancel(ok) || !ok) {
-      ctx2.out.line(ash("Nothing changed."));
+      ctx2.out.line(ash(tr2("Nothing changed.")));
       return;
     }
-    ctx2.out.line(ash("Database changes aren't undone. Only the app's pages and code are."));
+    ctx2.out.line(ash(tr2("Database changes aren't undone. Only the app's pages and code are.")));
   }
-  ctx2.out.header("undoing your last publish");
+  ctx2.out.header(tr2("undoing your last publish"));
   await run(
     ctx2,
     async () => {
@@ -49614,11 +51108,19 @@ async function undoCommand(ctx2, options) {
     (result) => {
       ctx2.out.line();
       ctx2.out.line(
-        `${celadon("\u25CF")} ${import_picocolors3.default.bold("Undone")}. \u201C${result.undid.title}\u201D is no longer live.${result.url ? `  ${link(result.url)}` : ""}`
+        tr2("{0} {1}. \u201C{2}\u201D is no longer live.{3}", {
+          "0": celadon("\u25CF"),
+          "1": import_picocolors3.default.bold(tr2("Undone")),
+          "2": result.undid.title,
+          "3": result.url ? `  ${link(result.url)}` : ""
+        })
       );
       if (result.conflicts?.length) {
         ctx2.out.line(
-          `${ochre("!")} Your draft overlaps with what was undone. Ask Claude to combine them: ${result.conflicts.join(", ")}`
+          tr2("{0} Your draft overlaps with what was undone. Ask Claude to combine them: {1}", {
+            "0": ochre("!"),
+            "1": result.conflicts.join(", ")
+          })
         );
       }
       ctx2.out.line();
@@ -49626,19 +51128,19 @@ async function undoCommand(ctx2, options) {
   );
 }
 async function checkCommand(ctx2) {
-  ctx2.out.header("checking your app");
+  ctx2.out.header(tr2("checking your app"));
   await run(
     ctx2,
     async () => {
       const ws = await ctx2.workspace();
       const results = await drive(ctx2, runChecks(ws.project, ws.config));
       const failed = results.filter((r2) => r2.status === "failed");
-      if (failed.length > 0) throw checksFailed(failed, "Ask Claude to fix it.");
+      if (failed.length > 0) throw checksFailed(failed, tr2("Ask Claude to fix it."));
       return results;
     },
     () => {
       ctx2.out.line();
-      ctx2.out.line(`${celadon("\u25CF")} ${import_picocolors3.default.bold("Ready to publish")}`);
+      ctx2.out.line(`${celadon("\u25CF")} ${import_picocolors3.default.bold(tr2("Ready to publish"))}`);
       ctx2.out.line();
     }
   );
@@ -49655,10 +51157,12 @@ async function settingsCommand(ctx2, options) {
         return setSetting(
           ws,
           name,
-          await secretInput(ctx2, `The value of ${name}`, { exact: true })
+          await secretInput(ctx2, tr2("The value of {0}", { "0": name }), { exact: true })
         );
       },
-      () => ctx2.out.line(`${celadon("\u2713")} Saved ${name}. The preview restarts with it.`)
+      () => ctx2.out.line(
+        tr2("{0} Saved {1}. The preview restarts with it.", { "0": celadon("\u2713"), "1": name })
+      )
     );
   }
   return run(
@@ -49669,11 +51173,11 @@ async function settingsCommand(ctx2, options) {
         const here = status2.local.includes(name);
         const site = status2.site?.includes(name);
         ctx2.out.line(
-          `${here ? celadon("\u2713") : clay("\u25CF")} ${name}${ash(`  ${here ? "on this computer" : "not on this computer"}${status2.site ? site ? " \xB7 on your site" : " \xB7 not on your site" : ""}`)}`
+          `${here ? celadon("\u2713") : clay("\u25CF")} ${name}${ash(`  ${here ? tr2("on this computer") : tr2("not on this computer")}${status2.site ? site ? tr2(" \xB7 on your site") : tr2(" \xB7 not on your site") : ""}`)}`
         );
       }
       for (const name of status2.lovable)
-        ctx2.out.line(`${ash("\xB7")} ${name} ${ash("(Lovable's own)")}`);
+        ctx2.out.line(`${ash("\xB7")} ${name} ${ash(tr2("(Lovable's own)"))}`);
     }
   );
 }
@@ -49696,15 +51200,15 @@ async function doctor(cwd2) {
   if (pending)
     items.push({
       id: "new-app",
-      label: "Saving setup",
+      label: tr2("Saving setup"),
       status: "info",
       detail: `${pending.account}/${pending.name}`
     });
   items.push({
     id: "repo",
-    label: "Your app on GitHub",
+    label: tr2("Your app on GitHub"),
     status: parsed || standIn ? "ok" : "fail",
-    ...parsed ? { detail: `${parsed.owner}/${parsed.repo}` } : standIn ? { detail: "a stand-in for GitHub on this computer" } : { fix: "Run `clodable setup` in an empty folder to bring your app in from GitHub" }
+    ...parsed ? { detail: `${parsed.owner}/${parsed.repo}` } : standIn ? { detail: tr2("a stand-in for GitHub on this computer") } : { fix: tr2("Run `clodable setup` in an empty folder to bring your app in from GitHub") }
   });
   if (!isRepo) return items;
   return [...items, ...await appChecks(git)];
@@ -49715,15 +51219,15 @@ async function toolChecks(cwd2, checkedGit) {
   const nodeOk = major > MIN_NODE[0] || major === MIN_NODE[0] && minor >= MIN_NODE[1];
   items.push({
     id: "node",
-    label: "Node.js",
+    label: tr2("Node.js"),
     status: nodeOk ? "ok" : "fail",
     detail: `v${process.versions.node}`,
-    ...nodeOk ? {} : { fix: "Install Node.js 22 or newer from https://nodejs.org" }
+    ...nodeOk ? {} : { fix: tr2("Install Node.js 22 or newer from https://nodejs.org") }
   });
   const git = checkedGit ?? await gitReadiness(cwd2);
   items.push({
     id: "git",
-    label: "Git",
+    label: tr2("Git"),
     status: git.ok ? "ok" : "fail",
     ...git.ok ? {} : {
       detail: git.error.message,
@@ -49737,24 +51241,26 @@ async function toolChecks(cwd2, checkedGit) {
   );
   items.push({
     id: "secrets",
-    label: "Secret-key check",
+    label: tr2("Secret-key check"),
     status: scanner.ok ? "ok" : "fail",
     ...scanner.ok ? {
-      detail: scanner.path === "gitleaks" ? "gitleaks (yours)" : `gitleaks ${GITLEAKS_VERSION}`
+      detail: scanner.path === "gitleaks" ? tr2("gitleaks (yours)") : tr2("gitleaks {0}", { "0": GITLEAKS_VERSION })
     } : {
       detail: scanner.reason,
-      fix: "Check your internet connection. Until it works, saves stay on this computer."
+      fix: tr2("Check your internet connection. Until it works, saves stay on this computer.")
     }
   });
   const gh = new GhCli(cwd2);
   const ready2 = await gh.ready();
   items.push({
     id: "gh",
-    label: "GitHub CLI",
+    label: tr2("GitHub CLI"),
     status: ready2.installed ? "ok" : "fail",
     ...ready2.installed ? { executable: await ghBinary() } : {},
-    ...ready2.installed ? await ghIsOurs() ? { detail: `${GH_VERSION}, Clodable's own` } : {} : {
-      fix: "Check your internet connection: Clodable downloads it. Or install it from https://cli.github.com"
+    ...ready2.installed ? await ghIsOurs() ? { detail: tr2("{0}, Clodable's own", { "0": GH_VERSION }) } : {} : {
+      fix: tr2(
+        "Check your internet connection: Clodable downloads it. Or install it from https://cli.github.com"
+      )
     }
   });
   if (ready2.installed) {
@@ -49763,9 +51269,9 @@ async function toolChecks(cwd2, checkedGit) {
       login = await gh.viewer().then((v) => v.login).catch(() => void 0);
     items.push({
       id: "github",
-      label: "GitHub account",
+      label: tr2("GitHub account"),
       status: login ? "ok" : "fail",
-      ...login ? { detail: `@${login}` } : { fix: "Run `gh auth login --web` to connect your account" }
+      ...login ? { detail: `@${login}` } : { fix: tr2("Run `gh auth login --web` to connect your account") }
     });
   }
   return items;
@@ -49774,42 +51280,45 @@ async function appChecks(git) {
   const items = [];
   const root = await git.root();
   const project = await detectProject(root);
-  const typeLabel = project.appType === "tanstack-start" ? "TanStack Start app" : project.appType === "vite-spa" ? "Vite + React app" : "Unknown app type";
+  const typeLabel = project.appType === "tanstack-start" ? tr2("TanStack Start app") : project.appType === "vite-spa" ? tr2("Vite + React app") : tr2("Unknown app type");
   items.push({
     id: "app",
-    label: "App",
+    label: tr2("App"),
     status: project.appType === "unknown" ? "warn" : "ok",
-    detail: `${typeLabel}${project.lovable.generated ? ", made with Lovable" : ""}`
+    detail: project.lovable.generated ? tr2("{type}, made with Lovable", { type: typeLabel }) : typeLabel
   });
   const installed = existsSync28(join33(root, "node_modules"));
   items.push({
     id: "deps",
-    label: "App dependencies",
+    label: tr2("App dependencies"),
     status: installed ? "ok" : "warn",
-    ...installed ? {} : { fix: `Run \`${await packageManagerHere(project)} install\`` }
+    ...installed ? {} : { fix: tr2("Run `{0} install`", { "0": await packageManagerHere(project) }) }
   });
   const config2 = await loadConfig(root);
   const kit = await planKit(project, config2);
   const missing = kit.filter((c2) => c2.action === "create");
   items.push({
     id: "kit",
-    label: "Clodable in this project",
+    label: tr2("Clodable in this project"),
     status: missing.length === 0 ? "ok" : "warn",
-    ...missing.length === 0 ? {} : { detail: `${missing.length} file(s) missing`, fix: "Run `clodable kit --apply`" }
+    ...missing.length === 0 ? {} : {
+      detail: tr2("{0} file(s) missing", { "0": missing.length }),
+      fix: tr2("Run `clodable kit --apply`")
+    }
   });
   const ref = supabaseRef(config2, project);
   items.push(
     config2.backend === "lovable-cloud" ? {
       id: "supabase",
-      label: "Database",
+      label: tr2("Database"),
       status: "info",
-      detail: "On Lovable Cloud: Lovable owns it, so Claude can't change it from here",
-      fix: "Move off Lovable, in the Clodable panel, to make it yours"
+      detail: tr2("On Lovable Cloud: Lovable owns it, so Claude can't change it from here"),
+      fix: tr2("Move off Lovable, in the Clodable panel, to make it yours")
     } : {
       id: "supabase",
-      label: "Database",
+      label: tr2("Database"),
       status: ref ? "ok" : "info",
-      detail: ref ? `Supabase project ${ref}` : project.supabase.used ? "Supabase (project not found in code)" : "None"
+      detail: ref ? tr2("Supabase project {0}", { "0": ref }) : project.supabase.used ? tr2("Supabase (project not found in code)") : tr2("None")
     }
   );
   return [...items, ...await lovableChecks(git, project, config2)];
@@ -49830,34 +51339,37 @@ async function lovableChecks(git, project, config2) {
     items.push(
       onLovable ? {
         id: "lovable-sync",
-        label: "Lovable",
+        label: tr2("Lovable"),
         status: "info",
-        detail: "Changes made in Lovable come here too, through GitHub"
+        detail: tr2("Changes made in Lovable come here too, through GitHub")
       } : {
         id: "lovable-sync",
-        label: "Lovable",
+        label: tr2("Lovable"),
         status: "warn",
-        detail: "Lovable still pushes changes straight to your live site",
-        fix: "In Lovable: More \u2192 Settings \u2192 Git \u2192 GitHub \u2192 Disconnect"
+        detail: tr2("Lovable still pushes changes straight to your live site"),
+        fix: tr2("In Lovable: More \u2192 Settings \u2192 Git \u2192 GitHub \u2192 Disconnect")
       }
     );
   }
   const aiLeft = await lovableAiLeft(project.root);
   if (aiLeft) {
-    const one = aiLeft.features.length === 1;
-    const what = aiLeft.features.length === 0 ? "Your app's AI features don't" : `${quotedList(aiLeft.features)} ${one ? "doesn't" : "don't"}`;
     items.push(
       onLovable ? {
         id: "lovable-ai",
-        label: "Lovable AI",
+        label: tr2("Lovable AI"),
         status: "info",
-        detail: "Your app uses Lovable's AI; the move switches it to your own key"
+        detail: tr2("Your app uses Lovable's AI; the move switches it to your own key")
       } : {
         id: "lovable-ai",
-        label: "Lovable AI",
+        label: tr2("Lovable AI"),
         status: "warn",
-        detail: `${what} work: ${one ? "it calls" : "they call"} Lovable's AI, which your app no longer has`,
-        fix: "Claude can switch it to an AI key of your own"
+        detail: aiLeft.features.length === 0 ? tr2(
+          "Your app's AI features don't work: they call Lovable's AI, which your app no longer has"
+        ) : tr2(
+          aiLeft.features.length === 1 ? "{features} doesn't work: it calls Lovable's AI, which your app no longer has" : "{features} don't work: they call Lovable's AI, which your app no longer has",
+          { features: quotedList(aiLeft.features) }
+        ),
+        fix: tr2("Claude can switch it to an AI key of your own")
       }
     );
   }
@@ -49865,6 +51377,8 @@ async function lovableChecks(git, project, config2) {
 }
 function quotedList(names2) {
   const quoted = names2.map((n4) => `\u201C${n4}\u201D`);
+  if (currentLocale2() === "fr")
+    return new Intl.ListFormat("fr", { style: "long", type: "conjunction" }).format(quoted);
   return quoted.length === 1 ? quoted[0] : `${quoted.slice(0, -1).join(", ")} and ${quoted.at(-1)}`;
 }
 var MARK2 = { ok: celadon("\u2713"), warn: ochre("!"), fail: oxide("\u2715"), info: ash("\xB7") };
@@ -49875,7 +51389,7 @@ function doctorLine(ctx2, item) {
   if (item.fix && item.status !== "ok") ctx2.out.line(`  ${ash("\u2192")} ${item.fix}`);
 }
 function renderDoctor(ctx2, items) {
-  ctx2.out.header("doctor");
+  ctx2.out.header(tr2("doctor"));
   for (const item of items) doctorLine(ctx2, item);
   ctx2.out.line();
 }
@@ -49893,7 +51407,7 @@ function renderKit(ctx2, changes, applied) {
   }
   ctx2.out.line();
   if (!applied && changes.some((c2) => c2.action !== "unchanged")) {
-    ctx2.out.line(ash("Nothing written yet. Run with --apply to add these files."));
+    ctx2.out.line(ash(tr2("Nothing written yet. Run with --apply to add these files.")));
     ctx2.out.line();
   }
 }
@@ -49914,7 +51428,7 @@ async function kitCommand(ctx2, options) {
       };
     },
     (data) => {
-      ctx2.out.header(options.apply ? "repo kit added" : "repo kit");
+      ctx2.out.header(options.apply ? tr2("repo kit added") : tr2("repo kit"));
       renderKit(ctx2, full, data.applied);
     }
   );
@@ -49924,17 +51438,17 @@ async function whereItRuns(project, current) {
   if (backend === "unknown" && !project.supabase.used) backend = "none";
   if (backend === "unknown" && current.interactive) {
     const choice = await select({
-      message: "Where does your app's data live?",
+      message: tr2("Where does your app's data live?"),
       options: [
         {
           value: "lovable-cloud",
-          label: "On Lovable Cloud",
-          hint: "you see it under Cloud in Lovable"
+          label: tr2("On Lovable Cloud"),
+          hint: tr2("you see it under Cloud in Lovable")
         },
         {
           value: "supabase",
-          label: "In my own Supabase project",
-          hint: "you can open it at supabase.com"
+          label: tr2("In my own Supabase project"),
+          hint: tr2("you can open it at supabase.com")
         }
       ]
     });
@@ -49942,18 +51456,22 @@ async function whereItRuns(project, current) {
   }
   if (hosting === "unknown" && current.interactive) {
     const choice = await select({
-      message: "Where is your site live?",
+      message: tr2("Where is your site live?"),
       options: [
-        { value: "lovable", label: "On Lovable", hint: "you click Publish in Lovable" },
+        {
+          value: "lovable",
+          label: tr2("On Lovable"),
+          hint: tr2("you click Publish in Lovable")
+        },
         {
           value: "github",
-          label: "Elsewhere (Netlify, Vercel\u2026)",
-          hint: "it updates when GitHub changes"
+          label: tr2("Elsewhere (Netlify, Vercel\u2026)"),
+          hint: tr2("it updates when GitHub changes")
         },
         {
           value: "none",
-          label: "Not online yet",
-          hint: "Clodable can put it on your own Netlify"
+          label: tr2("Not online yet"),
+          hint: tr2("Clodable can put it on your own Netlify")
         }
       ]
     });
@@ -49965,10 +51483,10 @@ function panelStep(ctx2, id, state, title) {
   if (ctx2.out.json) ctx2.out.event(step(id, state, title));
 }
 async function requireTools(ctx2) {
-  panelStep(ctx2, "setup:tools", "running", "Checking your tools");
+  panelStep(ctx2, "setup:tools", "running", tr2("Checking your tools"));
   const git = await gitReadiness(ctx2.cwd);
   if (!git.ok) {
-    panelStep(ctx2, "setup:tools", "failed", "A few tools are needed first");
+    panelStep(ctx2, "setup:tools", "failed", tr2("A few tools are needed first"));
     throw new ClodableError(git.error);
   }
   const tools = (await toolChecks(ctx2.cwd, git)).filter((t2) => REQUIRED.includes(t2.id));
@@ -49978,12 +51496,12 @@ async function requireTools(ctx2) {
     ctx2,
     "setup:tools",
     blocking.length > 0 ? "failed" : "done",
-    blocking.length > 0 ? "A few tools are needed first" : "Your tools are ready"
+    blocking.length > 0 ? tr2("A few tools are needed first") : tr2("Your tools are ready")
   );
   if (blocking.length > 0) {
     throw new ClodableError({
       code: blocking.some((b) => b.id === "github") ? "gh-auth" : "gh-missing",
-      message: "A few tools are needed first.",
+      message: tr2("A few tools are needed first."),
       hint: blocking.map((b) => b.fix).filter(Boolean).join("\n    ")
     });
   }
@@ -49993,34 +51511,35 @@ async function pickRepo(ctx2, given, interactive) {
   if (interactive) {
     const repos = await new GhCli(ctx2.cwd).repositories();
     const choice = await select({
-      message: "Which app should Clodable open?",
+      message: tr2("Which app should Clodable open?"),
       options: repos.map((r2) => ({ value: r2.name, label: r2.name, hint: r2.description ?? "" }))
     });
-    if (isCancel(choice)) throw new ClodableError({ code: "unknown", message: "Setup cancelled." });
+    if (isCancel(choice))
+      throw new ClodableError({ code: "unknown", message: tr2("Setup cancelled.") });
     return choice;
   }
   throw new ClodableError({
     code: "not-a-repo",
-    message: "Which app should Clodable open?",
-    hint: "Run `clodable setup --repo owner/name`."
+    message: tr2("Which app should Clodable open?"),
+    hint: tr2("Run `clodable setup --repo owner/name`.")
   });
 }
 async function bringIn(ctx2, repo) {
   const empty = readdirSync(ctx2.cwd).filter((n4) => !n4.startsWith(".")).length === 0;
   const target = empty ? ctx2.cwd : join33(ctx2.cwd, repo.split("/")[1]);
-  ctx2.out.event(step("setup:app", "running", `Bringing in ${repo}`));
+  ctx2.out.event(step("setup:app", "running", tr2("Bringing in {0}", { "0": repo })));
   try {
     await new GhCli(ctx2.cwd).clone(repo, target);
   } catch (error62) {
-    ctx2.out.event(step("setup:app", "failed", `Couldn't bring in ${repo}`));
+    ctx2.out.event(step("setup:app", "failed", tr2("Couldn't bring in {0}", { "0": repo })));
     if (error62 instanceof ClodableError && error62.code !== "unknown") throw error62;
     throw new ClodableError({
       code: "not-found",
-      message: `Couldn't bring in ${repo}.`,
+      message: tr2("Couldn't bring in {0}.", { "0": repo }),
       details: error62 instanceof ClodableError ? error62.details : messageOf(error62)
     });
   }
-  ctx2.out.event(step("setup:app", "done", `Brought in ${repo}`));
+  ctx2.out.event(step("setup:app", "done", tr2("Brought in {0}", { "0": repo })));
   return target;
 }
 async function setupCommand(ctx2, options) {
@@ -50028,13 +51547,15 @@ async function setupCommand(ctx2, options) {
   await run(
     ctx2,
     async () => {
-      ctx2.out.header("let's bring your app home");
+      ctx2.out.header(tr2("let's bring your app home"));
       await requireTools(ctx2);
       const git = new Git(ctx2.cwd);
       if (options.new !== void 0 && (!options.account || options.repo || options.publish)) {
         throw new ClodableError({
           code: "invalid-config",
-          message: "Choose the account for your new private app in Set up saving. Publishing comes later."
+          message: tr2(
+            "Choose the account for your new private app in Set up saving. Publishing comes later."
+          )
         });
       }
       const started = options.new !== void 0 ? await drive(
@@ -50056,51 +51577,56 @@ async function setupCommand(ctx2, options) {
       const changes = await planKit(project, config2);
       if (!ctx2.out.json) {
         ctx2.out.line();
-        ctx2.out.line(import_picocolors4.default.bold("Clodable adds a few plain files to your project:"));
+        ctx2.out.line(import_picocolors4.default.bold(tr2("Clodable adds a few plain files to your project:")));
         renderKit(ctx2, changes, true);
       }
       if (interactive) {
-        const ok = await confirm({ message: "Add them?" });
+        const ok = await confirm({ message: tr2("Add them?") });
         if (isCancel(ok) || !ok)
           throw new ClodableError({
             code: "unknown",
-            message: "Setup cancelled. Nothing was changed."
+            message: tr2("Setup cancelled. Nothing was changed.")
           });
       }
-      panelStep(ctx2, "setup:files", "running", "Adding Clodable's files");
+      panelStep(ctx2, "setup:files", "running", tr2("Adding Clodable's files"));
       await applyKit(root, changes);
-      panelStep(ctx2, "setup:files", "done", "Added Clodable's files");
+      panelStep(ctx2, "setup:files", "done", tr2("Added Clodable's files"));
       if (!existsSync28(join33(root, "node_modules"))) {
         ctx2.out.event(
-          step("setup:packages", "running", "Installing your app's packages", "a minute or two")
+          step(
+            "setup:packages",
+            "running",
+            tr2("Installing your app's packages"),
+            tr2("a minute or two")
+          )
         );
         const installed = await exec2(await packageManagerHere(project), ["install"], {
           cwd: root,
           timeout: 15 * 6e4
         });
         ctx2.out.event(
-          installed.exitCode === 0 ? step("setup:packages", "done", "Installed your app's packages") : step(
+          installed.exitCode === 0 ? step("setup:packages", "done", tr2("Installed your app's packages")) : step(
             "setup:packages",
             "warning",
-            "Your app's packages didn't install",
-            "ask Claude to install them"
+            tr2("Your app's packages didn't install"),
+            tr2("ask Claude to install them")
           )
         );
       }
-      ctx2.out.event(step("setup:save", "running", "Saving it to your draft on GitHub"));
+      ctx2.out.event(step("setup:save", "running", tr2("Saving it to your draft on GitHub")));
       const ws = await Workspace.open({ cwd: root, ...ctx2.github ? { github: ctx2.github } : {} });
-      const saved = await save2(ws, { message: "Set up Clodable", kind: "setup" });
+      const saved = await save2(ws, { message: tr2("Set up Clodable"), kind: "setup" });
       ctx2.out.event(
-        !saved.saved ? step("setup:save", "skipped", "Nothing new to save") : saved.pushed ? step("setup:save", "done", "Saved to your draft on GitHub") : step(
+        !saved.saved ? step("setup:save", "skipped", tr2("Nothing new to save")) : saved.pushed ? step("setup:save", "done", tr2("Saved to your draft on GitHub")) : step(
           "setup:save",
           "warning",
-          "Saved on this computer",
-          saved.unscanned ? "it goes to GitHub once it's checked for secret keys" : "it goes to GitHub once you're online"
+          tr2("Saved on this computer"),
+          saved.unscanned ? tr2("it goes to GitHub once it's checked for secret keys") : tr2("it goes to GitHub once you're online")
         )
       );
       let published = false;
       if (saved.saved && (options.publish || interactive && await confirmPublish())) {
-        await drive(ctx2, publish(ws, { message: "Set up Clodable" }));
+        await drive(ctx2, publish(ws, { message: tr2("Set up Clodable") }));
         published = true;
       }
       return {
@@ -50114,18 +51640,22 @@ async function setupCommand(ctx2, options) {
     },
     (data) => {
       ctx2.out.line();
-      ctx2.out.line(`${celadon("\u25CF")} ${import_picocolors4.default.bold("Your app is ready.")}`);
+      ctx2.out.line(`${celadon("\u25CF")} ${import_picocolors4.default.bold(tr2("Your app is ready."))}`);
       ctx2.out.line();
-      ctx2.out.line(`  1. Open Claude Desktop \u2192 Code, and choose this folder: ${link(data.root)}`);
-      ctx2.out.line("  2. The preview starts by itself. Ask for any change, in your own words.");
-      ctx2.out.line("  3. When you're happy, click Publish.");
+      ctx2.out.line(
+        tr2("  1. Open Claude Desktop \u2192 Code, and choose this folder: {0}", {
+          "0": link(data.root)
+        })
+      );
+      ctx2.out.line(tr2("  2. The preview starts by itself. Ask for any change, in your own words."));
+      ctx2.out.line(tr2("  3. When you're happy, click Publish."));
       ctx2.out.line();
     }
   );
 }
 async function confirmPublish() {
   const ok = await confirm({
-    message: "Publish the setup now? It only adds Clodable's files. Your site looks the same.",
+    message: tr2("Publish the setup now? It only adds Clodable's files. Your site looks the same."),
     initialValue: true
   });
   return !isCancel(ok) && ok;
@@ -50133,27 +51663,48 @@ async function confirmPublish() {
 
 // src/commands/work.ts
 var import_picocolors5 = __toESM(require_picocolors(), 1);
-var plural3 = (n4, word) => `${n4} ${word}${n4 === 1 ? "" : "s"}`;
+var plural3 = (n4, word) => {
+  const forms = {
+    change: ["{count} change", "{count} changes"],
+    file: ["{count} file", "{count} files"],
+    "newer publish": ["{count} newer publish", "{count} newer publishes"]
+  };
+  return tr2(forms[word][n4 === 1 ? 0 : 1], { count: n4 });
+};
 function renderSave(ctx2, result) {
   const { out } = ctx2;
   if (!result.saved && result.pushed) {
-    out.line(`${celadon("\u2713")} Everything is already saved`);
+    out.line(tr2("{0} Everything is already saved", { "0": celadon("\u2713") }));
   } else if (result.unscanned && !result.offline) {
     out.line(
-      `${ochre("!")} Saved on this computer. It goes to GitHub once it's been checked for secret keys.`
+      tr2("{0} Saved on this computer. It goes to GitHub once it's been checked for secret keys.", {
+        "0": ochre("!")
+      })
     );
     out.line(ash(`  ${result.unscanned}`));
   } else if (result.offline || !result.pushed) {
-    out.line(`${ochre("!")} Saved on this computer. It goes up to GitHub when you're back online.`);
+    out.line(
+      tr2("{0} Saved on this computer. It goes up to GitHub when you're back online.", {
+        "0": ochre("!")
+      })
+    );
   } else {
     out.line(
-      `${celadon("\u2713")} Saved ${ash(`\xB7 ${plural3(result.unpublished, "change")} not live yet`)}`
+      tr2("{0} Saved {1}", {
+        "0": celadon("\u2713"),
+        "1": ash(
+          `\xB7 ${tr2("{changes} not live yet", { changes: plural3(result.unpublished, "change") })}`
+        )
+      })
     );
   }
-  for (const note of result.notes ?? []) out.line(`${ochre("!")} Worth a look: ${note}`);
+  for (const note of result.notes ?? [])
+    out.line(tr2("{0} Worth a look: {1}", { "0": ochre("!"), "1": note }));
   if (result.conflicts?.length) {
     out.line(
-      `${ochre("!")} Your draft also changed on another computer, and both changed the same thing.`
+      tr2("{0} Your draft also changed on another computer, and both changed the same thing.", {
+        "0": ochre("!")
+      })
     );
     out.line(ash(`  ${result.conflicts.join(", ")}`));
   }
@@ -50172,28 +51723,38 @@ async function statusCommand(ctx2, options) {
     (s) => {
       const { out } = ctx2;
       out.header(`${s.project.name}`);
-      const draftLine = s.unpublished.length === 0 ? ash("nothing waiting to go live") : `${clay(plural3(s.unpublished.length, "change"))} not live yet`;
-      out.line(`${label("Draft")}${draftLine}`);
+      const draftLine = s.unpublished.length === 0 ? ash(tr2("nothing waiting to go live")) : tr2("{changes} not live yet", { changes: clay(plural3(s.unpublished.length, "change")) });
+      out.line(`${label(tr2("Draft"))}${draftLine}`);
       for (const commit of s.unpublished.slice(0, 5)) {
         out.line(`${label("")}${ash("\xB7")} ${commit.subject} ${ash(formatRelative(commit.date))}`);
       }
       if (s.unpublished.length > 5)
-        out.line(`${label("")}${ash(`\u2026 and ${s.unpublished.length - 5} more`)}`);
+        out.line(
+          `${label("")}${ash(tr2("\u2026 and {count} more", { count: s.unpublished.length - 5 }))}`
+        );
       if (s.unsaved > 0)
-        out.line(`${label("Unsaved")}${plural3(s.unsaved, "file")} changed since the last save`);
+        out.line(
+          tr2("{0}{1} changed since the last save", {
+            "0": label(tr2("Unsaved")),
+            "1": plural3(s.unsaved, "file")
+          })
+        );
       if (s.conflicts.length > 0) {
         out.line(
-          `${label("Attention")}${ochre("Combining with the live site:")} ${s.conflicts.join(", ")}`
+          `${label(tr2("Attention"))}${ochre(tr2("Combining with the live site:"))} ${s.conflicts.join(", ")}`
         );
       }
       if (s.behindLive > 0) {
         out.line(
-          `${label("Live site")}${plural3(s.behindLive, "newer publish")}, brought in when you publish`
+          tr2("{0}{1}, brought in when you publish", {
+            "0": label(tr2("Live site")),
+            "1": plural3(s.behindLive, "newer publish")
+          })
         );
       }
-      const live = s.lastPublish ? `${s.lastPublish.url ? `${link(s.lastPublish.url)} ${ash("\xB7")} ` : ""}${ash(`published ${formatRelative(s.lastPublish.at)}`)}` : s.project.liveUrl ? link(s.project.liveUrl) : ash("not published with Clodable yet");
-      out.line(`${label("Live")}${live}`);
-      if (s.pullRequest) out.line(`${label("On GitHub")}${link(s.pullRequest.url)}`);
+      const live = s.lastPublish ? `${s.lastPublish.url ? `${link(s.lastPublish.url)} ${ash("\xB7")} ` : ""}${ash(tr2("published {when}", { when: formatRelative(s.lastPublish.at) }))}` : s.project.liveUrl ? link(s.project.liveUrl) : ash(tr2("not published with Clodable yet"));
+      out.line(`${label(tr2("Live"))}${live}`);
+      if (s.pullRequest) out.line(`${label(tr2("On GitHub"))}${link(s.pullRequest.url)}`);
       out.line();
     }
   );
@@ -50204,17 +51765,17 @@ async function historyCommand(ctx2, options) {
     async () => history(await ctx2.workspace(), options.limit ? { limit: options.limit } : {}),
     (h2) => {
       const { out } = ctx2;
-      out.header("history");
-      out.line(import_picocolors5.default.bold("Your draft"));
-      if (h2.draft.length === 0) out.line(ash("  Nothing waiting to go live."));
-      else if (h2.sameAsLive) out.line(ash("  Same as your live site: nothing to publish."));
+      out.header(tr2("history"));
+      out.line(import_picocolors5.default.bold(tr2("Your draft")));
+      if (h2.draft.length === 0) out.line(ash(tr2("  Nothing waiting to go live.")));
+      else if (h2.sameAsLive) out.line(ash(tr2("  Same as your live site: nothing to publish.")));
       for (const c2 of h2.draft) {
         out.line(
           `  ${clay("\u25CF")} ${c2.subject} ${ash(`\xB7 ${formatRelative(c2.date)} \xB7 ${c2.sha.slice(0, 7)}`)}`
         );
       }
       out.line();
-      out.line(import_picocolors5.default.bold("Published"));
+      out.line(import_picocolors5.default.bold(tr2("Published")));
       for (const c2 of h2.published) {
         const mark = c2.kind === "undo" ? ochre("\u21BA") : celadon("\u25CF");
         out.line(
@@ -50222,7 +51783,7 @@ async function historyCommand(ctx2, options) {
         );
       }
       out.line();
-      out.line(ash("Bring back any version:  clodable restore <code>"));
+      out.line(ash(tr2("Bring back any version:  clodable restore <code>")));
       out.line();
     }
   );
@@ -50233,17 +51794,24 @@ async function restoreCommand(ctx2, sha) {
     async () => restore(await ctx2.workspace(), sha),
     (result) => {
       if (!result.saved) {
-        ctx2.out.line(`${celadon("\u2713")} Your app already looks like this version: nothing changed`);
+        ctx2.out.line(
+          tr2("{0} Your app already looks like this version: nothing changed", {
+            "0": celadon("\u2713")
+          })
+        );
         return;
       }
       ctx2.out.line(
-        `${celadon("\u2713")} Restored ${ash(`\xB7 saved as a new version, nothing was erased`)}`
+        tr2("{0} Restored {1}", {
+          "0": celadon("\u2713"),
+          "1": ash(tr2("\xB7 saved as a new version, nothing was erased"))
+        })
       );
-      if (!result.pushed) ctx2.out.line(ash("  It goes up to GitHub when you're back online."));
+      if (!result.pushed) ctx2.out.line(ash(tr2("  It goes up to GitHub when you're back online.")));
     }
   );
 }
-var describeItem = (item) => item.kind === "fix" ? `Fix: ${item.error.message}` : item.kind === "edit" ? `Edited text on ${item.page.path}` : `Request on ${item.page.path}: ${item.request}`;
+var describeItem = (item) => item.kind === "fix" ? tr2("Fix: {message}", { message: item.error.message }) : item.kind === "edit" ? tr2("Edited text on {path}", { path: item.page.path }) : tr2("Request on {path}: {request}", { path: item.page.path, request: item.request });
 async function inboxCommand(ctx2, options) {
   await run(
     ctx2,
@@ -50254,7 +51822,7 @@ async function inboxCommand(ctx2, options) {
       return readInbox(ws.root);
     },
     (items) => {
-      if (items.length === 0) ctx2.out.line(ash("The inbox is empty."));
+      if (items.length === 0) ctx2.out.line(ash(tr2("The inbox is empty.")));
       for (const item of items) ctx2.out.line(`${clay("\u25CF")} ${describeItem(item)} ${ash(item.id)}`);
     }
   );
@@ -50262,29 +51830,32 @@ async function inboxCommand(ctx2, options) {
 
 // src/index.ts
 var version2 = true ? "0.3.1" : "0.1.0-dev";
-var cli = cac("clodable");
-cli.option("--json", "Print one JSON event per line (for programs)");
-cli.option("--cwd <dir>", "Run in another folder");
+var cli2 = cac("clodable");
+cli2.option("--json", tr2("Print one JSON event per line (for programs)"));
+cli2.option("--cwd <dir>", tr2("Run in another folder"));
 var ctx = (options) => createContext(options);
-cli.command("dev", "Run your app with the preview tools (what Claude Desktop's preview starts)").option("--port <port>", "Port (Claude Desktop passes PORT automatically)").option("--host <host>", "Host to listen on").option("--no-toolbar", "Run without the preview tools").action(
+cli2.command("dev", tr2("Run your app with the preview tools (what Claude Desktop's preview starts)")).option("--port <port>", tr2("Port (Claude Desktop passes PORT automatically)")).option("--host <host>", tr2("Host to listen on")).option("--no-toolbar", tr2("Run without the preview tools")).action(
   (options) => devCommand(ctx(options), {
     port: options.port ? Number(options.port) : void 0,
     host: options.host,
     toolbar: options.toolbar
   })
 );
-cli.command("save", "Save your changes to your draft on GitHub").option("-m, --message <text>", "What changed, in your words").action((options) => saveCommand(ctx(options), { message: options.message }));
-cli.command("status", "Where you stand: saved, not live yet, live").option("--fetch", "Check GitHub for the latest live version first").action((options) => statusCommand(ctx(options), { fetch: options.fetch }));
-cli.command("publish", "Check your app and put your draft live").option("-m, --message <text>", "Describe any last unsaved changes").option("--skip-checks", "Developers only: skip the checks").action(
+cli2.command("save", tr2("Save your changes to your draft on GitHub")).option("-m, --message <text>", tr2("What changed, in your words")).action((options) => saveCommand(ctx(options), { message: options.message }));
+cli2.command("status", tr2("Where you stand: saved, not live yet, live")).option("--fetch", tr2("Check GitHub for the latest live version first")).action((options) => statusCommand(ctx(options), { fetch: options.fetch }));
+cli2.command("publish", tr2("Check your app and put your draft live")).option("-m, --message <text>", tr2("Describe any last unsaved changes")).option("--skip-checks", tr2("Developers only: skip the checks")).action(
   (options) => publishCommand(ctx(options), { message: options.message, skipChecks: options.skipChecks })
 );
-cli.command("undo", "Put the previous version live again").option("-y, --yes", "Don't ask for confirmation").option("--sha <sha>", "Undo a specific publish").action((options) => undoCommand(ctx(options), { yes: options.yes, sha: options.sha }));
-cli.command("restore <version>", "Bring back an earlier version of your draft (as a new save)").action((version3, options) => restoreCommand(ctx(options), version3));
-cli.command("history", "Your saves and publishes").option("--limit <n>", "How many publishes to show").action(
+cli2.command("undo", tr2("Put the previous version live again")).option("-y, --yes", tr2("Don't ask for confirmation")).option("--sha <sha>", tr2("Undo a specific publish")).action((options) => undoCommand(ctx(options), { yes: options.yes, sha: options.sha }));
+cli2.command("restore <version>", tr2("Bring back an earlier version of your draft (as a new save)")).action((version3, options) => restoreCommand(ctx(options), version3));
+cli2.command("history", tr2("Your saves and publishes")).option("--limit <n>", tr2("How many publishes to show")).action(
   (options) => historyCommand(ctx(options), { limit: options.limit ? Number(options.limit) : void 0 })
 );
-cli.command("check", "Run the publish checks without publishing").action((options) => checkCommand(ctx(options)));
-cli.command("setup", "Bring your app home: connect GitHub, add Clodable's files").option("--repo <owner/name>", "The GitHub repository of your app").option("--new <name>", "Set up saving for a local prototype in a new private GitHub app").option("--account <login>", "The connected GitHub account approved for the new app").option("-y, --yes", "Don't ask questions").option("--publish", "Publish the setup right away").option("--backend <where>", "Where the data lives: lovable-cloud, supabase or none").option("--hosting <where>", "Where the site is live: lovable, github or none (not online yet)").action(
+cli2.command("check", tr2("Run the publish checks without publishing")).action((options) => checkCommand(ctx(options)));
+cli2.command("setup", tr2("Bring your app home: connect GitHub, add Clodable's files")).option("--repo <owner/name>", tr2("The GitHub repository of your app")).option("--new <name>", tr2("Set up saving for a local prototype in a new private GitHub app")).option("--account <login>", tr2("The connected GitHub account approved for the new app")).option("-y, --yes", tr2("Don't ask questions")).option("--publish", tr2("Publish the setup right away")).option("--backend <where>", tr2("Where the data lives: lovable-cloud, supabase or none")).option(
+  "--hosting <where>",
+  tr2("Where the site is live: lovable, github or none (not online yet)")
+).action(
   (options) => setupCommand(ctx(options), {
     repo: options.repo,
     new: options.new,
@@ -50295,36 +51866,44 @@ cli.command("setup", "Bring your app home: connect GitHub, add Clodable's files"
     ...["lovable", "github", "none"].includes(options.hosting) ? { hosting: options.hosting } : {}
   })
 );
-cli.command("doctor", "Check that everything Clodable needs is in place").action((options) => doctorCommand(ctx(options)));
-cli.command(
+cli2.command("doctor", tr2("Check that everything Clodable needs is in place")).action((options) => doctorCommand(ctx(options)));
+cli2.command(
   "config [key] [value]",
-  "Read or change where your app runs: backend (lovable-cloud, supabase, none), hosting (lovable, github, none)"
+  tr2(
+    "Read or change where your app runs: backend (lovable-cloud, supabase, none), hosting (lovable, github, none)"
+  )
 ).action((key2, value, options) => configCommand(ctx(options), { key: key2, value }));
-cli.command(
+cli2.command(
   "settings",
-  "The settings your app's server code reads (process.env), on this computer and on your site"
+  tr2(
+    "The settings your app's server code reads (process.env), on this computer and on your site"
+  )
 ).action((options) => settingsCommand(ctx(options), {}));
-cli.command("setting <name>", "Set one of your app's settings, its value piped in").action((name, options) => settingsCommand(ctx(options), { name: String(name) }));
-cli.command(
+cli2.command("setting <name>", tr2("Set one of your app's settings, its value piped in")).action((name, options) => settingsCommand(ctx(options), { name: String(name) }));
+cli2.command(
   "db <action> [arg]",
-  `Your app's Supabase database: query "select \u2026" (reads), run "update \u2026" (changes data), apply <migration file>, check (Supabase's security advice)`
+  tr2(
+    `Your app's Supabase database: query "select \u2026" (reads), run "update \u2026" (changes data), apply <migration file>, check (Supabase's security advice)`
+  )
 ).action(
   (action, arg, options) => dbCommand(ctx(options), { action: String(action), ...arg ? { arg: String(arg) } : {} })
 );
-cli.command(
+cli2.command(
   "connect <service>",
-  "Connect supabase or netlify on this computer, the token piped in (for a new backend or site)"
+  tr2(
+    "Connect supabase or netlify on this computer, the token piped in (for a new backend or site)"
+  )
 ).action((service, options) => connectCommand(ctx(options), String(service)));
-cli.command("site [action]", "Your app's site: status, create hosting, or reconnect publishing").option("--team <slug>", "create: the Netlify team the site goes in").action(
+cli2.command("site [action]", tr2("Your app's site: status, create hosting, or reconnect publishing")).option("--team <slug>", tr2("create: the Netlify team the site goes in")).action(
   (action, options) => siteCommand(ctx(options), {
     ...action ? { action: String(action) } : {},
     ...options.team ? { team: String(options.team) } : {}
   })
 );
-cli.command(
+cli2.command(
   "backend [action]",
-  "Your app's backend: the choices, or create: a new one on your own Supabase"
-).option("--org <slug>", "create: the Supabase organization").option("--region <code>", "create: where it runs (eu-central-1\u2026)").action(
+  tr2("Your app's backend: the choices, or create: a new one on your own Supabase")
+).option("--org <slug>", tr2("create: the Supabase organization")).option("--region <code>", tr2("create: where it runs (eu-central-1\u2026)")).action(
   (action, options) => backendCommand(ctx(options), {
     ...action ? { action: String(action) } : {},
     ...options.org ? { org: String(options.org) } : {},
@@ -50333,10 +51912,18 @@ cli.command(
 );
 var text = (value) => value === void 0 || value === false || value === "" ? void 0 : String(value);
 var yes = (value) => value === void 0 ? void 0 : !/^(no|false|0)$/i.test(String(value));
-cli.command("move [step] [arg]", MOVE_HELP).option("--org <slug>", "create: the Supabase organization").option("--region <code>", "create: where it runs (eu-central-1\u2026)").option("--name <name>", "create: the project's name").option("--file <path>", "export: the zip Lovable gave (else the newest in Downloads)").option("--private", "files: read Lovable Cloud's service key from stdin, for private folders").option("--fix", "diagnose: apply Clodable's own fixes on the copy").option("--account <slug>", "site: the Netlify team the site goes in").option("--domain <domain>", "emails: the domain emails come from").option("--sender <address>", "emails: the sender address (no-reply@ the domain by default)").option(
+cli2.command("move [step] [arg]", moveHelp()).option("--org <slug>", tr2("create: the Supabase organization")).option("--region <code>", tr2("create: where it runs (eu-central-1\u2026)")).option("--name <name>", tr2("create: the project's name")).option("--file <path>", tr2("export: the zip Lovable gave (else the newest in Downloads)")).option(
+  "--private",
+  tr2("files: read Lovable Cloud's service key from stdin, for private folders")
+).option("--fix", tr2("diagnose: apply Clodable's own fixes on the copy")).option("--account <slug>", tr2("site: the Netlify team the site goes in")).option("--domain <domain>", tr2("emails: the domain emails come from")).option("--sender <address>", tr2("emails: the sender address (no-reply@ the domain by default)")).option(
   "--skip",
-  "emails: go live without emails of your own for now; domain: keep the Netlify address; settings, secrets, vault: go on without the ones left"
-).option("--hook", "emails: send sign-in emails through the app's own templates (auth-email-hook)").option("--set", "facts/rehearsal: record app facts or dated copy checks (JSON on stdin)").option("--sign-up <yes|no>", "golive: whether anyone may sign up (no: only invited people)").option("--confirm-email <yes|no>", "golive: whether new people confirm their email first").action(
+  tr2(
+    "emails: go live without emails of your own for now; domain: keep the Netlify address; settings, secrets, vault: go on without the ones left"
+  )
+).option(
+  "--hook",
+  tr2("emails: send sign-in emails through the app's own templates (auth-email-hook)")
+).option("--set", tr2("facts/rehearsal: record app facts or dated copy checks (JSON on stdin)")).option("--sign-up <yes|no>", tr2("golive: whether anyone may sign up (no: only invited people)")).option("--confirm-email <yes|no>", tr2("golive: whether new people confirm their email first")).action(
   (step2, arg, options) => moveCommand(ctx(options), {
     step: text(step2) ?? "check",
     arg: text(arg),
@@ -50356,32 +51943,32 @@ cli.command("move [step] [arg]", MOVE_HELP).option("--org <slug>", "create: the 
     confirmEmail: yes(options.confirmEmail)
   })
 );
-cli.command("kit", "Show (or add) the files Clodable keeps in your project").option("--apply", "Write them").option("--runtime", "Refresh only the installed runtime and its instructions").option("--live-url <url>", "Your live site's address").action(
+cli2.command("kit", tr2("Show (or add) the files Clodable keeps in your project")).option("--apply", tr2("Write them")).option("--runtime", tr2("Refresh only the installed runtime and its instructions")).option("--live-url <url>", tr2("Your live site's address")).action(
   (options) => kitCommand(ctx(options), {
     apply: options.apply,
     liveUrl: options.liveUrl,
     runtime: options.runtime
   })
 );
-cli.command("inbox", "Requests from the preview toolbar (for front ends)").option("--ack <id>", "Mark one as handled").option(
+cli2.command("inbox", tr2("Requests from the preview toolbar (for front ends)")).option("--ack <id>", tr2("Mark one as handled")).option(
   "--claim <session>",
-  "Take the waiting requests for this conversation, if it's the one its person used last"
+  tr2("Take the waiting requests for this conversation, if it's the one its person used last")
 ).action((options) => inboxCommand(ctx(options), { ack: options.ack, claim: options.claim }));
-cli.help();
-cli.version(version2);
+cli2.help();
+cli2.version(version2);
 try {
-  cli.parse(process.argv, { run: false });
-  if (cli.options.help || cli.options.version) {
-  } else if (!cli.matchedCommand) {
-    if (cli.args.length > 0) {
-      process.stderr.write(`Unknown command: ${cli.args[0]}
+  cli2.parse(process.argv, { run: false });
+  if (cli2.options.help || cli2.options.version) {
+  } else if (!cli2.matchedCommand) {
+    if (cli2.args.length > 0) {
+      process.stderr.write(`Unknown command: ${cli2.args[0]}
 
 `);
       process.exitCode = 1;
     }
-    cli.outputHelp();
+    cli2.outputHelp();
   } else {
-    await cli.runMatchedCommand();
+    await cli2.runMatchedCommand();
   }
 } catch (error62) {
   process.stderr.write(`${messageOf(error62)}

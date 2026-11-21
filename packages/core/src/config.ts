@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { z } from "zod";
 import { ClodableError } from "./errors.js";
+import { tr } from "./i18n.js";
 import { writeJsonFile } from "./places.js";
 import type { ProjectInfo } from "./project.js";
 
@@ -123,8 +124,8 @@ export async function loadConfig(root: string): Promise<ProjectConfig> {
   } catch (error) {
     throw new ClodableError({
       code: "invalid-config",
-      message: "Clodable's settings file can't be read.",
-      hint: `Ask Claude to check ${CONFIG_PATH} for a typo and fix it.`,
+      message: tr("Clodable's settings file can't be read."),
+      hint: tr("Ask Claude to check {0} for a typo and fix it.", { "0": CONFIG_PATH }),
       details: String(error),
       files: [CONFIG_PATH],
     });
@@ -133,8 +134,8 @@ export async function loadConfig(root: string): Promise<ProjectConfig> {
   if (!parsed.success) {
     throw new ClodableError({
       code: "invalid-config",
-      message: "Clodable's settings file has a value it doesn't understand.",
-      hint: `Ask Claude to check ${CONFIG_PATH} and fix that value.`,
+      message: tr("Clodable's settings file has a value it doesn't understand."),
+      hint: tr("Ask Claude to check {0} and fix that value.", { "0": CONFIG_PATH }),
       details: z.prettifyError(parsed.error),
       files: [CONFIG_PATH],
     });

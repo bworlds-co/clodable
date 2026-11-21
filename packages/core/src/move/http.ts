@@ -1,4 +1,5 @@
 import { ClodableError, type ErrorCode, messageOf } from "../errors.js";
+import { tr } from "../i18n.js";
 
 /** A service's API, called with the builder's own token: what each one means by a refusal. */
 export interface ApiService {
@@ -36,8 +37,8 @@ export async function callApi<T>(
   } catch (error) {
     throw new ClodableError({
       code: "offline",
-      message: `Couldn't reach ${service.name}.`,
-      hint: "Check your internet connection, then try again.",
+      message: tr("Couldn't reach {0}.", { "0": service.name }),
+      hint: tr("Check your internet connection, then try again."),
       details: messageOf(error),
     });
   }
@@ -58,8 +59,10 @@ export async function callApi<T>(
   } catch {
     throw new ClodableError({
       code: service.failed,
-      message: `${service.name} answered in a way Clodable didn't expect.`,
-      hint: "Try again in a minute. If it keeps happening, share the details with your developer.",
+      message: tr("{0} answered in a way Clodable didn't expect.", { "0": service.name }),
+      hint: tr(
+        "Try again in a minute. If it keeps happening, share the details with your developer.",
+      ),
       details: `${service.name} answered ${response.status}: ${text.slice(0, 400)}`,
     });
   }

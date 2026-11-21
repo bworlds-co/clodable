@@ -1,3 +1,4 @@
+import { tr } from "../i18n.js";
 import { readSecret } from "../local-secrets.js";
 import { appSettings } from "../settings.js";
 import type { Workspace } from "../workspace.js";
@@ -9,6 +10,7 @@ import { EMAIL_QUEUE_KEY, literal } from "./fixes.js";
 import { localFunctions, stripeWebhooks } from "./functions.js";
 import { type GoogleStatus, googleStatus } from "./google.js";
 import { homeSql } from "./home.js";
+import { presentMoveCheck } from "./messages.js";
 import { NETLIFY_TOKEN } from "./netlify-api.js";
 import { rehearsalSummary } from "./rehearsal.js";
 import { RESEND_KEY } from "./resend-api.js";
@@ -227,17 +229,17 @@ function moveSteps(state: MoveState, around: Surroundings) {
   add(
     {
       id: "facts",
-      title: "Look at your app",
+      title: tr("Look at your app"),
       ...(state.facts ? { detail: factsSummary(state.facts) } : {}),
     },
     Boolean(state.facts),
   );
   // Accounts are connected per computer, not per app: one connected for another app shows done.
-  const onThisComputer = { detail: "Connected on this computer" };
+  const onThisComputer = { detail: tr("Connected on this computer") };
   add(
     {
       id: "connect",
-      title: "Connect your Supabase account",
+      title: tr("Connect your Supabase account"),
       ...(around.supabase ? onThisComputer : {}),
     },
     around.supabase,
@@ -245,7 +247,7 @@ function moveSteps(state: MoveState, around: Surroundings) {
   add(
     {
       id: "create",
-      title: "Create your new backend",
+      title: tr("Create your new backend"),
       ...(state.home ? { detail: `${state.home.name} · ${state.home.region}` } : {}),
     },
     Boolean(state.home),
@@ -253,7 +255,7 @@ function moveSteps(state: MoveState, around: Surroundings) {
   add(
     {
       id: "export",
-      title: "Export your data from Lovable",
+      title: tr("Export your data from Lovable"),
       ...(state.export ? { detail: describeExport(state.export.summary) } : {}),
     },
     Boolean(state.export),
@@ -268,14 +270,14 @@ function moveSteps(state: MoveState, around: Surroundings) {
   add(
     {
       id: "copy",
-      title: "Copy it into your new backend",
+      title: tr("Copy it into your new backend"),
       ...(state.data
         ? {
             detail: !state.data.ok
-              ? "Some things need a look"
+              ? tr("Some things need a look")
               : vaultOpen
-                ? `${count(vaultLeft.length, "database secret")} to add`
-                : "Everything is there",
+                ? tr("{0} to add", { "0": count(vaultLeft.length, "database secret") })
+                : tr("Everything is there"),
           }
         : {}),
     },
@@ -287,9 +289,12 @@ function moveSteps(state: MoveState, around: Surroundings) {
     add(
       {
         id: "files",
-        title: "Copy your uploaded files",
+        title: tr("Copy your uploaded files"),
         detail: state.files
-          ? `${state.files.copied.toLocaleString("en-US")} of ${state.files.total.toLocaleString("en-US")} copied`
+          ? tr("{0} of {1} copied", {
+              "0": state.files.copied.toLocaleString("en-US"),
+              "1": state.files.total.toLocaleString("en-US"),
+            })
           : `${count(fileCount, "file")}`,
       },
       Boolean(state.files && state.files.copied >= state.files.total),
@@ -304,11 +309,11 @@ function moveSteps(state: MoveState, around: Surroundings) {
     add(
       {
         id: "functions",
-        title: "Move your backend functions",
+        title: tr("Move your backend functions"),
         ...(state.functions
           ? {
               detail: secretsOpen
-                ? `${count(secretsLeft.length, "secret key")} to add`
+                ? tr("{0} to add", { "0": count(secretsLeft.length, "secret key") })
                 : count(state.functions.deployed.length, "function"),
             }
           : {}),
@@ -324,10 +329,10 @@ function moveSteps(state: MoveState, around: Surroundings) {
     add(
       {
         id: "try",
-        title: "Try your app on the copy",
+        title: tr("Try your app on the copy"),
         detail: onNewBackend
-          ? "The preview uses your new backend"
-          : "The preview still uses Lovable Cloud",
+          ? tr("The preview uses your new backend")
+          : tr("The preview still uses Lovable Cloud"),
       },
       onNewBackend,
     );
@@ -335,7 +340,7 @@ function moveSteps(state: MoveState, around: Surroundings) {
   add(
     {
       id: "netlify",
-      title: "Connect your Netlify account",
+      title: tr("Connect your Netlify account"),
       ...(around.netlify ? onThisComputer : {}),
     },
     around.netlify,
@@ -347,11 +352,11 @@ function moveSteps(state: MoveState, around: Surroundings) {
   add(
     {
       id: "site",
-      title: "Prepare your website",
+      title: tr("Prepare your website"),
       ...(state.site
         ? {
             detail: settingsOpen
-              ? `${count(settingsLeft.length, "setting")} to add`
+              ? tr("{0} to add", { "0": count(settingsLeft.length, "setting") })
               : state.site.url,
           }
         : {}),
@@ -368,13 +373,13 @@ function moveSteps(state: MoveState, around: Surroundings) {
   add(
     {
       id: "emails",
-      title: "Set up emails for your users",
+      title: tr("Set up emails for your users"),
       ...(state.emails?.connectedAt
-        ? { detail: `From ${state.emails.sender}` }
+        ? { detail: tr("From {0}", { "0": state.emails.sender }) }
         : state.switch?.noEmailsAt
-          ? { detail: "Skipped for now: no password-reset emails" }
+          ? { detail: tr("Skipped for now: no password-reset emails") }
           : state.emails
-            ? { detail: `${state.emails.domain}: waiting for its records` }
+            ? { detail: tr("{0}: waiting for its records", { "0": state.emails.domain }) }
             : {}),
     },
     Boolean(state.emails?.connectedAt || state.switch?.noEmailsAt),
@@ -385,10 +390,15 @@ function moveSteps(state: MoveState, around: Surroundings) {
     add(
       {
         id: "services",
-        title: "Switch off Lovable's services",
+        title: tr("Switch off Lovable's services"),
         ...(skipped
           ? {
-              detail: `Skipped: ${servicesToDo.join(", ")} ${servicesToDo.length === 1 ? "stops" : "stop"} with Lovable`,
+              detail: tr(
+                servicesToDo.length === 1
+                  ? "Skipped: {services} stops with Lovable"
+                  : "Skipped: {services} stop with Lovable",
+                { services: servicesToDo.join(", ") },
+              ),
             }
           : servicesToDo.length > 0
             ? { detail: servicesToDo.join(" · ") }
@@ -401,11 +411,11 @@ function moveSteps(state: MoveState, around: Surroundings) {
     add(
       {
         id: "google",
-        title: "Google sign-in",
+        title: tr("Google sign-in"),
         ...(google.skipped && !google.configured
-          ? { detail: "Skipped: it stays off on your new site" }
+          ? { detail: tr("Skipped: it stays off on your new site") }
           : google.configured && !google.brokerOnly
-            ? { detail: "On your new backend" }
+            ? { detail: tr("On your new backend") }
             : {}),
       },
       (google.configured && !google.brokerOnly) || (google.skipped && !google.configured),
@@ -416,8 +426,8 @@ function moveSteps(state: MoveState, around: Surroundings) {
     add(
       {
         id: "freeze",
-        title: "Pause changes on your live app",
-        ...(frozenAt ? { detail: `Since ${frozenAt.slice(11, 16)} UTC` } : {}),
+        title: tr("Pause changes on your live app"),
+        ...(frozenAt ? { detail: tr("Since {0} UTC", { "0": frozenAt.slice(11, 16) }) } : {}),
       },
       Boolean(frozenAt),
     );
@@ -425,14 +435,14 @@ function moveSteps(state: MoveState, around: Surroundings) {
     add(
       {
         id: "final-export",
-        title: "Export your data again",
+        title: tr("Export your data again"),
         ...(finalExport && state.export ? { detail: describeExport(state.export.summary) } : {}),
       },
       finalExport,
     );
     const finalCopy = Boolean(frozenAt && state.data && state.data.at > frozenAt);
     add(
-      { id: "final-copy", title: "Copy it in for good" },
+      { id: "final-copy", title: tr("Copy it in for good") },
       Boolean(finalCopy && state.data?.ok),
       Boolean(finalCopy && !state.data?.ok),
     );
@@ -440,14 +450,14 @@ function moveSteps(state: MoveState, around: Surroundings) {
   add(
     {
       id: "golive",
-      title: "Go live on your new backend and site",
+      title: tr("Go live on your new backend and site"),
       // Switched: Publish puts it live; once a Publish has, where it is.
       ...(state.switch?.liveAt
         ? {
             detail:
               state.site?.liveAt && state.site.liveAt > state.switch.liveAt
-                ? `Live at ${state.site.url}`
-                : "Publish puts it live",
+                ? tr("Live at {0}", { "0": state.site.url })
+                : tr("Publish puts it live"),
           }
         : {}),
     },
@@ -457,19 +467,19 @@ function moveSteps(state: MoveState, around: Surroundings) {
   add(
     {
       id: "domain",
-      title: "Your app's address",
+      title: tr("Your app's address"),
       ...(domain?.readyAt && domain.name
         ? { detail: domain.name }
         : domain?.skipped && state.site
           ? { detail: new URL(state.site.url).host }
           : domain?.name
-            ? { detail: `${domain.name}: waiting for its records` }
+            ? { detail: tr("{0}: waiting for its records", { "0": domain.name }) }
             : {}),
     },
     Boolean(domain?.readyAt || domain?.skipped),
     Boolean(domain?.name && !domain.readyAt),
   );
-  add({ id: "lovable", title: "Finish in Lovable" }, Boolean(state.switch?.finishedAt));
+  add({ id: "lovable", title: tr("Finish in Lovable") }, Boolean(state.switch?.finishedAt));
   return {
     steps,
     method,
@@ -538,13 +548,16 @@ export async function moveProgress(ws: Workspace): Promise<MoveProgress> {
       ? {
           checksAt: state.checks.at,
           checks: state.checks.items.map((item) =>
-            item.id === "old-backend" && item.ok
-              ? {
-                  ...item,
-                  label:
-                    "The checked database functions and webhooks no longer name the old backend",
-                }
-              : item,
+            presentMoveCheck(
+              item.id === "old-backend" && item.ok
+                ? {
+                    ...item,
+                    label: tr(
+                      "The checked database functions and webhooks no longer name the old backend",
+                    ),
+                  }
+                : item,
+            ),
           ),
         }
       : {}),

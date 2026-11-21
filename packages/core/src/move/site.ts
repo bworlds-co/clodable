@@ -3,6 +3,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { ClodableError } from "../errors.js";
 import { type Flow, step } from "../events.js";
+import { tr } from "../i18n.js";
 import { readSecret, storeSecret } from "../local-secrets.js";
 import { type PackageManager, type ProjectInfo, runScriptCommand } from "../project.js";
 import { appSettings, localSettings } from "../settings.js";
@@ -35,8 +36,10 @@ export async function connectNetlify(token: string): Promise<{ accounts: Netlify
   if (!/^[A-Za-z0-9_-]{20,}$/.test(trimmed)) {
     throw new ClodableError({
       code: "netlify-auth",
-      message: "That doesn't look like a Netlify access token.",
-      hint: "In Netlify: User settings → Applications → Personal access tokens → New access token.",
+      message: tr("That doesn't look like a Netlify access token."),
+      hint: tr(
+        "In Netlify: User settings → Applications → Personal access tokens → New access token.",
+      ),
     });
   }
   const api = new NetlifyApi(trimmed);
@@ -207,15 +210,15 @@ export async function* putSiteOnNetlify(
   if (!state.home) {
     throw new ClodableError({
       code: "move-not-ready",
-      message: "Create your new backend first: the site needs it.",
-      hint: "It's one of the first steps of the move.",
+      message: tr("Create your new backend first: the site needs it."),
+      hint: tr("It's one of the first steps of the move."),
     });
   }
   const netlify = await NetlifyApi.required();
   const supabase = await SupabaseApi.required();
   const token = (await readSecret(NETLIFY_TOKEN))!;
 
-  yield step("move:site", "running", "Preparing your website", "Creating the site");
+  yield step("move:site", "running", tr("Preparing your website"), tr("Creating the site"));
   const site =
     (state.site ? await netlify.site(state.site.id).catch(() => undefined) : undefined) ??
     (await createNetlifySite(netlify, ws.project.name, options.account));
@@ -230,7 +233,12 @@ export async function* putSiteOnNetlify(
     };
   });
 
-  yield step("move:site", "running", "Preparing your website", "Pointing it at your new backend");
+  yield step(
+    "move:site",
+    "running",
+    tr("Preparing your website"),
+    tr("Pointing it at your new backend"),
+  );
   const backend = backendOf(state.home.ref, await homeKeys(supabase, state.home.ref));
   const carried = await setSiteEnv(netlify, site, ws.root, backend);
   if (carried.length > 0) {
@@ -239,15 +247,15 @@ export async function* putSiteOnNetlify(
     });
   }
 
-  yield step("move:site", "running", "Preparing your website", "Setting up Publish");
+  yield step("move:site", "running", tr("Preparing your website"), tr("Setting up Publish"));
   const files = await setUpPublish(ws, site, token);
 
   const settings = await siteSettingsOf(netlify, site.account_slug, site.id, ws.root);
   yield step(
     "move:site",
     "done",
-    "Your website is prepared",
-    "Nothing has been published. Continue the move in the panel.",
+    tr("Your website is prepared"),
+    tr("Nothing has been published. Continue the move in the panel."),
   );
   return { site: { name: site.name, url, admin: site.admin_url }, files, settings };
 }
@@ -270,8 +278,8 @@ export async function createNetlifySite(
   if (!account) {
     throw new ClodableError({
       code: "needs-choice",
-      message: "Which Netlify team should the site go in?",
-      hint: `Pick one: ${accounts.map((a) => `${a.name} (${a.slug})`).join(", ")}.`,
+      message: tr("Which Netlify team should the site go in?"),
+      hint: tr("Pick one: {0}.", { "0": accounts.map((a) => `${a.name} (${a.slug})`).join(", ") }),
     });
   }
   const base = siteName(appName);
@@ -284,8 +292,8 @@ export async function createNetlifySite(
   }
   throw new ClodableError({
     code: "netlify-failed",
-    message: "Netlify didn't accept a name for your site.",
-    hint: "Try again: Clodable picks another name.",
+    message: tr("Netlify didn't accept a name for your site."),
+    hint: tr("Try again: Clodable picks another name."),
   });
 }
 
@@ -370,7 +378,7 @@ export async function siteSettings(
   if (!state.site) {
     throw new ClodableError({
       code: "move-not-ready",
-      message: "Prepare your website first.",
+      message: tr("Prepare your website first."),
     });
   }
   return siteSettingsOf(await NetlifyApi.required(), state.site.account, state.site.id, ws.root);
@@ -381,16 +389,16 @@ export async function setSiteSetting(ws: Workspace, name: string, value: string)
   if (!/^[A-Z][A-Z0-9_]*$/.test(name)) {
     throw new ClodableError({
       code: "invalid-config",
-      message: `“${name}” isn't a setting name.`,
-      hint: "Use capitals, digits and underscores.",
+      message: tr("“{0}” isn't a setting name.", { "0": name }),
+      hint: tr("Use capitals, digits and underscores."),
     });
   }
   if (!value.trim()) {
-    throw new ClodableError({ code: "invalid-config", message: "That setting is empty." });
+    throw new ClodableError({ code: "invalid-config", message: tr("That setting is empty.") });
   }
   const state = await loadMove(ws.root);
   if (!state.site) {
-    throw new ClodableError({ code: "move-not-ready", message: "Prepare your website first." });
+    throw new ClodableError({ code: "move-not-ready", message: tr("Prepare your website first.") });
   }
   const netlify = await NetlifyApi.required();
   await netlify.setEnv(state.site.account, state.site.id, name, value.replace(/\r?\n$/, ""), {

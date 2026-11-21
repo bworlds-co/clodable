@@ -59,6 +59,17 @@ async function appleGit(selection: string, exit = 0) {
 }
 
 describe.skipIf(platform === "win32")("Git readiness", () => {
+  it("keeps the readiness code stable while explaining missing Git in French", async () => {
+    vi.stubEnv("CLODABLE_LANGUAGE", "fr");
+    expect(await gitReadiness(dir)).toMatchObject({
+      ok: false,
+      error: {
+        code: "tools-unavailable",
+        message: "Git doit fonctionner sur cet ordinateur pour permettre l’enregistrement.",
+      },
+    });
+  });
+
   it("rejects missing Git and a failing executable without invoking repository commands", async () => {
     expect(await gitReadiness(dir)).toMatchObject({
       ok: false,
