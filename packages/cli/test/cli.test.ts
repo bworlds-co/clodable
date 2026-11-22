@@ -450,6 +450,54 @@ describe("clodable --json", () => {
     }
   });
 
+  it.each(["stored", "GH_TOKEN", "GITHUB_TOKEN", "signed-out"] as const)(
+    "doctor recognizes the active GitHub connection: %s",
+    async (connection) => {
+      const bin = join(sb.dir, "github-tools");
+      await mkdir(bin);
+      const gh = join(bin, "gh");
+      await writeFile(
+        gh,
+        [
+          "#!/bin/sh",
+          'if [ "$FAKE_GH" = signed-out ]; then exit 1; fi',
+          'if [ "$FAKE_GH" = GH_TOKEN ] && [ "$GH_TOKEN" != existing-local-token ]; then exit 1; fi',
+          'if [ "$FAKE_GH" = GITHUB_TOKEN ] && [ "$GITHUB_TOKEN" != existing-local-token ]; then exit 1; fi',
+          'if [ "$1 $2" = "auth status" ]; then',
+          '  if [ "$FAKE_GH" = stored ]; then',
+          '    for arg in "$@"; do [ "$arg" = --active ] && exit 0; done',
+          '    echo "Inactive account grace has an expired token" >&2',
+          "    exit 1",
+          "  fi",
+          "  exit 0",
+          "fi",
+          'if [ "$1 $2" = "api user" ]; then',
+          `  echo '{"login":"ada","name":"Ada","id":1}'`,
+          "  exit 0",
+          "fi",
+          "exit 1",
+          "",
+        ].join("\n"),
+        { mode: 0o755 },
+      );
+      const env = {
+        CLODABLE_GH: gh,
+        FAKE_GH: connection,
+        GH_TOKEN: connection === "GH_TOKEN" ? "existing-local-token" : "",
+        GITHUB_TOKEN: connection === "GITHUB_TOKEN" ? "existing-local-token" : "",
+      };
+      const report = clodableWith(env, "doctor");
+      expect(report.code, report.stderr || JSON.stringify(report.result)).toBe(0);
+      expect(report.result.data).toContainEqual(
+        expect.objectContaining({
+          id: "github",
+          status: connection === "signed-out" ? "fail" : "ok",
+          ...(connection === "signed-out" ? {} : { detail: "@ada" }),
+        }),
+      );
+    },
+  );
+
   it("sets up the app in this folder once its tools are there, and stops before when they aren't", async () => {
     // A stand-in `gh`: signed in as ada (FAKE_GH=signed-in), or not.
     const bin = await mkdtemp(join(tmpdir(), "clodable-gh-"));

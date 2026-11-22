@@ -25771,7 +25771,7 @@ ${result.stdout}`.trim()
     if (!await ghBinary().then(Boolean, () => false)) {
       return { installed: false, authenticated: false };
     }
-    const status2 = await this.run(["auth", "status", "--hostname", "github.com"], {
+    const status2 = await this.run(["auth", "status", "--active", "--hostname", "github.com"], {
       timeout: 2e4
     });
     return { installed: true, authenticated: status2.exitCode === 0 };
