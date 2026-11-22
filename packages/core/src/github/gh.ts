@@ -49,7 +49,7 @@ export class GhCli implements GitHubAdapter {
     if (!(await ghBinary().then(Boolean, () => false))) {
       return { installed: false, authenticated: false };
     }
-    const status = await this.run(["auth", "status", "--hostname", "github.com"], {
+    const status = await this.run(["auth", "status", "--active", "--hostname", "github.com"], {
       timeout: 20_000,
     });
     return { installed: true, authenticated: status.exitCode === 0 };

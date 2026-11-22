@@ -25771,7 +25771,7 @@ ${result.stdout}`.trim()
     if (!await ghBinary().then(Boolean, () => false)) {
       return { installed: false, authenticated: false };
     }
-    const status2 = await this.run(["auth", "status", "--hostname", "github.com"], {
+    const status2 = await this.run(["auth", "status", "--active", "--hostname", "github.com"], {
       timeout: 2e4
     });
     return { installed: true, authenticated: status2.exitCode === 0 };
@@ -52635,7 +52635,7 @@ async function inboxCommand(ctx2, options) {
 }
 
 // src/index.ts
-var version2 = true ? "0.4.3" : "0.1.0-dev";
+var version2 = true ? "0.4.4" : "0.1.0-dev";
 var cli2 = cac("clodable");
 cli2.option("--json", tr2("Print one JSON event per line (for programs)"));
 cli2.option("--cwd <dir>", tr2("Run in another folder"));

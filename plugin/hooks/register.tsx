@@ -7028,14 +7028,10 @@ async function installGit($: EngineInterface) {
   }
 }
 
-/**
- * GitHub's own sign-in for the GitHub CLI: a one-time code the builder enters on github.com, then
- * the CLI holds the account. It ends when they approve, or when the code runs out (15 minutes).
- */
 async function connectGitHub($: EngineInterface, startAgain = false) {
   if (gitHubSignIn && gitHubSignIn.step !== "failed") return;
   const verifyOnly = !startAgain && gitHubSignIn?.step === "failed" && gitHubSignIn.verifyOnly;
-  gitHubSignIn = { step: verifyOnly ? "checking" : "asking" };
+  gitHubSignIn = { step: "checking" };
   $.ui.invalidate("ui.render");
   await toolsFirst($);
   const output = githubSignInOutput();
@@ -7045,6 +7041,23 @@ async function connectGitHub($: EngineInterface, startAgain = false) {
     if (toolsProblem)
       throw new Error("Local tool preparation failed before GitHub sign-in could start.");
     if (!verifyOnly) {
+      const existing = await refreshChecks($);
+      if (!existing?.ok) {
+        gitHubSignIn = null;
+        $.ui.invalidate("ui.render");
+        return;
+      }
+      if (
+        Array.isArray(existing.data) &&
+        existing.data.some((c: ClodableCheck) => c.id === "github" && c.status === "ok")
+      ) {
+        gitHubSignIn = null;
+        $.ui.invalidate("ui.render");
+        await refreshStatus($);
+        return;
+      }
+      gitHubSignIn = { step: "asking" };
+      $.ui.invalidate("ui.render");
       const executable = (await read($, checks)).find((c) => c.id === "gh")?.executable ?? "gh";
       const login = $.process.spawn({
         argv: [
