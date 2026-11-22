@@ -1,6 +1,6 @@
 {
   "name": "@clodable/i18n",
-  "version": "0.4.3",
+  "version": "0.4.4",
   "description": "Clodable language catalogs and formatting.",
   "license": "MIT",
   "type": "module",

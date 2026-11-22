@@ -8,6 +8,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.4.4] - 2026-11-22
+
+Reuse the active local GitHub connection despite expired inactive accounts, and check for an existing connection before requesting a sign-in code. [Release notes](docs/releases/0.4.4.md). ([#128](https://github.com/bworlds-co/clodable/pull/128))
+
 ## [0.4.3] - 2026-11-21
 
 Use the Mac’s primary language when Claude’s response language is unset, with French and English catalogs and no separate preference. [Release notes](docs/releases/0.4.3.md). ([#122](https://github.com/bworlds-co/clodable/pull/122))
@@ -52,7 +56,8 @@ One way to move off Lovable for everyone, and the clod logo. [Release notes](doc
 
 The first tagged release. [Release notes](docs/releases/0.1.1.md).
 
-[Unreleased]: https://github.com/bworlds-co/clodable/compare/clodable--v0.4.3...HEAD
+[Unreleased]: https://github.com/bworlds-co/clodable/compare/clodable--v0.4.4...HEAD
+[0.4.4]: https://github.com/bworlds-co/clodable/compare/clodable--v0.4.3...clodable--v0.4.4
 [0.4.3]: https://github.com/bworlds-co/clodable/compare/clodable--v0.4.2...clodable--v0.4.3
 [0.4.2]: https://github.com/bworlds-co/clodable/compare/clodable--v0.4.1...clodable--v0.4.2
 [0.4.1]: https://github.com/bworlds-co/clodable/compare/clodable--v0.4.0...clodable--v0.4.1
