@@ -4176,6 +4176,43 @@ describe("everywhere else", () => {
     await pane.unmount();
   });
 
+  for (const initiallyConnected of [true, false]) {
+    test(`reuses a GitHub connection available ${initiallyConnected ? "when setup opens" : "after setup opens"}`, async ($, on) => {
+      let connected = initiallyConnected;
+      let logins = 0;
+      harness(on, { code: "not-a-repo", message: "Local folder" }, false, {
+        doctor: () =>
+          out([
+            {
+              id: "github",
+              label: "GitHub account",
+              status: connected ? "ok" : "fail",
+              ...(connected ? { detail: "@ada" } : {}),
+            },
+          ]),
+      });
+      on("process.spawn", async function* () {
+        logins++;
+        yield { stream: "stderr" as const, text: "First copy your one-time code: ABCD-1234\n" };
+        return { value: { code: 0, signal: null } };
+      });
+      await $.session.start({ surface: "desktop", isInteractive: true, cwd: CWD });
+      await $.tool.call({ tool: "mcp__clodable__open_panel", view: "saving" } as never);
+      const pane = await $.ui.mount(PANE_PROPS);
+      if (!initiallyConnected) {
+        expect(await waitForControl(pane, "connect-github")).toBeDefined();
+        connected = true;
+        await pane.press({ key: "connect-github" });
+      }
+      expect(await waitForControl(pane, "new-app-name")).toBeDefined();
+      expect(await shows(pane, /@ada/)).toBeDefined();
+      expect(await pane.find({ key: "connect-github" })).toBeUndefined();
+      expect(await pane.find({ key: "copy-code" })).toBeUndefined();
+      expect(logins).toBe(0);
+      await pane.unmount();
+    });
+  }
+
   test("Connect GitHub shows the one-time code in the GitHub CLI's old and new words, and no command", async ($, on) => {
     harness(on, { code: "not-a-repo", message: "Local folder" }, false, {
       doctor: out([
