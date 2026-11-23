@@ -4,7 +4,7 @@
 
 [English](README.md)
 
-Installez Clodable, décrivez votre idée et essayez votre première application.
+Décrivez votre idée à Claude et créez votre première application avec Clodable.
 
 Les captures sont en anglais. Les noms des boutons sont indiqués en français dans le texte.
 
@@ -34,25 +34,25 @@ Créez un dossier vide avec **Nouveau dossier**, puis sélectionnez-le et clique
 
 ![Ouvrez l’onglet Code, puis une nouvelle conversation.](../assets/screenshots/switch-to-code.png)
 
-## 3. Décrire votre application
+## 3. Décrire votre idée à Claude
 
-Décrivez ce que vous voulez et envoyez votre message. Par exemple :
+Écrivez à Claude ce que votre application doit permettre de faire. Par exemple :
 
-> Crée une application simple pour partager des livres avec mes voisins. Commence avec quelques livres d’exemple et montre-moi l’aperçu.
+> Crée une application pour partager des livres avec mes voisins. Ajoute quelques livres d’exemple et montre-moi l’aperçu.
 
-![Décrivez votre application après avoir choisi un dossier local vide.](../assets/screenshots/first-prompt.png)
+![Le dossier choisi apparaît sous votre message.](../assets/screenshots/first-prompt.png)
 
-Claude crée une première version et ouvre un aperçu à côté de la conversation. Demandez vos modifications avec vos propres mots.
+Claude crée une première version. Essayez-la dans l’aperçu, à côté de la conversation, puis dites-lui ce que vous souhaitez changer.
 
-**L’aperçu n’apparaît pas ?** Demandez : « Montre-moi l’aperçu de mon application. »
+**L’aperçu ne s’ouvre pas ?** Écrivez à Claude : « Montre-moi l’aperçu de mon application. »
 
-**La barre Clodable n’apparaît pas ?** Envoyez `/clodable` dans votre session Code pour ouvrir le panneau.
+**La barre Clodable n’apparaît pas ?** Dans la conversation de l’onglet Code, envoyez `/clodable` pour afficher le panneau.
 
-## 4. Enregistrer quand vous êtes prêt
+## 4. Enregistrer votre travail sur GitHub
 
-Choisissez **Configurer l’enregistrement**, connectez GitHub si nécessaire, puis cliquez sur **Créer l’application privée**.
+Cliquez sur **Configurer l’enregistrement**, connectez votre compte GitHub si nécessaire, puis cliquez sur **Créer l’application privée**.
 
-L’enregistrement conserve votre code dans un espace privé. Il ne met pas votre application en ligne.
+Votre code est enregistré sur GitHub, en privé. Vous décidez ensuite quand mettre l’application en ligne.
 
 [Documentation officielle des plugins Claude](https://support.claude.com/en/articles/17740565-manage-plugins-skills-and-connectors-from-one-plugins-page)
 

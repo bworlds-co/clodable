@@ -62,7 +62,7 @@
     "sha256": "9c1a75bb2d28b14b80d9f1413b2642eebe7fb663a63caf9b609aee5aa367222f",
     "caption": {
       "en": "Describe your app with an empty local folder selected.",
-      "fr": "Décrivez votre application après avoir choisi un dossier local vide."
+      "fr": "Le dossier choisi apparaît sous votre message."
     },
     "capturedAt": "2026-11-23",
     "pluginVersion": null,

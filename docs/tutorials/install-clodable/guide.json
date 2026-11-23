@@ -6,7 +6,7 @@
   },
   "description": {
     "en": "Install Clodable, describe your idea, and try your first app.",
-    "fr": "Installez Clodable, décrivez votre idée et essayez votre première application."
+    "fr": "Décrivez votre idée à Claude et créez votre première application avec Clodable."
   },
   "pages": [
     {
@@ -16,7 +16,7 @@
       },
       "subtitle": {
         "en": "Install from Chat or Code. Use Code to work on your app.",
-        "fr": "Installez le plugin depuis Chat ou Code. Pour créer votre application, utilisez Code."
+        "fr": "Installez Clodable, puis ouvrez l’onglet Code de Claude pour créer votre application."
       },
       "sections": [
         {
@@ -30,32 +30,32 @@
     {
       "title": {
         "en": "Describe it. Try it. Shape it.",
-        "fr": "Décrivez, essayez, ajustez."
+        "fr": "Donner forme à votre idée avec Claude"
       },
       "subtitle": {
         "en": "Start with a simple idea and sample data.",
-        "fr": "Commencez par une idée simple et des données d’exemple."
+        "fr": "Expliquez simplement ce que vous voulez pouvoir faire avec votre application."
       },
       "sections": [
         {
           "id": "idea",
           "title": {
             "en": "Describe your app",
-            "fr": "Décrire votre application"
+            "fr": "Décrire votre idée à Claude"
           },
           "blocks": [
             {
               "type": "text",
               "text": {
                 "en": "Type what you want and send it. For example:",
-                "fr": "Décrivez ce que vous voulez et envoyez votre message. Par exemple :"
+                "fr": "Écrivez à Claude ce que votre application doit permettre de faire. Par exemple :"
               }
             },
             {
               "type": "quote",
               "text": {
                 "en": "Build a simple app for sharing books with my neighbours. Start with sample books and show me the preview.",
-                "fr": "Crée une application simple pour partager des livres avec mes voisins. Commence avec quelques livres d’exemple et montre-moi l’aperçu."
+                "fr": "Crée une application pour partager des livres avec mes voisins. Ajoute quelques livres d’exemple et montre-moi l’aperçu."
               }
             },
             {
@@ -67,21 +67,21 @@
               "type": "text",
               "text": {
                 "en": "Claude builds a first version and opens a preview beside the conversation. Ask for changes in your own words.",
-                "fr": "Claude crée une première version et ouvre un aperçu à côté de la conversation. Demandez vos modifications avec vos propres mots."
+                "fr": "Claude crée une première version. Essayez-la dans l’aperçu, à côté de la conversation, puis dites-lui ce que vous souhaitez changer."
               }
             },
             {
               "type": "text",
               "text": {
                 "en": "**No preview?** Ask: “Show me my app’s preview.”",
-                "fr": "**L’aperçu n’apparaît pas ?** Demandez : « Montre-moi l’aperçu de mon application. »"
+                "fr": "**L’aperçu ne s’ouvre pas ?** Écrivez à Claude : « Montre-moi l’aperçu de mon application. »"
               }
             },
             {
               "type": "text",
               "text": {
                 "en": "**No Clodable bar?** Send `/clodable` in your Code session to open the panel.",
-                "fr": "**La barre Clodable n’apparaît pas ?** Envoyez `/clodable` dans votre session Code pour ouvrir le panneau."
+                "fr": "**La barre Clodable n’apparaît pas ?** Dans la conversation de l’onglet Code, envoyez `/clodable` pour afficher le panneau."
               }
             }
           ]
@@ -90,21 +90,21 @@
           "id": "keep",
           "title": {
             "en": "Save it when you’re ready",
-            "fr": "Enregistrer quand vous êtes prêt"
+            "fr": "Enregistrer votre travail sur GitHub"
           },
           "blocks": [
             {
               "type": "text",
               "text": {
                 "en": "Choose {{ui:saving}}, connect GitHub if asked, then choose {{ui:createPrivate}}.",
-                "fr": "Choisissez {{ui:saving}}, connectez GitHub si nécessaire, puis cliquez sur {{ui:createPrivate}}."
+                "fr": "Cliquez sur {{ui:saving}}, connectez votre compte GitHub si nécessaire, puis cliquez sur {{ui:createPrivate}}."
               }
             },
             {
               "type": "text",
               "text": {
                 "en": "Saving keeps your code private. It does not publish your app.",
-                "fr": "L’enregistrement conserve votre code dans un espace privé. Il ne met pas votre application en ligne."
+                "fr": "Votre code est enregistré sur GitHub, en privé. Vous décidez ensuite quand mettre l’application en ligne."
               },
               "tone": "note"
             },
