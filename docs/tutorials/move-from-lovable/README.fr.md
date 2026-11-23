@@ -4,7 +4,7 @@
 
 [English](README.md)
 
-Importez votre application Lovable dans Clodable, puis suivez le panneau.
+Importez votre application Lovable, puis laissez Clodable vous guider.
 
 Les captures sont en anglais. Les noms des boutons sont indiqués en français dans le texte.
 
@@ -26,9 +26,9 @@ Validez avec **Utiliser « … »**, puis **Synchroniser**. Cliquez sur **Ajoute
 
 Quand le bouton affiche **Ajouté**, Clodable est installé. Passez à la suite.
 
-## 2. Récupérer le lien GitHub de votre application
+## 2. Copier le lien GitHub de votre application
 
-Dans Lovable, ouvrez **Paramètres du projet → Git → GitHub**. Connectez votre application si nécessaire, puis copiez son adresse GitHub.
+Dans Lovable, ouvrez **Paramètres du projet → Git → GitHub**. Reliez votre application à GitHub si nécessaire, puis copiez son lien.
 
 [Enregistrer votre application Lovable sur GitHub (guide officiel)](https://docs.lovable.dev/integrations/github)
 
@@ -42,28 +42,28 @@ Créez un dossier vide avec **Nouveau dossier**, puis sélectionnez-le et clique
 
 ## 4. Importer votre application depuis GitHub
 
-Envoyez `/clodable` pour ouvrir le panneau. Cliquez sur **Importer une application depuis GitHub**. Si nécessaire, choisissez **Connecter GitHub** et utilisez le compte qui a accès à votre application.
+Dans la conversation, envoyez `/clodable` pour ouvrir le panneau Clodable. Cliquez sur **Importer une application depuis GitHub**. Si nécessaire, cliquez sur **Connecter GitHub** et connectez-vous au compte qui contient votre application.
 
-![Importez votre application existante.](../assets/screenshots/bring-from-github.png)
+![Récupérez votre application depuis GitHub.](../assets/screenshots/bring-from-github.png)
 
-Collez l’adresse GitHub de votre application, puis cliquez sur **Importer**. Attendez la fin de la configuration.
+Collez le lien GitHub de votre application, puis cliquez sur **Importer**. Patientez pendant que Clodable la récupère.
 
-![Exemple : vulk-corp/hirebright-score. Utilisez l’adresse de votre application.](../assets/screenshots/import-app.png)
+![Exemple : vulk-corp/hirebright-score. Collez le lien de votre propre application.](../assets/screenshots/import-app.png)
 
-## 5. Démarrer la migration guidée
+## 5. Suivre les étapes proposées par Clodable
 
-Répondez aux questions de Claude sur votre configuration. Si le panneau propose **Examiner mon application**, commencez par ce bouton. Choisissez ensuite **Quitter Lovable**.
+Répondez aux questions de Claude sur votre application. Si le bouton **Examiner mon application** apparaît, cliquez dessus. Cliquez ensuite sur **Quitter Lovable**.
 
-![Ouvrez le parcours de migration.](../assets/screenshots/move-off-lovable.png)
+![Ce bouton ouvre les étapes pour quitter Lovable.](../assets/screenshots/move-off-lovable.png)
 
-![Le panneau vous guide pour la suite.](../assets/screenshots/look-at-app.png)
+![Claude commence par examiner votre application.](../assets/screenshots/look-at-app.png)
 
-Cliquez sur **Examiner mon application**, puis suivez les instructions du panneau, une étape à la fois.
+Dans le panneau qui s’ouvre, cliquez sur **Examiner mon application**. Clodable vous indiquera ensuite quoi faire, étape par étape.
 
-Votre application reste en ligne sur Lovable jusqu’à ce que vous décidiez de basculer.
+Votre application reste en ligne sur Lovable jusqu’à ce que vous décidiez de passer à la nouvelle version.
 
 ---
 
 Claude Desktop sur Mac · Captures : 23 novembre 2026 · Clodable 0.4.4
 
-Les captures de migration utilisent une copie isolée de HireBright, configurée selon son environnement Lovable Cloud documenté. Aucun service en ligne n’a été modifié.
+Ces captures ont été réalisées avec une copie de démonstration de HireBright, préparée pour reproduire sa configuration Lovable Cloud. Aucun service en ligne n’a été modifié.

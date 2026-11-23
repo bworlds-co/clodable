@@ -172,7 +172,7 @@
     "sha256": "be9fe4693f792223b1346abcd3e26c5922bb87e5c0c551463ac073be902020ba",
     "caption": {
       "en": "Bring in your existing app.",
-      "fr": "Importez votre application existante."
+      "fr": "Récupérez votre application depuis GitHub."
     },
     "capturedAt": "2026-11-23",
     "pluginVersion": "0.4.4",
@@ -186,7 +186,7 @@
     "sha256": "981ee65df3e3980b5c1f341b436a070d5772c706f430b57026bde9679d3ae69d",
     "caption": {
       "en": "Example: vulk-corp/hirebright-score. Use your own app’s address.",
-      "fr": "Exemple : vulk-corp/hirebright-score. Utilisez l’adresse de votre application."
+      "fr": "Exemple : vulk-corp/hirebright-score. Collez le lien de votre propre application."
     },
     "capturedAt": "2026-11-23",
     "pluginVersion": "0.4.4",
@@ -200,7 +200,7 @@
     "sha256": "dba5384388b2f223ea9ebfad0554d328002d0e4612cc4757661448231f046692",
     "caption": {
       "en": "Open the guided move.",
-      "fr": "Ouvrez le parcours de migration."
+      "fr": "Ce bouton ouvre les étapes pour quitter Lovable."
     },
     "capturedAt": "2026-11-23",
     "pluginVersion": "0.4.4",
@@ -214,7 +214,7 @@
     "sha256": "ed778309b6fcc596ee4a51427b34f1b3e49ae97e54693d73b9c09cead4360cd2",
     "caption": {
       "en": "The panel guides you from here.",
-      "fr": "Le panneau vous guide pour la suite."
+      "fr": "Claude commence par examiner votre application."
     },
     "capturedAt": "2026-11-23",
     "pluginVersion": "0.4.4",
