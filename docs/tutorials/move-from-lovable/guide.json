@@ -1,0 +1,151 @@
+{
+  "id": "move-from-lovable",
+  "title": {
+    "en": "Start moving from Lovable",
+    "fr": "Passer de Lovable à Clodable"
+  },
+  "description": {
+    "en": "Bring your Lovable app into Clodable, then follow the panel.",
+    "fr": "Importez votre application Lovable dans Clodable, puis suivez le panneau."
+  },
+  "pages": [
+    {
+      "title": {
+        "en": "Start moving from Lovable",
+        "fr": "Passer de Lovable à Clodable"
+      },
+      "subtitle": {
+        "en": "Install Clodable · Bring your app · Follow the panel",
+        "fr": "Installer Clodable · Importer votre application · Suivre le panneau"
+      },
+      "sections": [
+        {
+          "shared": "install"
+        },
+        {
+          "id": "github",
+          "title": {
+            "en": "Copy your app’s GitHub link",
+            "fr": "Récupérer le lien GitHub de votre application"
+          },
+          "blocks": [
+            {
+              "type": "text",
+              "text": {
+                "en": "In Lovable, open **Project settings → Git → GitHub**. Connect your app if needed, then copy its GitHub address.",
+                "fr": "Dans Lovable, ouvrez **Paramètres du projet → Git → GitHub**. Connectez votre application si nécessaire, puis copiez son adresse GitHub."
+              }
+            },
+            {
+              "type": "link",
+              "ref": "lovableGithub"
+            }
+          ]
+        },
+        {
+          "shared": "code"
+        }
+      ]
+    },
+    {
+      "title": {
+        "en": "Let Clodable guide the move",
+        "fr": "Laissez Clodable guider la migration"
+      },
+      "subtitle": {
+        "en": "For apps whose data is on Lovable Cloud.",
+        "fr": "Pour les applications dont les données sont sur Lovable Cloud."
+      },
+      "sections": [
+        {
+          "id": "import",
+          "title": {
+            "en": "Bring your app from GitHub",
+            "fr": "Importer votre application depuis GitHub"
+          },
+          "blocks": [
+            {
+              "type": "text",
+              "text": {
+                "en": "Send `/clodable` to open the panel. Click {{ui:bring}}. If asked, choose {{ui:connectGithub}} and sign in with the account that can access your app.",
+                "fr": "Envoyez `/clodable` pour ouvrir le panneau. Cliquez sur {{ui:bring}}. Si nécessaire, choisissez {{ui:connectGithub}} et utilisez le compte qui a accès à votre application."
+              }
+            },
+            {
+              "type": "image",
+              "asset": "bring-from-github",
+              "width": 350
+            },
+            {
+              "type": "text",
+              "text": {
+                "en": "Paste your app’s GitHub address, then click {{ui:import}}. Wait for setup to finish.",
+                "fr": "Collez l’adresse GitHub de votre application, puis cliquez sur {{ui:import}}. Attendez la fin de la configuration."
+              }
+            },
+            {
+              "type": "image",
+              "asset": "import-app",
+              "width": 580
+            }
+          ]
+        },
+        {
+          "id": "move",
+          "title": {
+            "en": "Start the guided move",
+            "fr": "Démarrer la migration guidée"
+          },
+          "blocks": [
+            {
+              "type": "text",
+              "text": {
+                "en": "Answer any setup questions Claude asks. If the panel offers {{ui:look}}, click it first. Then choose {{ui:move}}.",
+                "fr": "Répondez aux questions de Claude sur votre configuration. Si le panneau propose {{ui:look}}, commencez par ce bouton. Choisissez ensuite {{ui:move}}."
+              }
+            },
+            {
+              "type": "image",
+              "asset": "move-off-lovable",
+              "width": 650
+            },
+            {
+              "type": "columns",
+              "ratio": "equal",
+              "columns": [
+                [
+                  {
+                    "type": "image",
+                    "asset": "look-at-app",
+                    "width": 310
+                  }
+                ],
+                [
+                  {
+                    "type": "text",
+                    "text": {
+                      "en": "Click {{ui:look}}, then follow the panel’s instructions one step at a time.",
+                      "fr": "Cliquez sur {{ui:look}}, puis suivez les instructions du panneau, une étape à la fois."
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "text": {
+                      "en": "Your live app stays on Lovable until you choose to switch.",
+                      "fr": "Votre application reste en ligne sur Lovable jusqu’à ce que vous décidiez de basculer."
+                    },
+                    "tone": "note"
+                  }
+                ]
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "captureNotes": {
+    "en": "Migration screenshots use an isolated HireBright demo configured for its documented Lovable Cloud setup. No live services were changed.",
+    "fr": "Les captures de migration utilisent une copie isolée de HireBright, configurée selon son environnement Lovable Cloud documenté. Aucun service en ligne n’a été modifié."
+  }
+}
