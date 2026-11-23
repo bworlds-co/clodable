@@ -1,0 +1,130 @@
+{
+  "locales": {
+    "en": {
+      "name": "English",
+      "screenshotNote": "Screenshots are shared across languages.",
+      "footer": "Claude Desktop on Mac · Screenshots: 23 November 2026",
+      "generated": "Generated from guide.json and shared.json. Edit those sources, not this file."
+    },
+    "fr": {
+      "name": "Français",
+      "screenshotNote": "Les captures sont en anglais ; le texte utilise les libellés français.",
+      "footer": "Claude Desktop sur Mac · Captures : 23 novembre 2026",
+      "generated": "Généré à partir de guide.json et shared.json. Modifiez ces sources, pas ce fichier."
+    }
+  },
+  "verifiedAt": "2026-11-23",
+  "verifiedPluginVersion": "0.4.4",
+  "controls": {
+    "saving": "Set up saving",
+    "connectGithub": "Connect GitHub",
+    "createPrivate": "Create private app",
+    "prepare": "Prepare my app for saving",
+    "setupHere": "Set up Clodable here",
+    "help": "Ask Claude for help",
+    "hosting": "Set up hosting",
+    "netlifyTokens": "Open Netlify's token page ↗",
+    "netlifyToken": "Netlify token",
+    "connect": "Connect",
+    "createAddress": "Create my web address",
+    "publish": "Publish",
+    "live": "You're live! {0}",
+    "backend": "Add a backend",
+    "bring": "Bring an app from GitHub",
+    "import": "Import",
+    "look": "Look at my app",
+    "move": "Move off Lovable"
+  },
+  "externalControls": {
+    "plugins": {
+      "en": "Plugins",
+      "fr": "Plugins"
+    },
+    "add": {
+      "en": "Add",
+      "fr": "Ajouter"
+    },
+    "addMarketplace": {
+      "en": "Add marketplace",
+      "fr": "Ajouter une marketplace"
+    },
+    "addRepository": {
+      "en": "Add from a repository",
+      "fr": "Ajouter depuis un dépôt"
+    },
+    "selectRepository": {
+      "en": "Select a repository",
+      "fr": "Sélectionner un dépôt"
+    },
+    "use": {
+      "en": "Use “…”",
+      "fr": "Utiliser « … »"
+    },
+    "sync": {
+      "en": "Sync",
+      "fr": "Synchroniser"
+    },
+    "added": {
+      "en": "Added",
+      "fr": "Ajouté"
+    },
+    "code": {
+      "en": "Code",
+      "fr": "Code"
+    },
+    "new": {
+      "en": "New",
+      "fr": "Nouveau"
+    },
+    "computer": {
+      "en": "This computer",
+      "fr": "Cet ordinateur"
+    },
+    "openFolder": {
+      "en": "Open folder…",
+      "fr": "Ouvrir un dossier…"
+    },
+    "newFolder": {
+      "en": "New Folder",
+      "fr": "Nouveau dossier"
+    },
+    "open": {
+      "en": "Open",
+      "fr": "Ouvrir"
+    },
+    "onComputer": {
+      "en": "On this computer",
+      "fr": "Sur cet ordinateur"
+    }
+  },
+  "links": {
+    "marketplace": {
+      "url": "https://github.com/bworlds-co/clodable",
+      "label": {
+        "en": "https://github.com/bworlds-co/clodable",
+        "fr": "https://github.com/bworlds-co/clodable"
+      }
+    },
+    "lovableGithub": {
+      "url": "https://docs.lovable.dev/integrations/github",
+      "label": {
+        "en": "Save your Lovable app to GitHub (official guide)",
+        "fr": "Enregistrer votre application Lovable sur GitHub (guide officiel)"
+      }
+    },
+    "netlifyTokens": {
+      "url": "https://docs.netlify.com/api-and-cli-guides/api-guides/get-started-with-api/#authentication",
+      "label": {
+        "en": "Netlify’s personal access token instructions",
+        "fr": "Créer un token personnel Netlify : documentation officielle"
+      }
+    },
+    "claudePlugins": {
+      "url": "https://support.claude.com/en/articles/17740565-manage-plugins-skills-and-connectors-from-one-plugins-page",
+      "label": {
+        "en": "Claude’s Plugins documentation",
+        "fr": "Documentation officielle des plugins Claude"
+      }
+    }
+  }
+}

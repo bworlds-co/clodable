@@ -26,3 +26,7 @@ packages/preview/test/tmp-*/
 # Claude Code marks a plugin copy in use here when it loads the plugin from this checkout
 plugin/.in_use/
 plugin/.orphaned_at
+
+# Tutorial exports are rebuilt from docs/tutorials and attached to CI runs/releases
+docs/tutorials/**/*.html
+output/pdf/

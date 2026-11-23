@@ -1,0 +1,224 @@
+{
+  "add-marketplace": {
+    "file": "assets/screenshots/add-marketplace.png",
+    "width": 244,
+    "height": 225,
+    "sha256": "fa017b973a5f790db9e58935179f0d9f50f77d392365bbf35a689b482d6d7e8f",
+    "caption": {
+      "en": "Add the Clodable marketplace.",
+      "fr": "Ajoutez la marketplace Clodable."
+    },
+    "capturedAt": "2026-11-23",
+    "pluginVersion": null,
+    "claudeVersion": null,
+    "highlight": [24, 149, 193, 31]
+  },
+  "marketplace-url": {
+    "file": "assets/screenshots/marketplace-url.png",
+    "width": 503,
+    "height": 133,
+    "sha256": "8b62cdd36f04d69f173b58a6444f0cce2df857d4a1f76e51cacc92075cf948f1",
+    "caption": {
+      "en": "Check the address, then Sync.",
+      "fr": "Vérifiez l’adresse, puis synchronisez."
+    },
+    "capturedAt": "2026-11-23",
+    "pluginVersion": null,
+    "claudeVersion": null,
+    "highlight": [444, 93, 54, 32]
+  },
+  "plugin-added": {
+    "file": "assets/screenshots/plugin-added.png",
+    "width": 968,
+    "height": 58,
+    "sha256": "9e83b008e3219a2daea4e383ad7e305bccefbb32bb8e4f0ea4ae480761e60b04",
+    "caption": {
+      "en": "Clodable installed.",
+      "fr": "Clodable est installé."
+    },
+    "capturedAt": "2026-11-23",
+    "pluginVersion": "0.4.4",
+    "claudeVersion": null,
+    "highlight": [826, 12, 88, 34]
+  },
+  "switch-to-code": {
+    "file": "assets/screenshots/switch-to-code.png",
+    "width": 264,
+    "height": 226,
+    "sha256": "2a752cd1a5abc9df5c909ac727d4402d1aca952829ab03387865092e3776bd76",
+    "caption": {
+      "en": "Switch to Code, then New.",
+      "fr": "Passez dans Code, puis ouvrez une nouvelle session."
+    },
+    "capturedAt": "2026-11-23",
+    "pluginVersion": null,
+    "claudeVersion": null,
+    "highlight": [218, 6, 37, 31]
+  },
+  "first-prompt": {
+    "file": "assets/screenshots/first-prompt.png",
+    "width": 788,
+    "height": 111,
+    "sha256": "9c1a75bb2d28b14b80d9f1413b2642eebe7fb663a63caf9b609aee5aa367222f",
+    "caption": {
+      "en": "Describe your app with an empty local folder selected.",
+      "fr": "Décrivez votre application après avoir choisi un dossier local vide."
+    },
+    "capturedAt": "2026-11-23",
+    "pluginVersion": null,
+    "claudeVersion": null
+  },
+  "existing-folder": {
+    "file": "assets/screenshots/existing-folder.png",
+    "width": 788,
+    "height": 90,
+    "sha256": "be85490a0d106b747eef1870b00b32adc400805e2ca3256a66d6d63434457276",
+    "caption": {
+      "en": "Open the folder that contains your app.",
+      "fr": "Ouvrez le dossier qui contient votre application."
+    },
+    "capturedAt": "2026-11-23",
+    "pluginVersion": null,
+    "claudeVersion": null,
+    "highlight": [13, 58, 230, 28]
+  },
+  "prepare-app": {
+    "file": "assets/screenshots/prepare-app.png",
+    "width": 736,
+    "height": 511,
+    "sha256": "2094a0fcfb6345cacaa836a062274b522732725402d67208830d5519879c622d",
+    "caption": {
+      "en": "Prepare an app that needs adapting.",
+      "fr": "Préparez une application qui a besoin d’être adaptée."
+    },
+    "capturedAt": "2026-11-23",
+    "pluginVersion": "0.4.4",
+    "claudeVersion": null,
+    "highlight": [15, 434, 401, 64]
+  },
+  "prepare-button": {
+    "file": "assets/screenshots/prepare-button.png",
+    "width": 430,
+    "height": 87,
+    "sha256": "15b6487cc36d4023611961167472cebc039744c037108a53497fb8b34814cba7",
+    "caption": {
+      "en": "Start preparation from the panel.",
+      "fr": "Lancez la préparation depuis le panneau."
+    },
+    "capturedAt": "2026-11-23",
+    "pluginVersion": "0.4.4",
+    "claudeVersion": null
+  },
+  "save-private": {
+    "file": "assets/screenshots/save-private.png",
+    "width": 426,
+    "height": 308,
+    "sha256": "bcf669acf32f4fd018dea5fc352cb79393631669ca97732175a9828eb9fb6261",
+    "caption": {
+      "en": "Example account shown. Check yours before saving.",
+      "fr": "Le compte affiché est un exemple. Vérifiez le vôtre avant d’enregistrer."
+    },
+    "capturedAt": "2026-11-23",
+    "pluginVersion": null,
+    "claudeVersion": null,
+    "highlight": [267, 224, 145, 31]
+  },
+  "hosting": {
+    "file": "assets/screenshots/hosting.png",
+    "width": 409,
+    "height": 282,
+    "sha256": "95365bdfac11cbf6479a443aa20cc27cffe13fa3a908cb5f2272fdd40eeebb5b",
+    "caption": {
+      "en": "Connect Netlify through the panel.",
+      "fr": "Connectez Netlify depuis le panneau."
+    },
+    "capturedAt": "2026-11-23",
+    "pluginVersion": null,
+    "claudeVersion": null,
+    "highlight": [16, 201, 185, 31]
+  },
+  "publish": {
+    "file": "assets/screenshots/publish.png",
+    "width": 777,
+    "height": 50,
+    "sha256": "0916e3aa9a950744a769dac9a819e27e14ab349b39b71c215fe66bd4f18dff1c",
+    "caption": {
+      "en": "Publish when your app is ready.",
+      "fr": "Publiez quand votre application est prête."
+    },
+    "capturedAt": "2026-11-23",
+    "pluginVersion": null,
+    "claudeVersion": null,
+    "highlight": [693, 9, 73, 33]
+  },
+  "empty-folder": {
+    "file": "assets/screenshots/empty-folder.png",
+    "width": 900,
+    "height": 89,
+    "sha256": "c3870172262de6eb3f762e807daf7bd6b804732c3b3ae8c61aff9bbc5ccdbc64",
+    "caption": {
+      "en": "An empty local folder, ready for /clodable.",
+      "fr": "Un dossier local vide, prêt pour /clodable."
+    },
+    "capturedAt": "2026-11-23",
+    "pluginVersion": null,
+    "claudeVersion": null,
+    "highlight": [15, 54, 338, 31]
+  },
+  "bring-from-github": {
+    "file": "assets/screenshots/bring-from-github.png",
+    "width": 412,
+    "height": 80,
+    "sha256": "be9fe4693f792223b1346abcd3e26c5922bb87e5c0c551463ac073be902020ba",
+    "caption": {
+      "en": "Bring in your existing app.",
+      "fr": "Importez votre application existante."
+    },
+    "capturedAt": "2026-11-23",
+    "pluginVersion": "0.4.4",
+    "claudeVersion": null,
+    "highlight": [15, 10, 382, 59]
+  },
+  "import-app": {
+    "file": "assets/screenshots/import-app.png",
+    "width": 661,
+    "height": 212,
+    "sha256": "981ee65df3e3980b5c1f341b436a070d5772c706f430b57026bde9679d3ae69d",
+    "caption": {
+      "en": "Example: vulk-corp/hirebright-score. Use your own app’s address.",
+      "fr": "Exemple : vulk-corp/hirebright-score. Utilisez l’adresse de votre application."
+    },
+    "capturedAt": "2026-11-23",
+    "pluginVersion": "0.4.4",
+    "claudeVersion": null,
+    "highlight": [500, 88, 137, 68]
+  },
+  "move-off-lovable": {
+    "file": "assets/screenshots/move-off-lovable.png",
+    "width": 700,
+    "height": 73,
+    "sha256": "dba5384388b2f223ea9ebfad0554d328002d0e4612cc4757661448231f046692",
+    "caption": {
+      "en": "Open the guided move.",
+      "fr": "Ouvrez le parcours de migration."
+    },
+    "capturedAt": "2026-11-23",
+    "pluginVersion": "0.4.4",
+    "claudeVersion": null,
+    "highlight": [443, 6, 243, 59]
+  },
+  "look-at-app": {
+    "file": "assets/screenshots/look-at-app.png",
+    "width": 715,
+    "height": 282,
+    "sha256": "ed778309b6fcc596ee4a51427b34f1b3e49ae97e54693d73b9c09cead4360cd2",
+    "caption": {
+      "en": "The panel guides you from here.",
+      "fr": "Le panneau vous guide pour la suite."
+    },
+    "capturedAt": "2026-11-23",
+    "pluginVersion": "0.4.4",
+    "claudeVersion": null,
+    "highlight": [13, 200, 258, 67]
+  }
+}

@@ -19,6 +19,10 @@
     "format": "biome format --write .",
     "check": "pnpm lint && pnpm typecheck && pnpm test",
     "shots": "tsx scripts/toolbar-shots.mts && tsx scripts/readme-assets.mts",
+    "guides:build": "node --import tsx scripts/guides.mts",
+    "guides:check": "tsc -p scripts/tsconfig.guides.json && node --import tsx scripts/guides.mts --check",
+    "guides:sources": "node --import tsx scripts/guides.mts --sources-only",
+    "guides:links": "node --import tsx scripts/guides.mts --links",
     "release": "node scripts/release.mjs",
     "sync:i18n": "node scripts/sync-i18n.mjs"
   },

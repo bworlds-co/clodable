@@ -1,0 +1,107 @@
+{
+  "install": {
+    "id": "install",
+    "title": {
+      "en": "Install Clodable",
+      "fr": "Installer Clodable"
+    },
+    "blocks": [
+      {
+        "type": "columns",
+        "ratio": "wide-left",
+        "columns": [
+          [
+            {
+              "type": "text",
+              "text": {
+                "en": "Open {{external:plugins}} in Claude Desktop. Choose {{external:add}} → {{external:addMarketplace}} → {{external:addRepository}}.",
+                "fr": "Ouvrez {{external:plugins}} dans Claude Desktop. Choisissez {{external:add}} → {{external:addMarketplace}} → {{external:addRepository}}."
+              }
+            },
+            {
+              "type": "text",
+              "text": {
+                "en": "Click {{external:selectRepository}} and enter:",
+                "fr": "Cliquez sur {{external:selectRepository}} et saisissez :"
+              }
+            },
+            {
+              "type": "link",
+              "ref": "marketplace"
+            },
+            {
+              "type": "text",
+              "text": {
+                "en": "Select {{external:use}}, then {{external:sync}}. Click {{external:add}} next to **Clodable**.",
+                "fr": "Choisissez {{external:use}}, puis {{external:sync}}. Cliquez sur {{external:add}} à côté de **Clodable**."
+              }
+            }
+          ],
+          [
+            {
+              "type": "image",
+              "asset": "add-marketplace",
+              "width": 215
+            }
+          ]
+        ]
+      },
+      {
+        "type": "image",
+        "asset": "marketplace-url",
+        "width": 355
+      },
+      {
+        "type": "image",
+        "asset": "plugin-added",
+        "width": 650
+      },
+      {
+        "type": "text",
+        "text": {
+          "en": "{{external:added}} confirms installation. Already installed? Continue below.",
+          "fr": "{{external:added}} confirme l’installation. Le plugin est déjà installé ? Passez à la suite."
+        },
+        "tone": "note"
+      }
+    ]
+  },
+  "code": {
+    "id": "code",
+    "title": {
+      "en": "Open an empty folder in Code",
+      "fr": "Ouvrir un dossier vide dans Code"
+    },
+    "blocks": [
+      {
+        "type": "columns",
+        "ratio": "wide-left",
+        "columns": [
+          [
+            {
+              "type": "text",
+              "text": {
+                "en": "Click {{external:code}} (the **</>** icon), then {{external:new}}. Choose {{external:computer}}, then the folder menu → {{external:openFolder}}.",
+                "fr": "Cliquez sur {{external:code}} (l’icône **</>**), puis {{external:new}}. Choisissez {{external:computer}}, puis le menu des dossiers → {{external:openFolder}}."
+              }
+            },
+            {
+              "type": "text",
+              "text": {
+                "en": "Use {{external:newFolder}} to create an empty folder for your app. Select it and click {{external:open}}.",
+                "fr": "Créez un dossier vide avec {{external:newFolder}}. Sélectionnez-le, puis cliquez sur {{external:open}}."
+              }
+            }
+          ],
+          [
+            {
+              "type": "image",
+              "asset": "switch-to-code",
+              "width": 170
+            }
+          ]
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,124 @@
+{
+  "id": "install-clodable",
+  "title": {
+    "en": "Build your first app",
+    "fr": "Créer votre première application"
+  },
+  "description": {
+    "en": "Install Clodable, describe your idea, and try your first app.",
+    "fr": "Installez Clodable, décrivez votre idée et essayez votre première application."
+  },
+  "pages": [
+    {
+      "title": {
+        "en": "Build your first app",
+        "fr": "Créer votre première application"
+      },
+      "subtitle": {
+        "en": "Install from Chat or Code. Use Code to work on your app.",
+        "fr": "Installez le plugin depuis Chat ou Code. Pour créer votre application, utilisez Code."
+      },
+      "sections": [
+        {
+          "shared": "install"
+        },
+        {
+          "shared": "code"
+        }
+      ]
+    },
+    {
+      "title": {
+        "en": "Describe it. Try it. Shape it.",
+        "fr": "Décrivez, essayez, ajustez."
+      },
+      "subtitle": {
+        "en": "Start with a simple idea and sample data.",
+        "fr": "Commencez par une idée simple et des données d’exemple."
+      },
+      "sections": [
+        {
+          "id": "idea",
+          "title": {
+            "en": "Describe your app",
+            "fr": "Décrire votre application"
+          },
+          "blocks": [
+            {
+              "type": "text",
+              "text": {
+                "en": "Type what you want and send it. For example:",
+                "fr": "Décrivez ce que vous voulez et envoyez votre message. Par exemple :"
+              }
+            },
+            {
+              "type": "quote",
+              "text": {
+                "en": "Build a simple app for sharing books with my neighbours. Start with sample books and show me the preview.",
+                "fr": "Crée une application simple pour partager des livres avec mes voisins. Commence avec quelques livres d’exemple et montre-moi l’aperçu."
+              }
+            },
+            {
+              "type": "image",
+              "asset": "first-prompt",
+              "width": 650
+            },
+            {
+              "type": "text",
+              "text": {
+                "en": "Claude builds a first version and opens a preview beside the conversation. Ask for changes in your own words.",
+                "fr": "Claude crée une première version et ouvre un aperçu à côté de la conversation. Demandez vos modifications avec vos propres mots."
+              }
+            },
+            {
+              "type": "text",
+              "text": {
+                "en": "**No preview?** Ask: “Show me my app’s preview.”",
+                "fr": "**L’aperçu n’apparaît pas ?** Demandez : « Montre-moi l’aperçu de mon application. »"
+              }
+            },
+            {
+              "type": "text",
+              "text": {
+                "en": "**No Clodable bar?** Send `/clodable` in your Code session to open the panel.",
+                "fr": "**La barre Clodable n’apparaît pas ?** Envoyez `/clodable` dans votre session Code pour ouvrir le panneau."
+              }
+            }
+          ]
+        },
+        {
+          "id": "keep",
+          "title": {
+            "en": "Save it when you’re ready",
+            "fr": "Enregistrer quand vous êtes prêt"
+          },
+          "blocks": [
+            {
+              "type": "text",
+              "text": {
+                "en": "Choose {{ui:saving}}, connect GitHub if asked, then choose {{ui:createPrivate}}.",
+                "fr": "Choisissez {{ui:saving}}, connectez GitHub si nécessaire, puis cliquez sur {{ui:createPrivate}}."
+              }
+            },
+            {
+              "type": "text",
+              "text": {
+                "en": "Saving keeps your code private. It does not publish your app.",
+                "fr": "L’enregistrement conserve votre code dans un espace privé. Il ne met pas votre application en ligne."
+              },
+              "tone": "note"
+            },
+            {
+              "type": "link",
+              "ref": "claudePlugins"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "captureNotes": {
+    "en": "Real Claude Desktop screenshots. Labels may change.",
+    "fr": "Captures réelles de Claude Desktop. Les libellés peuvent évoluer."
+  }
+}
