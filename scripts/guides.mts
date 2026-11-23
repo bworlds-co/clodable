@@ -13,6 +13,7 @@ type Block =
   | { type: "columns"; ratio: "equal" | "wide-left"; columns: Block[][] };
 interface Section {
   id: string;
+  kind?: "callout";
   title: Localized;
   blocks: Block[];
 }
@@ -233,7 +234,20 @@ function markdown(guide: Guide, locale: Locale): string {
   if (new Set(sections.map((s) => s.id)).size !== sections.length) {
     throw new Error(`Duplicate section ids in ${guide.id}`);
   }
-  return `<!-- ${language.generated} -->\n\n# ${guide.title[locale]}\n\n${other}\n\n${guide.description[locale]}\n\n${language.screenshotNote}\n\n${sections.map((s) => `## ${++index}. ${s.title[locale]}\n\n${s.blocks.map((b) => blockMarkdown(b, locale)).join("\n\n")}`).join("\n\n")}\n\n---\n\n${language.footer} · Clodable ${catalog.verifiedPluginVersion}\n\n${guide.captureNotes[locale]}\n`;
+  return `<!-- ${language.generated} -->\n\n# ${guide.title[locale]}\n\n${other}\n\n${guide.description[locale]}\n\n${language.screenshotNote}\n\n${sections
+    .map((s) =>
+      s.kind === "callout"
+        ? `> **${s.title[locale]}**\n>\n${s.blocks
+            .map((b) => blockMarkdown(b, locale))
+            .join("\n\n")
+            .split("\n")
+            .map((line) => `> ${line}`.trimEnd())
+            .join("\n")}`
+        : `## ${++index}. ${s.title[locale]}\n\n${s.blocks.map((b) => blockMarkdown(b, locale)).join("\n\n")}`,
+    )
+    .join(
+      "\n\n",
+    )}\n\n---\n\n${language.footer} · Clodable ${catalog.verifiedPluginVersion}\n\n${guide.captureNotes[locale]}\n`;
 }
 const css = await readFile(resolve(tutorials, "template.css"), "utf8");
 function html(guide: Guide, locale: Locale): string {
@@ -250,9 +264,10 @@ function html(guide: Guide, locale: Locale): string {
       (p, i) =>
         `<article class="page" data-page="${i + 1}"><header><div class="brand">clodable</div><h1>${escapeHTML(p.title[locale])}</h1><p>${escapeHTML(p.subtitle[locale])}</p>${i === 0 ? `<p class="language-note">${escapeHTML(language.screenshotNote)}</p>` : ""}</header><div class="content">${p.sections
           .map(section)
-          .map(
-            (s) =>
-              `<section class="step" id="${s.id}"><h2><span>${++step}</span>${escapeHTML(s.title[locale])}</h2><div class="step-content">${s.blocks.map((b) => blockHTML(b, locale)).join("")}</div></section>`,
+          .map((s) =>
+            s.kind === "callout"
+              ? `<aside class="callout" id="${s.id}"><h2>${escapeHTML(s.title[locale])}</h2>${s.blocks.map((b) => blockHTML(b, locale)).join("")}</aside>`
+              : `<section class="step" id="${s.id}"><h2><span>${++step}</span>${escapeHTML(s.title[locale])}</h2><div class="step-content">${s.blocks.map((b) => blockHTML(b, locale)).join("")}</div></section>`,
           )
           .join(
             "",

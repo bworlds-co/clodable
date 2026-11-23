@@ -141,6 +141,19 @@ blockquote {
   background: #f4eee6;
   border-left: 3px solid #b9502b;
 }
+.callout {
+  margin: 0 0 16px 42px;
+  padding: 12px 16px;
+  background: #f4eee6;
+  border-left: 3px solid #b9502b;
+  break-inside: avoid;
+}
+.callout h2 {
+  font-size: 14px;
+}
+.callout p:last-child {
+  margin-bottom: 0;
+}
 code {
   font-family: inherit;
   font-weight: 650;
@@ -177,7 +190,8 @@ footer {
     grid-template-columns: 1fr;
     gap: 10px;
   }
-  .step-content {
+  .step-content,
+  .callout {
     margin-left: 0;
   }
   footer {
