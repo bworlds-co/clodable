@@ -1,10 +1,10 @@
 <!-- Généré à partir de guide.json et shared.json. Modifiez ces sources, pas ce fichier. -->
 
-# Préparer votre application existante
+# Reprendre votre projet avec Clodable
 
 [English](README.md)
 
-Ouvrez votre dossier, enregistrez sur GitHub et préparez l’hébergement.
+Votre application est déjà sur votre ordinateur ? Ouvrez-la dans Claude, enregistrez son code sur GitHub et mettez-la en ligne quand elle est prête.
 
 Les captures sont en anglais. Les noms des boutons sont indiqués en français dans le texte.
 
@@ -26,61 +26,61 @@ Validez avec **Utiliser « … »**, puis **Synchroniser**. Cliquez sur **Ajoute
 
 Quand le bouton affiche **Ajouté**, Clodable est installé. Passez à la suite.
 
-## 2. Ouvrir le dossier de votre application dans Code
+## 2. Ouvrir le dossier de votre application
 
-Cliquez sur **Code** (l’icône **</>**), puis **Nouveau**. Choisissez **Cet ordinateur**, puis le menu des dossiers → **Ouvrir un dossier…**.
+Dans Claude, ouvrez l’onglet **Code** (icône **</>**), puis cliquez sur **Nouveau**. Choisissez **Cet ordinateur**, puis le menu des dossiers → **Ouvrir un dossier…**.
 
-Sélectionnez le dossier de votre application et cliquez sur **Ouvrir**. Envoyez `/clodable` pour ouvrir le panneau.
+Choisissez le dossier qui contient votre application, puis cliquez sur **Ouvrir**. Dans la conversation, envoyez `/clodable` pour afficher le panneau.
 
 ![Ouvrez l’onglet Code, puis une nouvelle conversation.](../assets/screenshots/switch-to-code.png)
 
-![Ouvrez le dossier qui contient votre application.](../assets/screenshots/existing-folder.png)
+![Le dossier de votre application apparaît sous le message.](../assets/screenshots/existing-folder.png)
 
-## 3. Préparer l’application si nécessaire
+## 3. Vérifier l’application avec Claude
 
-Si le panneau propose **Préparer mon application pour l’enregistrement**, cliquez dessus. Claude adapte la configuration et vérifie les fonctionnalités existantes.
+Si le bouton **Préparer mon application pour l’enregistrement** apparaît, cliquez dessus. Claude vous explique les ajustements nécessaires, puis vous aide à les faire.
 
-Répondez aux questions et vérifiez le résultat dans l’aperçu.
+Répondez à ses questions, puis essayez votre application dans l’aperçu.
 
-![Lancez la préparation depuis le panneau.](../assets/screenshots/prepare-button.png)
+![Ce bouton demande à Claude d’adapter votre application.](../assets/screenshots/prepare-button.png)
 
-Votre application est déjà compatible ? Passez directement à **Configurer l’enregistrement**.
+Si votre application fonctionne déjà avec Clodable, passez à **Configurer l’enregistrement**.
 
-## 4. Enregistrer votre code sur GitHub en privé
+## 4. Enregistrer votre travail sur GitHub
 
-Cliquez sur **Configurer l’enregistrement**. Si nécessaire, choisissez **Connecter GitHub** et suivez les étapes de connexion.
+Cliquez sur **Configurer l’enregistrement**. Si Clodable vous le demande, cliquez sur **Connecter GitHub** et connectez-vous à votre compte.
 
-Vérifiez votre compte et le nom de l’application, puis cliquez sur **Créer l’application privée**. Attendez la confirmation de l’enregistrement.
+Vérifiez le compte GitHub affiché et le nom de votre application. Cliquez sur **Créer l’application privée**, puis attendez le message de confirmation.
 
-Votre code reste privé. L’enregistrement ne met pas votre application en ligne.
+Votre code est enregistré en privé sur GitHub. Cette étape ne met pas votre application en ligne.
 
-![Le compte affiché est un exemple. Vérifiez le vôtre avant d’enregistrer.](../assets/screenshots/save-private.png)
+![Le compte affiché ici est un exemple. Vérifiez le vôtre.](../assets/screenshots/save-private.png)
 
-**Votre application est déjà sur GitHub ?** Choisissez **Configurer Clodable ici** pour conserver ce lien.
+**Votre application est déjà sur GitHub ?** Cliquez sur **Configurer Clodable ici** pour conserver le même projet GitHub.
 
-**La configuration bloque ?** Choisissez **Demander de l’aide à Claude**, vérifiez l’aperçu, puis revenez au panneau d’enregistrement.
+**Vous êtes bloqué ?** Cliquez sur **Demander de l’aide à Claude**. Vérifiez ensuite le résultat dans l’aperçu, puis revenez au panneau pour enregistrer votre application.
 
-## 5. Configurer l’hébergement
+## 5. Connecter votre compte Netlify
 
-**Votre site est déjà en ligne ?** Indiquez à Claude son hébergeur et son adresse pour qu’il vérifie la configuration. Suivez les étapes ci-dessous si vous n’avez pas encore d’hébergement.
+**Votre application est déjà en ligne ?** Donnez à Claude son adresse et le nom de l’hébergeur pour qu’il vérifie la configuration. Sinon, suivez les étapes ci-dessous.
 
-Choisissez **Configurer l’hébergement**, puis **Ouvrir la page des tokens Netlify ↗**. Connectez-vous et créez un token personnel nommé **Clodable**.
+Cliquez sur **Configurer l’hébergement**, puis sur **Ouvrir la page des tokens Netlify ↗**. Sur Netlify, connectez-vous et créez un token personnel nommé **Clodable**. Ce token permet à Clodable de publier votre application sur Netlify.
 
-![Connectez Netlify depuis le panneau.](../assets/screenshots/hosting.png)
+![Collez votre token ici, dans le panneau Clodable.](../assets/screenshots/hosting.png)
 
-Collez le token dans le champ **Token Netlify** et cliquez sur **Connecter**. Choisissez votre équipe si nécessaire, puis cliquez sur **Créer mon adresse web**.
+Collez ce token dans le champ **Token Netlify**, puis cliquez sur **Connecter**. Choisissez votre équipe si Clodable vous le demande, puis cliquez sur **Créer mon adresse web**.
 
-Saisissez les tokens dans le panneau, jamais dans la conversation.
+Collez le token dans le panneau Clodable, sans l’envoyer dans la conversation.
 
 [Créer un token personnel Netlify : documentation officielle](https://docs.netlify.com/api-and-cli-guides/api-guides/get-started-with-api/#authentication)
 
-## 6. Publier quand tout est prêt
+## 6. Publier votre application
 
-Essayez votre application dans l’aperçu et corrigez les problèmes signalés par Clodable. Cliquez sur **Publier**. Lorsque **Votre site est en ligne !** s’affiche, ouvrez l’adresse du site et testez-le.
+Essayez votre application dans l’aperçu. Quand tout fonctionne, cliquez sur **Publier**. Dès que le message **Votre site est en ligne !** apparaît, ouvrez le lien et vérifiez aussi la version en ligne.
 
-![Publiez quand votre application est prête.](../assets/screenshots/publish.png)
+![Lancez la mise en ligne depuis la barre Clodable.](../assets/screenshots/publish.png)
 
-**Votre application utilise des comptes ou une base de données ?** Demandez à Claude de vérifier les services et les paramètres avant de publier. Si vous avez besoin d’un backend, suivez **Ajouter un backend** avec Claude et vérifiez le compte et le coût indiqués dans le panneau.
+**Votre application a des comptes utilisateurs ou une base de données ?** Demandez à Claude de vérifier leur configuration avant de publier. S’il vous propose **Ajouter un backend**, suivez ses instructions et vérifiez le compte et le coût avant de confirmer.
 
 ---
 

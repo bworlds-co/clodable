@@ -75,7 +75,7 @@
     "sha256": "be85490a0d106b747eef1870b00b32adc400805e2ca3256a66d6d63434457276",
     "caption": {
       "en": "Open the folder that contains your app.",
-      "fr": "Ouvrez le dossier qui contient votre application."
+      "fr": "Le dossier de votre application apparaît sous le message."
     },
     "capturedAt": "2026-11-23",
     "pluginVersion": null,
@@ -89,7 +89,7 @@
     "sha256": "2094a0fcfb6345cacaa836a062274b522732725402d67208830d5519879c622d",
     "caption": {
       "en": "Prepare an app that needs adapting.",
-      "fr": "Préparez une application qui a besoin d’être adaptée."
+      "fr": "Claude vous aide à adapter votre application à Clodable."
     },
     "capturedAt": "2026-11-23",
     "pluginVersion": "0.4.4",
@@ -103,7 +103,7 @@
     "sha256": "15b6487cc36d4023611961167472cebc039744c037108a53497fb8b34814cba7",
     "caption": {
       "en": "Start preparation from the panel.",
-      "fr": "Lancez la préparation depuis le panneau."
+      "fr": "Ce bouton demande à Claude d’adapter votre application."
     },
     "capturedAt": "2026-11-23",
     "pluginVersion": "0.4.4",
@@ -116,7 +116,7 @@
     "sha256": "bcf669acf32f4fd018dea5fc352cb79393631669ca97732175a9828eb9fb6261",
     "caption": {
       "en": "Example account shown. Check yours before saving.",
-      "fr": "Le compte affiché est un exemple. Vérifiez le vôtre avant d’enregistrer."
+      "fr": "Le compte affiché ici est un exemple. Vérifiez le vôtre."
     },
     "capturedAt": "2026-11-23",
     "pluginVersion": null,
@@ -130,7 +130,7 @@
     "sha256": "95365bdfac11cbf6479a443aa20cc27cffe13fa3a908cb5f2272fdd40eeebb5b",
     "caption": {
       "en": "Connect Netlify through the panel.",
-      "fr": "Connectez Netlify depuis le panneau."
+      "fr": "Collez votre token ici, dans le panneau Clodable."
     },
     "capturedAt": "2026-11-23",
     "pluginVersion": null,
@@ -144,7 +144,7 @@
     "sha256": "0916e3aa9a950744a769dac9a819e27e14ab349b39b71c215fe66bd4f18dff1c",
     "caption": {
       "en": "Publish when your app is ready.",
-      "fr": "Publiez quand votre application est prête."
+      "fr": "Lancez la mise en ligne depuis la barre Clodable."
     },
     "capturedAt": "2026-11-23",
     "pluginVersion": null,
