@@ -1,0 +1,272 @@
+{
+  "id": "prepare-existing-app",
+  "title": {
+    "en": "Prepare your existing app",
+    "fr": "Préparer votre application existante"
+  },
+  "description": {
+    "en": "Open your folder, save to GitHub, and prepare hosting.",
+    "fr": "Ouvrez votre dossier, enregistrez sur GitHub et préparez l’hébergement."
+  },
+  "pages": [
+    {
+      "title": {
+        "en": "Prepare your existing app",
+        "fr": "Préparer votre application existante"
+      },
+      "subtitle": {
+        "en": "Start with the folder that already contains your app.",
+        "fr": "Partez du dossier qui contient déjà votre application."
+      },
+      "sections": [
+        {
+          "shared": "install"
+        },
+        {
+          "id": "folder",
+          "title": {
+            "en": "Open your existing folder in Code",
+            "fr": "Ouvrir le dossier de votre application dans Code"
+          },
+          "blocks": [
+            {
+              "type": "columns",
+              "ratio": "wide-left",
+              "columns": [
+                [
+                  {
+                    "type": "text",
+                    "text": {
+                      "en": "Click {{external:code}} (the **</>** icon), then {{external:new}}. Choose {{external:computer}}, then the folder menu → {{external:openFolder}}.",
+                      "fr": "Cliquez sur {{external:code}} (l’icône **</>**), puis {{external:new}}. Choisissez {{external:computer}}, puis le menu des dossiers → {{external:openFolder}}."
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "text": {
+                      "en": "Select your app’s existing folder and click {{external:open}}. Send `/clodable` to open the panel.",
+                      "fr": "Sélectionnez le dossier de votre application et cliquez sur {{external:open}}. Envoyez `/clodable` pour ouvrir le panneau."
+                    }
+                  }
+                ],
+                [
+                  {
+                    "type": "image",
+                    "asset": "switch-to-code",
+                    "width": 170
+                  }
+                ]
+              ]
+            },
+            {
+              "type": "image",
+              "asset": "existing-folder",
+              "width": 640
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": {
+        "en": "Prepare and save your app",
+        "fr": "Préparer et enregistrer votre application"
+      },
+      "subtitle": {
+        "en": "Clodable checks the setup before saving.",
+        "fr": "Clodable vérifie la configuration avant l’enregistrement."
+      },
+      "sections": [
+        {
+          "id": "prepare",
+          "title": {
+            "en": "Prepare the app if needed",
+            "fr": "Préparer l’application si nécessaire"
+          },
+          "blocks": [
+            {
+              "type": "text",
+              "text": {
+                "en": "If the panel offers {{ui:prepare}}, click it. Claude adapts the setup and checks your app’s existing features.",
+                "fr": "Si le panneau propose {{ui:prepare}}, cliquez dessus. Claude adapte la configuration et vérifie les fonctionnalités existantes."
+              }
+            },
+            {
+              "type": "text",
+              "text": {
+                "en": "Answer any questions and review the preview.",
+                "fr": "Répondez aux questions et vérifiez le résultat dans l’aperçu."
+              }
+            },
+            {
+              "type": "image",
+              "asset": "prepare-button",
+              "width": 430
+            },
+            {
+              "type": "text",
+              "text": {
+                "en": "Already compatible? Go straight to {{ui:saving}}.",
+                "fr": "Votre application est déjà compatible ? Passez directement à {{ui:saving}}."
+              },
+              "tone": "note"
+            }
+          ]
+        },
+        {
+          "id": "saving",
+          "title": {
+            "en": "Save privately to GitHub",
+            "fr": "Enregistrer votre code sur GitHub en privé"
+          },
+          "blocks": [
+            {
+              "type": "text",
+              "text": {
+                "en": "Click {{ui:saving}}. If asked, choose {{ui:connectGithub}} and follow the sign-in steps.",
+                "fr": "Cliquez sur {{ui:saving}}. Si nécessaire, choisissez {{ui:connectGithub}} et suivez les étapes de connexion."
+              }
+            },
+            {
+              "type": "columns",
+              "ratio": "equal",
+              "columns": [
+                [
+                  {
+                    "type": "text",
+                    "text": {
+                      "en": "Check your account and app name, then click {{ui:createPrivate}}. Wait for the saved confirmation.",
+                      "fr": "Vérifiez votre compte et le nom de l’application, puis cliquez sur {{ui:createPrivate}}. Attendez la confirmation de l’enregistrement."
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "text": {
+                      "en": "Your code is private. Saving does not publish your app.",
+                      "fr": "Votre code reste privé. L’enregistrement ne met pas votre application en ligne."
+                    },
+                    "tone": "note"
+                  }
+                ],
+                [
+                  {
+                    "type": "image",
+                    "asset": "save-private",
+                    "width": 330
+                  }
+                ]
+              ]
+            },
+            {
+              "type": "text",
+              "text": {
+                "en": "**Already connected to GitHub?** Choose {{ui:setupHere}} to use that existing app.",
+                "fr": "**Votre application est déjà sur GitHub ?** Choisissez {{ui:setupHere}} pour conserver ce lien."
+              }
+            },
+            {
+              "type": "text",
+              "text": {
+                "en": "**Setup needs help?** Choose {{ui:help}}, check the preview, then return to the saving panel.",
+                "fr": "**La configuration bloque ?** Choisissez {{ui:help}}, vérifiez l’aperçu, puis revenez au panneau d’enregistrement."
+              },
+              "tone": "muted"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": {
+        "en": "Prepare hosting. Go live.",
+        "fr": "Préparer l’hébergement, puis publier."
+      },
+      "subtitle": {
+        "en": "Saving keeps your code. Publishing makes the site public.",
+        "fr": "L’enregistrement conserve votre code. La publication met le site en ligne."
+      },
+      "sections": [
+        {
+          "id": "hosting",
+          "title": {
+            "en": "Set up hosting",
+            "fr": "Configurer l’hébergement"
+          },
+          "blocks": [
+            {
+              "type": "text",
+              "text": {
+                "en": "**Already online?** Tell Claude the current host and web address so it can check your setup. Use the steps below when your app has no hosting.",
+                "fr": "**Votre site est déjà en ligne ?** Indiquez à Claude son hébergeur et son adresse pour qu’il vérifie la configuration. Suivez les étapes ci-dessous si vous n’avez pas encore d’hébergement."
+              }
+            },
+            {
+              "type": "text",
+              "text": {
+                "en": "Choose {{ui:hosting}}, then {{ui:netlifyTokens}}. Sign in and create a personal access token named **Clodable**.",
+                "fr": "Choisissez {{ui:hosting}}, puis {{ui:netlifyTokens}}. Connectez-vous et créez un token personnel nommé **Clodable**."
+              }
+            },
+            {
+              "type": "image",
+              "asset": "hosting",
+              "width": 435
+            },
+            {
+              "type": "text",
+              "text": {
+                "en": "Paste the token into {{ui:netlifyToken}} and click {{ui:connect}}. Choose your team if asked, then click {{ui:createAddress}}.",
+                "fr": "Collez le token dans le champ {{ui:netlifyToken}} et cliquez sur {{ui:connect}}. Choisissez votre équipe si nécessaire, puis cliquez sur {{ui:createAddress}}."
+              }
+            },
+            {
+              "type": "text",
+              "text": {
+                "en": "Keep tokens in the panel, not the conversation.",
+                "fr": "Saisissez les tokens dans le panneau, jamais dans la conversation."
+              },
+              "tone": "muted"
+            },
+            {
+              "type": "link",
+              "ref": "netlifyTokens"
+            }
+          ]
+        },
+        {
+          "id": "publish",
+          "title": {
+            "en": "Publish when you’re ready",
+            "fr": "Publier quand tout est prêt"
+          },
+          "blocks": [
+            {
+              "type": "text",
+              "text": {
+                "en": "Try your app in the preview and resolve any checks Clodable reports. Press {{ui:publish}}. When {{ui:live}} appears, open the web address and try the app there.",
+                "fr": "Essayez votre application dans l’aperçu et corrigez les problèmes signalés par Clodable. Cliquez sur {{ui:publish}}. Lorsque {{ui:live}} s’affiche, ouvrez l’adresse du site et testez-le."
+              }
+            },
+            {
+              "type": "image",
+              "asset": "publish",
+              "width": 650
+            },
+            {
+              "type": "text",
+              "text": {
+                "en": "**Uses sign-in or a database?** Ask Claude to check your existing services and settings before publishing. If you need a new backend, let Claude guide you through {{ui:backend}} and review the account and cost shown in the panel.",
+                "fr": "**Votre application utilise des comptes ou une base de données ?** Demandez à Claude de vérifier les services et les paramètres avant de publier. Si vous avez besoin d’un backend, suivez {{ui:backend}} avec Claude et vérifiez le compte et le coût indiqués dans le panneau."
+              },
+              "tone": "muted"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "captureNotes": {
+    "en": "Real screenshots from demo workspaces. Example accounts are shown. No live app was published for this guide.",
+    "fr": "Captures réelles d’environnements de démonstration. Les comptes affichés sont des exemples. Aucune application n’a été publiée pour ce guide."
+  }
+}
