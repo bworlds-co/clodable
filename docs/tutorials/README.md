@@ -11,7 +11,7 @@ These sources live in the Clodable repository so a product change and its instru
 ## Edit once, build both languages
 
 - Each `guide.json` holds the guide's pages and steps, with English and French text together. Keep French natural; retain familiar terms such as GitHub, plugin, token and backend.
-- `shared.json` owns the installation steps and the empty-folder instructions used by multiple guides.
+- `shared.json` owns the installation steps, first-launch tools callout and empty-folder instructions used by multiple guides.
 - `catalog.json` owns official links and external menu labels. `{{ui:prepare}}` and the other `ui` references resolve to the actual Clodable labels from `packages/i18n/src/mod.ts`. French guide text uses French labels even though the screenshot is in English. Never duplicate a Clodable button label in prose.
 - `assets/screenshots/` is the canonical screenshot library for **every language**. Captions are translated; images are not. `assets/screenshots.json` records each image's hash, dimensions, date, verified plugin/Claude versions where known, and optional highlight rectangle. Keep versions `null` when not recorded.
 - `template.css` and `scripts/guides.mts` own the shared layout and renderer. Fonts and their licenses are vendored under `assets/fonts/`, with pinned source URLs and hashes. Builds make no network requests.

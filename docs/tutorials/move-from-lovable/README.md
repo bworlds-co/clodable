@@ -40,6 +40,12 @@ Use **New Folder** to create an empty folder for your app. Select it and click *
 
 ![Switch to Code, then New.](../assets/screenshots/switch-to-code.png)
 
+> **On first launch**
+>
+> Clodable checks the tools it needs and may download some to your computer. This can take a few minutes.
+>
+> If **Install Git** appears, click it and follow the instructions in Apple’s window. Once installation is complete, return to Clodable and click **Check again**.
+
 ## 4. Bring your app from GitHub
 
 Send `/clodable` to open the panel. Click **Bring an app from GitHub**. If asked, choose **Connect GitHub** and sign in with the account that can access your app.

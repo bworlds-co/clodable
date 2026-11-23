@@ -36,6 +36,12 @@ Select your app’s existing folder and click **Open**. Send `/clodable` to open
 
 ![Open the folder that contains your app.](../assets/screenshots/existing-folder.png)
 
+> **On first launch**
+>
+> Clodable checks the tools it needs and may download some to your computer. This can take a few minutes.
+>
+> If **Install Git** appears, click it and follow the instructions in Apple’s window. Once installation is complete, return to Clodable and click **Check again**.
+
 ## 3. Prepare the app if needed
 
 If the panel offers **Prepare my app for saving**, click it. Claude adapts the setup and checks your app’s existing features.

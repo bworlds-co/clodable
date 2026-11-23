@@ -36,6 +36,12 @@ Choisissez le dossier qui contient votre application, puis cliquez sur **Ouvrir*
 
 ![Le dossier de votre application apparaît sous le message.](../assets/screenshots/existing-folder.png)
 
+> **Au premier démarrage**
+>
+> Clodable vérifie les outils nécessaires et peut en télécharger sur votre ordinateur. Cela peut prendre quelques minutes.
+>
+> Si le bouton **Installer Git** apparaît, cliquez dessus et suivez les instructions dans la fenêtre Apple. Une fois l’installation terminée, revenez dans Clodable et cliquez sur **Vérifier à nouveau**.
+
 ## 3. Vérifier l’application avec Claude
 
 Si le bouton **Préparer mon application pour l’enregistrement** apparaît, cliquez dessus. Claude vous explique les ajustements nécessaires, puis vous aide à les faire.

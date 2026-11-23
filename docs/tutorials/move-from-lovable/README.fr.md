@@ -40,6 +40,12 @@ Créez un dossier vide avec **Nouveau dossier**, puis sélectionnez-le et clique
 
 ![Ouvrez l’onglet Code, puis une nouvelle conversation.](../assets/screenshots/switch-to-code.png)
 
+> **Au premier démarrage**
+>
+> Clodable vérifie les outils nécessaires et peut en télécharger sur votre ordinateur. Cela peut prendre quelques minutes.
+>
+> Si le bouton **Installer Git** apparaît, cliquez dessus et suivez les instructions dans la fenêtre Apple. Une fois l’installation terminée, revenez dans Clodable et cliquez sur **Vérifier à nouveau**.
+
 ## 4. Importer votre application depuis GitHub
 
 Dans la conversation, envoyez `/clodable` pour ouvrir le panneau Clodable. Cliquez sur **Importer une application depuis GitHub**. Si nécessaire, cliquez sur **Connecter GitHub** et connectez-vous au compte qui contient votre application.

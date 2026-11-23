@@ -38,6 +38,9 @@
       },
       "sections": [
         {
+          "shared": "startup"
+        },
+        {
           "id": "idea",
           "title": {
             "en": "Describe your app",

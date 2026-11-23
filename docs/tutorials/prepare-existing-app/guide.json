@@ -78,6 +78,9 @@
       },
       "sections": [
         {
+          "shared": "startup"
+        },
+        {
           "id": "prepare",
           "title": {
             "en": "Prepare the app if needed",

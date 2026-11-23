@@ -33,7 +33,9 @@
     "bring": "Bring an app from GitHub",
     "import": "Import",
     "look": "Look at my app",
-    "move": "Move off Lovable"
+    "move": "Move off Lovable",
+    "installGit": "Install Git",
+    "checkAgain": "Check again"
   },
   "externalControls": {
     "plugins": {

@@ -103,5 +103,29 @@
         ]
       }
     ]
+  },
+  "startup": {
+    "id": "startup",
+    "kind": "callout",
+    "title": {
+      "en": "On first launch",
+      "fr": "Au premier démarrage"
+    },
+    "blocks": [
+      {
+        "type": "text",
+        "text": {
+          "en": "Clodable checks the tools it needs and may download some to your computer. This can take a few minutes.",
+          "fr": "Clodable vérifie les outils nécessaires et peut en télécharger sur votre ordinateur. Cela peut prendre quelques minutes."
+        }
+      },
+      {
+        "type": "text",
+        "text": {
+          "en": "If {{ui:installGit}} appears, click it and follow the instructions in Apple’s window. Once installation is complete, return to Clodable and click {{ui:checkAgain}}.",
+          "fr": "Si le bouton {{ui:installGit}} apparaît, cliquez dessus et suivez les instructions dans la fenêtre Apple. Une fois l’installation terminée, revenez dans Clodable et cliquez sur {{ui:checkAgain}}."
+        }
+      }
+    ]
   }
 }

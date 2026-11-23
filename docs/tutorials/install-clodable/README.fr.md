@@ -34,6 +34,12 @@ Créez un dossier vide avec **Nouveau dossier**, puis sélectionnez-le et clique
 
 ![Ouvrez l’onglet Code, puis une nouvelle conversation.](../assets/screenshots/switch-to-code.png)
 
+> **Au premier démarrage**
+>
+> Clodable vérifie les outils nécessaires et peut en télécharger sur votre ordinateur. Cela peut prendre quelques minutes.
+>
+> Si le bouton **Installer Git** apparaît, cliquez dessus et suivez les instructions dans la fenêtre Apple. Une fois l’installation terminée, revenez dans Clodable et cliquez sur **Vérifier à nouveau**.
+
 ## 3. Décrire votre idée à Claude
 
 Écrivez à Claude ce que votre application doit permettre de faire. Par exemple :

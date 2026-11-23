@@ -58,6 +58,9 @@
       },
       "sections": [
         {
+          "shared": "startup"
+        },
+        {
           "id": "import",
           "title": {
             "en": "Bring your app from GitHub",
@@ -77,16 +80,26 @@
               "width": 350
             },
             {
-              "type": "text",
-              "text": {
-                "en": "Paste your app’s GitHub address, then click {{ui:import}}. Wait for setup to finish.",
-                "fr": "Collez le lien GitHub de votre application, puis cliquez sur {{ui:import}}. Patientez pendant que Clodable la récupère."
-              }
-            },
-            {
-              "type": "image",
-              "asset": "import-app",
-              "width": 580
+              "type": "columns",
+              "ratio": "equal",
+              "columns": [
+                [
+                  {
+                    "type": "text",
+                    "text": {
+                      "en": "Paste your app’s GitHub address, then click {{ui:import}}. Wait for setup to finish.",
+                      "fr": "Collez le lien GitHub de votre application, puis cliquez sur {{ui:import}}. Patientez pendant que Clodable la récupère."
+                    }
+                  }
+                ],
+                [
+                  {
+                    "type": "image",
+                    "asset": "import-app",
+                    "width": 320
+                  }
+                ]
+              ]
             }
           ]
         },
