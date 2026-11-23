@@ -10,5 +10,6 @@ Release note: <!-- one line in builder words, or "none" -->
 
 - [ ] `pnpm lint && pnpm typecheck && pnpm test`
 - [ ] `pnpm test:plugin` (if `plugin/` changed)
+- [ ] Onboarding changes are reflected in the [English and French guides](../docs/tutorials/README.md); affected screenshots and PDF pages were reviewed (`pnpm guides:check && pnpm guides:build`)
 - [ ] No git words in builder-facing text: say Saved, Publish, Live, Undo or Restore; never commit, merge, deploy or branch
 - [ ] AI tools helped write this (optional: that's fine, just say so)

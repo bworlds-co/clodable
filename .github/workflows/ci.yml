@@ -20,3 +20,13 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm build
       - run: pnpm test
+      - run: pnpm guides:check
+      - run: pnpm exec playwright install --with-deps --no-shell chromium
+      - run: pnpm guides:build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: clodable-guides
+          path: |
+            output/pdf/*.pdf
+            docs/tutorials/**/*.html
+          if-no-files-found: error

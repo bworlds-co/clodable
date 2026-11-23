@@ -26,6 +26,8 @@
 
 ## Get started
 
+[Short guides with screenshots, in English and French](docs/tutorials/README.md): create an app, prepare an existing folder, or start moving from Lovable.
+
 **You'll need:**
 
 - A Mac.
