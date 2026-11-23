@@ -6,17 +6,17 @@
 
 Installez Clodable, décrivez votre idée et essayez votre première application.
 
-Les captures sont en anglais ; le texte utilise les libellés français.
+Les captures sont en anglais. Les noms des boutons sont indiqués en français dans le texte.
 
 ## 1. Installer Clodable
 
-Ouvrez **Plugins** dans Claude Desktop. Choisissez **Ajouter** → **Ajouter une marketplace** → **Ajouter depuis un dépôt**.
+Dans Claude Desktop, cliquez sur **Plugins**, puis **Ajouter** → **Ajouter une marketplace** → **Ajouter depuis un dépôt**.
 
-Cliquez sur **Sélectionner un dépôt** et saisissez :
+Cliquez sur **Sélectionner un dépôt** et collez ce lien :
 
 [https://github.com/bworlds-co/clodable](https://github.com/bworlds-co/clodable)
 
-Choisissez **Utiliser « … »**, puis **Synchroniser**. Cliquez sur **Ajouter** à côté de **Clodable**.
+Validez avec **Utiliser « … »**, puis **Synchroniser**. Cliquez sur **Ajouter** à côté de **Clodable**.
 
 ![Ajoutez la marketplace Clodable.](../assets/screenshots/add-marketplace.png)
 
@@ -24,15 +24,15 @@ Choisissez **Utiliser « … »**, puis **Synchroniser**. Cliquez sur **Ajouter*
 
 ![Clodable est installé.](../assets/screenshots/plugin-added.png)
 
-**Ajouté** confirme l’installation. Le plugin est déjà installé ? Passez à la suite.
+Quand le bouton affiche **Ajouté**, Clodable est installé. Passez à la suite.
 
-## 2. Ouvrir un dossier vide dans Code
+## 2. Créer un dossier pour votre application
 
-Cliquez sur **Code** (l’icône **</>**), puis **Nouveau**. Choisissez **Cet ordinateur**, puis le menu des dossiers → **Ouvrir un dossier…**.
+Dans Claude, ouvrez l’onglet **Code** (icône **</>**), puis cliquez sur **Nouveau**. Choisissez **Cet ordinateur**, puis le menu des dossiers → **Ouvrir un dossier…**.
 
-Créez un dossier vide avec **Nouveau dossier**. Sélectionnez-le, puis cliquez sur **Ouvrir**.
+Créez un dossier vide avec **Nouveau dossier**, puis sélectionnez-le et cliquez sur **Ouvrir**.
 
-![Passez dans Code, puis ouvrez une nouvelle session.](../assets/screenshots/switch-to-code.png)
+![Ouvrez l’onglet Code, puis une nouvelle conversation.](../assets/screenshots/switch-to-code.png)
 
 ## 3. Décrire votre application
 

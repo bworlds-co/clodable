@@ -6,17 +6,17 @@
 
 Ouvrez votre dossier, enregistrez sur GitHub et préparez l’hébergement.
 
-Les captures sont en anglais ; le texte utilise les libellés français.
+Les captures sont en anglais. Les noms des boutons sont indiqués en français dans le texte.
 
 ## 1. Installer Clodable
 
-Ouvrez **Plugins** dans Claude Desktop. Choisissez **Ajouter** → **Ajouter une marketplace** → **Ajouter depuis un dépôt**.
+Dans Claude Desktop, cliquez sur **Plugins**, puis **Ajouter** → **Ajouter une marketplace** → **Ajouter depuis un dépôt**.
 
-Cliquez sur **Sélectionner un dépôt** et saisissez :
+Cliquez sur **Sélectionner un dépôt** et collez ce lien :
 
 [https://github.com/bworlds-co/clodable](https://github.com/bworlds-co/clodable)
 
-Choisissez **Utiliser « … »**, puis **Synchroniser**. Cliquez sur **Ajouter** à côté de **Clodable**.
+Validez avec **Utiliser « … »**, puis **Synchroniser**. Cliquez sur **Ajouter** à côté de **Clodable**.
 
 ![Ajoutez la marketplace Clodable.](../assets/screenshots/add-marketplace.png)
 
@@ -24,7 +24,7 @@ Choisissez **Utiliser « … »**, puis **Synchroniser**. Cliquez sur **Ajouter*
 
 ![Clodable est installé.](../assets/screenshots/plugin-added.png)
 
-**Ajouté** confirme l’installation. Le plugin est déjà installé ? Passez à la suite.
+Quand le bouton affiche **Ajouté**, Clodable est installé. Passez à la suite.
 
 ## 2. Ouvrir le dossier de votre application dans Code
 
@@ -32,7 +32,7 @@ Cliquez sur **Code** (l’icône **</>**), puis **Nouveau**. Choisissez **Cet or
 
 Sélectionnez le dossier de votre application et cliquez sur **Ouvrir**. Envoyez `/clodable` pour ouvrir le panneau.
 
-![Passez dans Code, puis ouvrez une nouvelle session.](../assets/screenshots/switch-to-code.png)
+![Ouvrez l’onglet Code, puis une nouvelle conversation.](../assets/screenshots/switch-to-code.png)
 
 ![Ouvrez le dossier qui contient votre application.](../assets/screenshots/existing-folder.png)
 

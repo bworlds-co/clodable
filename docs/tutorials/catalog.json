@@ -8,7 +8,7 @@
     },
     "fr": {
       "name": "Français",
-      "screenshotNote": "Les captures sont en anglais ; le texte utilise les libellés français.",
+      "screenshotNote": "Les captures sont en anglais. Les noms des boutons sont indiqués en français dans le texte.",
       "footer": "Claude Desktop sur Mac · Captures : 23 novembre 2026",
       "generated": "Généré à partir de guide.json et shared.json. Modifiez ces sources, pas ce fichier."
     }
