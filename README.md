@@ -110,7 +110,7 @@ Clodable is built and tested with apps it starts from your idea, and with apps m
 
 > **About Claude plans.** Pro and Max are personal plans. For your company's app, use **Claude Team or Enterprise**. In the European Economic Area and Switzerland, Anthropic's [consumer terms](https://www.anthropic.com/legal/consumer-terms) don't allow business use of personal plans. Helping a client set up? Follow the [onboarding playbook](docs/ONBOARDING.md).
 
-Apps made with other AI app builders haven't been tested yet. A React app built with Vite may already work, since that's what Clodable's preview runs. Apps built with Next.js don't work yet. Moving off a builder works for Lovable only, for now.
+Apps made with other AI app builders haven't been tested yet. A React app built with Vite may already work; Next.js apps aren't supported as-is. If your local app needs adapting, the panel offers **Prepare my app for saving**. Claude explains the changes needed and helps you check the result before you set up saving. Follow the [existing-app guide](docs/tutorials/prepare-existing-app/README.md). Moving off a builder works for Lovable only, for now.
 
 ## Move off Lovable, to a stack you own
 
