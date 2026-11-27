@@ -26,25 +26,38 @@
 
 ## Get started
 
-**You'll need:**
+**You'll need** a Mac, [Claude Desktop](https://claude.com/download) on a paid Claude plan, and a free GitHub account.
 
-- A Mac.
-- [Claude Desktop](https://claude.com/download), up to date. To check, type `/status` in its **Code** tab: the **Claude Code** row should show 2.1.286 or later.
-- A paid Claude plan.
-- A GitHub account (free), where Clodable saves your app. An app you already have needs to be on it: Lovable [puts it there in one click](https://docs.lovable.dev/integrations/github).
+**1. Add Clodable.** In Claude Desktop, open **Customize › Plugins › Add › Add marketplace › Add from a repository**, and enter:
 
-The first run may ask to install Apple's developer tools, which takes a few minutes.
+```
+bworlds-co/clodable
+```
 
-1. **Add Clodable to Claude Desktop.** Open **Customize › Plugins**, click **Add › Add marketplace › Add from a repository**, and enter `bworlds-co/clodable`. Then, under **Discover**, click **Add** next to Clodable.
-   - You should see **Added** next to Clodable.
-   - If Discover's search doesn't find Clodable, set its **Source** filter to **clodable**.
-2. **Open an empty folder** in Claude Desktop's **Code** tab.
-   - You should see the Clodable bar above the message box: “Describe your idea to Claude”, with **Bring an app from GitHub**.
-   - If the bar doesn't show, type `/clodable`: the Clodable panel opens beside the chat. If the chat says “/clodable isn't a command here.” while the panel opens, carry on: Clodable is running.
+Then **Sync**, and click **Add** next to Clodable under **Discover**.
 
-Then start from an idea, or bring an app you already have.
+<img src="docs/assets/install-add.png" alt="Claude Desktop's Plugins page: Add opens a menu with Add marketplace, then the address field holds github.com/bworlds-co/clodable, beside a Sync button." width="640">
 
-Clodable supports French and English. It follows Claude Code's response language when set; otherwise, on a Mac, it uses your primary system language. Unsupported or unavailable languages fall back to English. There is no separate language setting, and this does not translate the app you are building.
+**2. Open an empty folder** in the **Code** tab. The Clodable bar appears above the message box.
+
+<img src="docs/assets/install-open.png" alt="Claude Desktop's sidebar with the Code tab and New, then the Clodable bar's Bring an app from GitHub button." width="640">
+
+**3. Describe your app** in your own words, or press **Bring an app from GitHub**.
+
+<img src="docs/assets/install-describe.png" alt="The message box with a request to build a book-sharing app, in a folder called my-first-app." width="640">
+
+<details>
+<summary>Something didn't show up?</summary>
+
+- **Clodable isn't in Discover:** set its **Source** filter to **clodable**.
+- **No bar:** type `/clodable` and the panel opens beside the chat. If the chat says “/clodable isn't a command here.” while the panel opens, carry on: Clodable is running.
+- **Still nothing:** type `/status` in the **Code** tab. The **Claude Code** row needs 2.1.286 or later.
+- The first run may ask to install Apple's developer tools, which takes a few minutes.
+- Already use Claude Code in Terminal? `claude plugin install clodable --marketplace bworlds-co/clodable` does step 1.
+
+More in [Troubleshooting](docs/TROUBLESHOOTING.md).
+
+</details>
 
 ### Start from an idea
 
@@ -61,6 +74,8 @@ When your app needs sign-in or data that people share, ask Claude: Clodable adds
 
 ### Bring an app you already have
 
+Your app needs to be on GitHub first: Lovable [puts it there in one click](https://docs.lovable.dev/integrations/github).
+
 1. **Press Bring an app from GitHub** in the Clodable bar.
    - You should see the Clodable panel beside the chat. The first time, it gets the tools it needs.
    - If the panel shows **Install Git**, press it and follow Apple's window, then press **Check again**.
@@ -70,8 +85,6 @@ When your app needs sign-in or data that people share, ask Claude: Clodable adds
 Putting your site online, adding a backend: Clodable sets them up in your own Netlify and Supabase accounts when you need them (both free to start). On Lovable Cloud, ask Claude to move you off Lovable, or type `/move-off-lovable` ([how it goes](#move-off-lovable-to-a-stack-you-own)).
 
 Stuck? See [Troubleshooting](docs/TROUBLESHOOTING.md).
-
-Already use Claude Code in Terminal? `claude plugin install clodable --marketplace bworlds-co/clodable` does step 1.
 
 ## Why Clodable
 
@@ -120,6 +133,7 @@ Clodable is built and tested with apps it starts from your idea, and with apps m
 - **Your database:** your own Supabase project, or Lovable Cloud, which Clodable moves to a Supabase project in your name. No database yet? Clodable adds one on your own Supabase when your app needs sign-in or saved data.
 - **Your site:** still on Lovable's hosting, on Netlify after the move, or on any host that deploys from GitHub, such as Vercel, Netlify or Cloudflare. Not online yet? Clodable puts it on your own Netlify, and each Publish updates it.
 - **Your computer:** a Mac with Claude Desktop. Windows hasn't been tested yet, and the move off Lovable doesn't run there yet.
+- **Your language:** French or English. Clodable follows Claude Code's response language when set; otherwise, on a Mac, it uses your primary system language. Other languages fall back to English. There is no separate language setting, and this does not translate the app you are building.
 
 Apps made with other AI app builders haven't been tested yet. A React app built with Vite may already work, since that's what Clodable's preview runs. Apps built with Next.js don't work yet. Moving off a builder works for Lovable only, for now.
 
