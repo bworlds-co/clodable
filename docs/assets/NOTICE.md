@@ -7,4 +7,4 @@ These files in this folder are BWorlds' brand assets. They're not covered by the
 - `social-preview.png`: the link preview
 - `mascot/`: the mascot's drawings
 
-The screenshots in this folder (`hero.png`, `edit-text.png`, `point-and-ask.png`, `try-to-fix.png`, `locked-text.png`) show the product and follow the repository's license, except for the logo and mascot they contain.
+The screenshots in this folder (`hero.png`, `edit-text.png`, `point-and-ask.png`, `try-to-fix.png`, `locked-text.png`) show the product and follow the repository's license, except for the logo and mascot they contain. `install-add.png`, `install-open.png` and `install-describe.png` show Claude Desktop, Anthropic's app, during the install steps.
