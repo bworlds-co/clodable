@@ -4,7 +4,7 @@ Clodable is for anyone who builds apps with AI, and most of them aren't develope
 
 ## First, the troubleshooting page
 
-Start with [Troubleshooting](docs/TROUBLESHOOTING.md). Your answer may already be there.
+Start with [Troubleshooting](../docs/TROUBLESHOOTING.md). Your answer may already be there.
 
 ## Still stuck? Tell us what happened
 

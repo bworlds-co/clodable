@@ -5,7 +5,7 @@
 //
 //   node scripts/release.mjs 0.3.0      (or: patch, minor, major)
 //
-// The tag doesn't exist yet: follow "Releasing" in CONTRIBUTING.md, which pushes it before this
+// The tag doesn't exist yet: follow "Releasing" in .github/CONTRIBUTING.md, which pushes it before this
 // commit reaches main.
 import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
@@ -67,4 +67,4 @@ ${current} → ${next}. The marketplace now installs ${tag}, which isn't on GitH
   2. When it's ready to merge and up to date with main, tag its last commit:
      claude plugin tag plugin --push
   3. Then merge it right away. main must never name a tag that isn't on GitHub.
-"Releasing" in CONTRIBUTING.md has the details.`);
+"Releasing" in .github/CONTRIBUTING.md has the details.`);

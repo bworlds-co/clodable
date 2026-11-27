@@ -88,7 +88,7 @@ AI app builders like Lovable showed that anyone can build an app by describing i
 **Still early.** Clodable works end to end, but it isn't perfect yet, and it changes fast. [Tell us what breaks](https://github.com/bworlds-co/clodable/issues).
 
 <p align="center">
-  <a href="#get-started">Get started</a> · <a href="#how-it-works">How it works</a> · <a href="docs/ARCHITECTURE.md">Architecture</a> · <a href="docs/DECISIONS.md">Decisions</a> · <a href="CONTRIBUTING.md">Contributing</a>
+  <a href="#get-started">Get started</a> · <a href="#how-it-works">How it works</a> · <a href="docs/ARCHITECTURE.md">Architecture</a> · <a href="docs/DECISIONS.md">Decisions</a> · <a href=".github/CONTRIBUTING.md">Contributing</a>
 </p>
 
 ---
@@ -240,7 +240,7 @@ node <repo>/packages/cli/dist/clodable.mjs publish
 ```bash
 claude --plugin-dir ./plugin
 ```
-It reloads as you edit, and replaces an installed Clodable for that session. Claude Desktop can't take `--plugin-dir`: set `CLAUDE_CODE_PLUGIN_DIRS` to the absolute path of this folder's `plugin` in the `env` of `~/.claude/settings.json`, and remove it when you're done ([Working on the Claude plugin](CONTRIBUTING.md#working-on-the-claude-plugin) has the details). `claude plugin install clodable --marketplace "$PWD"` installs the release the marketplace names, from GitHub: what builders get. Clodable only acts in apps it set up, so your other projects are unaffected.
+It reloads as you edit, and replaces an installed Clodable for that session. Claude Desktop can't take `--plugin-dir`: set `CLAUDE_CODE_PLUGIN_DIRS` to the absolute path of this folder's `plugin` in the `env` of `~/.claude/settings.json`, and remove it when you're done ([Working on the Claude plugin](.github/CONTRIBUTING.md#working-on-the-claude-plugin) has the details). `claude plugin install clodable --marketplace "$PWD"` installs the release the marketplace names, from GitHub: what builders get. Clodable only acts in apps it set up, so your other projects are unaffected.
 
 | Package | What it is |
 |---|---|
