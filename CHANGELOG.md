@@ -8,6 +8,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Security
+
+- The CLI uses zod 4.6.7, which fixes a memory exhaustion on oversized input. ([#134](https://github.com/bworlds-co/clodable/pull/134))
+
 ## [0.4.4] - 2026-11-22
 
 Reuse the active local GitHub connection despite expired inactive accounts, and check for an existing connection before requesting a sign-in code. [Release notes](docs/releases/0.4.4.md). ([#128](https://github.com/bworlds-co/clodable/pull/128))
