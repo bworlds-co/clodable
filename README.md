@@ -111,16 +111,21 @@ Clodable never uses git words: you see Saved, Publish and Undo. A developer, if 
 
 ## What works today
 
-Clodable is built and tested with apps it starts from your idea, and with apps made with **Lovable**:
+Clodable is built and tested with apps it starts from your idea, and with apps made with **Lovable**.
+
+<details>
+<summary>Which apps, databases, hosts and computers</summary>
 
 - **Your app:** a new one Claude starts from your idea (a React app built with Vite), or either kind Lovable makes, a React app built with Vite or a TanStack Start app.
 - **Your database:** your own Supabase project, or Lovable Cloud, which Clodable moves to a Supabase project in your name. No database yet? Clodable adds one on your own Supabase when your app needs sign-in or saved data.
 - **Your site:** still on Lovable's hosting, on Netlify after the move, or on any host that deploys from GitHub, such as Vercel, Netlify or Cloudflare. Not online yet? Clodable puts it on your own Netlify, and each Publish updates it.
 - **Your computer:** a Mac with Claude Desktop. Windows hasn't been tested yet, and the move off Lovable doesn't run there yet.
 
-> **About Claude plans.** Pro and Max are personal plans. For your company's app, use **Claude Team or Enterprise**. In the European Economic Area and Switzerland, Anthropic's [consumer terms](https://www.anthropic.com/legal/consumer-terms) don't allow business use of personal plans. Helping a client set up? Follow the [onboarding playbook](docs/ONBOARDING.md).
-
 Apps made with other AI app builders haven't been tested yet. A React app built with Vite may already work, since that's what Clodable's preview runs. Apps built with Next.js don't work yet. Moving off a builder works for Lovable only, for now.
+
+</details>
+
+> **About Claude plans.** Pro and Max are personal plans. For your company's app, use **Claude Team or Enterprise**. In the European Economic Area and Switzerland, Anthropic's [consumer terms](https://www.anthropic.com/legal/consumer-terms) don't allow business use of personal plans. Helping a client set up? Follow the [onboarding playbook](docs/ONBOARDING.md).
 
 ## Move off Lovable, to a stack you own
 
@@ -192,6 +197,9 @@ Claude's activity is written in plain words ("Updated the Pricing page", "Change
 
 ## How it works
 
+<details>
+<summary>From a change in the chat to your live site, on plain GitHub Flow</summary>
+
 ```
 YOUR COMPUTER · Claude Desktop
   1. Ask for a change
@@ -208,7 +216,12 @@ Underneath it's plain **GitHub Flow**: one draft branch per person, one pull req
 
 **Your database is the one exception.** Like Lovable, your preview uses your real data, and database changes apply when you confirm them. Claude is told to make them additive, so your live site keeps working until you publish.
 
+</details>
+
 ## For developers
+
+<details>
+<summary>Build, test and run Clodable from source</summary>
 
 You need Node.js 20.19 or newer, pnpm 10 and git. `pnpm test:plugin` also needs the Claude Code CLI.
 
@@ -253,6 +266,8 @@ It reloads as you edit, and replaces an installed Clodable for that session. Cla
 
 Clodable is built for Claude: Claude reads your app and decides, and the CLI does the exact work (keys, accounts, your data, the checks). Your app itself doesn't depend on Clodable. It's plain code on your GitHub, your data in your Supabase, your site on your host: that's the "no lock-in" promise.
 
+</details>
+
 ## What Clodable will never do
 
 - Push to your live branch, force-push, or merge on its own. Only your Publish click does that.
@@ -266,7 +281,7 @@ Clodable is built for Claude: Claude reads your app and decides, and the CLI doe
 
 ## Who makes Clodable
 
-BWorlds, a small company that helps people own their AI-built apps. Clodable is free and MIT, sends us nothing, and has no paid tier. We earn from optional help with moves off Lovable and from audits, never from Clodable.
+[BWorlds](https://www.bworlds.co), a small company that helps people own their AI-built apps. Clodable is free and MIT, sends us nothing, and has no paid tier. We earn from optional help with moves off Lovable and from audits, never from Clodable.
 
 ## Status
 
